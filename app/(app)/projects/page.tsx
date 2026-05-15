@@ -93,7 +93,7 @@ export default function ProjectsPage() {
                     const cfg = STAGE_CONFIG[stage as keyof typeof STAGE_CONFIG]
                     return (
                       <span key={stage} className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border', cfg.bg, cfg.color, cfg.border)}>
-                        {cfg.label} · {count}
+                        {cfg.label} · {count as number}
                       </span>
                     )
                   })}
