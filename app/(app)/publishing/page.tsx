@@ -8,7 +8,7 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { PLATFORM_CONFIG, formatDateTime, formatDate, formatNumber, cn } from '@/lib/utils'
 import type { ScheduledPost, SocialPlatform } from '@/lib/types'
 import { PlatformIcon } from '@/components/ui/platform-icon'
-import type { PinterestPin } from '@/app/api/pinterest/route'
+interface PinterestPin { id: string; title: string; description: string; imageUrl: string; link: string; dominantColor: string }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 

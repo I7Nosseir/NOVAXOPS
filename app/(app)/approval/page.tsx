@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Link2, CheckCircle, Clock, XCircle, Plus, Copy, ExternalLink, ChevronDown, X, Send } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { formatDate, cn } from '@/lib/utils'
