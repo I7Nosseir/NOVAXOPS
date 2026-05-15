@@ -1,0 +1,106 @@
+'use client'
+
+import { useState } from 'react'
+import { X, Mail, Send } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { UserRole } from '@/lib/types'
+
+const ROLES: { value: UserRole; label: string; desc: string }[] = [
+  { value: 'admin',            label: 'Admin',            desc: 'Full access including integrations and billing' },
+  { value: 'ceo',              label: 'CEO',              desc: 'Full read access, reports, no integrations tab' },
+  { value: 'creative_director',label: 'Creative Director',desc: 'Full task and client access, manages creative team' },
+  { value: 'account_manager',  label: 'Account Manager',  desc: 'Client-facing, manages approvals and reporting' },
+  { value: 'strategist',       label: 'Strategist',       desc: 'Strategy tasks and project management' },
+  { value: 'copywriter',       label: 'Copywriter',       desc: 'Assigned copy tasks, AI agent access' },
+  { value: 'designer',         label: 'Designer',         desc: 'Assigned design tasks, asset library' },
+  { value: 'social_manager',   label: 'Social Manager',   desc: 'Publishing, scheduling, and moderation' },
+]
+
+const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all bg-white text-slate-800 placeholder:text-slate-400'
+
+interface Props { onClose: () => void }
+
+export function InviteUserModal({ onClose }: Props) {
+  const [email, setEmail]   = useState('')
+  const [name, setName]     = useState('')
+  const [role, setRole]     = useState<UserRole>('copywriter')
+  const [sent, setSent]     = useState(false)
+
+  const submit = () => {
+    if (!email || !name) return
+    // Will call /api/users/invite when backend is ready
+    setSent(true)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div>
+            <h2 className="font-semibold text-slate-900 text-base">Invite Team Member</h2>
+            <p className="text-xs text-slate-500 mt-0.5">They will receive an email with a magic link to join.</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+            <X className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
+
+        {sent ? (
+          <div className="px-6 py-10 text-center">
+            <div className="w-12 h-12 rounded-full bg-novax-light flex items-center justify-center mx-auto mb-4">
+              <Send className="w-5 h-5 text-novax" />
+            </div>
+            <p className="font-semibold text-slate-900">Invite sent</p>
+            <p className="text-sm text-slate-500 mt-1">An invitation was sent to <span className="font-medium text-slate-700">{email}</span></p>
+            <button onClick={onClose} className="mt-6 px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="px-6 py-5 space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Full Name</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="jane@agency.com"
+                    className={`${inputCls} pl-9`} />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Role</label>
+              <div className="grid grid-cols-2 gap-2">
+                {ROLES.map(r => (
+                  <button key={r.value} onClick={() => setRole(r.value)}
+                    className={cn('p-3 rounded-xl border text-left transition-all',
+                      role === r.value ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-novax-border')}>
+                    <p className={cn('text-xs font-semibold', role === r.value ? 'text-novax' : 'text-slate-800')}>{r.label}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{r.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={onClose} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={submit} disabled={!email || !name}
+                className="flex-1 flex items-center justify-center gap-2 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors">
+                <Send className="w-3.5 h-3.5" />Send Invite
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
