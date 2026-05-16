@@ -40,6 +40,10 @@ function mapTask(row: Record<string, unknown>): Task {
     tags: (row.tags as string[]) ?? [],
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
+    seen_at: (row.seen_at as string) ?? null,
+    seen_by: (row.seen_by as string) ?? null,
+    read_at: (row.read_at as string) ?? null,
+    read_by: (row.read_by as string) ?? null,
   }
 }
 

@@ -5,57 +5,72 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useModerationItems } from '@/lib/hooks/use-moderation'
-import { STAGE_CONFIG, PRIORITY_CONFIG, formatDate, formatNumber, formatCurrency } from '@/lib/utils'
+import { useWeeklyActivity, useAiCostMonth } from '@/lib/hooks/use-dashboard'
+import { useAuth } from '@/lib/auth-context'
+import { hasRole, STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, formatDate, formatNumber, formatCurrency } from '@/lib/utils'
 import {
   CheckSquare, Clock, AlertCircle, MessageSquare,
   DollarSign, Calendar, Globe, TrendingUp, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from 'recharts'
 
-const ACTIVITY_DATA = [
-  { day: 'Mon', tasks: 4, posts: 2 }, { day: 'Tue', tasks: 7, posts: 3 },
-  { day: 'Wed', tasks: 5, posts: 5 }, { day: 'Thu', tasks: 9, posts: 4 },
-  { day: 'Fri', tasks: 6, posts: 6 }, { day: 'Sat', tasks: 3, posts: 2 },
-  { day: 'Sun', tasks: 2, posts: 1 },
-]
-
-const STAGE_DIST = [
-  { name: 'Strategy', value: 2 }, { name: 'Ideas', value: 2 },
-  { name: 'Calendar', value: 2 }, { name: 'Copy', value: 3 },
-  { name: 'Design', value: 2 }, { name: 'Review', value: 2 },
-  { name: 'Approval', value: 2 }, { name: 'Scheduled', value: 2 },
-  { name: 'Published', value: 2 }, { name: 'Reporting', value: 2 },
-]
 const PIE_COLORS = ['#7c3aed','#3b82f6','#06b6d4','#f59e0b','#f97316','#f43f5e','#ec4899','#6366f1','#10b981','#64748b']
 
 export default function DashboardPage() {
+  const { user } = useAuth()
   const { tasks } = useTasks()
   const { clients } = useClients()
   const { users } = useUsers()
   const { posts } = usePosts()
   const { items: moderationItems } = useModerationItems()
+  const { data: activityData = [] } = useWeeklyActivity()
+  const { data: aiCostRaw = 0 } = useAiCostMonth()
+
+  const canSeeAiCost = hasRole(user, ['admin', 'ceo', 'creative_director'])
 
   const today = new Date().toISOString().split('T')[0]
-  const activeTasks = tasks.filter(t => t.status === 'active').length
-  const dueToday = tasks.filter(t => t.due_date === today).length
+  const activeTasks     = tasks.filter(t => t.status === 'active').length
+  const dueToday        = tasks.filter(t => t.due_date === today && t.status !== 'completed').length
   const pendingApprovals = tasks.filter(t => t.pipeline_stage === 'approval').length
   const pendingModeration = moderationItems.filter(m => m.status === 'pending').length
-  const postsScheduled = posts.filter(p => p.status === 'scheduled').length
-  const postsPublished = posts.filter(p => p.status === 'published').length
+  const postsScheduled  = posts.filter(p => p.status === 'scheduled').length
+  const postsPublished  = posts.filter(p => p.status === 'published').length
+
+  // Pipeline distribution derived from real tasks
+  const stageDistribution = PIPELINE_STAGES.map(stage => ({
+    name: STAGE_CONFIG[stage].label,
+    value: tasks.filter(t => t.pipeline_stage === stage).length,
+  }))
+
+  // Recent tasks sorted by last update
+  const recentTasks = [...tasks]
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .slice(0, 6)
+
+  const topPosts = [...posts]
+    .filter(p => p.performance?.engagement_rate)
+    .sort((a, b) => b.performance!.engagement_rate - a.performance!.engagement_rate)
+    .slice(0, 3)
 
   const statCards = [
-    { label: 'Active Tasks',       value: activeTasks,                    icon: CheckSquare,   color: 'bg-blue-50 text-blue-600',    delta: '+3 this week' },
-    { label: 'Due Today',          value: dueToday,                       icon: Clock,         color: 'bg-amber-50 text-amber-600',  delta: '2 overdue' },
-    { label: 'Pending Approvals',  value: pendingApprovals,               icon: AlertCircle,   color: 'bg-rose-50 text-rose-600',    delta: 'Needs attention' },
-    { label: 'Pending Moderation', value: pendingModeration,              icon: MessageSquare, color: 'bg-purple-50 text-purple-600',delta: '1 escalated' },
-    { label: 'AI Cost (May)',      value: formatCurrency(0),              icon: DollarSign,    color: 'bg-emerald-50 text-emerald-600', delta: 'via API usage log' },
-    { label: 'Posts Scheduled',    value: postsScheduled,                 icon: Calendar,      color: 'bg-novax-light text-novax',   delta: 'Next: Today 9am' },
-    { label: 'Posts Published',    value: postsPublished,                 icon: Globe,         color: 'bg-cyan-50 text-cyan-600',    delta: 'This month' },
-    { label: 'Pipeline Velocity',  value: `${tasks.length > 0 ? '3' : '—'}d`, icon: TrendingUp, color: 'bg-orange-50 text-orange-600', delta: 'Avg days/stage' },
+    { label: 'Active Tasks',       value: activeTasks,      icon: CheckSquare,   color: 'bg-blue-50 text-blue-600',      delta: `${tasks.filter(t => t.status === 'blocked').length} blocked` },
+    { label: 'Due Today',          value: dueToday,         icon: Clock,         color: 'bg-amber-50 text-amber-600',    delta: `${tasks.filter(t => t.due_date < today && t.status !== 'completed').length} overdue` },
+    { label: 'Pending Approvals',  value: pendingApprovals, icon: AlertCircle,   color: 'bg-rose-50 text-rose-600',      delta: 'Needs attention' },
+    { label: 'Pending Moderation', value: pendingModeration,icon: MessageSquare, color: 'bg-purple-50 text-purple-600',  delta: `${moderationItems.filter(m => m.status === 'escalated').length} escalated` },
+    {
+      label: 'AI Cost (Month)',
+      value: canSeeAiCost ? formatCurrency(aiCostRaw) : '—',
+      icon: DollarSign,
+      color: 'bg-emerald-50 text-emerald-600',
+      delta: canSeeAiCost ? 'via API usage log' : 'Restricted',
+    },
+    { label: 'Posts Scheduled',    value: postsScheduled,   icon: Calendar,      color: 'bg-novax-light text-novax',     delta: 'Upcoming' },
+    { label: 'Posts Published',    value: postsPublished,   icon: Globe,         color: 'bg-cyan-50 text-cyan-600',      delta: 'This month' },
+    { label: 'Pipeline Velocity',  value: tasks.length > 0 ? '3d' : '—', icon: TrendingUp, color: 'bg-orange-50 text-orange-600', delta: 'Avg days/stage' },
   ]
-
-  const recentTasks = tasks.slice(0, 6)
-  const topPosts = posts.filter(p => p.performance).sort((a, b) => (b.performance!.engagement_rate) - (a.performance!.engagement_rate)).slice(0, 3)
 
   return (
     <div className="space-y-6">
@@ -77,16 +92,16 @@ export default function DashboardPage() {
 
       {/* Charts row */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Activity chart */}
+        {/* Weekly activity — real data */}
         <div className="col-span-2 bg-white rounded-xl border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-semibold text-slate-900">Weekly Activity</h3>
-              <p className="text-xs text-slate-500">Tasks completed & posts published</p>
+              <p className="text-xs text-slate-500">Tasks completed &amp; posts published</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={ACTIVITY_DATA}>
+            <AreaChart data={activityData.length > 0 ? activityData : [{ day: '—', tasks: 0, posts: 0 }]}>
               <defs>
                 <linearGradient id="tasks" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#1B3D38" stopOpacity={0.15}/>
@@ -98,28 +113,34 @@ export default function DashboardPage() {
                 </linearGradient>
               </defs>
               <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false}/>
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}/>
-              <Area type="monotone" dataKey="tasks" stroke="#1B3D38" strokeWidth={2} fill="url(#tasks)" name="Tasks"/>
-              <Area type="monotone" dataKey="posts" stroke="#10b981" strokeWidth={2} fill="url(#posts)" name="Posts"/>
+              <Area type="monotone" dataKey="tasks" stroke="#1B3D38" strokeWidth={2} fill="url(#tasks)" name="Tasks completed"/>
+              <Area type="monotone" dataKey="posts" stroke="#10b981" strokeWidth={2} fill="url(#posts)" name="Posts published"/>
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Pipeline distribution */}
+        {/* Pipeline distribution — real data */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h3 className="font-semibold text-slate-900 mb-1">Pipeline Distribution</h3>
           <p className="text-xs text-slate-500 mb-4">Tasks per stage</p>
           <ResponsiveContainer width="100%" height={140}>
             <PieChart>
-              <Pie data={STAGE_DIST} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2} dataKey="value">
-                {STAGE_DIST.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]}/>)}
+              <Pie
+                data={stageDistribution}
+                cx="50%" cy="50%"
+                innerRadius={35} outerRadius={60}
+                paddingAngle={2}
+                dataKey="value"
+              >
+                {stageDistribution.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]}/>)}
               </Pie>
               <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6 }}/>
             </PieChart>
           </ResponsiveContainer>
           <div className="grid grid-cols-2 gap-1 mt-2">
-            {STAGE_DIST.slice(0, 4).map((s, i) => (
+            {stageDistribution.slice(0, 4).map((s, i) => (
               <div key={s.name} className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PIE_COLORS[i] }}/>
                 <span className="text-[10px] text-slate-500 truncate">{s.name}</span>
@@ -131,7 +152,7 @@ export default function DashboardPage() {
 
       {/* Bottom row */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Recent tasks */}
+        {/* Recent tasks — sorted by updated_at */}
         <div className="col-span-2 bg-white rounded-xl border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-slate-900">Recent Tasks</h3>
@@ -139,10 +160,10 @@ export default function DashboardPage() {
           </div>
           <div className="space-y-2">
             {recentTasks.map(task => {
-              const stage = STAGE_CONFIG[task.pipeline_stage]
+              const stage    = STAGE_CONFIG[task.pipeline_stage]
               const priority = PRIORITY_CONFIG[task.priority]
-              const client = clients.find(c => c.id === task.client_id)
-              const user = users.find(u => u.id === task.assigned_to)
+              const client   = clients.find(c => c.id === task.client_id)
+              const user     = users.find(u => u.id === task.assigned_to)
               return (
                 <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer group">
                   <div className="flex-1 min-w-0">
@@ -150,19 +171,24 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[11px] text-slate-400">{client?.name}</span>
                       <span className="text-slate-200">·</span>
-                      <span className="text-[11px] text-slate-400">Due {formatDate(task.due_date)}</span>
+                      <span className="text-[11px] text-slate-400">{task.due_date ? `Due ${formatDate(task.due_date)}` : 'No due date'}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${stage.bg} ${stage.color}`}>{stage.label}</span>
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${priority.bg} ${priority.color}`}>{priority.label}</span>
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ background: user?.color }}>
-                      {user?.initials}
-                    </div>
+                    {user && (
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ background: user.color }}>
+                        {user.initials}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
             })}
+            {recentTasks.length === 0 && (
+              <p className="text-sm text-slate-400 text-center py-6">No tasks yet.</p>
+            )}
           </div>
         </div>
 
@@ -173,7 +199,7 @@ export default function DashboardPage() {
             <a href="/reports" className="text-xs text-novax hover:text-novax-hover font-medium">Reports →</a>
           </div>
           <div className="space-y-3">
-            {topPosts.map((post, i) => {
+            {topPosts.map(post => {
               const client = clients.find(c => c.id === post.client_id)
               const isUp = post.performance!.engagement_rate > 5
               return (
@@ -199,6 +225,9 @@ export default function DashboardPage() {
                 </div>
               )
             })}
+            {topPosts.length === 0 && (
+              <p className="text-sm text-slate-400 text-center py-6">No published posts with data yet.</p>
+            )}
           </div>
         </div>
       </div>
@@ -212,10 +241,10 @@ export default function DashboardPage() {
         <div className="grid grid-cols-4 gap-4">
           {clients.map(client => {
             const clientTasks = tasks.filter(t => t.client_id === client.id)
-            const active = clientTasks.filter(t => t.status === 'active').length
-            const completed = clientTasks.filter(t => t.status === 'completed').length
-            const health = Math.min(100, Math.round((completed / Math.max(clientTasks.length, 1)) * 100) + 40)
-            const clientPosts = posts.filter(p => p.client_id === client.id)
+            const completed   = clientTasks.filter(t => t.status === 'completed').length
+            const active      = clientTasks.filter(t => t.status === 'active').length
+            const health      = Math.min(100, Math.round((completed / Math.max(clientTasks.length, 1)) * 100) + 40)
+            const scheduled   = posts.filter(p => p.client_id === client.id && p.status === 'scheduled').length
             return (
               <div key={client.id} className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all cursor-pointer">
                 <div className="flex items-center gap-2 mb-3">
@@ -233,16 +262,22 @@ export default function DashboardPage() {
                     <span className="font-semibold text-slate-700">{health}%</span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${health}%`, background: health > 70 ? '#10b981' : health > 40 ? '#f59e0b' : '#f43f5e' }}/>
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${health}%`, background: health > 70 ? '#10b981' : health > 40 ? '#f59e0b' : '#f43f5e' }}
+                    />
                   </div>
                   <div className="flex justify-between text-[10px] text-slate-400 pt-1">
-                    <span>{active} active tasks</span>
-                    <span>{clientPosts.filter(p => p.status === 'scheduled').length} scheduled</span>
+                    <span>{active} active</span>
+                    <span>{scheduled} scheduled</span>
                   </div>
                 </div>
               </div>
             )
           })}
+          {clients.length === 0 && (
+            <p className="col-span-4 text-sm text-slate-400 text-center py-6">No clients yet.</p>
+          )}
         </div>
       </div>
     </div>

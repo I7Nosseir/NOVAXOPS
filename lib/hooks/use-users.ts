@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { User, UserRole } from '@/lib/types'
 
@@ -27,4 +27,23 @@ export function useUsers() {
     },
   })
   return { users, isLoading, error }
+}
+
+export function useInviteUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ email, name, role }: { email: string; name: string; role: UserRole }) => {
+      const res = await fetch('/api/auth/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, role }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Invite failed')
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
 }

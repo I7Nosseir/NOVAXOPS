@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import type { PipelineStage, Priority, SocialPlatform } from './types'
+import type { PipelineStage, Priority, SocialPlatform, User, UserRole } from './types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -66,4 +66,21 @@ export function isOverdue(dateStr: string): boolean {
 export function daysUntil(dateStr: string): number {
   const diff = new Date(dateStr).getTime() - new Date().getTime()
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+export function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return formatDate(dateStr)
+}
+
+export function hasRole(user: User | null, roles: UserRole[]): boolean {
+  if (!user) return false
+  return roles.includes(user.role)
 }

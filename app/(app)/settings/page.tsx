@@ -4,18 +4,18 @@ import { useState } from 'react'
 import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus } from 'lucide-react'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
-import { cn } from '@/lib/utils'
+import { cn, hasRole } from '@/lib/utils'
 import { InviteUserModal } from '@/components/settings/invite-user-modal'
 
-const INTEGRATIONS = [
+const INTEGRATIONS_REAL = [
   {
-    id: 'metricool', name: 'Metricool', status: 'connected',
+    id: 'metricool', realName: 'Metricool', maskedName: 'Scheduling Platform', status: 'connected',
     description: 'Social media scheduling, analytics, and publishing',
     fields: [{ label: 'API Token', key: 'token', type: 'password', placeholder: 'mc_xxxxxxxxxx' }],
     color: '#ff4f5a',
   },
   {
-    id: 'respond_io', name: 'Respond.io', status: 'connected',
+    id: 'respond_io', realName: 'Respond.io', maskedName: 'Messaging Platform', status: 'connected',
     description: 'Comment moderation and DM management via webhooks',
     fields: [
       { label: 'API Key', key: 'api_key', type: 'password', placeholder: 'rio_xxxxxxxxxx' },
@@ -24,13 +24,13 @@ const INTEGRATIONS = [
     color: '#5865f2',
   },
   {
-    id: 'freepik', name: 'Freepik', status: 'connected',
+    id: 'freepik', realName: 'Freepik', maskedName: 'Asset Library', status: 'connected',
     description: 'Premium and free asset search and download',
     fields: [{ label: 'API Key', key: 'api_key', type: 'password', placeholder: 'fpik_xxxxxxxxxx' }],
     color: '#00c9a7',
   },
   {
-    id: 'claude', name: 'Claude API (Anthropic)', status: 'connected',
+    id: 'claude', realName: 'Claude API (Anthropic)', maskedName: 'AI Engine', status: 'connected',
     description: 'Primary AI engine for all agent tasks',
     fields: [
       { label: 'API Key', key: 'api_key', type: 'password', placeholder: 'sk-ant-xxxxxxxxxx' },
@@ -40,19 +40,20 @@ const INTEGRATIONS = [
   },
 ]
 
-function IntegrationCard({ integration }: { integration: typeof INTEGRATIONS[0] }) {
+function IntegrationCard({ integration, showReal }: { integration: typeof INTEGRATIONS_REAL[0]; showReal: boolean }) {
   const [editing, setEditing] = useState(false)
   const connected = integration.status === 'connected'
+  const displayName = showReal ? integration.realName : integration.maskedName
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ background: integration.color }}>
-            {integration.name[0]}
+            {displayName[0]}
           </div>
           <div>
-            <h4 className="font-semibold text-slate-900 text-sm">{integration.name}</h4>
+            <h4 className="font-semibold text-slate-900 text-sm">{displayName}</h4>
             <p className="text-xs text-slate-500">{integration.description}</p>
           </div>
         </div>
@@ -102,6 +103,7 @@ export default function SettingsPage() {
   const { user: currentUser } = useAuth()
   const { users } = useUsers()
   const isAdmin = currentUser?.role === 'admin'
+  const canSeeVendorNames = hasRole(currentUser, ['admin', 'ceo'])
   const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security'>(isAdmin ? 'integrations' : 'team')
   const [showInvite, setShowInvite] = useState(false)
 
@@ -139,7 +141,7 @@ export default function SettingsPage() {
             <p className="text-sm text-slate-500">Connect external platforms. All credentials are stored encrypted in Supabase Vault.</p>
           </div>
           <div className="space-y-3">
-            {INTEGRATIONS.map(i => <IntegrationCard key={i.id} integration={i}/>)}
+            {INTEGRATIONS_REAL.map(i => <IntegrationCard key={i.id} integration={i} showReal={canSeeVendorNames} />)}
           </div>
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
             <p className="text-sm font-semibold text-amber-800">Webhook endpoints</p>
@@ -166,9 +168,11 @@ export default function SettingsPage() {
               <h3 className="font-semibold text-slate-900">Team Members</h3>
               <p className="text-sm text-slate-500">{users.length} members · Role-based access via Supabase RLS</p>
             </div>
-            <button onClick={() => setShowInvite(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
-              <Plus className="w-3.5 h-3.5" />Invite Member
-            </button>
+            {isAdmin && (
+              <button onClick={() => setShowInvite(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
+                <Plus className="w-3.5 h-3.5" />Invite Member
+              </button>
+            )}
           </div>
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <table className="w-full">
@@ -204,7 +208,9 @@ export default function SettingsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Edit</button>
+                      {isAdmin && (
+                        <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Edit</button>
+                      )}
                     </td>
                   </tr>
                 ))}

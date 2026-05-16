@@ -79,6 +79,10 @@ export interface Task {
   created_at: string
   updated_at: string
   tags: string[]
+  seen_at?: string | null
+  seen_by?: string | null
+  read_at?: string | null
+  read_by?: string | null
 }
 
 export interface AIResponse {

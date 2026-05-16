@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Mail, Send } from 'lucide-react'
+import { X, Mail, Send, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/types'
+import { useInviteUser } from '@/lib/hooks/use-users'
 
 const ROLES: { value: UserRole; label: string; desc: string }[] = [
   { value: 'admin',            label: 'Admin',            desc: 'Full access including integrations and billing' },
@@ -21,15 +22,23 @@ const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg ou
 interface Props { onClose: () => void }
 
 export function InviteUserModal({ onClose }: Props) {
-  const [email, setEmail]   = useState('')
-  const [name, setName]     = useState('')
-  const [role, setRole]     = useState<UserRole>('copywriter')
-  const [sent, setSent]     = useState(false)
+  const [email, setEmail] = useState('')
+  const [name, setName]   = useState('')
+  const [role, setRole]   = useState<UserRole>('copywriter')
+  const [sent, setSent]   = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const submit = () => {
-    if (!email || !name) return
-    // Will call /api/users/invite when backend is ready
-    setSent(true)
+  const inviteUser = useInviteUser()
+
+  const submit = async () => {
+    if (!email.trim() || !name.trim()) return
+    setError(null)
+    try {
+      await inviteUser.mutateAsync({ email: email.trim(), name: name.trim(), role })
+      setSent(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to send invite')
+    }
   }
 
   return (
@@ -53,7 +62,9 @@ export function InviteUserModal({ onClose }: Props) {
               <Send className="w-5 h-5 text-novax" />
             </div>
             <p className="font-semibold text-slate-900">Invite sent</p>
-            <p className="text-sm text-slate-500 mt-1">An invitation was sent to <span className="font-medium text-slate-700">{email}</span></p>
+            <p className="text-sm text-slate-500 mt-1">
+              An invitation was sent to <span className="font-medium text-slate-700">{email}</span>
+            </p>
             <button onClick={onClose} className="mt-6 px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
               Done
             </button>
@@ -63,14 +74,24 @@ export function InviteUserModal({ onClose }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Full Name</label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" className={inputCls} />
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Jane Smith"
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                  <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="jane@agency.com"
-                    className={`${inputCls} pl-9`} />
+                  <input
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    type="email"
+                    placeholder="jane@agency.com"
+                    className={`${inputCls} pl-9`}
+                  />
                 </div>
               </div>
             </div>
@@ -79,9 +100,14 @@ export function InviteUserModal({ onClose }: Props) {
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Role</label>
               <div className="grid grid-cols-2 gap-2">
                 {ROLES.map(r => (
-                  <button key={r.value} onClick={() => setRole(r.value)}
-                    className={cn('p-3 rounded-xl border text-left transition-all',
-                      role === r.value ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-novax-border')}>
+                  <button
+                    key={r.value}
+                    onClick={() => setRole(r.value)}
+                    className={cn(
+                      'p-3 rounded-xl border text-left transition-all',
+                      role === r.value ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-novax-border',
+                    )}
+                  >
                     <p className={cn('text-xs font-semibold', role === r.value ? 'text-novax' : 'text-slate-800')}>{r.label}</p>
                     <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{r.desc}</p>
                   </button>
@@ -89,13 +115,24 @@ export function InviteUserModal({ onClose }: Props) {
               </div>
             </div>
 
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                <p className="text-xs text-red-600">{error}</p>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-1">
               <button onClick={onClose} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
                 Cancel
               </button>
-              <button onClick={submit} disabled={!email || !name}
-                className="flex-1 flex items-center justify-center gap-2 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors">
-                <Send className="w-3.5 h-3.5" />Send Invite
+              <button
+                onClick={submit}
+                disabled={!email.trim() || !name.trim() || inviteUser.isPending}
+                className="flex-1 flex items-center justify-center gap-2 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {inviteUser.isPending ? 'Sending…' : 'Send Invite'}
               </button>
             </div>
           </div>

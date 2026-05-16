@@ -3,14 +3,15 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle,
-  Clock, Zap, Copy, MoreHorizontal, Trash2,
+  Clock, Zap, Copy, MoreHorizontal, Trash2, Eye, BookOpen as ReadIcon,
 } from 'lucide-react'
 import type { Task, AgentType, PipelineStage, Priority } from '@/lib/types'
-import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, cn } from '@/lib/utils'
+import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, timeAgo, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useUpdateTask, useDeleteTask } from '@/lib/hooks/use-tasks'
+import { useAuth } from '@/lib/auth-context'
 import { TaskComments } from './task-comments'
 
 interface CopyVariant {
@@ -72,6 +73,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const { clients } = useClients()
   const { projects } = useProjects()
   const { users } = useUsers()
+  const { user: authUser } = useAuth()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
 
@@ -88,6 +90,14 @@ export function TaskDetailPanel({ task, onClose }: Props) {
       setShowMenu(false)
       setDeleteConfirm(false)
     }
+  }, [task?.id])
+
+  // Auto-mark seen when assignee opens the task
+  useEffect(() => {
+    if (task && authUser && authUser.id === task.assigned_to && !task.seen_at) {
+      updateTask.mutate({ id: task.id, seen_at: new Date().toISOString(), seen_by: authUser.id })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id])
 
   // Close menu on outside click
@@ -110,7 +120,6 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const client = clients.find(c => c.id === task.client_id)
   const project = projects.find(p => p.id === task.project_id)
   const user = users.find(u => u.id === task.assigned_to)
-  const assigneeUser = users.find(u => u.id === draftAssignee)
   const statusCfg = STATUS_CONFIG[task.status]
 
   const save = (field: string, value: unknown) => {
@@ -118,9 +127,18 @@ export function TaskDetailPanel({ task, onClose }: Props) {
     setEditingField(null)
   }
 
+  const markRead = () => {
+    if (!authUser) return
+    updateTask.mutate({ id: task.id, read_at: new Date().toISOString(), read_by: authUser.id })
+  }
+
   const handleDelete = () => {
     deleteTask.mutate(task.id, { onSuccess: onClose })
   }
+
+  const isAssignee = !!authUser && authUser.id === task.assigned_to
+  const seenUser = users.find(u => u.id === task.seen_by)
+  const readUser = users.find(u => u.id === task.read_by)
 
   const handleRunAgent = async (agentType: AgentType) => {
     setActiveAgent(agentType)
@@ -468,6 +486,65 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Acknowledgment */}
+            <div className="pt-1 border-t border-slate-100">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-2">Acknowledgment</p>
+              {isAssignee ? (
+                /* Assignee view — action buttons */
+                <div className="flex items-center gap-3">
+                  <div className={cn('flex items-center gap-1.5 text-xs font-medium', task.seen_at ? 'text-emerald-600' : 'text-slate-400')}>
+                    <Eye className="w-3.5 h-3.5" />
+                    {task.seen_at ? `Seen ${timeAgo(task.seen_at)}` : 'Not seen yet'}
+                  </div>
+                  {task.read_at ? (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Read {timeAgo(task.read_at)}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={markRead}
+                      disabled={updateTask.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-novax-light border border-novax-border text-xs font-semibold text-novax hover:bg-novax-light-hover transition-colors disabled:opacity-50"
+                    >
+                      <ReadIcon className="w-3 h-3" />
+                      Mark as Read
+                    </button>
+                  )}
+                </div>
+              ) : (
+                /* Assigner / others view — tracking status */
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-medium mb-1">Seen</p>
+                    {task.seen_at && seenUser ? (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold" style={{ background: seenUser.color }}>
+                          {seenUser.initials}
+                        </div>
+                        <span className="text-xs text-emerald-600 font-medium">{timeAgo(task.seen_at)}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Not yet</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-medium mb-1">Read</p>
+                    {task.read_at && readUser ? (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold" style={{ background: readUser.color }}>
+                          {readUser.initials}
+                        </div>
+                        <span className="text-xs text-emerald-600 font-medium">{timeAgo(task.read_at)}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Not yet</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
