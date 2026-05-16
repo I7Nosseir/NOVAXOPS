@@ -2,6 +2,7 @@
 
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { Plus } from 'lucide-react'
 import type { Task, PipelineStage } from '@/lib/types'
 import { STAGE_CONFIG, cn } from '@/lib/utils'
 import { TaskCard } from './task-card'
@@ -10,9 +11,10 @@ interface Props {
   stage: PipelineStage
   tasks: Task[]
   onSelectTask: (task: Task) => void
+  onAddTask: () => void
 }
 
-export function PipelineColumn({ stage, tasks, onSelectTask }: Props) {
+export function PipelineColumn({ stage, tasks, onSelectTask, onAddTask }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage })
   const config = STAGE_CONFIG[stage]
 
@@ -25,7 +27,7 @@ export function PipelineColumn({ stage, tasks, onSelectTask }: Props) {
             {config.label}
           </span>
         </div>
-        <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', config.bg, config.color, 'border', config.border)}>
+        <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full border', config.bg, config.color, config.border)}>
           {tasks.length}
         </span>
       </div>
@@ -34,13 +36,13 @@ export function PipelineColumn({ stage, tasks, onSelectTask }: Props) {
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 min-h-72 p-2 rounded-b-xl border border-t-0 transition-colors',
+          'flex-1 min-h-72 p-2 rounded-b-xl border border-t-0 transition-colors flex flex-col',
           config.border,
           isOver ? 'bg-novax-light/60' : 'bg-slate-50/50',
         )}
       >
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 flex-1">
             {tasks.map(task => (
               <TaskCard key={task.id} task={task} onSelect={onSelectTask} />
             ))}
@@ -55,6 +57,18 @@ export function PipelineColumn({ stage, tasks, onSelectTask }: Props) {
             Drop here
           </div>
         )}
+
+        {/* Add task button */}
+        <button
+          onClick={onAddTask}
+          className={cn(
+            'mt-2 flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs font-medium transition-colors',
+            'text-slate-400 hover:text-slate-600 hover:bg-slate-100',
+          )}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add task
+        </button>
       </div>
     </div>
   )

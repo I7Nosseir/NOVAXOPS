@@ -1,20 +1,20 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle, Clock, Zap, Copy } from 'lucide-react'
-import type { Task, AgentType } from '@/lib/types'
-import { STAGE_CONFIG, PRIORITY_CONFIG, formatDate, formatDateTime, cn } from '@/lib/utils'
+import { useState, useEffect, useRef } from 'react'
+import {
+  X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle,
+  Clock, Zap, Copy, MoreHorizontal, Trash2,
+} from 'lucide-react'
+import type { Task, AgentType, PipelineStage, Priority } from '@/lib/types'
+import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
+import { useUpdateTask, useDeleteTask } from '@/lib/hooks/use-tasks'
+import { TaskComments } from './task-comments'
 
 interface CopyVariant {
-  id: string
-  label: string
-  tone: string
-  framework?: string
-  hook?: string
-  text: string
+  id: string; label: string; tone: string; framework?: string; hook?: string; text: string
 }
 
 const DEFAULT_COPY_VARIANTS: CopyVariant[] = [
@@ -24,12 +24,18 @@ const DEFAULT_COPY_VARIANTS: CopyVariant[] = [
 ].map(v => ({ ...v, text: '' }))
 
 const AGENTS: { type: AgentType; label: string; icon: typeof Sparkles; description: string }[] = [
-  { type: 'task_analyzer',      label: 'Analyze Task',     icon: Sparkles,   description: 'Breaks down brief and flags missing info' },
-  { type: 'copywriter',         label: 'Write Copy',       icon: FileSearch, description: 'Generates brand-aware copy for this stage' },
-  { type: 'researcher',         label: 'Research',         icon: Search,     description: 'Market context, trends, competitors' },
-  { type: 'asset_finder',       label: 'Find Assets',      icon: BookOpen,   description: 'Searches Freepik for relevant assets' },
-  { type: 'presentation_builder', label: 'Build Deck',     icon: Zap,        description: 'Generates a .pptx from task outputs' },
+  { type: 'task_analyzer',       label: 'Analyze Task',  icon: Sparkles,   description: 'Breaks down brief and flags missing info' },
+  { type: 'copywriter',          label: 'Write Copy',    icon: FileSearch, description: 'Generates brand-aware copy for this stage' },
+  { type: 'researcher',          label: 'Research',      icon: Search,     description: 'Market context, trends, competitors' },
+  { type: 'asset_finder',        label: 'Find Assets',   icon: BookOpen,   description: 'Searches Freepik for relevant assets' },
+  { type: 'presentation_builder', label: 'Build Deck',   icon: Zap,        description: 'Generates a .pptx from task outputs' },
 ]
+
+const STATUS_CONFIG = {
+  active:    { label: 'Active',   dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
+  blocked:   { label: 'Blocked',  dot: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200' },
+  completed: { label: 'Done',     dot: 'bg-slate-400',   text: 'text-slate-600',   bg: 'bg-slate-100',   border: 'border-slate-200' },
+}
 
 interface Props {
   task: Task | null
@@ -37,62 +43,65 @@ interface Props {
 }
 
 export function TaskDetailPanel({ task, onClose }: Props) {
+  // AI agent state
   const [activeAgent, setActiveAgent] = useState<AgentType | null>(null)
   const [generating, setGenerating] = useState(false)
   const [output, setOutput] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [agentError, setAgentError] = useState<string | null>(null)
   const [selectedVariant, setSelectedVariant] = useState<string | null>(null)
   const [showVariants, setShowVariants] = useState(false)
   const [copyVariants, setCopyVariants] = useState<CopyVariant[]>(DEFAULT_COPY_VARIANTS)
 
-  const handleRunAgent = async (agentType: AgentType) => {
-    setActiveAgent(agentType)
-    setOutput(null)
-    setError(null)
-    setShowVariants(false)
-    setSelectedVariant(null)
-    setGenerating(true)
+  // Edit state — tracks which field is being edited
+  const [editingField, setEditingField] = useState<string | null>(null)
 
-    try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent: agentType,
-          task: task ? { id: task.id, title: task.title, description: task.description, pipeline_stage: task.pipeline_stage } : undefined,
-          client: client ? { id: client.id, name: client.name, brand_identity: client.brand_identity, competitor_context: client.competitor_context } : undefined,
-          project: project ? { name: project.name } : undefined,
-        }),
-      })
+  // Draft values — synced from task when not editing
+  const [draftTitle, setDraftTitle] = useState('')
+  const [draftDesc, setDraftDesc] = useState('')
+  const [draftStage, setDraftStage] = useState<PipelineStage>('strategy')
+  const [draftPriority, setDraftPriority] = useState<Priority>('medium')
+  const [draftAssignee, setDraftAssignee] = useState('')
+  const [draftDueDate, setDraftDueDate] = useState('')
+  const [draftTagInput, setDraftTagInput] = useState('')
 
-      const data = await res.json()
-
-      if (!res.ok || data.error) {
-        setError(data.error ?? 'Generation failed. Please try again.')
-        return
-      }
-
-      if (agentType === 'copywriter') {
-        try {
-          const parsed: CopyVariant[] = JSON.parse(data.text)
-          setCopyVariants(parsed)
-          setShowVariants(true)
-        } catch {
-          setOutput(data.text)
-        }
-      } else {
-        setOutput(data.text)
-      }
-    } catch {
-      setError('Network error. Please check your connection and try again.')
-    } finally {
-      setGenerating(false)
-    }
-  }
+  // Delete state
+  const [showMenu, setShowMenu] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const { clients } = useClients()
   const { projects } = useProjects()
   const { users } = useUsers()
+  const updateTask = useUpdateTask()
+  const deleteTask = useDeleteTask()
+
+  // Sync drafts when task changes (e.g. after a save re-fetches)
+  useEffect(() => {
+    if (task) {
+      setDraftTitle(task.title)
+      setDraftDesc(task.description ?? '')
+      setDraftStage(task.pipeline_stage)
+      setDraftPriority(task.priority)
+      setDraftAssignee(task.assigned_to ?? '')
+      setDraftDueDate(task.due_date ?? '')
+      setEditingField(null)
+      setShowMenu(false)
+      setDeleteConfirm(false)
+    }
+  }, [task?.id])
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!showMenu) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false)
+        setDeleteConfirm(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMenu])
 
   if (!task) return null
 
@@ -101,68 +110,371 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const client = clients.find(c => c.id === task.client_id)
   const project = projects.find(p => p.id === task.project_id)
   const user = users.find(u => u.id === task.assigned_to)
+  const assigneeUser = users.find(u => u.id === draftAssignee)
+  const statusCfg = STATUS_CONFIG[task.status]
+
+  const save = (field: string, value: unknown) => {
+    updateTask.mutate({ id: task.id, [field]: value })
+    setEditingField(null)
+  }
+
+  const handleDelete = () => {
+    deleteTask.mutate(task.id, { onSuccess: onClose })
+  }
+
+  const handleRunAgent = async (agentType: AgentType) => {
+    setActiveAgent(agentType)
+    setOutput(null)
+    setAgentError(null)
+    setShowVariants(false)
+    setSelectedVariant(null)
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent: agentType,
+          task: { id: task.id, title: task.title, description: task.description, pipeline_stage: task.pipeline_stage },
+          client: client ? { id: client.id, name: client.name, brand_identity: client.brand_identity, competitor_context: client.competitor_context } : undefined,
+          project: project ? { name: project.name } : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) { setAgentError(data.error ?? 'Generation failed.'); return }
+      if (agentType === 'copywriter') {
+        try { setCopyVariants(JSON.parse(data.text)); setShowVariants(true) }
+        catch { setOutput(data.text) }
+      } else {
+        setOutput(data.text)
+      }
+    } catch {
+      setAgentError('Network error. Please try again.')
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   return (
     <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/20 z-40 backdrop-blur-[1px]" onClick={onClose}/>
+      <div className="fixed inset-0 bg-black/20 z-40 backdrop-blur-[1px]" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full w-[500px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
 
-      {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-slate-100">
           <div className="flex-1 min-w-0 pr-3">
-            <div className="flex items-center gap-2 mb-2">
-              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', stage.bg, stage.color, 'border', stage.border)}>
-                {stage.label}
-              </span>
-              <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', priority.bg, priority.color)}>
-                {priority.label}
-              </span>
+            {/* Badges row */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {/* Stage — click to edit */}
+              {editingField === 'pipeline_stage' ? (
+                <select
+                  value={draftStage}
+                  autoFocus
+                  onChange={e => { setDraftStage(e.target.value as PipelineStage); save('pipeline_stage', e.target.value) }}
+                  onBlur={() => setEditingField(null)}
+                  className="text-xs border border-slate-300 rounded-lg px-2 py-0.5 outline-none focus:border-novax-muted bg-white"
+                >
+                  {PIPELINE_STAGES.map(s => (
+                    <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>
+                  ))}
+                </select>
+              ) : (
+                <button
+                  onClick={() => { setDraftStage(task.pipeline_stage); setEditingField('pipeline_stage') }}
+                  className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all hover:opacity-80', stage.bg, stage.color, stage.border)}
+                >
+                  {stage.label}
+                </button>
+              )}
+
+              {/* Priority — click to edit */}
+              {editingField === 'priority' ? (
+                <div className="flex gap-1">
+                  {(['low', 'medium', 'high', 'urgent'] as Priority[]).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => { setDraftPriority(p); save('priority', p) }}
+                      className={cn(
+                        'text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize transition-all',
+                        draftPriority === p ? 'bg-novax text-white border-novax' : 'border-slate-200 text-slate-500 hover:border-slate-300',
+                      )}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  <button onClick={() => setEditingField(null)} className="text-[10px] text-slate-400 hover:text-slate-600 px-1">✕</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setDraftPriority(task.priority); setEditingField('priority') }}
+                  className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all hover:opacity-80', priority.bg, priority.color)}
+                >
+                  {priority.label}
+                </button>
+              )}
+
+              {/* Status toggle */}
+              <div className="flex items-center gap-1 ml-auto">
+                {(['active', 'blocked', 'completed'] as const).map(s => {
+                  const sc = STATUS_CONFIG[s]
+                  const active = task.status === s
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => updateTask.mutate({ id: task.id, status: s })}
+                      title={sc.label}
+                      className={cn(
+                        'flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all',
+                        active ? cn(sc.bg, sc.text, sc.border) : 'border-transparent text-slate-400 hover:bg-slate-100',
+                      )}
+                    >
+                      <div className={cn('w-1.5 h-1.5 rounded-full', sc.dot)} />
+                      {active && sc.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-            <h2 className="text-base font-semibold text-slate-900 leading-snug">{task.title}</h2>
+
+            {/* Title — click to edit */}
+            {editingField === 'title' ? (
+              <input
+                value={draftTitle}
+                autoFocus
+                onChange={e => setDraftTitle(e.target.value)}
+                onBlur={() => { if (draftTitle.trim()) save('title', draftTitle.trim()); else setEditingField(null) }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { if (draftTitle.trim()) save('title', draftTitle.trim()); else setEditingField(null) }
+                  if (e.key === 'Escape') { setDraftTitle(task.title); setEditingField(null) }
+                }}
+                className="w-full text-base font-semibold text-slate-900 border-b-2 border-novax outline-none bg-transparent"
+              />
+            ) : (
+              <h2
+                onClick={() => { setDraftTitle(task.title); setEditingField('title') }}
+                className="text-base font-semibold text-slate-900 leading-snug cursor-text hover:text-novax transition-colors"
+                title="Click to edit"
+              >
+                {task.title}
+              </h2>
+            )}
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0">
-            <X className="w-4 h-4 text-slate-500"/>
-          </button>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* 3-dot menu */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => { setShowMenu(v => !v); setDeleteConfirm(false) }}
+                className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <MoreHorizontal className="w-4 h-4 text-slate-500" />
+              </button>
+              {showMenu && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                  {deleteConfirm ? (
+                    <div className="p-3 space-y-2">
+                      <p className="text-xs text-slate-600 font-medium">Delete this task?</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleDelete}
+                          disabled={deleteTask.isPending}
+                          className="flex-1 py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {deleteTask.isPending ? 'Deleting…' : 'Confirm'}
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(false)}
+                          className="flex-1 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setDeleteConfirm(true)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete task
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {/* Meta */}
           <div className="p-5 space-y-4 border-b border-slate-100">
-            <p className="text-sm text-slate-600 leading-relaxed">{task.description}</p>
+            {/* Description */}
+            {editingField === 'description' ? (
+              <textarea
+                value={draftDesc}
+                autoFocus
+                rows={3}
+                onChange={e => setDraftDesc(e.target.value)}
+                onBlur={() => { save('description', draftDesc) }}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') { setDraftDesc(task.description ?? ''); setEditingField(null) }
+                }}
+                className="w-full text-sm text-slate-600 border border-novax-border rounded-lg p-2 outline-none focus:border-novax-muted resize-none leading-relaxed"
+              />
+            ) : (
+              <p
+                onClick={() => { setDraftDesc(task.description ?? ''); setEditingField('description') }}
+                className={cn(
+                  'text-sm text-slate-600 leading-relaxed cursor-text hover:text-slate-800 transition-colors min-h-[20px]',
+                  !task.description && 'text-slate-400 italic',
+                )}
+                title="Click to edit"
+              >
+                {task.description || 'Add a description…'}
+              </p>
+            )}
 
+            {/* Grid fields */}
             <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: 'Client', value: client?.name, color: client?.color },
-                { label: 'Project', value: project?.name },
-                { label: 'Assigned to', value: user?.name, initials: user?.initials, userColor: user?.color },
-                { label: 'Due date', value: formatDate(task.due_date) },
-              ].map(({ label, value, color, initials, userColor }) => (
-                <div key={label}>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">{label}</p>
-                  <div className="flex items-center gap-1.5">
-                    {color && <div className="w-2 h-2 rounded-full" style={{ background: color }}/>}
-                    {initials && <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold" style={{ background: userColor }}>{initials}</div>}
-                    <p className="text-sm font-medium text-slate-700">{value}</p>
-                  </div>
+              {/* Client — display only */}
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Client</p>
+                <div className="flex items-center gap-1.5">
+                  {client?.color && <div className="w-2 h-2 rounded-full" style={{ background: client.color }} />}
+                  <p className="text-sm font-medium text-slate-700">{client?.name ?? '—'}</p>
                 </div>
-              ))}
+              </div>
+
+              {/* Project — display only */}
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Project</p>
+                <p className="text-sm font-medium text-slate-700">{project?.name ?? '—'}</p>
+              </div>
+
+              {/* Assignee — click to edit */}
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Assigned to</p>
+                {editingField === 'assigned_to' ? (
+                  <div className="flex flex-wrap gap-1 p-1.5 rounded-lg border border-novax-border bg-slate-50">
+                    {users.map(u => (
+                      <button
+                        key={u.id}
+                        title={u.name}
+                        onClick={() => { setDraftAssignee(u.id); save('assigned_to', u.id) }}
+                        className={cn(
+                          'w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold transition-all',
+                          draftAssignee === u.id ? 'ring-2 ring-novax ring-offset-1' : 'opacity-50 hover:opacity-100',
+                        )}
+                        style={{ background: u.color }}
+                      >
+                        {u.initials}
+                      </button>
+                    ))}
+                    <button onClick={() => setEditingField(null)} className="text-[10px] text-slate-400 px-1">✕</button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => { setDraftAssignee(task.assigned_to ?? ''); setEditingField('assigned_to') }}
+                    className="flex items-center gap-1.5 cursor-pointer hover:text-novax transition-colors"
+                  >
+                    {user ? (
+                      <>
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ background: user.color }}>
+                          {user.initials}
+                        </div>
+                        <p className="text-sm font-medium text-slate-700">{user.name}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-400 italic">Unassigned</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Due date — click to edit */}
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Due date</p>
+                {editingField === 'due_date' ? (
+                  <input
+                    type="date"
+                    value={draftDueDate}
+                    autoFocus
+                    onChange={e => setDraftDueDate(e.target.value)}
+                    onBlur={() => save('due_date', draftDueDate || null)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') save('due_date', draftDueDate || null)
+                      if (e.key === 'Escape') { setDraftDueDate(task.due_date ?? ''); setEditingField(null) }
+                    }}
+                    className="text-sm border border-novax-border rounded-lg px-2 py-0.5 outline-none focus:border-novax-muted w-full"
+                  />
+                ) : (
+                  <p
+                    onClick={() => { setDraftDueDate(task.due_date ?? ''); setEditingField('due_date') }}
+                    className="text-sm font-medium text-slate-700 cursor-pointer hover:text-novax transition-colors"
+                    title="Click to edit"
+                  >
+                    {task.due_date ? formatDate(task.due_date) : <span className="text-slate-400 italic">Set due date</span>}
+                  </p>
+                )}
+              </div>
             </div>
 
-            {task.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
+            {/* Tags */}
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1.5">Tags</p>
+              <div className="flex flex-wrap gap-1.5 items-center">
                 {task.tags.map(tag => (
-                  <span key={tag} className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">#{tag}</span>
+                  <span key={tag} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+                    #{tag}
+                    <button
+                      onClick={() => updateTask.mutate({ id: task.id, tags: task.tags.filter(t => t !== tag) })}
+                      className="text-slate-400 hover:text-slate-700 leading-none"
+                    >
+                      ×
+                    </button>
+                  </span>
                 ))}
+                {editingField === 'tags' ? (
+                  <input
+                    value={draftTagInput}
+                    autoFocus
+                    placeholder="tag, enter"
+                    onChange={e => setDraftTagInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault()
+                        const tag = draftTagInput.trim().replace(/^#/, '')
+                        if (tag && !task.tags.includes(tag)) {
+                          updateTask.mutate({ id: task.id, tags: [...task.tags, tag] })
+                        }
+                        setDraftTagInput('')
+                        setEditingField(null)
+                      }
+                      if (e.key === 'Escape') { setDraftTagInput(''); setEditingField(null) }
+                    }}
+                    onBlur={() => { setDraftTagInput(''); setEditingField(null) }}
+                    className="text-xs border border-novax-border rounded-md px-2 py-0.5 outline-none focus:border-novax-muted w-24"
+                  />
+                ) : (
+                  <button
+                    onClick={() => setEditingField('tags')}
+                    className="text-[11px] px-2 py-0.5 rounded-md border border-dashed border-slate-300 text-slate-400 hover:border-novax-border hover:text-novax transition-colors"
+                  >
+                    + tag
+                  </button>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* AI Agents */}
           <div className="p-5 border-b border-slate-100">
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-3.5 h-3.5 text-novax-muted"/>
+              <Sparkles className="w-3.5 h-3.5 text-novax-muted" />
               <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">AI Agents</p>
             </div>
             <div className="grid grid-cols-1 gap-2">
@@ -180,14 +492,14 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   )}
                 >
                   <div className={cn('p-1.5 rounded-lg', activeAgent === type ? 'bg-novax-light-hover' : 'bg-slate-100')}>
-                    <Icon className={cn('w-3.5 h-3.5', activeAgent === type ? 'text-novax' : 'text-slate-500')}/>
+                    <Icon className={cn('w-3.5 h-3.5', activeAgent === type ? 'text-novax' : 'text-slate-500')} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={cn('text-xs font-semibold', activeAgent === type ? 'text-novax' : 'text-slate-700')}>{label}</p>
                     <p className="text-[10px] text-slate-400">{description}</p>
                   </div>
                   {generating && activeAgent === type && (
-                    <Loader2 className="w-3.5 h-3.5 text-novax-muted animate-spin shrink-0"/>
+                    <Loader2 className="w-3.5 h-3.5 text-novax-muted animate-spin shrink-0" />
                   )}
                 </button>
               ))}
@@ -195,37 +507,38 @@ export function TaskDetailPanel({ task, onClose }: Props) {
           </div>
 
           {/* AI Output */}
-          {(generating || output || showVariants || error) && (
-            <div className="p-5">
+          {(generating || output || showVariants || agentError) && (
+            <div className="p-5 border-b border-slate-100">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">AI Output</p>
                 {(output || showVariants) && (
                   <div className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">
-                    <Clock className="w-3 h-3"/>
+                    <Clock className="w-3 h-3" />
                     Generated
                   </div>
                 )}
               </div>
               {generating ? (
                 <div className="flex items-center gap-2 p-4 bg-novax-light rounded-xl">
-                  <Loader2 className="w-4 h-4 text-novax-muted animate-spin"/>
+                  <Loader2 className="w-4 h-4 text-novax-muted animate-spin" />
                   <span className="text-sm text-novax-muted">Generating with context injection…</span>
                 </div>
-              ) : error ? (
+              ) : agentError ? (
                 <div className="p-4 bg-red-50 rounded-xl border border-red-100">
-                  <p className="text-xs text-red-600">{error}</p>
+                  <p className="text-xs text-red-600">{agentError}</p>
                 </div>
               ) : showVariants ? (
                 <div className="space-y-3">
                   <p className="text-[11px] text-slate-500">3 copy variants generated. Select the one that best fits the brief.</p>
                   {copyVariants.map(variant => (
-                    <div key={variant.id}
+                    <div
+                      key={variant.id}
                       onClick={() => setSelectedVariant(variant.id)}
-                      className={cn('rounded-xl border p-3.5 cursor-pointer transition-all',
-                        selectedVariant === variant.id
-                          ? 'border-novax bg-novax-light'
-                          : 'border-slate-200 hover:border-novax-border bg-slate-50 hover:bg-white'
-                      )}>
+                      className={cn(
+                        'rounded-xl border p-3.5 cursor-pointer transition-all',
+                        selectedVariant === variant.id ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-novax-border bg-slate-50 hover:bg-white',
+                      )}
+                    >
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={cn('text-[10px] font-bold uppercase tracking-wider', selectedVariant === variant.id ? 'text-novax' : 'text-slate-600')}>
@@ -240,8 +553,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                         </div>
                         {selectedVariant === variant.id && (
                           <div className="flex items-center gap-1 text-[10px] font-semibold text-novax">
-                            <CheckCircle className="w-3 h-3"/>
-                            Selected
+                            <CheckCircle className="w-3 h-3" />Selected
                           </div>
                         )}
                       </div>
@@ -252,9 +564,9 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                       {selectedVariant === variant.id && (
                         <button
                           onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(variant.text).catch(() => {}) }}
-                          className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-novax hover:text-novax-hover transition-colors">
-                          <Copy className="w-3 h-3"/>
-                          Copy to clipboard
+                          className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-novax hover:text-novax-hover transition-colors"
+                        >
+                          <Copy className="w-3 h-3" />Copy to clipboard
                         </button>
                       )}
                     </div>
@@ -272,6 +584,9 @@ export function TaskDetailPanel({ task, onClose }: Props) {
               ) : null}
             </div>
           )}
+
+          {/* Comments */}
+          <TaskComments taskId={task.id} />
         </div>
 
         {/* Footer */}

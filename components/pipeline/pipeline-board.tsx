@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
@@ -12,6 +12,7 @@ import { useUpdateTaskStage } from '@/lib/hooks/use-tasks'
 import { PipelineColumn } from './pipeline-column'
 import { TaskCard } from './task-card'
 import { TaskDetailPanel } from '@/components/tasks/task-detail-panel'
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 
 interface Props {
   initialTasks: Task[]
@@ -20,11 +21,15 @@ interface Props {
 export function PipelineBoard({ initialTasks }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [activeTask, setActiveTask] = useState<Task | null>(null)
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [createStage, setCreateStage] = useState<PipelineStage | null>(null)
   const updateStage = useUpdateTaskStage()
 
-  // Sync when fresh data arrives from server
-  useState(() => { setTasks(initialTasks) })
+  // Keep local task list in sync with server data
+  useEffect(() => { setTasks(initialTasks) }, [initialTasks])
+
+  // Derive selected task from tasks so it auto-updates after mutations
+  const selectedTask = tasks.find(t => t.id === selectedTaskId) ?? null
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -46,7 +51,6 @@ export function PipelineBoard({ initialTasks }: Props) {
     const activeTask = tasks.find(t => t.id === active.id)
     if (!activeTask) return
 
-    // Determine the target stage
     const overIsStage = PIPELINE_STAGES.includes(over.id as PipelineStage)
     const overTask = tasks.find(t => t.id === over.id)
     const targetStage: PipelineStage = overIsStage
@@ -54,7 +58,6 @@ export function PipelineBoard({ initialTasks }: Props) {
       : overTask?.pipeline_stage ?? activeTask.pipeline_stage
 
     if (targetStage === activeTask.pipeline_stage) {
-      // Same column — reorder
       const stageItems = getTasksByStage(targetStage)
       const oldIdx = stageItems.findIndex(t => t.id === active.id)
       const newIdx = stageItems.findIndex(t => t.id === over.id)
@@ -66,7 +69,6 @@ export function PipelineBoard({ initialTasks }: Props) {
         ])
       }
     } else {
-      // Cross-column move — optimistic update + persist
       setTasks(prev =>
         prev.map(t =>
           t.id === active.id
@@ -80,6 +82,11 @@ export function PipelineBoard({ initialTasks }: Props) {
 
   return (
     <>
+      <CreateTaskDialog
+        open={createStage !== null}
+        defaultStage={createStage ?? undefined}
+        onClose={() => setCreateStage(null)}
+      />
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-6" style={{ minHeight: 'calc(100vh - 140px)' }}>
           {PIPELINE_STAGES.map(stage => (
@@ -87,21 +94,20 @@ export function PipelineBoard({ initialTasks }: Props) {
               key={stage}
               stage={stage}
               tasks={getTasksByStage(stage)}
-              onSelectTask={setSelectedTask}
+              onSelectTask={t => setSelectedTaskId(t.id)}
+              onAddTask={() => setCreateStage(stage)}
             />
           ))}
         </div>
 
         <DragOverlay>
-          {activeTask && (
-            <TaskCard task={activeTask} onSelect={() => {}} isDragOverlay />
-          )}
+          {activeTask && <TaskCard task={activeTask} onSelect={() => {}} isDragOverlay />}
         </DragOverlay>
       </DndContext>
 
       <TaskDetailPanel
         task={selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={() => setSelectedTaskId(null)}
       />
     </>
   )

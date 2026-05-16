@@ -8,6 +8,12 @@ import { PRIORITY_CONFIG, formatDate, isOverdue, daysUntil, cn } from '@/lib/uti
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
 
+const STATUS_DOT: Record<string, string> = {
+  active: 'bg-emerald-500',
+  blocked: 'bg-red-500',
+  completed: 'bg-slate-400',
+}
+
 interface Props {
   task: Task
   onSelect: (task: Task) => void
@@ -15,9 +21,7 @@ interface Props {
 }
 
 export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
-  const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: task.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -30,8 +34,8 @@ export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
   const priority = PRIORITY_CONFIG[task.priority]
   const client = clients.find(c => c.id === task.client_id)
   const user = users.find(u => u.id === task.assigned_to)
-  const overdue = isOverdue(task.due_date) && task.status !== 'completed'
-  const days = daysUntil(task.due_date)
+  const overdue = !!task.due_date && isOverdue(task.due_date) && task.status !== 'completed'
+  const days = task.due_date ? daysUntil(task.due_date) : null
 
   return (
     <div
@@ -49,7 +53,7 @@ export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
       {/* Client tag */}
       <div className="flex items-center justify-between mb-2.5">
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: client?.color }}/>
+          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: client?.color }} />
           <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{client?.name}</span>
         </div>
         <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full', priority.bg, priority.color)}>
@@ -76,12 +80,27 @@ export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
       {/* Footer */}
       <div className="flex items-center justify-between">
         <div className={cn('flex items-center gap-1 text-[11px]', overdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
-          {overdue ? <AlertCircle className="w-3 h-3"/> : <Calendar className="w-3 h-3"/>}
-          {overdue ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due today' : days > 0 ? `${days}d left` : formatDate(task.due_date)}
+          {overdue ? <AlertCircle className="w-3 h-3" /> : <Calendar className="w-3 h-3" />}
+          {task.due_date
+            ? overdue
+              ? `${Math.abs(days!)}d overdue`
+              : days === 0 ? 'Due today' : days! > 0 ? `${days}d left` : formatDate(task.due_date)
+            : '—'}
         </div>
-        <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
-          style={{ background: user?.color }}>
-          {user?.initials}
+        <div className="flex items-center gap-1.5">
+          {/* Status dot */}
+          <div
+            className={cn('w-2 h-2 rounded-full', STATUS_DOT[task.status] ?? 'bg-slate-300')}
+            title={task.status}
+          />
+          {user && (
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+              style={{ background: user.color }}
+            >
+              {user.initials}
+            </div>
+          )}
         </div>
       </div>
     </div>
