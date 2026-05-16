@@ -2,6 +2,16 @@
 
 > **Goal:** Replace the 9-step modal-only wizard with a 3-step Register flow + a persistent, always-editable client profile. Wire all saves to Supabase. Make crisis mode persistent.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Wire wizard to Supabase | PENDING | `useCreateClient()` does not exist — wizard submit goes nowhere |
+| Phase 2 — Trim wizard to 3 steps | PENDING | Still 9 steps |
+| Phase 3 — Client profile enrichment tabs | PENDING | Not built |
+| Phase 4 — Real Intelligence tab | PENDING | SWOT still hardcoded per client ID |
+| Phase 5 — Crisis mode persistence | **DONE** | `crisis_mode` col in DB, `mapClient()` includes it, toggle calls `useUpdateClient()`, publishing page reads it |
+
 ---
 
 ## Current State Audit

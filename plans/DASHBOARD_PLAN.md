@@ -2,6 +2,16 @@
 
 > **Goal:** Replace every hardcoded number, array, and list on the dashboard with real Supabase queries. Add realtime updates for live KPI changes.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Real KPI queries | **DONE** | `lib/hooks/use-dashboard.ts` — active tasks, due today, pending moderation, AI cost, posts scheduled/published |
+| Phase 2 — Real charts | **DONE** | `useWeeklyActivity()` queries real tasks + posts; pipeline distribution derived from `useTasks()` |
+| Phase 3 — Recent tasks & top posts | **DONE** | Sorted from real `useTasks()` / `usePosts()` results |
+| Phase 4 — Client health | **DONE** | `useClientHealth()` derived from real clients + tasks + posts |
+| Phase 5 — Realtime updates | PENDING | No Supabase Realtime channel subscription wired to dashboard |
+
 ---
 
 ## Current State Audit

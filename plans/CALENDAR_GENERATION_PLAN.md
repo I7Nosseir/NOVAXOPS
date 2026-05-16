@@ -2,6 +2,15 @@
 
 > **Goal:** Wire the AI calendar generation dialog to the real Claude agent, make "Save to Publishing" bulk-insert real posts, refine the Excel export, and embed Islamic calendar event data for accurate regional anchoring.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — AI agent | **DONE** | `/api/ai` exists with `content_calendar` agent — dialog generates real calendar from Claude |
+| Phase 2 — Islamic calendar data | PENDING | No `lib/islamic-calendar.ts` — Claude may hallucinate event dates |
+| Phase 3 — "Save to Publishing" bulk insert | PENDING | Button exists but no INSERT — needs `useCreatePost()` first |
+| Phase 4 — Excel export RTL | PENDING | Export works but no RTL direction for Arabic |
+
 ---
 
 ## Current State Audit

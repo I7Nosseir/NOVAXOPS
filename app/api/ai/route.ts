@@ -1,25 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { createHash } from 'crypto'
+import { createClient } from '@supabase/supabase-js'
 
 const PRIMARY_MODEL = 'claude-sonnet-4-6'
 const ADVANCED_MODEL = 'claude-opus-4-7'
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 
-interface GeminiImage {
-  base64: string
-  mimeType: string
+// In-memory rate limit: 10 requests per unique key per minute
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(key)
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + 60_000 })
+    return true
+  }
+  if (entry.count >= 10) return false
+  entry.count++
+  return true
 }
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  )
+}
+
+function promptHash(agent: string, taskId: string, title: string, desc: string): string {
+  return createHash('sha256').update(`${agent}:${taskId}:${title}:${desc}`).digest('hex')
+}
+
+function adminSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return null
+  return createClient(url, key)
+}
+
+interface GeminiImage { base64: string; mimeType: string }
 
 async function callGemini(prompt: string, image?: GeminiImage): Promise<string> {
   const key = process.env.GEMINI_API_KEY!
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`
-
   const parts: object[] = []
-  if (image) {
-    parts.push({ inline_data: { mime_type: image.mimeType, data: image.base64 } })
-  }
+  if (image) parts.push({ inline_data: { mime_type: image.mimeType, data: image.base64 } })
   parts.push({ text: prompt })
-
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -50,10 +79,18 @@ interface AIRequest {
   imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video'
 }
 
+// Agents that operate on a specific task and benefit from caching
+const CACHEABLE_AGENTS = new Set(['task_analyzer', 'copywriter', 'researcher', 'asset_finder', 'presentation_builder'])
+
 export async function POST(req: NextRequest) {
   const useAnthropic = !!process.env.ANTHROPIC_API_KEY
   if (!useAnthropic && !process.env.GEMINI_API_KEY) {
     return NextResponse.json({ error: 'No AI API key configured. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env.local.' }, { status: 500 })
+  }
+
+  const ip = getClientIp(req)
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json({ error: 'Rate limit exceeded. Max 10 AI requests per minute.' }, { status: 429 })
   }
 
   let body: AIRequest
@@ -70,6 +107,30 @@ export async function POST(req: NextRequest) {
   const keyMessages = client?.brand_identity?.key_messages?.join(', ') ?? ''
   const competitors = client?.competitor_context?.join(', ') ?? 'not specified'
   const industry = client?.brand_identity?.industry ?? 'unspecified'
+
+  // Cache check for task-scoped agents
+  const db = adminSupabase()
+  const canCache = CACHEABLE_AGENTS.has(agent) && !!task?.id && !!db
+  const hash = canCache ? promptHash(agent, task!.id, task!.title, task!.description ?? '') : ''
+
+  if (canCache) {
+    const { data: cached } = await db!
+      .from('ai_responses')
+      .select('response_json, model_used, cost_usd')
+      .eq('task_id', task!.id)
+      .eq('agent_type', agent)
+      .eq('prompt_hash', hash)
+      .maybeSingle()
+
+    if (cached) {
+      return NextResponse.json({
+        text: (cached.response_json as { output_text: string }).output_text,
+        model: cached.model_used,
+        cost_usd: cached.cost_usd,
+        cached: true,
+      })
+    }
+  }
 
   let prompt = ''
   let model = PRIMARY_MODEL
@@ -522,7 +583,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
   "platform_recommendations": ["<Platform: specific technical reason>"],
   "ab_test_suggestion": "<Control: X vs Variant: Y — what to measure>",
   "strengths": ["<evidence-based observation referencing what you see>"],
-  "improvements": ["<specific, measurable improvement with expected outcome>"]${fileType === 'video' ? ',\n  "hook_analysis": "<Frame-by-frame: what fires in 0-3s, what fails, scroll-stop probability estimate>"' : ''}
+  "improvements": ["<specific, measurable improvement with expected outcome>"]${body.fileType === 'video' ? ',\n  "hook_analysis": "<Frame-by-frame: what fires in 0-3s, what fails, scroll-stop probability estimate>"' : ''}
 }`
       break
     }
@@ -535,6 +596,8 @@ Return ONLY a valid JSON object, no markdown, no code fences:
     let text = ''
     let usedModel = model
     let cost_usd = 0
+    let tokensIn = 0
+    let tokensOut = 0
 
     if (useAnthropic) {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -549,7 +612,9 @@ Return ONLY a valid JSON object, no markdown, no code fences:
       })
 
       text = response.content[0].type === 'text' ? response.content[0].text : ''
-      cost_usd = (response.usage.input_tokens * 0.000003) + (response.usage.output_tokens * 0.000015)
+      tokensIn = response.usage.input_tokens
+      tokensOut = response.usage.output_tokens
+      cost_usd = (tokensIn * 0.000003) + (tokensOut * 0.000015)
     } else {
       const geminiImage: GeminiImage | undefined =
         body.imageBase64 && body.mimeType
@@ -559,7 +624,32 @@ Return ONLY a valid JSON object, no markdown, no code fences:
       usedModel = GEMINI_MODEL
     }
 
-    return NextResponse.json({ text, model: usedModel, cost_usd })
+    // Persist to Supabase (fire-and-forget — don't block response)
+    if (db) {
+      if (canCache && task?.id) {
+        void db.from('ai_responses').upsert({
+          task_id: task.id,
+          agent_type: agent,
+          prompt_hash: hash,
+          response_json: { output_text: text },
+          cost_usd,
+          model_used: usedModel,
+          is_cached: false,
+        }, { onConflict: 'task_id,agent_type,prompt_hash' })
+      }
+
+      void db.from('api_usage').insert({
+        service: useAnthropic ? 'claude' : 'gemini',
+        endpoint: agent,
+        task_id: task?.id ?? null,
+        tokens_in: tokensIn,
+        tokens_out: tokensOut,
+        cost_usd,
+        was_cached: false,
+      })
+    }
+
+    return NextResponse.json({ text, model: usedModel, cost_usd, cached: false })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'AI generation failed.'
     return NextResponse.json({ error: message }, { status: 500 })

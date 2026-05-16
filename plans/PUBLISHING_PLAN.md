@@ -2,6 +2,17 @@
 
 > **Goal:** Make the compose dialog actually save posts to Supabase, schedule them via Metricool, handle media uploads to Supabase Storage, and receive publish confirmations via webhook.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Save draft | PENDING | `useCreatePost()` does not exist — compose dialog submit goes nowhere |
+| Phase 2 — Media upload | PENDING | No Storage upload in compose dialog |
+| Phase 3 — Schedule via Metricool | PENDING | `/api/publishing/schedule` route does not exist |
+| Phase 4 — Metricool webhook | PENDING | `/api/webhooks/metricool` does not exist |
+| Phase 5 — Failed post retry | PENDING | No retry button |
+| Phase 6 — Delete post | PENDING | `useDeletePost()` does not exist |
+
 ---
 
 ## Current State Audit

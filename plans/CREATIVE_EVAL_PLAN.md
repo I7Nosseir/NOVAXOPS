@@ -2,6 +2,15 @@
 
 > **Goal:** Wire the upload → Claude vision analysis → scoring display pipeline. Add result persistence so past evaluations are stored per client. Build an evaluation history view.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Wire the evaluation | **DONE** | `/api/ai` exists with `creative_eval` agent — upload → Claude vision → scoring display works |
+| Phase 2 — Result persistence | PENDING | No `creative_evaluations` table, no `use-evaluations.ts` hook, results lost on reload |
+| Phase 3 — Evaluation history | PENDING | No history section in UI |
+| Phase 4 — Video support | PENDING | No first-frame extraction for MP4 uploads |
+
 ---
 
 ## Current State Audit

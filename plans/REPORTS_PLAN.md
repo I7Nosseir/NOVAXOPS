@@ -2,6 +2,16 @@
 
 > **Goal:** Replace hardcoded chart data with real Supabase queries, pull performance metrics from Metricool, wire pptxgenjs to generate real .pptx files, and build a report download history.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Real KPI queries | PARTIAL | KPI stats hooks exist in `use-dashboard.ts` but `lib/hooks/use-reports.ts` not created; reports page still uses hardcoded arrays |
+| Phase 2 — Metricool analytics pull | PENDING | `/api/analytics/metricool` does not exist |
+| Phase 3 — Real charts | PENDING | `MONTH_DATA` and `STAGE_DIST` still hardcoded in reports page |
+| Phase 4 — Presentation builder (pptxgenjs) | PENDING | `/api/reports/generate` does not exist |
+| Phase 5 — Report download history | PENDING | No `usePresentations()` hook, no past reports UI |
+
 ---
 
 ## Current State Audit

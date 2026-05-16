@@ -9,6 +9,7 @@ import { useProjects } from '@/lib/hooks/use-projects'
 import { formatDate, cn } from '@/lib/utils'
 import type { Client } from '@/lib/types'
 import { NewClientWizard } from '@/components/clients/new-client-wizard'
+import { useUpdateClient } from '@/lib/hooks/use-clients'
 
 function ClientCard({ client, onSelect, isCrisis, onToggleCrisis }: {
   client: Client
@@ -354,18 +355,15 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
 
 export default function ClientsPage() {
   const { clients } = useClients()
+  const updateClient = useUpdateClient()
   const [selected, setSelected] = useState<Client | null>(null)
   const [search, setSearch] = useState('')
   const [showWizard, setShowWizard] = useState(false)
-  const [crisisClients, setCrisisClients] = useState<Set<string>>(new Set())
 
   const toggleCrisis = (id: string) => {
-    setCrisisClients(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    const c = clients.find(cl => cl.id === id)
+    if (!c) return
+    updateClient.mutate({ id, crisis_mode: !c.crisis_mode })
   }
 
   const filtered = clients.filter(c =>
@@ -376,11 +374,11 @@ export default function ClientsPage() {
   return (
     <div className="space-y-5">
       {/* Crisis Mode global alert */}
-      {crisisClients.size > 0 && (
+      {clients.some(c => c.crisis_mode) && (
         <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
           <AlertTriangle className="w-4 h-4 text-red-500 shrink-0"/>
           <p className="text-sm font-semibold text-red-700">
-            Crisis Mode active for {crisisClients.size} client{crisisClients.size > 1 ? 's' : ''} — all scheduled publishing is paused.
+            Crisis Mode active for {clients.filter(c => c.crisis_mode).length} client{clients.filter(c => c.crisis_mode).length > 1 ? 's' : ''} — all scheduled publishing is paused.
           </p>
         </div>
       )}
@@ -409,7 +407,7 @@ export default function ClientsPage() {
             key={client.id}
             client={client}
             onSelect={setSelected}
-            isCrisis={crisisClients.has(client.id)}
+            isCrisis={client.crisis_mode ?? false}
             onToggleCrisis={toggleCrisis}
           />
         ))}

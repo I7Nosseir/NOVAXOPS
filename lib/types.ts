@@ -47,6 +47,7 @@ export interface Client {
   reference_links: string[]
   metricool_blog_id?: string
   respond_io_channel_id?: string
+  crisis_mode?: boolean
   created_at: string
 }
 

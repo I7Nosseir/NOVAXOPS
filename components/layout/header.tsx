@@ -35,16 +35,16 @@ export function Header() {
 
   return (
     <>
-      <header className="h-14 fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 bg-white border-b border-slate-200">
-        <h1 className="text-slate-900 font-semibold text-base">{title}</h1>
+      <header className="h-14 fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-700/60">
+        <h1 className="text-slate-900 dark:text-slate-100 font-semibold text-base">{title}</h1>
 
         <div className="flex items-center gap-3">
           {/* Search */}
           <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
             <input
               placeholder="Search tasks, clients…"
-              className="w-56 pl-8 pr-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all"
+              className="w-56 pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all"
             />
           </div>
 
@@ -60,7 +60,7 @@ export function Header() {
           {/* Theme toggle */}
           <button
             onClick={toggle}
-            className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500"
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400"
             title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
           >
             {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
@@ -68,8 +68,8 @@ export function Header() {
 
           {/* Notifications */}
           <div className="relative">
-            <button onClick={() => setShowNotifs(v => !v)} className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors">
-              <Bell className="w-4 h-4 text-slate-500" />
+            <button onClick={() => setShowNotifs(v => !v)} className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <Bell className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
             </button>
             {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} />}

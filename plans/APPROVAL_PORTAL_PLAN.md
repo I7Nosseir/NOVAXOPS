@@ -2,6 +2,17 @@
 
 > **Goal:** Replace hardcoded mock approval requests with real DB-backed approvals, generate real shareable tokens, make the public client review page read from Supabase, and add email notification when a link is sent.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — DB setup | **DONE** | `sql/002_crisis_mode_approvals.sql` creates `approval_requests` + `approval_post_statuses` tables with public RLS |
+| Phase 2 — Hooks | **DONE** | `lib/hooks/use-approvals.ts` — `useApprovalRequests()`, `useCreateApproval()`, `useSubmitApprovalReview()` |
+| Phase 3 — Internal approval page | **DONE** | `app/(app)/approval/page.tsx` — reads real DB, creates real tokens, copy-link uses real URL |
+| Phase 4 — Public review page | **DONE** | `app/approval/[token]/page.tsx` + `app/api/approval/route.ts` — GET/POST/PATCH, public access by token |
+| Phase 5 — Email notification | PENDING | Resend not installed, no email sent on approval creation |
+| Phase 6 — Expiry badge | PENDING | No expired badge on internal cards |
+
 ---
 
 ## Current State Audit

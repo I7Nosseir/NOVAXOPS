@@ -2,6 +2,16 @@
 
 > **Goal:** Build the Respond.io webhook ingestion pipeline, wire the AI reply agent, connect the reply-send button to Respond.io's API, and add realtime queue updates.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Respond.io webhook ingestion | PENDING | `/api/webhooks/respond-io` does not exist |
+| Phase 2 — Realtime queue updates | PENDING | No Supabase Realtime subscription in `useModerationItems()` |
+| Phase 3 — AI reply agent | **DONE** | `/api/ai` exists with `moderation_reply` agent — generates reply on button click |
+| Phase 4 — Send reply to Respond.io | PENDING | "Send" only saves locally via `useUpdateModerationItem()`, doesn't call Respond.io |
+| Phase 5 — Platform limitation warning | PENDING | No Instagram comment reply warning in UI |
+
 ---
 
 ## Current State Audit

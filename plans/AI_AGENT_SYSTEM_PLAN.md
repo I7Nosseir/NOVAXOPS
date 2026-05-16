@@ -2,6 +2,18 @@
 
 > **Goal:** Build the entire backend for AI agents: the `/api/ai` route, system prompt builder, per-agent prompt templates, response caching, cost tracking, rate limiting, and reflection agent.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Route handler | **DONE** | `app/api/ai/route.ts` — handles all 8 agent types |
+| Phase 2 — System prompt builder | **DONE** | Context injection (client, task, stage, brand identity) built into the route |
+| Phase 3 — Per-agent prompt templates | **DONE** | All 8 agents: task_analyzer, copywriter, researcher, asset_finder, presentation_builder, content_calendar, creative_eval, moderation_reply |
+| Phase 4 — Response caching | **DONE** | SHA-256 hash → `ai_responses` table, returns `cached: true` on hit |
+| Phase 5 — Cost tracking | **DONE** | Per-call write to `api_usage` with token counts and `cost_usd` |
+| Phase 6 — Rate limiting | **DONE** | In-memory Map, 10 req/user/min, keyed by IP |
+| Phase 7 — Reflection agent | PENDING | No post-generation brand/hashtag/JSON check |
+
 ---
 
 ## Current State Audit

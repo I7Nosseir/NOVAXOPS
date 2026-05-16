@@ -2,6 +2,17 @@
 
 > **Goal:** Connect the Freepik search to the real API, build client file uploads to Supabase Storage, complete the Google Drive OAuth flow, and make the asset library read/write from the DB.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Asset library from DB | **DONE** | `useAssets()` reads from Supabase `assets` table |
+| Phase 2 — Freepik API integration | PENDING | Assets page still calls `/api/pinterest` (wrong endpoint) — needs `/api/assets/freepik` route |
+| Phase 3 — Save to library | PENDING | `useCreateAsset()` does not exist, no save-from-freepik route |
+| Phase 4 — Client file upload | PENDING | No upload button wired to Supabase Storage |
+| Phase 5 — Google Drive OAuth | **DONE** | All 4 routes built: `/api/drive/auth`, `/api/drive/callback`, `/api/drive/files`, `/api/drive/disconnect` |
+| Phase 6 — Import from Drive | PENDING | `/api/assets/import-from-drive` does not exist |
+
 ---
 
 ## Current State Audit

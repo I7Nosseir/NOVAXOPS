@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Upload, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2 } from 'lucide-react'
+import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Upload, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -24,9 +24,17 @@ function PostCard({ post }: { post: ScheduledPost }) {
   const client = clients.find(c => c.id === post.client_id)
   const status = STATUS_CONFIG[post.status]
   const perf = post.performance
+  const isCrisis = client?.crisis_mode ?? false
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow">
+    <div className={cn('bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow', isCrisis ? 'border-red-200' : 'border-slate-200')}>
+      {/* Crisis indicator */}
+      {isCrisis && (
+        <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 bg-red-50 border border-red-100 rounded-lg">
+          <AlertTriangle className="w-3 h-3 text-red-500 shrink-0"/>
+          <p className="text-[10px] font-semibold text-red-600">Publishing Paused — Crisis Mode</p>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
@@ -764,10 +772,13 @@ function CalendarView({ onCompose }: { onCompose: () => void }) {
 
 export default function PublishingPage() {
   const { posts: allPosts } = usePosts()
+  const { clients } = useClients()
   const [compose, setCompose] = useState(false)
   const [briefDialog, setBriefDialog] = useState(false)
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
   const [view, setView] = useState<'grid' | 'calendar'>('grid')
+
+  const crisisClients = clients.filter(c => c.crisis_mode)
 
   const filtered = allPosts.filter(p => filter === 'all' || p.status === filter)
   const counts = {
@@ -778,6 +789,19 @@ export default function PublishingPage() {
 
   return (
     <div className="space-y-5">
+      {/* Crisis Mode Banner */}
+      {crisisClients.length > 0 && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+          <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5"/>
+          <div>
+            <p className="text-sm font-semibold text-red-700">
+              Crisis Mode — Publishing Paused for {crisisClients.map(c => c.name).join(', ')}
+            </p>
+            <p className="text-xs text-red-600 mt-0.5">Scheduled posts for these clients will not be sent. Deactivate Crisis Mode from the Clients page to resume.</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">

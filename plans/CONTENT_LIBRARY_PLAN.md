@@ -2,6 +2,16 @@
 
 > **Goal:** Make the templates tab read real published posts from Supabase, wire the "star to save" and "use as template" actions, and complete the Google Drive file browser (OAuth covered in ASSET_MANAGEMENT_PLAN).
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Templates from real data | PENDING | Library page still reads from mock — needs to switch to `usePosts()` filtered to published |
+| Phase 2 — Star/save persistence | PENDING | Star is local state only; `saved_as_template` column not added to DB |
+| Phase 3 — "Use as template" action | PENDING | Button exists, no implementation |
+| Phase 4 — Google Drive file browser | PARTIAL | Drive OAuth routes are built; UI tab exists — just needs wiring to real routes |
+| Phase 5 — Copy framework tags | PENDING | `copy_framework` column not added to DB |
+
 ---
 
 ## Current State Audit

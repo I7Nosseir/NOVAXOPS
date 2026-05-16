@@ -7,7 +7,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <AuthGuard>
-        <div className="min-h-screen" style={{ background: 'var(--main-bg)' }}>
+        <div className="min-h-screen bg-slate-50 dark:bg-[#0c0f14]">
           <Sidebar />
           <Header />
           <main className="ml-64 pt-14 min-h-screen">

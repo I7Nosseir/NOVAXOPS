@@ -116,7 +116,7 @@
 
 body {
   background: var(--main-bg);
-  color: #0f172a;
+  color: var(--foreground);
   font-family: var(--font-sans, system-ui, sans-serif);
 }
 
@@ -157,6 +157,11 @@ body {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* App surface variables */
+  --main-bg:   #0c0f14;
+  --header-bg: #111827;
+  --card-bg:   #1e293b;
 }
 
 @layer base {
@@ -170,3 +175,45 @@ body {
     @apply font-sans;
   }
 }
+
+/* ─── Global dark mode surface overrides ──────────────────────────────────────
+   These make every component respond to dark mode without touching each file.
+   :where() keeps specificity low so per-component explicit overrides still win.
+   The sidebar is excluded — it uses inline CSS variables, not these classes.
+──────────────────────────────────────────────────────────────────────────── */
+html.dark { color-scheme: dark; }
+
+html.dark :where(.bg-white)     { background-color: #1e293b; }
+html.dark :where(.bg-slate-50)  { background-color: #0f172a; }
+html.dark :where(.bg-slate-100) { background-color: #1e293b; }
+
+html.dark :where(.text-slate-900) { color: #f1f5f9; }
+html.dark :where(.text-slate-800) { color: #e2e8f0; }
+html.dark :where(.text-slate-700) { color: #cbd5e1; }
+html.dark :where(.text-slate-600) { color: #94a3b8; }
+html.dark :where(.text-slate-500) { color: #64748b; }
+html.dark :where(.text-slate-400) { color: #475569; }
+
+html.dark :where(.border-slate-200) { border-color: #334155; }
+html.dark :where(.border-slate-100) { border-color: #1e293b; }
+html.dark :where(.border-slate-300) { border-color: #334155; }
+
+/* Input/select dark mode */
+html.dark :where(input:not([type="checkbox"]):not([type="radio"])),
+html.dark :where(select),
+html.dark :where(textarea) {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  border-color: #334155;
+}
+html.dark :where(input::placeholder),
+html.dark :where(textarea::placeholder) { color: #475569; }
+
+/* Scrollbar in dark mode */
+html.dark ::-webkit-scrollbar-thumb { background: #334155; }
+
+/* Shadows are too harsh in dark — soften them */
+html.dark :where(.shadow-sm)  { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.4); }
+html.dark :where(.shadow-md)  { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5); }
+html.dark :where(.shadow-lg)  { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.6); }
+html.dark :where(.shadow-2xl) { box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.7); }

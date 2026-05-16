@@ -2,6 +2,17 @@
 
 > **Goal:** Build the login page, session middleware, real useAuth() from Supabase session, role-based UI enforcement, and wire the invite flow end-to-end.
 
+## Status Overview
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 — Login page | PENDING | No `/login` page exists; middleware redirects but there's nowhere to land |
+| Phase 2 — Middleware | **DONE** | `middleware.ts` at root — redirects unauthenticated users, bypasses public approval URLs |
+| Phase 3 — Real useAuth() | **DONE** | `lib/auth-context.tsx` fully rewritten — real session, fetchProfile from `users` table, signIn/signOut |
+| Phase 4 — Role enforcement | PENDING | `hasRole()` not added to utils.ts; all roles still see everything |
+| Phase 5 — Invite user | **DONE** | `useInviteUser()` in `use-users.ts`, `/api/auth/invite/route.ts` exists |
+| Phase 6 — Password reset | PENDING | Not built |
+
 ---
 
 ## Current State Audit

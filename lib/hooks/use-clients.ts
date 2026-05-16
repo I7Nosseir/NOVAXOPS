@@ -14,6 +14,7 @@ function mapClient(row: Record<string, unknown>): Client {
     reference_links: (row.reference_links as string[]) ?? [],
     metricool_blog_id: row.metricool_blog_id as string | undefined,
     respond_io_channel_id: row.respond_io_channel_id as string | undefined,
+    crisis_mode: (row.crisis_mode as boolean | undefined) ?? false,
     created_at: row.created_at as string,
   }
 }
