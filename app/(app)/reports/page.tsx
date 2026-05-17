@@ -1825,7 +1825,22 @@ export default function ReportsPage() {
               </button>
               {generated && (
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    // Force the report container to at least 740 px wide so
+                    // Recharts ResponsiveContainers re-measure at print width
+                    // before the browser captures the page for the PDF.
+                    const el = document.getElementById('printable-report')
+                    if (el) {
+                      el.style.minWidth = '740px'
+                      window.dispatchEvent(new Event('resize'))
+                      setTimeout(() => {
+                        window.print()
+                        setTimeout(() => { el.style.minWidth = '' }, 800)
+                      }, 350)
+                    } else {
+                      window.print()
+                    }
+                  }}
                   className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   <Download className="w-3.5 h-3.5"/> Export PDF

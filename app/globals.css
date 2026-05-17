@@ -377,4 +377,41 @@ html.dark :where(.shadow-2xl) { box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.7); 
     break-before: page !important;
     page-break-before: always !important;
   }
+
+  /* ── Mobile print fix ─────────────────────────────────────────────────────
+     When printing from a mobile browser the viewport stays at phone width
+     (~375 px). Tailwind's sm:/md:/lg: breakpoints never fire, so grids
+     collapse to 1 column and Recharts SVGs are stuck at mobile dimensions.
+     Force the printable report to a proper A4-content width so charts and
+     grids render correctly, and re-apply every responsive column variant.
+  ─────────────────────────────────────────────────────────────────────────── */
+  #printable-report {
+    min-width: 740px !important;   /* A4 content area ≈ 178 mm → ~673 px at 96 dpi;
+                                      740 px gives comfortable breathing room       */
+  }
+
+  /* Restore responsive Tailwind grid columns that mobile viewport suppressed */
+  #printable-report .sm\:grid-cols-1 { grid-template-columns: repeat(1, minmax(0,1fr)) !important; }
+  #printable-report .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+  #printable-report .sm\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
+  #printable-report .sm\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0,1fr)) !important; }
+  #printable-report .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+  #printable-report .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
+  #printable-report .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0,1fr)) !important; }
+  #printable-report .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+  #printable-report .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
+  #printable-report .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0,1fr)) !important; }
+  #printable-report .lg\:col-span-2  { grid-column: span 2 / span 2 !important; }
+  #printable-report .sm\:col-span-2  { grid-column: span 2 / span 2 !important; }
+  #printable-report .lg\:col-span-3  { grid-column: span 3 / span 3 !important; }
+
+  /* Restore hidden elements that use sm:/lg: show variants */
+  #printable-report .sm\:block   { display: block !important; }
+  #printable-report .sm\:flex    { display: flex !important; }
+  #printable-report .sm\:inline  { display: inline !important; }
+  #printable-report .sm\:inline-block { display: inline-block !important; }
+  #printable-report .lg\:block   { display: block !important; }
+  #printable-report .lg\:flex    { display: flex !important; }
+  #printable-report .hidden      { display: none !important; }
+  /* But items intentionally hidden in the report (sm:hidden) stay hidden */
 }
