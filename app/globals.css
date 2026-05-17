@@ -345,4 +345,36 @@ html.dark :where(.shadow-2xl) { box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.7); 
 
   /* ── Inline-style backgrounds (NOVAX brand header, teal cards) ─────────── */
   /* print-color-adjust: exact (above) covers these — no extra rules needed */
+
+  /* ── Dark mode reset — PDF must always be white regardless of app theme ── */
+  html.dark :where(.bg-white)     { background-color: #ffffff !important; }
+  html.dark :where(.bg-slate-50)  { background-color: #f8fafc !important; }
+  html.dark :where(.bg-slate-100) { background-color: #f1f5f9 !important; }
+  html.dark :where(.text-slate-900) { color: #0f172a !important; }
+  html.dark :where(.text-slate-800) { color: #1e293b !important; }
+  html.dark :where(.text-slate-700) { color: #334155 !important; }
+  html.dark :where(.text-slate-600) { color: #475569 !important; }
+  html.dark :where(.text-slate-500) { color: #64748b !important; }
+  html.dark :where(.text-slate-400) { color: #94a3b8 !important; }
+  html.dark :where(.border-slate-200) { border-color: #e2e8f0 !important; }
+  html.dark :where(.border-slate-100) { border-color: #f1f5f9 !important; }
+  html.dark :where(.border-slate-300) { border-color: #cbd5e1 !important; }
+  html.dark :where(input:not([type="checkbox"]):not([type="radio"])),
+  html.dark :where(select),
+  html.dark :where(textarea) {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* ── Cover page & section break utilities ─────────────────────────────── */
+  .report-cover-page {
+    break-after: page !important;
+    page-break-after: always !important;
+    min-height: 230mm;
+  }
+  .print-break-before {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
 }

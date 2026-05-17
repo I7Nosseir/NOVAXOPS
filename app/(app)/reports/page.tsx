@@ -27,6 +27,11 @@ const B = {
 // ─── Tab definition ────────────────────────────────────────────────────────────
 type ReportTab = 'monthly' | 'paid' | 'combined' | 'platform' | 'quarterly' | 'executive' | 'ai'
 type IconProps = { className?: string }
+type KPIRow         = { metric: string; current: string; previous: string; delta: string; positive: boolean | null; benchmark: string; vsBenchmark: string; vsBenchmarkPositive: boolean | null }
+type ActionRow      = { action: string; owner: string; deadline: string; impact: string; priority: 'high' | 'medium' | 'low' }
+type AudienceRow    = { signal: string; value: string; benchmark: string; status: 'good' | 'warning' | 'poor'; note: string }
+type Competitor     = { name: string; followers: string; er: string; posts: number; avgReach: string }
+type BottomPost     = { platform: string; type: string; reach: number; er: number; caption: string; diagnosis: string }
 
 const TABS: { id: ReportTab; label: string; icon: (p: IconProps) => React.ReactElement; description: string }[] = [
   { id: 'monthly',    label: 'Monthly Performance',  icon: (p: IconProps) => <BarChart2  {...p}/>, description: 'Organic reach, impressions, ER trend, platform breakdown, top posts and recommendations.' },
@@ -63,10 +68,58 @@ const MONTHLY_DEMO = {
     { type: 'Stories',  posts: 4,  reach: 46300, er: 3.8 },
   ],
   topPosts: [
-    { platform: 'Instagram', type: 'Reel',     reach: 48200, er: 12.4, caption: 'Summer Glow Collection — first look reveal' },
-    { platform: 'TikTok',    type: 'Video',    reach: 29900, er: 9.1,  caption: 'Morning skincare routine with Hydra Serum' },
-    { platform: 'Instagram', type: 'Carousel', reach: 22400, er: 8.7,  caption: '5 reasons dermatologists recommend us' },
+    { platform: 'Instagram', type: 'Reel',     reach: 48200, er: 12.4, caption: 'Summer Glow Collection — first look reveal',          why: 'First-look reveal with founder voiceover drove 3× average saves. Shared organically by 2 micro-influencers within 6 hours, compounding reach. Hook landed in the first 2 seconds.' },
+    { platform: 'TikTok',    type: 'Video',    reach: 29900, er: 9.1,  caption: 'Morning skincare routine with Hydra Serum',           why: 'Tutorial format with bold opening hook. Dueted by 4 accounts, adding 8,400 views at zero incremental cost. Native text overlays improved watch-through to 74%.' },
+    { platform: 'Instagram', type: 'Carousel', reach: 22400, er: 8.7,  caption: '5 reasons dermatologists recommend us',              why: '62% of engagement came from saves, indicating high utility perception. Post remained on Explore for 8 days due to sustained save velocity.' },
+    { platform: 'LinkedIn',  type: 'Article',  reach: 17300, er: 4.2,  caption: 'Why ingredient transparency is the future of beauty', why: 'Long-form credibility content outperformed short posts 3:1. 14 industry reposts amplified B2B reach. Avg dwell time of 4.2 min drove algorithm favourability.' },
+    { platform: 'Facebook',  type: 'Video',    reach: 14200, er: 3.8,  caption: 'Customer story — 90-day transformation',             why: 'UGC-style testimonial outperformed all branded Facebook content by 2.4×. Native upload received algorithm preference over link shares. 38% of views from shares.' },
   ],
+  bottomPosts: [
+    { platform: 'Instagram', type: 'Static',  reach: 4200, er: 1.2, caption: 'Colour palette inspiration — Summer Glow',           diagnosis: 'Over-designed static with no text hook reached only 14% of followers — a clear suppression signal. Static posts now average 3.1× less reach than Reels on this account.' },
+    { platform: 'Instagram', type: 'Story',   reach: 3800, er: 0.8, caption: 'Flash sale — 24 hours only',                         diagnosis: 'Posted at 08:00 Sunday — worst time slot for this account (benchmark ER at that window: 2.1%). No prior trust-building content in the preceding 48 hours reduced conversion intent. Swipe-up rate was 0.3% vs account average of 2.4%.' },
+    { platform: 'Facebook',  type: 'Static',  reach: 3100, er: 0.6, caption: '"Beauty begins the moment you decide to be yourself"', diagnosis: 'Inspirational quote format drives near-zero meaningful engagement on Facebook for B2C beauty brands. Algorithm systematically deprioritises text-heavy statics. Recommend discontinuing this format.' },
+  ] as BottomPost[],
+  kpiComparison: [
+    { metric: 'Total Reach',          current: '284,500',  previous: '241,000',  delta: '+18.4%',  positive: true  as boolean|null, benchmark: '200,000',  vsBenchmark: '+42.3%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Total Impressions',    current: '412,000',  previous: '349,000',  delta: '+22.1%',  positive: true  as boolean|null, benchmark: '300,000',  vsBenchmark: '+37.3%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Avg Eng. Rate',        current: '5.8%',     previous: '5.0%',     delta: '+0.8pp',  positive: true  as boolean|null, benchmark: '4.0%',     vsBenchmark: '+1.8pp',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'New Followers',        current: '2,840',    previous: '2,650',    delta: '+7.2%',   positive: true  as boolean|null, benchmark: '1,500',    vsBenchmark: '+89.3%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Posts Published',      current: '34',       previous: '32',       delta: '+6.3%',   positive: true  as boolean|null, benchmark: '28',       vsBenchmark: '+21.4%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Total Saves',          current: '18,400',   previous: '14,200',   delta: '+29.6%',  positive: true  as boolean|null, benchmark: '8,000',    vsBenchmark: '+130.0%', vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Total Comments',       current: '6,840',    previous: '5,200',    delta: '+31.5%',  positive: true  as boolean|null, benchmark: '4,000',    vsBenchmark: '+71.0%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Total Shares',         current: '12,400',   previous: '9,800',    delta: '+26.5%',  positive: true  as boolean|null, benchmark: '6,000',    vsBenchmark: '+106.7%', vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Profile Visits',       current: '42,800',   previous: '36,200',   delta: '+18.2%',  positive: true  as boolean|null, benchmark: '30,000',   vsBenchmark: '+42.7%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Website Clicks',       current: '8,400',    previous: '6,800',    delta: '+23.5%',  positive: true  as boolean|null, benchmark: '5,000',    vsBenchmark: '+68.0%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Story Views',          current: '68,400',   previous: '58,200',   delta: '+17.5%',  positive: true  as boolean|null, benchmark: '50,000',   vsBenchmark: '+36.8%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Story Completion',     current: '68%',      previous: '64%',      delta: '+4pp',    positive: true  as boolean|null, benchmark: '55%',      vsBenchmark: '+13pp',   vsBenchmarkPositive: true  as boolean|null },
+  ] as KPIRow[],
+  audienceSignals: [
+    { signal: 'Save Rate',               value: '6.5%',    benchmark: '2.0%',  status: 'good'    as 'good'|'warning'|'poor', note: 'Saves indicate bookmarked-for-reference intent — strong signal of genuine audience interest and content utility.' },
+    { signal: 'Follower-to-Reach Ratio', value: '664%',    benchmark: '400%',  status: 'good'    as 'good'|'warning'|'poor', note: 'Reach significantly exceeds follower count — content is distributed via Explore and hashtags well beyond the core audience.' },
+    { signal: 'Comment Sentiment',       value: '94% pos', benchmark: '85%',   status: 'good'    as 'good'|'warning'|'poor', note: 'Critical comments account for <1% and relate exclusively to pricing, not product quality.' },
+    { signal: 'Audience Authenticity',   value: '96.2%',   benchmark: '90%',   status: 'good'    as 'good'|'warning'|'poor', note: 'Low bot/ghost follower count based on engagement-pattern analysis. Maintains algorithm favourability.' },
+    { signal: 'Profile Visit Rate',      value: '15.1%',   benchmark: '8.0%',  status: 'good'    as 'good'|'warning'|'poor', note: '1 in 6.6 people who see content visit the profile — nearly 2× industry benchmark for beauty brands.' },
+    { signal: 'Story Completion Rate',   value: '68%',     benchmark: '55%',   status: 'good'    as 'good'|'warning'|'poor', note: '68% of viewers watch to the final slide. Swipe-away rate is 4.2% vs a benchmark of 8%, confirming strong sequencing.' },
+  ] as AudienceRow[],
+  competitors: [
+    { name: 'Charlotte Tilbury', followers: '12.4M',  er: '3.2%', posts: 8,  avgReach: '92,000'  },
+    { name: 'NARS Cosmetics',    followers: '8.1M',   er: '2.8%', posts: 6,  avgReach: '74,000'  },
+    { name: 'Fenty Beauty',      followers: '14.2M',  er: '4.1%', posts: 10, avgReach: '108,000' },
+    { name: 'Luxe Cosmetics',    followers: '42.8K',  er: '6.8%', posts: 5,  avgReach: '9,300'   },
+  ] as Competitor[],
+  actionPlan: [
+    { action: 'Increase Reel frequency to 4 per week',                          owner: 'Social Manager', deadline: 'June 7, 2026',  impact: '+40% organic reach based on current ER trajectory',                         priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'A/B test 3 video hook variants for TikTok',                       owner: 'Copywriter',     deadline: 'June 14, 2026', impact: '+25% CTR and watch-through rate',                                            priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Add 2 LinkedIn long-form articles per month',                     owner: 'Strategist',     deadline: 'June 1, 2026',  impact: 'Projected 3× engagement rate vs short LinkedIn posts',                      priority: 'medium' as 'high'|'medium'|'low' },
+    { action: 'Replace Facebook statics with native video',                      owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Estimated 2× reach for same production effort',                             priority: 'medium' as 'high'|'medium'|'low' },
+    { action: 'Schedule 3 Stories per week (Tue/Wed/Thu)',                       owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Story algorithm lift increases profile visits by an estimated 20–35%',      priority: 'low'    as 'high'|'medium'|'low' },
+  ] as ActionRow[],
+  narrative: {
+    executive: 'May 2026 is the strongest organic month in twelve months for Luxe Cosmetics. Total reach grew 18.4% to 284,500 unique accounts — a gain of 43,500 over April — driven by a concentrated Reels push and two carousel posts that entered the Explore page. Engagement rate reached 5.8%, exceeding the 4.0% industry benchmark by 1.8 percentage points, while follower growth of 2,840 net new accounts confirmed that the Summer Glow campaign is converting reach into sustained audience growth.',
+    reach: 'Organic reach was distributed across four platforms, with Instagram contributing 59% of total reach despite representing only 53% of posts — a clear signal that the algorithm is favouring Luxe content relative to peers. TikTok delivered the highest reach-per-post ratio at 10,143 per video on the lowest posting frequency, indicating significant untapped potential. Facebook and LinkedIn combined contributed 16% of total reach while accounting for 26% of posts, suggesting resource allocation should shift further toward Instagram and TikTok in June.',
+    engagement: 'The 5.8% blended engagement rate masks significant format-level variation. Reels achieved 8.4% ER — more than double the industry benchmark for the format — with saves increasing 29.6% month-on-month as a reliable proxy for content utility. Static posts declined to 4.1% average ER as the algorithm increasingly deprioritises non-video formats. Stories averaged 3.8% interaction rate, below the account\'s own historical benchmark of 4.6%, and require corrective action in June through improved posting cadence and hook quality.',
+    platform: 'Instagram remains the primary growth engine, accounting for 59% of total reach from 53% of posts — a favourable over-index that reflects algorithm alignment with current creative output. TikTok\'s 9.1% engagement rate on a comparatively small audience of 12,400 followers represents the highest-upside organic channel in the portfolio. Facebook continues to underperform relative to investment: at 3.4% ER and $6,800 CPC on boosted posts, the platform\'s return profile warrants reallocation of budget and creative attention toward Instagram and TikTok in Q2.',
+  },
   recommendations: [
     'Increase Reel frequency to 3–4 per week — they deliver 34% more reach at 2.1× the ER of static posts.',
     'LinkedIn ER (4.2%) outperforms the B2C average (2.8%) — add 2 posts per month to compound this advantage.',
@@ -103,6 +156,32 @@ const PAID_DEMO = {
     { name: 'Carousel — Product Line', platform: 'Facebook',  ctr: 3.1, cpa: 11.20 },
     { name: 'Video — Founder Story',   platform: 'TikTok',    ctr: 2.6, cpa: 14.60 },
   ],
+  kpiComparison: [
+    { metric: 'Total Ad Spend',    current: '$8,500',   previous: '$8,100',   delta: '+4.9%',   positive: null  as boolean|null, benchmark: '$8,000',   vsBenchmark: '+6.3%',   vsBenchmarkPositive: null  as boolean|null },
+    { metric: 'Total Revenue',     current: '$28,900',  previous: '$24,600',  delta: '+17.5%',  positive: true  as boolean|null, benchmark: '$24,000',  vsBenchmark: '+20.4%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'ROAS',              current: '3.4×',     previous: '3.0×',     delta: '+0.4×',   positive: true  as boolean|null, benchmark: '2.5×',     vsBenchmark: '+0.9×',   vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'CPM',               current: '$6.85',    previous: '$7.20',    delta: '−4.9%',   positive: true  as boolean|null, benchmark: '$9.50',    vsBenchmark: '−27.9%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'CPC',               current: '$0.22',    previous: '$0.26',    delta: '−15.4%',  positive: true  as boolean|null, benchmark: '$0.35',    vsBenchmark: '−37.1%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'CTR',               current: '3.1%',     previous: '2.9%',     delta: '+0.2pp',  positive: true  as boolean|null, benchmark: '1.0%',     vsBenchmark: '+2.1pp',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'CPA',               current: '$10.04',   previous: '$11.40',   delta: '−11.9%',  positive: true  as boolean|null, benchmark: '$18.00',   vsBenchmark: '−44.2%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Conversions',       current: '847',      previous: '711',      delta: '+19.1%',  positive: true  as boolean|null, benchmark: '500',      vsBenchmark: '+69.4%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Impressions',       current: '1,240,000',previous: '1,080,000',delta: '+14.8%',  positive: true  as boolean|null, benchmark: '900,000',  vsBenchmark: '+37.8%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Clicks',            current: '38,400',   previous: '31,300',   delta: '+22.7%',  positive: true  as boolean|null, benchmark: '20,000',   vsBenchmark: '+92.0%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Budget Utilisation',current: '85%',      previous: '81%',      delta: '+4pp',    positive: null  as boolean|null, benchmark: '90%',      vsBenchmark: '−5pp',    vsBenchmarkPositive: null  as boolean|null },
+    { metric: 'Frequency',         current: '2.3×',     previous: '2.1×',     delta: '+0.2×',   positive: null  as boolean|null, benchmark: '2.5×',     vsBenchmark: '−0.2×',   vsBenchmarkPositive: null  as boolean|null },
+  ] as KPIRow[],
+  actionPlan: [
+    { action: 'Scale Cart Retargeting from $1.8K to $3.6K',             owner: 'Paid Manager',   deadline: 'June 1, 2026',  impact: 'ROAS 5.2× makes this the highest-confidence budget move; projected +$9.4K revenue',    priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Pause TikTok Brand Video, reallocate to IG Conversion',   owner: 'Paid Manager',   deadline: 'June 1, 2026',  impact: 'Swap ROAS 1.9× for 4.1× on same spend; projected +$3.3K monthly revenue',              priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Test video-first creative for Hydra Serum campaign',       owner: 'Copywriter',     deadline: 'June 14, 2026', impact: 'Video ads average 40% lower CPA vs static on Instagram — projected CPA to $6.00',      priority: 'medium' as 'high'|'medium'|'low' },
+    { action: 'Expand Beauty 25–34 audience budget by 25%',              owner: 'Paid Manager',   deadline: 'June 7, 2026',  impact: 'Highest-ROAS audience (4.2×) has headroom before saturation frequency',                 priority: 'medium' as 'high'|'medium'|'low' },
+    { action: 'Set up automated budget rules for CPA threshold',          owner: 'Paid Manager',   deadline: 'June 21, 2026', impact: 'Auto-pause ad sets if CPA exceeds $14 — prevents budget drain on underperformers',       priority: 'low'    as 'high'|'medium'|'low' },
+  ] as ActionRow[],
+  narrative: {
+    executive: 'May 2026 delivered a 3.4× portfolio ROAS — above the 2.5× agency benchmark and a +0.4× improvement on April. Total ad spend of $8,500 generated $28,900 in attributed revenue, with Cart Retargeting emerging as the standout performer at 5.2× ROAS. CPM fell to $6.85 (−4.9% vs April) while CTR climbed to 3.1%, signalling improving creative-audience fit across the portfolio.',
+    efficiency: 'Cost efficiency improved across all primary metrics month-on-month. CPC dropped 15.4% to $0.22 — well below the $0.35 industry benchmark — driven by strong creative relevance scores on the Instagram Awareness and Conversion campaigns. CPA fell to $10.04, representing a 44.2% advantage over the $18.00 category benchmark, largely attributable to the Retargeting audience\'s superior purchase intent. The TikTok Brand Video campaign (ROAS 1.9×) is the sole underperformer and should be paused to free budget for higher-return placements.',
+    creative: 'The top-performing creative was the "Morning Ritual" Reel, achieving 4.2% CTR and $7.80 CPA — the strongest result in the portfolio. The pattern across all top creatives is consistent: video-first formats with product in the first 3 seconds outperform static alternatives by 1.8–2.4× on CPA. The Founder Story video on TikTok underperformed despite high reach (320K impressions), suggesting the audience segment (broad interest targeting) is too high-funnel for a conversion objective.',
+  },
   recommendations: [
     'Scale Retargeting — Cart Recovery to $5.4K: ROAS 5.2× is the strongest signal in the portfolio — 3× current budget has clear headroom.',
     'Pause TikTok Brand Video (ROAS 1.9×) and reallocate $1.5K to Instagram Hydra Serum Conversion (ROAS 4.1×).',
@@ -128,6 +207,28 @@ const COMBINED_DEMO = {
     { platform: 'TikTok',    organic: 71000,  paid: 107000 },
     { platform: 'LinkedIn',  organic: 17300,  paid: 0 },
   ],
+  kpiComparison: [
+    { metric: 'Combined Total Reach',   current: '1,131,500', previous: '990,000',  delta: '+14.3%',  positive: true  as boolean|null, benchmark: '800,000',  vsBenchmark: '+41.4%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Organic Reach',          current: '284,500',   previous: '241,000',  delta: '+18.4%',  positive: true  as boolean|null, benchmark: '200,000',  vsBenchmark: '+42.3%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Paid Reach',             current: '847,000',   previous: '749,000',  delta: '+13.1%',  positive: true  as boolean|null, benchmark: '600,000',  vsBenchmark: '+41.2%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Paid Reach %',           current: '74.8%',     previous: '75.7%',    delta: '−0.9pp',  positive: null  as boolean|null, benchmark: '75%',      vsBenchmark: '−0.2pp',  vsBenchmarkPositive: null  as boolean|null },
+    { metric: 'Blended CPM',            current: '$7.52',     previous: '$7.90',    delta: '−4.8%',   positive: true  as boolean|null, benchmark: '$9.50',    vsBenchmark: '−20.8%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Blended CPE',            current: '$0.19',     previous: '$0.22',    delta: '−13.6%',  positive: true  as boolean|null, benchmark: '$0.30',    vsBenchmark: '−36.7%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Organic Posts',          current: '34',        previous: '32',       delta: '+6.3%',   positive: true  as boolean|null, benchmark: '28',       vsBenchmark: '+21.4%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Paid Ad Spend',          current: '$8,500',    previous: '$8,100',   delta: '+4.9%',   positive: null  as boolean|null, benchmark: '$8,000',   vsBenchmark: '+6.3%',   vsBenchmarkPositive: null  as boolean|null },
+    { metric: 'Paid ROAS',              current: '3.4×',      previous: '3.0×',     delta: '+0.4×',   positive: true  as boolean|null, benchmark: '2.5×',     vsBenchmark: '+0.9×',   vsBenchmarkPositive: true  as boolean|null },
+  ] as KPIRow[],
+  actionPlan: [
+    { action: 'Boost top 2 organic posts as paid dark posts',             owner: 'Paid Manager',   deadline: 'June 7, 2026',  impact: 'Reduces creative production cost ~40% and validates copy before full budget commitment',   priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Increase TikTok organic posting to 3×/week',               owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'ER of 9.1% signals high-value audience; build organic base before adding paid spend',       priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Run $800 LinkedIn Campaign Manager test',                   owner: 'Paid Manager',   deadline: 'June 14, 2026', impact: 'Organic ER 4.2% is already above B2C benchmark — paid amplification is low-risk',          priority: 'medium' as 'high'|'medium'|'low' },
+    { action: 'Move Instagram paid reporting to blended CPM dashboard',    owner: 'Strategist',     deadline: 'June 7, 2026',  impact: 'Unified view prevents double-counting reach and enables true channel ROI comparison',         priority: 'medium' as 'high'|'medium'|'low' },
+  ] as ActionRow[],
+  narrative: {
+    executive: 'Luxe Cosmetics generated a combined reach of 1,131,500 accounts in May 2026 — a 14.3% increase on April. Paid channels account for 74.8% of total reach at a blended CPM of $7.52, while organic content continues to perform at a 5.8% engagement rate that requires zero incremental spend. The relationship between the two channels is complementary: organic content validates creative quality before paid amplification, a workflow that is currently underutilised.',
+    synergy: 'The highest-performing paid creative (Morning Ritual Reel, CTR 4.2%) was originally an organic post that the team promoted after observing its 12.4% engagement rate. This creative-to-paid pipeline approach reduces production cost per acquisition by an estimated 38% compared to purpose-built paid creative. Only 2 of the 5 top organic posts this month were promoted — a gap that represents significant efficiency available without additional creative investment.',
+    channel: 'TikTok presents the most compelling channel balance opportunity: organic ER of 9.1% and 71K organic reach on just 7 posts indicates a highly receptive audience, yet only $1,500 of the $8,500 paid budget was allocated here. The paid-to-organic reach ratio on TikTok is 1.5×, compared to 2.5× on Instagram — organic content is nearly as efficient as paid on this platform, suggesting paid investment should follow further organic proof-of-concept before scaling.',
+  },
   recommendations: [
     'Top-performing organic posts should become paid ads — this reduces creative production costs by ~40% and validates creative before committing budget.',
     'TikTok organic (71K reach) vs paid uplift (+107K) is only 1.5× — organic performance is strong here; scale it before adding more paid spend.',
@@ -168,6 +269,37 @@ const PLATFORM_DEMO = {
     { tag: '#CrueltyFree',     posts: 12, reach: 34000, er: 5.2 },
     { tag: '#SummerGlow',      posts: 8,  reach: 22000, er: 8.4 },
   ],
+  kpiComparison: [
+    { metric: 'Total Followers',       current: '42,800',  previous: '40,800',  delta: '+4.9%',   positive: true  as boolean|null, benchmark: '30,000',   vsBenchmark: '+42.7%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Net New Followers',     current: '2,840',   previous: '2,420',   delta: '+17.4%',  positive: true  as boolean|null, benchmark: '1,200',    vsBenchmark: '+136.7%', vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Follower Growth Rate',  current: '7.1%',    previous: '6.3%',    delta: '+0.8pp',  positive: true  as boolean|null, benchmark: '1.8%',     vsBenchmark: '+5.3pp',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Total Reach',           current: '168,000', previous: '142,000', delta: '+18.3%',  positive: true  as boolean|null, benchmark: '120,000',  vsBenchmark: '+40.0%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Avg Eng. Rate',         current: '6.8%',    previous: '6.2%',    delta: '+0.6pp',  positive: true  as boolean|null, benchmark: '3.5%',     vsBenchmark: '+3.3pp',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Reels Avg ER',          current: '9.4%',    previous: '8.1%',    delta: '+1.3pp',  positive: true  as boolean|null, benchmark: '5.0%',     vsBenchmark: '+4.4pp',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Carousel Avg ER',       current: '7.2%',    previous: '6.8%',    delta: '+0.4pp',  positive: true  as boolean|null, benchmark: '4.5%',     vsBenchmark: '+2.7pp',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Story Completion',      current: '68%',     previous: '64%',     delta: '+4pp',    positive: true  as boolean|null, benchmark: '55%',      vsBenchmark: '+13pp',   vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Total Saves',           current: '14,200',  previous: '10,800',  delta: '+31.5%',  positive: true  as boolean|null, benchmark: '6,000',    vsBenchmark: '+136.7%', vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Avg Reach per Post',    current: '9,333',   previous: '8,222',   delta: '+13.5%',  positive: true  as boolean|null, benchmark: '6,500',    vsBenchmark: '+43.6%',  vsBenchmarkPositive: true  as boolean|null },
+  ] as KPIRow[],
+  audienceSignals: [
+    { signal: 'Save Rate',               value: '8.5%',    benchmark: '2.0%',   status: 'good'    as 'good'|'warning'|'poor', note: 'Save rate on Instagram-only posts is 4× the platform average, confirming high content utility and evergreen appeal.' },
+    { signal: 'Reel Watch-Through Rate', value: '74%',     benchmark: '50%',    status: 'good'    as 'good'|'warning'|'poor', note: '74% of Reel viewers watch to completion — a key input for the algorithm\'s distribution decisions. Well above the 50% benchmark.' },
+    { signal: 'Explore Placement Rate',  value: '31%',     benchmark: '15%',    status: 'good'    as 'good'|'warning'|'poor', note: '31% of reach this month came from Explore, meaning content is consistently surfaced to non-followers.' },
+    { signal: 'Follower Authenticity',   value: '96.2%',   benchmark: '90%',    status: 'good'    as 'good'|'warning'|'poor', note: 'Low estimated bot/ghost follower count based on engagement-pattern analysis. Maintains algorithm favourability.' },
+    { signal: 'Wed/Thu Post ER Premium', value: '+38%',    benchmark: '0%',     status: 'good'    as 'good'|'warning'|'poor', note: 'Posts published Wed–Thu achieve 38% higher ER than the account average — currently only 42% of posts land on these days.' },
+    { signal: 'Profile-to-Follow Rate', value: '6.6%',    benchmark: '3.0%',   status: 'good'    as 'good'|'warning'|'poor', note: '6.6% of profile visitors follow — more than double the benchmark, confirming strong profile page conversion.' },
+  ] as AudienceRow[],
+  actionPlan: [
+    { action: 'Shift 60% of posts to Wed–Thu publish slots',              owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Estimated +38% ER based on day-of-week performance data',                              priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Increase Reels to 4 per week',                             owner: 'Social Manager', deadline: 'June 7, 2026',  impact: 'Reels drive 9.4% ER vs 4.8% for static — 4 per week targets 12K+ additional reach',       priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Add #SummerGlow to all June Reel posts',                   owner: 'Copywriter',     deadline: 'June 1, 2026',  impact: '#SummerGlow delivers 8.4% ER vs account average 6.8% — highest hashtag performance',      priority: 'medium' as 'high'|'medium'|'low' },
+    { action: 'Create 3 Stories per week with engagement stickers',       owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Story stickers increase completion rate by 12–18% on average',                            priority: 'low'    as 'high'|'medium'|'low' },
+  ] as ActionRow[],
+  narrative: {
+    executive: 'Luxe Cosmetics Instagram account delivered its strongest month in 2026, with 42,800 total followers, a 7.1% monthly growth rate, and a 6.8% average engagement rate — 3.3 percentage points above the platform benchmark. The account grew by 2,840 net new followers in May, 17.4% more than April, driven by the Explore placement of the Summer Glow Reel and two carousel posts with exceptional save velocity.',
+    formats: 'Reels are the dominant growth engine, delivering 9.4% average engagement rate at 4× the reach of Carousels on equal posting frequency. The format also benefits from algorithm amplification: 31% of May\'s total reach came from Explore page placement, compared to 8% for static posts. Wednesday and Thursday are the highest-performing publishing days by a statistically significant margin — Wednesday posts average 8.2% ER versus 4.2% on Sundays, yet only 42% of posts are currently published on peak days.',
+    hashtags: 'Branded hashtags (#LuxeCosmetics, #SummerGlow) outperform generic category tags in both reach and engagement rate. #SummerGlow in particular generated 8.4% ER across 8 posts — the highest in the hashtag portfolio — suggesting strong seasonal relevance for the campaign. The hashtag strategy should be consolidated to 3–5 consistent tags per post rather than rotating through large tag sets, which dilutes reach concentration.',
+  },
 }
 
 const QUARTERLY_DEMO = {
@@ -188,6 +320,33 @@ const QUARTERLY_DEMO = {
     { name: "Valentine's Day Collection", reach: 84000,  er: 6.2, highlight: 'Highest-engagement campaign of Q1' },
     { name: 'Spring Renewal Launch',      reach: 112000, er: 5.8, highlight: 'Exceeded reach target by 22%' },
     { name: "International Women's Day",  reach: 64000,  er: 7.4, highlight: 'Top ER of the quarter — viral Reel reached 48K' },
+  ],
+  kpiComparison: [
+    { metric: 'Q1 Total Reach',         current: '604,500',  previous: '498,000',  delta: '+21.4%',  positive: true  as boolean|null, benchmark: '540,000',  vsBenchmark: '+11.9%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Avg Eng. Rate',          current: '5.1%',     previous: '4.4%',     delta: '+0.7pp',  positive: true  as boolean|null, benchmark: '4.0%',     vsBenchmark: '+1.1pp',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Follower Growth (net)',   current: '7,140',    previous: '5,200',    delta: '+37.3%',  positive: true  as boolean|null, benchmark: '4,500',    vsBenchmark: '+58.7%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Posts Published',        current: '91',       previous: '84',       delta: '+8.3%',   positive: true  as boolean|null, benchmark: '90',       vsBenchmark: '+1.1%',   vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Paid ROAS',              current: '3.4×',     previous: '2.8×',     delta: '+0.6×',   positive: true  as boolean|null, benchmark: '2.5×',     vsBenchmark: '+0.9×',   vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Total Ad Spend',         current: '$23,800',  previous: '$21,600',  delta: '+10.2%',  positive: null  as boolean|null, benchmark: '$24,000',  vsBenchmark: '−0.8%',   vsBenchmarkPositive: null  as boolean|null },
+    { metric: 'Total Paid Revenue',     current: '$80,920',  previous: '$60,480',  delta: '+33.8%',  positive: true  as boolean|null, benchmark: '$60,000',  vsBenchmark: '+34.9%',  vsBenchmarkPositive: true  as boolean|null },
+    { metric: 'Campaigns Delivered',    current: '3',        previous: '3',        delta: '—',       positive: null  as boolean|null, benchmark: '3',        vsBenchmark: 'On plan',  vsBenchmarkPositive: null  as boolean|null },
+  ] as KPIRow[],
+  actionPlan: [
+    { action: 'Brief Q2 campaign calendar by June 15',                    owner: 'Strategist',     deadline: 'June 15, 2026', impact: 'Earlier briefing reduces revision cycles and allows 2 weeks additional production time per campaign',  priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Set Q2 paid budget at $26,000 (+9% vs Q1)',               owner: 'Account Manager', deadline: 'June 1, 2026',  impact: 'ROAS trajectory supports budget increase; projected Q2 revenue $92K at 3.5× ROAS',                  priority: 'high'   as 'high'|'medium'|'low' },
+    { action: 'Double TikTok organic posting in Q2',                      owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Q1 TikTok ER of 9.1% on low frequency signals highest organic growth lever available',              priority: 'medium' as 'high'|'medium'|'low' },
+    { action: 'Introduce monthly organic content audit',                  owner: 'Creative Director',deadline:'July 1, 2026', impact: 'Systematic bottom-post review prevents recurring format mistakes and improves portfolio ER',           priority: 'medium' as 'high'|'medium'|'low' },
+    { action: 'Produce Q2 OKR presentation for client by June 30',        owner: 'Account Manager', deadline: 'June 30, 2026', impact: 'Aligns client expectations and secures Q2 budget approval before campaign launch',                  priority: 'low'    as 'high'|'medium'|'low' },
+  ] as ActionRow[],
+  narrative: {
+    executive: 'Q1 2026 was a breakthrough quarter for Luxe Cosmetics across all tracked dimensions. Total organic reach of 604,500 exceeded the quarterly target of 600,000, average engagement rate improved from 4.4% to 5.1%, and follower growth of 7,140 net new accounts surpassed the 6,000 target by 19%. Paid ROAS improved from 2.8× to 3.4× quarter-on-quarter, driven by refined audience targeting and creative improvements validated through organic performance data.',
+    trend: 'The month-on-month reach trajectory — 182K in January, 198K in February, 224K in March — represents a consistent 10–13% compounding growth rate. The growth acceleration in March (13.4% vs February) coincided with the International Women\'s Day campaign, confirming that culturally relevant content significantly amplifies organic distribution. If the Q1 growth rate is maintained in Q2, total quarterly reach should reach 740,000–780,000.',
+    priorities: 'Three priorities define Q2 strategy. First, the TikTok opportunity: Q1\'s 9.1% ER at low posting frequency signals a highly receptive audience that is not yet being maximised. Doubling posting frequency to 14 videos per month is the single highest-upside action. Second, the paid retargeting stack produced 5.2× ROAS in Q1 — budget scaling to $5,000 per month is the highest-confidence paid investment. Third, the existing creative-to-paid promotion pipeline (boosting organic top performers) should be systematised to cover all posts with ER above 8%.',
+  },
+  q2Priorities: [
+    { priority: 'Scale TikTok organic to 14 videos per month', rationale: 'Q1 TikTok ER of 9.1% on a modest following signals a highly engaged audience that is currently under-served. Doubling posting frequency is the single highest-upside organic action available and requires no incremental budget.' },
+    { priority: 'Increase paid retargeting budget to $5,000/month', rationale: 'The retargeting campaign delivered 5.2× ROAS in Q1 — the highest-performing paid activation. Scaling spend to $5,000/month at current conversion rates projects $26,000 incremental revenue per month, representing the best risk-adjusted paid investment.' },
+    { priority: 'Systematise organic-to-paid promotion pipeline', rationale: 'All organic posts achieving above 8% ER should be evaluated for paid promotion within 48 hours of publishing. This pipeline produced 3.8× ROAS on boosted posts in Q1 and should be formalised as a standing workflow across all campaigns.' },
   ],
 }
 
@@ -215,6 +374,16 @@ const EXECUTIVE_DEMO = {
     'Stories average only 4/month per account vs the recommended 12 — algorithm distribution is being left on the table.',
   ],
   action: 'Scale Luxe Cosmetics Instagram Retargeting from $1.8K to $3.6K in June — ROAS of 5.2× makes this the highest-confidence budget move in the portfolio.',
+  clientBreakdown: [
+    { client: 'Luxe Cosmetics', reach: '284,500', er: '5.8%', roas: '3.4×', status: 'ahead'    as 'ahead'|'on-track'|'at-risk' },
+    { client: 'TechNova',       reach: '142,000', er: '4.2%', roas: '2.8×', status: 'on-track' as 'ahead'|'on-track'|'at-risk' },
+    { client: 'Coastal Eats',   reach: '88,400',  er: '6.4%', roas: '—',    status: 'ahead'    as 'ahead'|'on-track'|'at-risk' },
+    { client: 'FitForge',       reach: '64,200',  er: '3.8%', roas: '2.1×', status: 'at-risk'  as 'ahead'|'on-track'|'at-risk' },
+  ],
+  narrative: {
+    portfolio: 'The NOVAX portfolio delivered a combined 579,100 organic reach accounts in May 2026, with a blended engagement rate of 5.05% — 26% above the 4.0% industry benchmark. Three of four clients are ahead of or on track to OKR targets; FitForge requires intervention due to declining ER (3.8%) against the fitness category benchmark of 4.5%.',
+    highlights: 'Two portfolio records were set in May: the Luxe Cosmetics Summer Glow Reel reached 48,200 accounts organically — the best single post in twelve months — and Cart Retargeting achieved 5.2× ROAS, the highest paid return in portfolio history. Both followed the same workflow: validate organic performance, then amplify with paid budget. This pipeline should be standardised across all four accounts.',
+  },
 }
 
 // ─── Shared components ──────────────────────────────────────────────────────────
@@ -297,6 +466,165 @@ function RecommendationsList({ items }: { items: string[] }) {
   )
 }
 
+// ─── Deep report shared components ────────────────────────────────────────────
+
+function CoverPage({ title, subtitle, client, period, tag }: { title: string; subtitle: string; client: string; period: string; tag: string }) {
+  return (
+    <div className="report-cover-page rounded-2xl overflow-hidden flex flex-col" style={{ background: B.primary }}>
+      <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
+      <div className="px-12 pt-12 flex items-center gap-4">
+        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="white" fillOpacity="0.12"/>
+          <path d="M8 24V8l6 16 6-16v16" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="24" cy="16" r="3" fill={B.accent}/>
+        </svg>
+        <div>
+          <p className="text-white font-bold text-xl leading-none">NOVAX</p>
+          <p className="text-xs font-medium mt-0.5" style={{ color: B.accent }}>OPS PLATFORM</p>
+        </div>
+      </div>
+      <div className="flex-1 flex flex-col justify-center px-12 py-20">
+        <div className="w-16 h-0.5 rounded-full mb-8" style={{ background: B.accent }}/>
+        <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: B.border }}>{tag}</p>
+        <h1 className="text-5xl font-bold text-white leading-tight mb-6">{title}</h1>
+        <p className="text-lg leading-relaxed" style={{ color: B.border }}>{subtitle}</p>
+      </div>
+      <div className="px-12 pb-10 flex items-end justify-between">
+        <div>
+          <p className="font-bold text-white text-lg">{client}</p>
+          <p className="text-sm mt-0.5" style={{ color: B.border }}>{period}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs" style={{ color: B.border }}>Prepared by NOVAX Ops</p>
+          <p className="text-[10px] mt-0.5 text-white opacity-40">Confidential — Not for Distribution</p>
+        </div>
+      </div>
+      <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.light}, ${B.border}, ${B.accent})` }}/>
+    </div>
+  )
+}
+
+function Paragraph({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-slate-600 leading-7">{children}</p>
+}
+
+function KPIComparisonTable({ rows }: { rows: KPIRow[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-100">
+      <table className="w-full text-sm">
+        <thead>
+          <tr style={{ background: B.light }}>
+            {['Metric', 'Current Period', 'Prior Period', 'MoM Change', 'Industry Benchmark', 'vs Benchmark'].map((h, i) => (
+              <th key={h} className={cn('p-3 text-xs font-semibold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
+              <td className="p-3 font-medium text-slate-700">{r.metric}</td>
+              <td className="p-3 text-right font-bold text-slate-900">{r.current}</td>
+              <td className="p-3 text-right text-slate-500">{r.previous}</td>
+              <td className="p-3 text-right"><DeltaBadge delta={r.delta} positive={r.positive}/></td>
+              <td className="p-3 text-right text-slate-400">{r.benchmark}</td>
+              <td className="p-3 text-right"><DeltaBadge delta={r.vsBenchmark} positive={r.vsBenchmarkPositive}/></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+const PRIORITY_BADGE: Record<string, string> = { high: 'bg-red-50 text-red-700', medium: 'bg-amber-50 text-amber-700', low: 'bg-slate-100 text-slate-500' }
+const SIGNAL_BADGE:   Record<string, string> = { good: 'bg-emerald-50 text-emerald-700', warning: 'bg-amber-50 text-amber-700', poor: 'bg-red-50 text-red-700' }
+
+function ActionPlanTable({ items }: { items: ActionRow[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-100">
+      <table className="w-full text-sm">
+        <thead>
+          <tr style={{ background: B.light }}>
+            {['Action', 'Owner', 'Deadline', 'Expected Impact', 'Priority'].map((h, i) => (
+              <th key={h} className={cn('p-3 text-xs font-semibold', i === 4 ? 'text-center' : 'text-left')} style={{ color: B.primary }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((r, i) => (
+            <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
+              <td className="p-3 font-medium text-slate-800">{r.action}</td>
+              <td className="p-3 text-slate-600 whitespace-nowrap">{r.owner}</td>
+              <td className="p-3 text-slate-600 whitespace-nowrap">{r.deadline}</td>
+              <td className="p-3 text-slate-600 text-xs">{r.impact}</td>
+              <td className="p-3 text-center"><span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full capitalize', PRIORITY_BADGE[r.priority])}>{r.priority}</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function AudienceSignalsTable({ signals }: { signals: AudienceRow[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-100">
+      <table className="w-full text-sm">
+        <thead>
+          <tr style={{ background: B.light }}>
+            {['Audience Signal', 'Value', 'Benchmark', 'Status', 'Interpretation'].map((h, i) => (
+              <th key={h} className={cn('p-3 text-xs font-semibold', i === 3 ? 'text-center' : i < 2 || i === 4 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {signals.map((s, i) => (
+            <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
+              <td className="p-3 font-medium text-slate-700">{s.signal}</td>
+              <td className="p-3 text-right font-bold text-slate-900">{s.value}</td>
+              <td className="p-3 text-right text-slate-400">{s.benchmark}</td>
+              <td className="p-3 text-center"><span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full capitalize', SIGNAL_BADGE[s.status])}>{s.status}</span></td>
+              <td className="p-3 text-slate-600 text-xs leading-relaxed">{s.note}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function CompetitorTable({ rows }: { rows: Competitor[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-100">
+      <table className="w-full text-sm">
+        <thead>
+          <tr style={{ background: B.light }}>
+            {['Account', 'Followers', 'Avg ER', 'Posts/Week', 'Avg Reach/Post'].map((h, i) => (
+              <th key={h} className={cn('p-3 text-xs font-semibold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const isUs = r.name.includes('Luxe')
+            return (
+              <tr key={i} className={cn('border-t border-slate-50', isUs ? 'font-semibold' : i % 2 === 1 ? 'bg-slate-50/50' : '')} style={isUs ? { background: B.light } : {}}>
+                <td className="p-3 font-medium" style={isUs ? { color: B.primary } : { color: '#334155' }}>
+                  {r.name}{isUs && <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: B.accent, color: 'white' }}>Us</span>}
+                </td>
+                <td className="p-3 text-right text-slate-700">{r.followers}</td>
+                <td className="p-3 text-right font-bold" style={isUs ? { color: B.primary } : { color: '#475569' }}>{r.er}</td>
+                <td className="p-3 text-right text-slate-700">{r.posts}</td>
+                <td className="p-3 text-right text-slate-700">{r.avgReach}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ─── Monthly Report ─────────────────────────────────────────────────────────────
 
 function MonthlyReport({ client }: { client: string }) {
@@ -304,6 +632,12 @@ function MonthlyReport({ client }: { client: string }) {
   const maxReach = Math.max(...d.platforms.map(p => p.reach))
   return (
     <div className="space-y-5">
+      <CoverPage
+        title="Monthly Performance Report"
+        subtitle="Organic social media performance across all active platforms — reach, engagement, audience quality, and content analysis"
+        client={client} period={d.period}
+        tag="Organic Social — Monthly"
+      />
       <ReportHeader title="Monthly Performance Report" subtitle="Organic social media performance across all platforms" client={client} period={d.period}/>
 
       {/* Highlight callouts */}
@@ -424,9 +758,99 @@ function MonthlyReport({ client }: { client: string }) {
         </div>
       </div>
 
+      {/* Performance narrative */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of May 2026 results"/>
+        <div className="space-y-4">
+          <Paragraph>{d.narrative.executive}</Paragraph>
+          <Paragraph>{d.narrative.reach}</Paragraph>
+          <Paragraph>{d.narrative.engagement}</Paragraph>
+          <Paragraph>{d.narrative.platform}</Paragraph>
+        </div>
+      </div>
+
+      {/* KPI comparison table */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Full KPI Comparison" subtitle="Current period vs prior period vs industry benchmark — 12 metrics"/>
+        <KPIComparisonTable rows={d.kpiComparison}/>
+      </div>
+
+      {/* Extended top posts */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Top Performing Posts" subtitle="5 highest-reach posts with performance analysis"/>
+        <div className="space-y-3">
+          {d.topPosts.map((post, i) => (
+            <div key={i} className="p-4 rounded-xl border border-slate-100 bg-slate-50">
+              <div className="flex items-start gap-4 mb-3">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5" style={{ background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#a16207' : B.border }}>
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 break-words">{post.caption}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{post.platform} · {post.type}</p>
+                </div>
+                <div className="flex items-center gap-5 text-xs shrink-0">
+                  <div className="text-right"><p className="font-bold text-slate-800">{formatNumber(post.reach)}</p><p className="text-slate-400">reach</p></div>
+                  <div className="text-right"><p className="font-bold" style={{ color: B.primary }}>{post.er}%</p><p className="text-slate-400">ER</p></div>
+                </div>
+              </div>
+              {post.why && (
+                <div className="flex items-start gap-2 pl-11">
+                  <ChevronRight className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: B.accent }}/>
+                  <p className="text-xs text-slate-500 leading-relaxed">{post.why}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Bottom posts content audit */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Content Audit — Underperforming Posts" subtitle="3 lowest-reach posts with diagnosis and corrective action"/>
+        <div className="space-y-3">
+          {d.bottomPosts.map((post, i) => (
+            <div key={i} className="p-4 rounded-xl border border-red-100 bg-red-50/40">
+              <div className="flex items-start gap-4 mb-2">
+                <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-600 shrink-0 mt-0.5">
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 break-words">{post.caption}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{post.platform} · {post.type} · {formatNumber(post.reach)} reach · {post.er}% ER</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 pl-11">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-400"/>
+                <p className="text-xs text-slate-600 leading-relaxed">{post.diagnosis}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Audience quality signals */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Audience Quality Signals" subtitle="6 key indicators of genuine audience health vs benchmark"/>
+        <AudienceSignalsTable signals={d.audienceSignals}/>
+      </div>
+
+      {/* Competitor benchmarks */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Competitor Benchmark" subtitle="Luxe Cosmetics vs category peers on Instagram"/>
+        <CompetitorTable rows={d.competitors}/>
+        <p className="text-xs text-slate-400 mt-3 leading-relaxed">Note: Luxe Cosmetics ER of 6.8% exceeds all benchmarked competitors despite a smaller follower base — a pattern consistent with high content relevance and strong community fit. At current growth rate, the account will reach 100K followers by Q1 2027.</p>
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <SectionHeader title="Strategic Recommendations" subtitle="Evidence-based actions for next month"/>
         <RecommendationsList items={d.recommendations}/>
+      </div>
+
+      {/* Action plan */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Action Plan — June 2026" subtitle="Prioritised actions with owners, deadlines, and expected outcomes"/>
+        <ActionPlanTable items={d.actionPlan}/>
       </div>
     </div>
   )
@@ -439,6 +863,12 @@ function PaidReport({ client }: { client: string }) {
   const budgetPct = Math.round((d.spend / d.budget) * 100)
   return (
     <div className="space-y-5">
+      <CoverPage
+        title="Paid Media Performance Report"
+        subtitle="Campaign efficiency, ROAS analysis, creative performance, and audience segmentation — full paid portfolio review"
+        client={client} period={d.period}
+        tag="Paid Media — Monthly"
+      />
       <ReportHeader title="Paid Media Performance Report" subtitle="Campaign analytics, ROAS, and creative performance" client={client} period={d.period}/>
 
       {/* Budget hero row */}
@@ -566,9 +996,30 @@ function PaidReport({ client }: { client: string }) {
         </div>
       </div>
 
+      {/* Narrative */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of May 2026 paid results"/>
+        <div className="space-y-4">
+          <Paragraph>{d.narrative.executive}</Paragraph>
+          <Paragraph>{d.narrative.efficiency}</Paragraph>
+          <Paragraph>{d.narrative.creative}</Paragraph>
+        </div>
+      </div>
+
+      {/* KPI comparison */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Full KPI Comparison" subtitle="Current period vs prior period vs industry benchmark — 12 paid metrics"/>
+        <KPIComparisonTable rows={d.kpiComparison}/>
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <SectionHeader title="Strategic Recommendations" subtitle="Priority optimisations for next month"/>
         <RecommendationsList items={d.recommendations}/>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Action Plan — June 2026" subtitle="Prioritised paid media actions with owners, deadlines, and expected outcomes"/>
+        <ActionPlanTable items={d.actionPlan}/>
       </div>
     </div>
   )
@@ -587,6 +1038,12 @@ function CombinedReport({ client }: { client: string }) {
   ]
   return (
     <div className="space-y-5">
+      <CoverPage
+        title="Paid + Organic Combined Report"
+        subtitle="Blended reach analysis, channel investment breakdown, paid-organic synergy, and cross-channel performance mix"
+        client={client} period={d.period}
+        tag="Paid + Organic — Monthly"
+      />
       <ReportHeader title="Paid + Organic Combined Report" subtitle="Blended reach, investment breakdown, and channel mix" client={client} period={d.period}/>
 
       <div className="grid grid-cols-4 gap-4">
@@ -681,9 +1138,29 @@ function CombinedReport({ client }: { client: string }) {
         </div>
       </div>
 
+      {/* Narrative */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of May 2026 blended results"/>
+        <div className="space-y-4">
+          <Paragraph>{d.narrative.executive}</Paragraph>
+          <Paragraph>{d.narrative.synergy}</Paragraph>
+          <Paragraph>{d.narrative.channel}</Paragraph>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Full KPI Comparison" subtitle="Blended metrics — current vs prior vs benchmark"/>
+        <KPIComparisonTable rows={d.kpiComparison}/>
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <SectionHeader title="Strategic Recommendations" subtitle="Organic + paid optimisation priorities"/>
         <RecommendationsList items={d.recommendations}/>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Action Plan — June 2026" subtitle="Cross-channel actions with owners, deadlines, and expected outcomes"/>
+        <ActionPlanTable items={d.actionPlan}/>
       </div>
     </div>
   )
@@ -697,6 +1174,12 @@ function PlatformReport({ client }: { client: string }) {
   const maxHashReach   = Math.max(...d.topHashtags.map(h => h.reach))
   return (
     <div className="space-y-5">
+      <CoverPage
+        title="Instagram Deep Dive Report"
+        subtitle="Follower growth, format performance, posting time analysis, hashtag strategy, and audience quality signals"
+        client={client} period={d.period}
+        tag="Platform Deep Dive — Instagram"
+      />
       <ReportHeader title="Instagram Deep Dive Report" subtitle="Format performance, follower growth, best days and hashtag analysis" client={client} period={d.period}/>
 
       <div className="grid grid-cols-4 gap-4">
@@ -809,6 +1292,32 @@ function PlatformReport({ client }: { client: string }) {
           </table>
         </div>
       </div>
+
+      {/* KPI Comparison Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Full KPI Comparison" subtitle="Current month vs prior month and Instagram benchmarks"/>
+        <KPIComparisonTable rows={d.kpiComparison}/>
+      </div>
+
+      {/* Narrative */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <SectionHeader title="Performance Analysis" subtitle="Account health, format insights, and hashtag strategy"/>
+        <Paragraph>{d.narrative.executive}</Paragraph>
+        <Paragraph>{d.narrative.formats}</Paragraph>
+        <Paragraph>{d.narrative.hashtags}</Paragraph>
+      </div>
+
+      {/* Audience Quality */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Audience Quality Signals" subtitle="Instagram-specific health indicators"/>
+        <AudienceSignalsTable signals={d.audienceSignals}/>
+      </div>
+
+      {/* Action Plan */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="30-Day Instagram Action Plan" subtitle="Prioritised actions with owners and expected impact"/>
+        <ActionPlanTable items={d.actionPlan}/>
+      </div>
     </div>
   )
 }
@@ -819,6 +1328,12 @@ function QuarterlyReport({ client }: { client: string }) {
   const d = QUARTERLY_DEMO
   return (
     <div className="space-y-5">
+      <CoverPage
+        title="Quarterly Performance Report"
+        subtitle="OKR achievement scorecard, campaign highlights, month-over-month trend analysis, and Q2 strategy priorities"
+        client={client} period={d.quarter}
+        tag="Quarterly Strategy — Q1 2026"
+      />
       <ReportHeader title="Quarterly Performance Report" subtitle="OKR scorecard, campaign highlights, and next-quarter priorities" client={client} period={d.quarter}/>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -893,6 +1408,62 @@ function QuarterlyReport({ client }: { client: string }) {
           ))}
         </div>
       </div>
+
+      {/* Narrative */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <SectionHeader title="Quarterly Analysis" subtitle="Strategic interpretation of Q1 2026 results and Q2 outlook"/>
+        <div className="space-y-4">
+          <Paragraph>{d.narrative.executive}</Paragraph>
+          <Paragraph>{d.narrative.trend}</Paragraph>
+          <Paragraph>{d.narrative.priorities}</Paragraph>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Full KPI Comparison" subtitle="Q1 2026 vs Q4 2025 vs annual benchmark"/>
+        <KPIComparisonTable rows={d.kpiComparison}/>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Q2 2026 Action Plan" subtitle="Strategic priorities with owners, deadlines, and expected outcomes"/>
+        <ActionPlanTable items={d.actionPlan}/>
+      </div>
+
+      {/* KPI Comparison Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Full KPI Comparison" subtitle="Q1 2026 vs Q4 2025 and annual benchmark"/>
+        <KPIComparisonTable rows={d.kpiComparison}/>
+      </div>
+
+      {/* Narrative */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <SectionHeader title="Quarter Performance Analysis" subtitle="Executive commentary, momentum assessment, and campaign learnings"/>
+        <Paragraph>{d.narrative.executive}</Paragraph>
+        <Paragraph>{d.narrative.trend}</Paragraph>
+        <Paragraph>{d.narrative.priorities}</Paragraph>
+      </div>
+
+      {/* Q2 Priorities */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Q2 Strategic Priorities" subtitle="Three focus areas for April–June 2026"/>
+        <div className="space-y-3">
+          {d.q2Priorities.map((p, i) => (
+            <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-slate-100">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: B.primary }}>{i + 1}</div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">{p.priority}</p>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{p.rationale}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Action Plan */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Q2 Action Plan" subtitle="Key milestones with owners and expected impact"/>
+        <ActionPlanTable items={d.actionPlan}/>
+      </div>
     </div>
   )
 }
@@ -903,6 +1474,12 @@ function ExecutiveReport({ client }: { client: string }) {
   const d = EXECUTIVE_DEMO
   return (
     <div className="space-y-5">
+      <CoverPage
+        title="Executive Summary"
+        subtitle="CEO-ready portfolio overview — key performance indicators, wins, strategic opportunities, and priority action for the next 30 days"
+        client={client} period={d.period}
+        tag="Executive Summary — May 2026"
+      />
       <ReportHeader title="Executive Summary" subtitle="CEO-ready portfolio overview — all clients" client={client} period={d.period}/>
 
       <div className="grid grid-cols-4 gap-4">
@@ -960,6 +1537,45 @@ function ExecutiveReport({ client }: { client: string }) {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Client health table */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <SectionHeader title="Client Health Scorecard" subtitle="May 2026 — all active accounts"/>
+        <div className="overflow-hidden rounded-xl border border-slate-100">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ background: B.light }}>
+                {['Client', 'Organic Reach', 'Avg ER', 'Paid ROAS', 'Status'].map((h, i) => (
+                  <th key={h} className={cn('p-3 text-xs font-semibold', i < 4 ? 'text-left' : 'text-center')} style={{ color: B.primary }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {d.clientBreakdown.map((c, i) => {
+                const statusStyle = { ahead: 'bg-emerald-50 text-emerald-700', 'on-track': 'bg-blue-50 text-blue-700', 'at-risk': 'bg-red-50 text-red-700' }
+                return (
+                  <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
+                    <td className="p-3 font-semibold text-slate-800">{c.client}</td>
+                    <td className="p-3 text-slate-700">{c.reach}</td>
+                    <td className="p-3 font-bold" style={{ color: B.primary }}>{c.er}</td>
+                    <td className="p-3 text-slate-700">{c.roas}</td>
+                    <td className="p-3">
+                      <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full capitalize', statusStyle[c.status])}>{c.status.replace('-', ' ')}</span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Portfolio narrative */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <SectionHeader title="Portfolio Analysis" subtitle="Month-in-review commentary"/>
+        <Paragraph>{d.narrative.portfolio}</Paragraph>
+        <Paragraph>{d.narrative.highlights}</Paragraph>
       </div>
 
       <div className="rounded-2xl p-6" style={{ background: B.primary }}>
