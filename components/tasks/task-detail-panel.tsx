@@ -59,6 +59,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   // Draft values — synced from task when not editing
   const [draftTitle, setDraftTitle] = useState('')
   const [draftDesc, setDraftDesc] = useState('')
+  const [draftFinalSubmission, setDraftFinalSubmission] = useState('')
   const [draftStage, setDraftStage] = useState<PipelineStage>('strategy')
   const [draftPriority, setDraftPriority] = useState<Priority>('medium')
   const [draftAssignee, setDraftAssignee] = useState('')
@@ -355,6 +356,35 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                 {task.description || 'Add a description…'}
               </p>
             )}
+
+            {/* Final submission */}
+            <div className="rounded-xl border border-novax-border bg-novax-light p-3 space-y-1.5">
+              <p className="text-[10px] font-bold text-novax uppercase tracking-wider">Final submission should be</p>
+              {editingField === 'final_submission' ? (
+                <textarea
+                  value={draftFinalSubmission}
+                  autoFocus
+                  rows={3}
+                  onChange={e => setDraftFinalSubmission(e.target.value)}
+                  onBlur={() => { save('final_submission', draftFinalSubmission) }}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') { setDraftFinalSubmission(task.final_submission ?? ''); setEditingField(null) }
+                  }}
+                  className="w-full text-sm text-slate-700 border border-novax-border rounded-lg p-2 outline-none focus:border-novax-muted resize-none leading-relaxed bg-white"
+                />
+              ) : (
+                <p
+                  onClick={() => { setDraftFinalSubmission(task.final_submission ?? ''); setEditingField('final_submission') }}
+                  className={cn(
+                    'text-sm leading-relaxed cursor-text transition-colors min-h-[20px]',
+                    task.final_submission ? 'text-slate-700 hover:text-slate-900' : 'text-novax-muted italic hover:text-novax',
+                  )}
+                  title="Click to edit"
+                >
+                  {task.final_submission || 'Click to define the expected deliverable…'}
+                </p>
+              )}
+            </div>
 
             {/* Grid fields */}
             <div className="grid grid-cols-2 gap-3">

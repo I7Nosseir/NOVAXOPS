@@ -23,6 +23,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [finalSubmission, setFinalSubmission] = useState('')
   const [clientId, setClientId] = useState('')
   const [projectId, setProjectId] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
@@ -35,7 +36,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const filteredProjects = projects.filter(p => !clientId || p.client_id === clientId)
 
   const reset = () => {
-    setTitle(''); setDescription(''); setClientId(''); setProjectId('')
+    setTitle(''); setDescription(''); setFinalSubmission(''); setClientId(''); setProjectId('')
     setAssignedTo(''); setStage(defaultStage ?? 'strategy'); setPriority('medium')
     setDueDate(''); setTagInput(''); setTags([])
   }
@@ -54,6 +55,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
     await createTask.mutateAsync({
       title: title.trim(),
       description,
+      final_submission: finalSubmission.trim() || null,
       client_id: clientId,
       project_id: projectId || null,
       assigned_to: assignedTo || null,
@@ -106,6 +108,20 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
                 placeholder="Brief description…"
                 rows={2}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light resize-none"
+              />
+            </div>
+
+            {/* Final submission */}
+            <div className="rounded-xl border border-novax-border bg-novax-light p-3 space-y-1.5">
+              <label className="text-[11px] font-bold text-novax uppercase tracking-wider block">
+                Final submission should be
+              </label>
+              <textarea
+                value={finalSubmission}
+                onChange={e => setFinalSubmission(e.target.value)}
+                placeholder="e.g. 3 caption variants in a Google Doc, shared with the account manager for review…"
+                rows={2}
+                className="w-full px-3 py-2 rounded-lg border border-novax-border text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light resize-none bg-white"
               />
             </div>
 

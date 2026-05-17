@@ -73,6 +73,7 @@ export interface Task {
   assigned_to: string
   title: string
   description: string
+  final_submission?: string | null
   pipeline_stage: PipelineStage
   priority: Priority
   status: TaskStatus

@@ -15,6 +15,7 @@ export interface TaskFilters {
 export type CreateTaskPayload = {
   title: string
   description: string
+  final_submission?: string | null
   client_id: string
   project_id: string | null
   assigned_to: string | null
@@ -33,6 +34,7 @@ function mapTask(row: Record<string, unknown>): Task {
     assigned_to: (row.assigned_to as string) ?? '',
     title: row.title as string,
     description: (row.description as string) ?? '',
+    final_submission: (row.final_submission as string) ?? null,
     pipeline_stage: row.pipeline_stage as PipelineStage,
     priority: row.priority as Task['priority'],
     status: row.status as Task['status'],
