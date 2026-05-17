@@ -217,3 +217,132 @@ html.dark :where(.shadow-sm)  { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.4); }
 html.dark :where(.shadow-md)  { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5); }
 html.dark :where(.shadow-lg)  { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.6); }
 html.dark :where(.shadow-2xl) { box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.7); }
+
+/* ─── PDF / Print Export ──────────────────────────────────────────────────────
+   Isolates #printable-report and hides everything else.
+   Recharts renders SVG so charts print crisply at any resolution.
+──────────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* Force accurate colour rendering — required for NOVAX brand backgrounds */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* A4 portrait with comfortable margins */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 16mm;
+  }
+
+  /* Allow multi-page overflow */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Hide everything except the report container */
+  body * { visibility: hidden; }
+
+  #printable-report {
+    visibility: visible !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #printable-report * {
+    visibility: visible !important;
+  }
+
+  /* ── Text wrapping ────────────────────────────────────────────────────── */
+  #printable-report * {
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+  }
+
+  /* Unwrap anything that was screen-truncated */
+  #printable-report .truncate {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  /* Release fixed-width label containers so text can wrap */
+  #printable-report .w-36,
+  #printable-report .w-24,
+  #printable-report .shrink-0 {
+    width: auto !important;
+    flex-shrink: 1 !important;
+  }
+
+  /* min-w-0 on flex children — restore so text wraps instead of overflowing */
+  #printable-report .min-w-0 {
+    min-width: 0 !important;
+  }
+
+  /* ── Overflow ─────────────────────────────────────────────────────────── */
+  /* Remove overflow:hidden that clips rounded table containers across pages */
+  #printable-report .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  /* ── Page breaks ──────────────────────────────────────────────────────── */
+  /* Keep each white card together — avoid splitting mid-section */
+  #printable-report .bg-white {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 10pt !important;
+  }
+
+  /* Grid rows of KPI cards — keep them on the same page */
+  #printable-report .grid {
+    break-inside: avoid !important;
+  }
+
+  /* Charts — never split an SVG chart across a page break */
+  #printable-report .recharts-wrapper {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* ── Tables ───────────────────────────────────────────────────────────── */
+  #printable-report table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+  }
+
+  /* Repeat header row on every page */
+  #printable-report thead {
+    display: table-header-group !important;
+  }
+
+  /* Cells wrap instead of overflowing */
+  #printable-report td,
+  #printable-report th {
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+  }
+
+  /* ── Visual cleanup ───────────────────────────────────────────────────── */
+  /* Remove shadows — they render as grey blobs in PDF */
+  #printable-report * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Preserve border-radius for the report header decorative bar */
+  #printable-report .rounded-2xl { border-radius: 12px !important; }
+  #printable-report .rounded-xl  { border-radius: 8px !important; }
+
+  /* Spacing between top-level report sections */
+  #printable-report .space-y-5 > * + * { margin-top: 14pt !important; }
+
+  /* ── Inline-style backgrounds (NOVAX brand header, teal cards) ─────────── */
+  /* print-color-adjust: exact (above) covers these — no extra rules needed */
+}

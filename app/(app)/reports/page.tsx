@@ -407,12 +407,12 @@ function MonthlyReport({ client }: { client: string }) {
         <SectionHeader title="Top Performing Posts" subtitle="Highest-reach content this month"/>
         <div className="space-y-3">
           {d.topPosts.map((post, i) => (
-            <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : '#a16207' }}>
+            <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5" style={{ background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : '#a16207' }}>
                 {i + 1}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">{post.caption}</p>
+                <p className="text-sm font-semibold text-slate-800 break-words">{post.caption}</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">{post.platform} · {post.type}</p>
               </div>
               <div className="flex items-center gap-5 text-xs shrink-0">
@@ -536,7 +536,7 @@ function PaidReport({ client }: { client: string }) {
           <div className="space-y-3 mt-2">
             {d.audiences.map(a => (
               <div key={a.name} className="flex items-center gap-3">
-                <p className="text-xs text-slate-600 w-36 shrink-0 truncate">{a.name}</p>
+                <p className="text-xs text-slate-600 w-36 shrink-0 break-words leading-tight">{a.name}</p>
                 <div className="flex-1">
                   <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${(a.roas / 6) * 100}%`, background: B.primary }}/>
@@ -551,9 +551,9 @@ function PaidReport({ client }: { client: string }) {
           <SectionHeader title="Creative Performance" subtitle="CTR and CPA by ad creative"/>
           <div className="space-y-2 mt-2">
             {d.creatives.map((c, i) => (
-              <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50">
+              <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-slate-50">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-700 truncate">{c.name}</p>
+                  <p className="text-xs font-semibold text-slate-700 break-words">{c.name}</p>
                   <p className="text-[10px] text-slate-400">{c.platform}</p>
                 </div>
                 <div className="text-right shrink-0">
@@ -878,12 +878,12 @@ function QuarterlyReport({ client }: { client: string }) {
         <div className="space-y-3">
           {d.campaigns.map((c, i) => (
             <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-slate-100">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: B.primary }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5" style={{ background: B.primary }}>
                 {i + 1}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800">{c.name}</p>
-                <p className="text-xs mt-0.5" style={{ color: B.muted }}>{c.highlight}</p>
+                <p className="text-sm font-semibold text-slate-800 break-words">{c.name}</p>
+                <p className="text-xs mt-0.5 break-words" style={{ color: B.muted }}>{c.highlight}</p>
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-bold text-slate-800">{formatNumber(c.reach)}</p>
@@ -1208,8 +1208,11 @@ export default function ReportsPage() {
                   : <><FileText className="w-3.5 h-3.5"/> Generate Demo Report</>}
               </button>
               {generated && (
-                <button className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                  <Download className="w-3.5 h-3.5"/> Export
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5"/> Export PDF
                 </button>
               )}
             </div>
@@ -1221,14 +1224,14 @@ export default function ReportsPage() {
       {activeTab === 'ai' ? (
         <AIBuilder/>
       ) : generated ? (
-        <>
+        <div id="printable-report" className="space-y-5">
           {activeTab === 'monthly'   && <MonthlyReport   client={clientName}/>}
           {activeTab === 'paid'      && <PaidReport       client={clientName}/>}
           {activeTab === 'combined'  && <CombinedReport   client={clientName}/>}
           {activeTab === 'platform'  && <PlatformReport   client={clientName}/>}
           {activeTab === 'quarterly' && <QuarterlyReport  client={clientName}/>}
           {activeTab === 'executive' && <ExecutiveReport  client={clientName}/>}
-        </>
+        </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ background: B.light }}>
