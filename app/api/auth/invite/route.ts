@@ -18,9 +18,10 @@ const DEPT_BY_ROLE: Record<UserRole, string> = {
 export async function POST(req: Request) {
   const cookieStore = await cookies()
 
+  const sanitize = (v: string | undefined) => (v ?? '').trim().replace(/[^\x20-\x7E]/g, '')
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    sanitize(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    sanitize(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
@@ -50,8 +51,8 @@ export async function POST(req: Request) {
   }
 
   const adminClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    sanitize(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY),
   )
 
   const { error } = await adminClient.auth.admin.inviteUserByEmail(email, {
