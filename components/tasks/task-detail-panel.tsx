@@ -176,7 +176,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-40 backdrop-blur-[1px]" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[500px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+      <div className="fixed right-0 top-0 h-full w-full sm:w-[500px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
 
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-slate-100">

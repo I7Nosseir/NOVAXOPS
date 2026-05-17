@@ -50,9 +50,9 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
           <h2 className="font-semibold text-slate-900">New Approval Request</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-400">
             <X className="w-4 h-4"/>
@@ -60,7 +60,7 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         {createdToken ? (
-          <div className="px-6 py-10 text-center">
+          <div className="px-6 py-10 text-center overflow-y-auto">
             <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-6 h-6 text-emerald-500"/>
             </div>
@@ -76,7 +76,7 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
             <button onClick={onClose} className="px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">Done</button>
           </div>
         ) : (
-          <div className="px-6 py-5 space-y-4">
+          <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Client</label>
               <select
