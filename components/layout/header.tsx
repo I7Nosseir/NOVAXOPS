@@ -1,27 +1,28 @@
 'use client'
 
 import { useState } from 'react'
-import { Bell, Search, Plus, Sun, Moon } from 'lucide-react'
+import { Bell, Search, Plus, Sun, Moon, Menu } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useTheme } from '@/lib/theme-context'
 import { NotificationsPanel } from '@/components/layout/notifications-panel'
 import { useAuth } from '@/lib/auth-context'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
+import { useSidebar } from '@/lib/sidebar-context'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard':    'Dashboard',
-  '/pipeline':     'Pipeline',
-  '/clients':      'Clients',
-  '/projects':     'Projects',
-  '/publishing':   'Publishing',
-  '/approval':     'Approval Portal',
-  '/moderation':   'Moderation',
-  '/assets':       'Assets',
+  '/dashboard':     'Dashboard',
+  '/pipeline':      'Pipeline',
+  '/clients':       'Clients',
+  '/projects':      'Projects',
+  '/publishing':    'Publishing',
+  '/approval':      'Approval Portal',
+  '/moderation':    'Moderation',
+  '/assets':        'Assets',
   '/creative-eval': 'Creative Evaluation',
-  '/workload':     'Team Workload',
-  '/library':      'Content Library',
-  '/reports':      'Reports',
-  '/settings':     'Settings',
+  '/workload':      'Team Workload',
+  '/library':       'Content Library',
+  '/reports':       'Reports',
+  '/settings':      'Settings',
 }
 
 export function Header() {
@@ -30,17 +31,27 @@ export function Header() {
   const title = PAGE_TITLES[base] ?? 'NOVAX Ops'
   const { theme, toggle } = useTheme()
   const { user } = useAuth()
+  const { toggle: toggleSidebar } = useSidebar()
   const [showNotifs, setShowNotifs] = useState(false)
   const [showCreateTask, setShowCreateTask] = useState(false)
 
   return (
     <>
-      <header className="h-14 fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-700/60">
-        <h1 className="text-slate-900 dark:text-slate-100 font-semibold text-base">{title}</h1>
-
+      <header className="h-14 fixed top-0 left-0 lg:left-64 right-0 z-40 flex items-center justify-between px-4 lg:px-6 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-700/60">
         <div className="flex items-center gap-3">
-          {/* Search */}
-          <div className="relative hidden md:block">
+          {/* Mobile hamburger */}
+          <button
+            onClick={toggleSidebar}
+            className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <h1 className="text-slate-900 dark:text-slate-100 font-semibold text-base">{title}</h1>
+        </div>
+
+        <div className="flex items-center gap-2 lg:gap-3">
+          {/* Search — desktop only */}
+          <div className="relative hidden lg:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
             <input
               placeholder="Search tasks, clients…"
@@ -48,13 +59,13 @@ export function Header() {
             />
           </div>
 
-          {/* New Task */}
+          {/* New Task — icon-only on mobile */}
           <button
             onClick={() => setShowCreateTask(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>New Task</span>
+            <span className="hidden sm:inline">New Task</span>
           </button>
 
           {/* Theme toggle */}

@@ -25,7 +25,7 @@ export default function WorkloadPage() {
   return (
     <div className="space-y-5 max-w-5xl">
       {/* Summary stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Team Members', value: users.length, color: 'text-slate-900', bg: 'bg-slate-50' },
           { label: 'Active Tasks', value: totalActive, color: 'text-novax', bg: 'bg-novax-light' },

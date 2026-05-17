@@ -219,7 +219,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             {/* Brand Identity */}
             <div>
               <h3 className="font-semibold text-slate-900 mb-3">Brand Identity</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-3 bg-slate-50 rounded-xl">
                   <p className="text-[10px] text-slate-400 uppercase font-semibold mb-1">Tone of Voice</p>
                   <p className="text-sm text-slate-700 italic">&ldquo;{client.brand_identity.tone_of_voice}&rdquo;</p>
@@ -401,7 +401,7 @@ export default function ClientsPage() {
       </div>
       {showWizard && <NewClientWizard onClose={() => setShowWizard(false)} onSave={(data) => { console.log('New client:', data); setShowWizard(false) }} />}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {filtered.map(client => (
           <ClientCard
             key={client.id}

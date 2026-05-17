@@ -233,7 +233,7 @@ export default function CreativeEvalPage() {
       </p>
 
       {/* ── Upload row ── */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">Evaluate for Client</label>
@@ -365,7 +365,7 @@ export default function CreativeEvalPage() {
           )}
 
           {/* Row 1: Triggers + Viral elements + Missing elements */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Brain className="w-3.5 h-3.5 text-purple-500"/>
@@ -414,7 +414,7 @@ export default function CreativeEvalPage() {
           </div>
 
           {/* Row 2: Strengths + Improvements + Platform recs */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-500"/>

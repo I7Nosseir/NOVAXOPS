@@ -62,7 +62,7 @@ export default function AssetsPage() {
               Filter by type
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {assets.map(asset => (
               <div key={asset.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group">
                 <div className="relative aspect-video bg-slate-100">
@@ -126,7 +126,7 @@ export default function AssetsPage() {
           {searched && (
             <>
               <p className="text-sm text-slate-500">{MOCK_FREEPIK_RESULTS.length} results for &ldquo;{query}&rdquo;</p>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {MOCK_FREEPIK_RESULTS.map(result => {
                   const isDone = downloaded.includes(result.id)
                   const isDownloading = downloading === result.id

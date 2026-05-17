@@ -214,7 +214,7 @@ export default function ApprovalPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
           { label: 'Awaiting Review', value: stats.pending,            color: 'text-amber-600',   bg: 'bg-amber-50' },
           { label: 'Approved',        value: stats.approved,           color: 'text-emerald-600', bg: 'bg-emerald-50' },

@@ -641,7 +641,7 @@ function MonthlyReport({ client }: { client: string }) {
       <ReportHeader title="Monthly Performance Report" subtitle="Organic social media performance across all platforms" client={client} period={d.period}/>
 
       {/* Highlight callouts */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { icon: Eye,        label: 'Total Reach',        value: formatNumber(d.kpis.reach),          delta: d.deltas.reach },
           { icon: TrendingUp, label: 'Avg Engagement Rate', value: `${d.kpis.er}%`,                    delta: d.deltas.er },
@@ -872,7 +872,7 @@ function PaidReport({ client }: { client: string }) {
       <ReportHeader title="Paid Media Performance Report" subtitle="Campaign analytics, ROAS, and creative performance" client={client} period={d.period}/>
 
       {/* Budget hero row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Budget Utilisation</p>
@@ -1046,7 +1046,7 @@ function CombinedReport({ client }: { client: string }) {
       />
       <ReportHeader title="Paid + Organic Combined Report" subtitle="Blended reach, investment breakdown, and channel mix" client={client} period={d.period}/>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Combined Reach',  value: formatNumber(totalReach),                             icon: Eye,        bg: 'bg-novax-light' },
           { label: 'Organic Reach',   value: `${formatNumber(d.organic.reach)} (${organicPct}%)`,  icon: TrendingUp, bg: 'bg-emerald-50' },
@@ -1182,7 +1182,7 @@ function PlatformReport({ client }: { client: string }) {
       />
       <ReportHeader title="Instagram Deep Dive Report" subtitle="Format performance, follower growth, best days and hashtag analysis" client={client} period={d.period}/>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Followers',  value: formatNumber(d.followers),          delta: `+${d.growthRate}%`,       positive: true as boolean | null, icon: Users,      bg: 'bg-novax-light' },
           { label: 'Net New Followers', value: `+${formatNumber(d.netGrowth)}`,   delta: 'this month',              positive: null as boolean | null, icon: TrendingUp, bg: 'bg-emerald-50' },
@@ -1482,7 +1482,7 @@ function ExecutiveReport({ client }: { client: string }) {
       />
       <ReportHeader title="Executive Summary" subtitle="CEO-ready portfolio overview — all clients" client={client} period={d.period}/>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {d.kpis.map(({ label, value, delta, positive }) => (
           <div key={label} className="bg-white rounded-2xl border-2 border-slate-100 p-6 text-center hover:border-novax-border transition-colors">
             <p className="text-4xl font-bold mb-2" style={{ color: B.primary }}>{value}</p>
@@ -1793,9 +1793,9 @@ export default function ReportsPage() {
         </div>
 
         {activeTab !== 'ai' && (
-          <div className="p-4 flex items-center justify-between gap-4">
+          <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-xs text-slate-500 max-w-lg">{TABS.find(t => t.id === activeTab)?.description}</p>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={selectedClient}
                 onChange={e => { setSelectedClient(e.target.value); setGenerated(false) }}

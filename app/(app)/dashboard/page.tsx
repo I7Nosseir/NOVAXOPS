@@ -91,9 +91,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Weekly activity — real data */}
-        <div className="col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-semibold text-slate-900">Weekly Activity</h3>
@@ -151,9 +151,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Bottom row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Recent tasks — sorted by updated_at */}
-        <div className="col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-slate-900">Recent Tasks</h3>
             <a href="/pipeline" className="text-xs text-novax hover:text-novax-hover font-medium">View pipeline →</a>
@@ -175,8 +175,8 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${stage.bg} ${stage.color}`}>{stage.label}</span>
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${priority.bg} ${priority.color}`}>{priority.label}</span>
+                    <span className={`hidden sm:inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${stage.bg} ${stage.color}`}>{stage.label}</span>
+                    <span className={`hidden sm:inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${priority.bg} ${priority.color}`}>{priority.label}</span>
                     {user && (
                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ background: user.color }}>
                         {user.initials}
@@ -238,7 +238,7 @@ export default function DashboardPage() {
           <h3 className="font-semibold text-slate-900">Client Health</h3>
           <a href="/clients" className="text-xs text-novax hover:text-novax-hover font-medium">All clients →</a>
         </div>
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {clients.map(client => {
             const clientTasks = tasks.filter(t => t.client_id === client.id)
             const completed   = clientTasks.filter(t => t.status === 'completed').length

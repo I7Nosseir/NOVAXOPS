@@ -180,7 +180,7 @@ export default function ModerationPage() {
   return (
     <div className="space-y-5">
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Total', value: allItems.length, color: 'bg-slate-50 text-slate-600' },
           { label: 'Pending', value: counts.pending, color: 'bg-amber-50 text-amber-600' },
@@ -216,7 +216,7 @@ export default function ModerationPage() {
       </div>
 
       {/* Cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filtered.map(item => <ModerationCard key={item.id} item={item}/>)}
       </div>
 

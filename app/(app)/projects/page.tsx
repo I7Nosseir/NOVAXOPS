@@ -56,7 +56,7 @@ export default function ProjectsPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                 {[
                   { icon: CheckCircle, label: 'Tasks', value: projectTasks.length },
                   { icon: Clock, label: 'In Progress', value: projectTasks.filter(t => t.status === 'active').length },

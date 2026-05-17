@@ -41,7 +41,7 @@ export default function LoginPage() {
   return (
     <div className="w-full max-w-sm">
       {/* Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
           <NovaxMark className="w-9 h-9" />

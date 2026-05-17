@@ -254,7 +254,7 @@ function DrivePanel() {
 
       {/* Loading skeleton */}
       {loading && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse"/>
           ))}
@@ -263,7 +263,7 @@ function DrivePanel() {
 
       {/* Files grid */}
       {!loading && files.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {files.map(file => {
             const Icon = driveIcon(file.mimeType)
             const isFolder = file.mimeType === FOLDER_MIME
@@ -416,7 +416,7 @@ export default function LibraryPage() {
           </div>
 
           {/* Templates grid */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filtered.map(item => {
               const client = clients.find(c => c.id === item.client_id)
               const isSaved = saved.has(item.id)
@@ -465,7 +465,7 @@ export default function LibraryPage() {
                   </div>
 
                   {perf && (
-                    <div className="pt-3 border-t border-slate-100 grid grid-cols-4 gap-2">
+                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
                         { label: 'Reach', value: formatNumber(perf.reach) },
                         { label: 'Likes', value: formatNumber(perf.likes) },

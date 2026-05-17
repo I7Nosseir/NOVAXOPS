@@ -82,7 +82,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
 
       {/* Performance (if published) */}
       {perf && (
-        <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-4 gap-2">
+        <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
             { label: 'Reach',   value: formatNumber(perf.reach) },
             { label: 'Likes',   value: formatNumber(perf.likes) },
@@ -385,7 +385,7 @@ function PinterestPanel({ query }: { query: string }) {
       )}
 
       {pins.length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {pins.map(pin => (
             <a
               key={pin.id}
@@ -508,7 +508,7 @@ function BriefToCalendarDialog({ onClose }: { onClose: () => void }) {
         <div className="overflow-y-auto flex-1 p-6 space-y-4" dir={isAr && !result ? 'rtl' : 'ltr'}>
           {!result ? (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">Client</label>
                   <select value={client} onChange={e => setClient(e.target.value)}
@@ -681,7 +681,8 @@ function CalendarView({ onCompose }: { onCompose: () => void }) {
     day === today.getDate() && current.month === today.getMonth() && current.year === today.getFullYear()
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden overflow-x-auto">
+      <div className="min-w-[640px]">
       {/* Calendar header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
@@ -766,6 +767,7 @@ function CalendarView({ onCompose }: { onCompose: () => void }) {
           )
         })}
       </div>
+      </div>{/* min-w wrapper */}
     </div>
   )
 }
@@ -848,7 +850,7 @@ export default function PublishingPage() {
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Total Posts', value: allPosts.length, icon: Send },
           { label: 'Scheduled', value: counts.scheduled, icon: Calendar },
@@ -869,7 +871,7 @@ export default function PublishingPage() {
 
       {/* Posts grid or Calendar */}
       {view === 'grid' ? (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(post => <PostCard key={post.id} post={post}/>)}
         </div>
       ) : (
