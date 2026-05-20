@@ -65,15 +65,15 @@ export interface MetricoolScheduledPost {
 }
 
 export interface DateTimeInfo {
-  date: string   // "YYYY-MM-DD"
-  time: string   // "HH:mm"
+  dateTime: string   // "YYYY-MM-DDTHH:mm:ss" — no timezone suffix
+  timezone: string   // IANA timezone, e.g. "UTC"
 }
 
 export interface MetricoolScheduleInput {
   blogId: string | number
   text: string
   providers: MetricoolProvider[]   // [{ network: "instagram" }, { network: "facebook" }]
-  publicationDate: DateTimeInfo    // { date: "YYYY-MM-DD", time: "HH:mm" }
+  publicationDate: DateTimeInfo    // { dateTime: "YYYY-MM-DDTHH:mm:ss", timezone: "UTC" }
   imageUrls?: string[]             // public URLs — sent as media: [url, ...] in the API payload
 }
 

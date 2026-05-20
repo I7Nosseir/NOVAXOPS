@@ -74,11 +74,10 @@ export async function POST(req: NextRequest) {
     ? `${enPart}\n\n${arPart}`
     : enPart || arPart
 
-  // Metricool DateTimeInfo must be { date: "YYYY-MM-DD", time: "HH:mm" }
-  const _dt = new Date(scheduled_at)
+  // Metricool DateTimeInfo: { dateTime: "YYYY-MM-DDTHH:mm:ss", timezone: "UTC" }
   const publicationDate = {
-    date: _dt.toISOString().slice(0, 10),
-    time: _dt.toISOString().slice(11, 16),
+    dateTime: new Date(scheduled_at).toISOString().replace(/\.\d{3}Z$/, ''),
+    timezone: 'UTC',
   }
 
   // Persist to DB first
@@ -237,10 +236,9 @@ export async function PATCH(req: NextRequest) {
     .filter(Boolean)
     .map(network => ({ network }))
 
-  const _dt2 = new Date(post.scheduled_at)
   const publicationDate = {
-    date: _dt2.toISOString().slice(0, 10),
-    time: _dt2.toISOString().slice(11, 16),
+    dateTime: new Date(post.scheduled_at).toISOString().replace(/\.\d{3}Z$/, ''),
+    timezone: 'UTC',
   }
   const mediaUrls: string[] | undefined = (post.media_urls as string[])?.length
     ? (post.media_urls as string[]).map(u => toAbsolute(u, req) ?? u)
