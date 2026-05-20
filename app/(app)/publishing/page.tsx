@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw, Pencil } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useQueryClient } from '@tanstack/react-query'
@@ -31,7 +32,6 @@ function EditPostDialog({ post, onClose }: { post: ScheduledPost; onClose: () =>
   )
   const [platforms, setPlatforms] = useState<SocialPlatform[]>(post.platforms)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   function togglePlatform(p: SocialPlatform) {
     setPlatforms(prev => prev.includes(p) ? (prev.length > 1 ? prev.filter(x => x !== p) : prev) : [...prev, p])
@@ -40,7 +40,6 @@ function EditPostDialog({ post, onClose }: { post: ScheduledPost; onClose: () =>
   async function handleSave() {
     if (!caption.trim() || !scheduledAt || !platforms.length) return
     setSaving(true)
-    setError(null)
     try {
       const res = await fetch('/api/metricool/schedule/edit', {
         method: 'PATCH',
@@ -50,9 +49,10 @@ function EditPostDialog({ post, onClose }: { post: ScheduledPost; onClose: () =>
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Save failed')
       queryClient.invalidateQueries({ queryKey: ['posts'] })
+      toast.success('Post updated and rescheduled')
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed')
+      toast.error(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setSaving(false)
     }
@@ -109,8 +109,6 @@ function EditPostDialog({ post, onClose }: { post: ScheduledPost; onClose: () =>
           </div>
         </div>
 
-        {error && <p className="text-xs text-red-500">{error}</p>}
-
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
           <button
@@ -135,16 +133,13 @@ function PostCard({ post }: { post: ScheduledPost }) {
   const perf = post.performance
   const isCrisis = client?.crisis_mode ?? false
   const [actionLoading, setActionLoading] = useState<'delete' | 'schedule' | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
 
-  async function handleDelete() {
-    if (!confirm('Delete this post? If scheduled in Metricool it will be cancelled.')) return
+  async function doDelete() {
+    setConfirmDelete(false)
     setActionLoading('delete')
-    setActionError(null)
 
-    // Optimistically remove this specific post from every ['posts', *] query so
-    // the correct card disappears immediately without waiting for a refetch.
     const snapshots = queryClient.getQueriesData<ScheduledPost[]>({ queryKey: ['posts'] })
     queryClient.setQueriesData<ScheduledPost[]>({ queryKey: ['posts'] }, (old) =>
       old ? old.filter(p => p.id !== post.id) : old
@@ -160,13 +155,11 @@ function PostCard({ post }: { post: ScheduledPost }) {
         const d = await res.json()
         throw new Error(d.error ?? 'Delete failed')
       }
+      toast.success('Post deleted')
       queryClient.invalidateQueries({ queryKey: ['posts'] })
     } catch (err) {
-      // Rollback — restore every query to its pre-delete snapshot
-      for (const [key, data] of snapshots) {
-        queryClient.setQueryData(key, data)
-      }
-      setActionError(err instanceof Error ? err.message : 'Delete failed')
+      for (const [key, data] of snapshots) queryClient.setQueryData(key, data)
+      toast.error(err instanceof Error ? err.message : 'Delete failed')
     } finally {
       setActionLoading(null)
     }
@@ -174,7 +167,6 @@ function PostCard({ post }: { post: ScheduledPost }) {
 
   async function handleReschedule() {
     setActionLoading('schedule')
-    setActionError(null)
     try {
       const res = await fetch('/api/metricool/schedule', {
         method: 'PATCH',
@@ -183,9 +175,10 @@ function PostCard({ post }: { post: ScheduledPost }) {
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Scheduling failed')
+      toast.success('Post pushed to Metricool')
       queryClient.invalidateQueries({ queryKey: ['posts'] })
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Scheduling failed')
+      toast.error(err instanceof Error ? err.message : 'Scheduling failed')
     } finally {
       setActionLoading(null)
     }
@@ -285,20 +278,23 @@ function PostCard({ post }: { post: ScheduledPost }) {
             <Pencil className="w-3 h-3"/>
             Edit
           </button>
-          <button
-            onClick={handleDelete}
-            disabled={!!actionLoading}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 ml-auto"
-          >
-            {actionLoading === 'delete'
-              ? <Loader2 className="w-3 h-3 animate-spin"/>
-              : <Trash2 className="w-3 h-3"/>}
-            Delete
-          </button>
+          {confirmDelete ? (
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="text-[11px] text-slate-500">Delete this post?</span>
+              <button onClick={doDelete} className="px-2 py-1 text-[11px] font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">Yes, delete</button>
+              <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={!!actionLoading}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 ml-auto"
+            >
+              {actionLoading === 'delete' ? <Loader2 className="w-3 h-3 animate-spin"/> : <Trash2 className="w-3 h-3"/>}
+              Delete
+            </button>
+          )}
         </div>
-      )}
-      {actionError && (
-        <p className="mt-1.5 text-[10px] text-red-500 leading-tight">{actionError}</p>
       )}
       {editing && <EditPostDialog post={post} onClose={() => setEditing(false)}/>}
     </div>
@@ -449,9 +445,6 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [dragOver, setDragOver] = useState(false)
   const [thumbnailUrl, setThumbnailUrl] = useState('')
 
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [draftSuccess, setDraftSuccess] = useState(false)
-
   const [aiLoading, setAiLoading] = useState(false)
   const [aiVariants, setAiVariants] = useState<CaptionVariant[] | null>(null)
   const [aiArLoading, setAiArLoading] = useState(false)
@@ -468,7 +461,6 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     const text = isAr ? captionAr : caption
     if (!text.trim()) return
     if (isAr) setHumanizingAr(true); else setHumanizing(true)
-    setSubmitError(null)
     const clientObj = clients.find(c => c.id === selectedClient)
     try {
       const res = await fetch('/api/ai', {
@@ -488,7 +480,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
       if (isAr) setCaptionAr(data.text?.trim() ?? captionAr)
       else setCaption(data.text?.trim() ?? caption)
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Humanization failed.')
+      toast.error(err instanceof Error ? err.message : 'Humanization failed.')
     } finally {
       if (isAr) setHumanizingAr(false); else setHumanizing(false)
     }
@@ -497,7 +489,6 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   async function generateCaption(targetLang: 'en' | 'ar') {
     const isAr = targetLang === 'ar'
     if (isAr) setAiArLoading(true); else setAiLoading(true)
-    setSubmitError(null)
 
     const clientObj = clients.find(c => c.id === selectedClient)
     // Prefer explicit brief; fall back to existing caption text; last resort generic
@@ -525,7 +516,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
       const variants: CaptionVariant[] = JSON.parse(raw)
       if (isAr) setAiArVariants(variants); else setAiVariants(variants)
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Caption generation failed. Check your AI API key.')
+      toast.error(err instanceof Error ? err.message : 'Caption generation failed. Check your AI API key.')
     } finally {
       if (isAr) setAiArLoading(false); else setAiLoading(false)
     }
@@ -544,7 +535,6 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     if (!file) return
     setUploading(true)
     setUploadProgress(0)
-    setSubmitError(null)
     try {
       const ext = file.name.split('.').pop() ?? 'bin'
       const path = `posts/${selectedClient || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
@@ -575,10 +565,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
       setSingleUrl(publicUrl)
       setDriveConverted(false)
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message :
-        'Upload failed. Run sql/006_storage_assets_bucket.sql in Supabase to create the assets bucket.'
-      )
+      toast.error(err instanceof Error ? err.message : 'Upload failed. Run sql/006_storage_assets_bucket.sql in Supabase to create the assets bucket.')
     } finally {
       setUploading(false)
       setUploadProgress(0)
@@ -625,15 +612,13 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   }
 
   async function handleSchedule() {
-    setSubmitError(null)
-    if (!selectedClient) return setSubmitError('Select a client first.')
-    if (!selectedPlatforms.length) return setSubmitError('Select at least one platform.')
-    if (!caption.trim() && !captionAr.trim()) return setSubmitError('Caption cannot be empty.')
-    if (!scheduleDate) return setSubmitError('Set a schedule date and time.')
+    if (!selectedClient) return toast.error('Select a client first.')
+    if (!selectedPlatforms.length) return toast.error('Select at least one platform.')
+    if (!caption.trim() && !captionAr.trim()) return toast.error('Caption cannot be empty.')
+    if (!scheduleDate) return toast.error('Set a schedule date and time.')
 
     try {
       if (customPerPlatform && selectedPlatforms.length > 1) {
-        // Group platforms by their assigned URL, one Metricool call per group
         const groups = new Map<string, SocialPlatform[]>()
         for (const p of selectedPlatforms) {
           const url = platformUrls[p] || singleUrl
@@ -641,34 +626,35 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
           groups.get(url)!.push(p)
         }
         let anyDraft = false
-        for (const [url, platforms] of groups) {
-          const res = await schedulePost.mutateAsync(buildInput({ platforms, media_url: url || undefined }))
-          if (res.saved_as_draft) { anyDraft = true; setSubmitError(res.error ? `Saved as draft — ${res.error}` : 'Partially saved as draft.') }
+        for (const [url, plats] of groups) {
+          const res = await schedulePost.mutateAsync(buildInput({ platforms: plats, media_url: url || undefined }))
+          if (res.saved_as_draft) { anyDraft = true; toast.warning(res.error ? `Saved as draft — ${res.error}` : 'Partially saved as draft.') }
         }
-        if (!anyDraft) onClose()
+        if (!anyDraft) { toast.success('Post scheduled'); onClose() }
       } else {
         const result = await schedulePost.mutateAsync(buildInput())
         if (result.saved_as_draft) {
-          setSubmitError(result.error ? `Saved as draft — ${result.error}` : 'Saved as draft (no Metricool blog ID for this client).')
+          toast.warning(result.error ? `Saved as draft — ${result.error}` : 'Saved as draft (no Metricool blog ID for this client).')
+          onClose()
           return
         }
+        toast.success('Post scheduled')
         onClose()
       }
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Scheduling failed.')
+      toast.error(err instanceof Error ? err.message : 'Scheduling failed.')
     }
   }
 
   async function handleDraft() {
-    setSubmitError(null)
-    if (!selectedClient) return setSubmitError('Select a client first.')
-    if (!caption.trim() && !captionAr.trim()) return setSubmitError('Caption cannot be empty.')
+    if (!selectedClient) return toast.error('Select a client first.')
+    if (!caption.trim() && !captionAr.trim()) return toast.error('Caption cannot be empty.')
     try {
       await saveDraft.mutateAsync(buildInput())
-      setDraftSuccess(true)
-      setTimeout(onClose, 800)
+      toast.success('Draft saved')
+      onClose()
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to save draft.')
+      toast.error(err instanceof Error ? err.message : 'Failed to save draft.')
     }
   }
 
@@ -1094,20 +1080,6 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
             />
           </div>
         </div>
-
-        {/* Error / draft-saved feedback */}
-        {submitError && (
-          <div className="mx-5 mb-3 flex items-start gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg">
-            <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5"/>
-            <p className="text-xs text-red-700">{submitError}</p>
-          </div>
-        )}
-        {draftSuccess && (
-          <div className="mx-5 mb-3 flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-100 rounded-lg">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0"/>
-            <p className="text-xs text-emerald-700 font-medium">Draft saved</p>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 shrink-0">
@@ -2061,19 +2033,17 @@ export default function PublishingPage() {
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
   const [view, setView] = useState<'grid' | 'calendar'>('grid')
   const [syncing, setSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState<string | null>(null)
 
   async function handleSync() {
     setSyncing(true)
-    setSyncResult(null)
     try {
       const res = await fetch('/api/metricool/sync', { method: 'POST' })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Sync failed')
       queryClient.invalidateQueries({ queryKey: ['posts'] })
-      setSyncResult(d.updated > 0 ? `${d.updated} post${d.updated > 1 ? 's' : ''} updated` : 'Already up to date')
+      toast.success(d.updated > 0 ? `${d.updated} post${d.updated > 1 ? 's' : ''} updated from Metricool` : 'Already up to date')
     } catch (err) {
-      setSyncResult(err instanceof Error ? err.message : 'Sync failed')
+      toast.error(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
     }
@@ -2131,20 +2101,15 @@ export default function PublishingPage() {
               <Calendar className="w-3.5 h-3.5"/>
             </button>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              title="Pull latest post statuses from Metricool"
-              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')}/>
-              {syncing ? 'Syncing…' : 'Sync Status'}
-            </button>
-            {syncResult && (
-              <span className="text-xs text-slate-500">{syncResult}</span>
-            )}
-          </div>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            title="Pull latest post statuses from Metricool"
+            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')}/>
+            {syncing ? 'Syncing…' : 'Sync Status'}
+          </button>
           <button
             onClick={() => setBulkDialog(true)}
             className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors"
