@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   // Metricool DateTimeInfo: { dateTime: "YYYY-MM-DDTHH:mm:ss", timezone: "UTC" }
   const publicationDate = {
     dateTime: new Date(scheduled_at).toISOString().replace(/\.\d{3}Z$/, ''),
-    timezone: 'Africa/Cairo',
+    timezone: 'UTC',
   }
 
   // Persist to DB first
@@ -238,7 +238,7 @@ export async function PATCH(req: NextRequest) {
 
   const publicationDate = {
     dateTime: new Date(post.scheduled_at).toISOString().replace(/\.\d{3}Z$/, ''),
-    timezone: 'Africa/Cairo',
+    timezone: 'UTC',
   }
   const mediaUrls: string[] | undefined = (post.media_urls as string[])?.length
     ? (post.media_urls as string[]).map(u => toAbsolute(u, req) ?? u)
