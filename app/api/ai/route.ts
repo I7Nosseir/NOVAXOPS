@@ -287,14 +287,12 @@ Industry: ${industry}
 Brand Colors: ${client?.brand_identity?.primary_color ?? 'unspecified'} (primary), ${client?.brand_identity?.secondary_color ?? 'unspecified'} (secondary)
 Target Audience: ${audience}
 
-**FREEPIK ASSET RECOMMENDATIONS**
-Apply Itti-Koch visual saliency principles: highest-salience assets have strong centre-surround contrast, colour uniqueness against background, and a clear focal subject.
-
-List 5 specific assets. For each:
-**[N]. "[Precise search title]"** — [License: Premium/Free] — [Dimensions: WxH]
-Visual direction: [Describe exact lighting (e.g. soft north-facing natural light), composition rule applied (rule of thirds / negative space / leading lines), colour temperature, and subject positioning]
+**GOOGLE DRIVE SEARCH TERMS**
+List 5 specific search terms to find relevant assets in the client's Google Drive.
+For each, specify:
+**[N]. "[Precise search term]"** — [File type: image/video/document]
 → Use case: [Specific post type from this task]
-→ Saliency note: [What pre-attentive attribute makes it thumb-stopping]
+→ Visual direction: [Lighting, composition, colour temperature]
 
 **AI GENERATION PROMPTS**
 5-6 Higgsfield/Flux prompts for this task. Each prompt must specify:

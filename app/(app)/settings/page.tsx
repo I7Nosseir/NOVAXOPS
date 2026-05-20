@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus } from 'lucide-react'
+import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw } from 'lucide-react'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
-import { cn, hasRole } from '@/lib/utils'
+import { useClients } from '@/lib/hooks/use-clients'
+import { useUpdateClient } from '@/lib/hooks/use-clients'
+import { cn, hasRole, vendorName } from '@/lib/utils'
 import { InviteUserModal } from '@/components/settings/invite-user-modal'
 
 const INTEGRATIONS_REAL = [
@@ -22,12 +24,6 @@ const INTEGRATIONS_REAL = [
       { label: 'Webhook Secret', key: 'webhook_secret', type: 'password', placeholder: 'whsec_xxxxxxxxxx' },
     ],
     color: '#5865f2',
-  },
-  {
-    id: 'freepik', realName: 'Freepik', maskedName: 'Asset Library', status: 'connected',
-    description: 'Premium and free asset search and download',
-    fields: [{ label: 'API Key', key: 'api_key', type: 'password', placeholder: 'fpik_xxxxxxxxxx' }],
-    color: '#00c9a7',
   },
   {
     id: 'claude', realName: 'Claude API (Anthropic)', maskedName: 'AI Engine', status: 'connected',
@@ -99,6 +95,50 @@ function IntegrationCard({ integration, showReal }: { integration: typeof INTEGR
   )
 }
 
+function MetricoolClientConfig() {
+  const { clients } = useClients()
+  const updateClient = useUpdateClient()
+  const [localIds, setLocalIds] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+
+  const handleSave = async (clientId: string) => {
+    setSaving(clientId)
+    updateClient.mutate({ id: clientId, metricool_blog_id: localIds[clientId] } as Parameters<typeof updateClient.mutate>[0], {
+      onSettled: () => setSaving(null),
+    })
+  }
+
+  return (
+    <div className="mt-5 pt-5 border-t border-slate-100 space-y-3">
+      <p className="text-xs font-semibold text-slate-700">Metricool Blog ID per Client</p>
+      <p className="text-xs text-slate-400">Each client maps to a blogId in your Metricool workspace. Get IDs from Metricool → Settings → Accounts.</p>
+      {clients.map(client => (
+        <div key={client.id} className="flex items-center gap-3">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: client.color }}>
+            {client.initials}
+          </div>
+          <span className="text-xs font-medium text-slate-700 w-32 truncate">{client.name}</span>
+          <input
+            defaultValue={client.metricool_blog_id ?? ''}
+            placeholder="e.g. 123456"
+            onChange={e => setLocalIds(prev => ({ ...prev, [client.id]: e.target.value }))}
+            className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:border-novax-border"
+          />
+          <button
+            onClick={() => handleSave(client.id)}
+            disabled={saving === client.id}
+            className="px-2.5 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1"
+            style={{ background: '#1B3D38' }}
+          >
+            {saving === client.id ? <RefreshCw className="w-3 h-3 animate-spin"/> : null}
+            Save
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const { user: currentUser } = useAuth()
   const { users } = useUsers()
@@ -143,6 +183,8 @@ export default function SettingsPage() {
           <div className="space-y-3">
             {INTEGRATIONS_REAL.map(i => <IntegrationCard key={i.id} integration={i} showReal={canSeeVendorNames} />)}
           </div>
+          {isAdmin && <MetricoolClientConfig/>}
+
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
             <p className="text-sm font-semibold text-amber-800">Webhook endpoints</p>
             <p className="text-xs text-amber-700 mt-1">Configure these URLs in your Respond.io and Metricool dashboards:</p>
@@ -227,8 +269,8 @@ export default function SettingsPage() {
             {[
               { label: 'Task due today',              desc: 'Remind me when tasks are due', on: true },
               { label: 'Approval required',           desc: 'When a task reaches Approval stage', on: true },
-              { label: 'New moderation item',         desc: 'Comment or DM received via Respond.io', on: true },
-              { label: 'Post published',              desc: 'When Metricool confirms a post is live', on: true },
+              { label: 'New moderation item',         desc: `Comment or DM received via ${vendorName(currentUser?.role, 'Respond.io')}`, on: true },
+              { label: 'Post published',              desc: `When ${vendorName(currentUser?.role, 'Metricool')} confirms a post is live`, on: true },
               { label: 'AI cost threshold',           desc: 'Alert when monthly AI spend exceeds $100', on: false },
               { label: 'Weekly performance digest',   desc: 'Summary of top posts and metrics', on: true },
             ].map(({ label, desc, on }) => (

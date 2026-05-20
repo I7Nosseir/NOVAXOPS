@@ -1,0 +1,82 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+/**
+ * GET /api/performance/posts?client_id=&start=&end=&platform=
+ *
+ * Returns published posts with their performance snapshots, sorted by ER desc.
+ */
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const client_id = searchParams.get('client_id')
+  const start     = searchParams.get('start')
+  const end       = searchParams.get('end')
+  const platform  = searchParams.get('platform')
+
+  if (!client_id) return NextResponse.json({ error: 'client_id required' }, { status: 400 })
+
+  let query = supabase
+    .from('scheduled_posts')
+    .select(`
+      id, caption, media_urls, platforms, scheduled_at, published_at, client_id,
+      post_performance_snapshots (
+        platform, reach, impressions, likes, comments, shares, saves, link_clicks, engagement_rate, captured_at
+      )
+    `)
+    .eq('client_id', client_id)
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+
+  if (start) query = query.gte('published_at', start)
+  if (end)   query = query.lte('published_at', end)
+
+  const { data: posts, error } = await query
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  type SnapRow = { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; link_clicks: number; engagement_rate: number; captured_at: string }
+
+  const enriched = (posts ?? []).flatMap(post => {
+    const snaps = (post.post_performance_snapshots as SnapRow[]) ?? []
+    const relevant = platform ? snaps.filter(s => s.platform === platform) : snaps
+
+    if (relevant.length === 0) {
+      return [{
+        id: post.id,
+        caption: post.caption as string,
+        media_url: ((post.media_urls as string[]) ?? [])[0] ?? null,
+        platforms: post.platforms as string[],
+        published_at: post.published_at as string,
+        platform: ((post.platforms as string[]) ?? [])[0] ?? 'unknown',
+        reach: 0, impressions: 0, likes: 0, comments: 0,
+        shares: 0, saves: 0, link_clicks: 0, engagement_rate: 0,
+      }]
+    }
+
+    return relevant.map(snap => ({
+      id: post.id,
+      caption: post.caption as string,
+      media_url: ((post.media_urls as string[]) ?? [])[0] ?? null,
+      platforms: post.platforms as string[],
+      published_at: post.published_at as string,
+      platform: snap.platform,
+      reach: snap.reach,
+      impressions: snap.impressions,
+      likes: snap.likes,
+      comments: snap.comments,
+      shares: snap.shares,
+      saves: snap.saves,
+      link_clicks: snap.link_clicks,
+      engagement_rate: snap.engagement_rate,
+    }))
+  })
+
+  // Sort by ER descending
+  enriched.sort((a, b) => b.engagement_rate - a.engagement_rate)
+
+  return NextResponse.json({ posts: enriched, total: enriched.length })
+}

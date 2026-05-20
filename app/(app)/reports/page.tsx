@@ -7,7 +7,8 @@ import {
   PieChart, Pie, Cell, Legend, ReferenceLine,
 } from 'recharts'
 import { useClients } from '@/lib/hooks/use-clients'
-import { formatNumber, cn } from '@/lib/utils'
+import { formatNumber, cn, vendorName } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
 import {
   FileText, TrendingUp, Users, Eye, Download, Upload,
   BarChart2, Target, Layers, Globe, Zap, ArrowUpRight, ArrowDownRight,
@@ -1595,14 +1596,69 @@ function ExecutiveReport({ client }: { client: string }) {
 
 // ─── AI Builder ─────────────────────────────────────────────────────────────────
 
+type ReportStructuredData = {
+  kpis: { label: string; value: string; change: string }[]
+  platforms: { name: string; reach: number; er: number }[]
+  trend: { period: string; value: number }[]
+}
+
+function renderMarkdown(text: string): React.ReactNode[] {
+  return text.split('\n').map((line, i) => {
+    if (!line.trim()) return <div key={i} className="h-3"/>
+    // Bold: **text**
+    const parts = line.split(/(\*\*[^*]+\*\*)/g)
+    const rendered = parts.map((p, j) =>
+      p.startsWith('**') && p.endsWith('**')
+        ? <strong key={j} className="font-semibold text-slate-900">{p.slice(2, -2)}</strong>
+        : <span key={j}>{p}</span>
+    )
+    if (line.match(/^[-*] /)) {
+      return (
+        <div key={i} className="flex items-start gap-2 py-0.5">
+          <div className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ background: B.accent }}/>
+          <p className="text-sm text-slate-700 leading-relaxed">{rendered.map((r, j) => r.props?.children?.toString?.().replace(/^[-*] /, '') ? <span key={j}>{r}</span> : r)}</p>
+        </div>
+      )
+    }
+    if (line.match(/^\d+\. /)) {
+      const num = line.match(/^(\d+)\. /)?.[1]
+      return (
+        <div key={i} className="flex items-start gap-3 py-1">
+          <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5" style={{ background: B.primary }}>{num}</span>
+          <p className="text-sm text-slate-700 leading-relaxed">{rendered}</p>
+        </div>
+      )
+    }
+    if (line.startsWith('|')) {
+      const cells = line.split('|').filter(Boolean).map(c => c.trim())
+      if (cells.every(c => c.match(/^[-:]+$/))) return null
+      return (
+        <div key={i} className="grid gap-2 py-1 border-b border-slate-100" style={{ gridTemplateColumns: `repeat(${cells.length}, 1fr)` }}>
+          {cells.map((c, j) => <span key={j} className="text-xs text-slate-700 px-1">{c}</span>)}
+        </div>
+      )
+    }
+    return <p key={i} className="text-sm text-slate-700 leading-relaxed py-0.5">{rendered}</p>
+  }).filter(Boolean) as React.ReactNode[]
+}
+
 function AIBuilder() {
+  const { clients } = useClients()
+  const { user } = useAuth()
   const [files, setFiles]           = useState<File[]>([])
   const [prompt, setPrompt]         = useState('')
   const [reportType, setReportType] = useState<Exclude<ReportTab, 'ai'>>('monthly')
+  const [selectedClient, setSelectedClient] = useState('all')
   const [loading, setLoading]       = useState(false)
+  const [exporting, setExporting]   = useState(false)
   const [result, setResult]         = useState<string | null>(null)
+  const [structuredData, setStructuredData] = useState<ReportStructuredData | null>(null)
   const [error, setError]           = useState<string | null>(null)
   const fileInputRef                = useRef<HTMLInputElement>(null)
+
+  const clientName = selectedClient === 'all'
+    ? 'Client'
+    : (clients.find(c => c.id === selectedClient)?.name ?? 'Client')
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -1616,24 +1672,74 @@ function AIBuilder() {
 
   const removeFile = (i: number) => setFiles(prev => prev.filter((_, idx) => idx !== i))
 
+  const pullLiveData = async () => {
+    if (selectedClient === 'all') return
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    const end = now.toISOString().split('T')[0]
+    try {
+      const res = await fetch(`/api/metricool/analytics?client_id=${selectedClient}&startDate=${start}&endDate=${end}`)
+      const data = await res.json() as { stats?: Record<string, unknown>; error?: string }
+      if (res.ok && data.stats) {
+        const s = data.stats
+        setPrompt(prev => `${prev}\n\nLive ${vendorName(user?.role, 'Metricool')} data (${start} to ${end}):\nReach: ${s.reach}\nImpressions: ${s.impressions}\nEngagement rate: ${s.engagement_rate}%\nLikes: ${s.likes}  Comments: ${s.comments}  Shares: ${s.shares}  Saves: ${s.saves}`.trim())
+      }
+    } catch { /* ignore */ }
+  }
+
   const handleGenerate = async () => {
     if (!prompt.trim() && files.length === 0) return
     setLoading(true)
     setError(null)
     setResult(null)
+    setStructuredData(null)
     try {
       const form = new FormData()
       form.append('prompt', prompt)
       form.append('reportType', reportType)
       files.forEach((f, i) => form.append(`file_${i}`, f))
       const res  = await fetch('/api/reports/analyze', { method: 'POST', body: form })
-      const data = await res.json() as { text?: string; error?: string }
+      const data = await res.json() as { text?: string; data?: ReportStructuredData; error?: string }
       if (!res.ok) throw new Error(data.error ?? 'Analysis failed')
       setResult(data.text ?? '')
+      setStructuredData(data.data ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePrintPDF = () => {
+    const el = document.getElementById('ai-report-preview')
+    if (el) {
+      el.style.minWidth = '740px'
+      window.dispatchEvent(new Event('resize'))
+      setTimeout(() => { window.print(); setTimeout(() => { el.style.minWidth = '' }, 800) }, 350)
+    } else {
+      window.print()
+    }
+  }
+
+  const handleExportPptx = async () => {
+    if (!result) return
+    setExporting(true)
+    try {
+      const res = await fetch('/api/reports/export-pptx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: result, data: structuredData ?? {}, client_name: clientName, report_type: TABS.find(t => t.id === reportType)?.label ?? reportType }),
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `NOVAX_${clientName}_${reportType}_report.pptx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch { /* silently fail */ } finally {
+      setExporting(false)
     }
   }
 
@@ -1646,22 +1752,46 @@ function AIBuilder() {
           </div>
           <div>
             <h3 className="font-semibold text-slate-900">AI Report Builder</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Upload analytics screenshots or paste raw data — Gemini extracts and formats a branded report</p>
+            <p className="text-xs text-slate-500 mt-0.5">Upload analytics screenshots or paste raw data — AI extracts and formats a branded report</p>
           </div>
         </div>
 
-        {/* Report type */}
-        <div className="mb-5">
-          <label className="text-xs font-semibold text-slate-600 mb-2 block">Report Type</label>
-          <div className="grid grid-cols-3 gap-2">
-            {(['monthly', 'paid', 'combined', 'platform', 'quarterly', 'executive'] as const).map(t => (
-              <button key={t} onClick={() => setReportType(t)} className={cn(
-                'px-3 py-2 rounded-lg text-xs font-semibold border transition-colors text-left',
-                reportType === t ? 'text-white border-novax' : 'text-slate-600 border-slate-200 hover:border-novax-border',
-              )} style={reportType === t ? { background: B.primary } : {}}>
-                {TABS.find(tab => tab.id === t)?.label}
+        {/* Client + Report type */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+          <div>
+            <label className="text-xs font-semibold text-slate-600 mb-2 block">Client</label>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedClient}
+                onChange={e => setSelectedClient(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+              >
+                <option value="all">Select a client</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button
+                onClick={pullLiveData}
+                disabled={selectedClient === 'all'}
+                title={`Pull live ${vendorName(user?.role, 'Metricool')} data`}
+                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors shrink-0"
+              >
+                <Activity className="w-3.5 h-3.5"/>
+                Pull Live Data
               </button>
-            ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600 mb-2 block">Report Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['monthly', 'paid', 'combined', 'platform', 'quarterly', 'executive'] as const).map(t => (
+                <button key={t} onClick={() => setReportType(t)} className={cn(
+                  'px-2 py-2 rounded-lg text-xs font-semibold border transition-colors text-left',
+                  reportType === t ? 'text-white border-novax' : 'text-slate-600 border-slate-200 hover:border-novax-border',
+                )} style={reportType === t ? { background: B.primary } : {}}>
+                  {TABS.find(tab => tab.id === t)?.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1722,14 +1852,78 @@ function AIBuilder() {
       )}
 
       {result && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
-              <Check className="w-3.5 h-3.5 text-emerald-600"/>
+        <div id="ai-report-preview" className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {/* Report toolbar */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+                <Check className="w-3.5 h-3.5 text-emerald-600"/>
+              </div>
+              <h3 className="font-semibold text-slate-900">AI-Generated Report</h3>
+              <span className="text-xs text-slate-400">— {clientName}</span>
             </div>
-            <h3 className="font-semibold text-slate-900">AI-Generated Report</h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePrintPDF}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5"/> Export PDF
+              </button>
+              <button
+                onClick={handleExportPptx}
+                disabled={exporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white font-medium transition-colors disabled:opacity-50"
+                style={{ background: B.primary }}
+              >
+                {exporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Download className="w-3.5 h-3.5"/>}
+                {exporting ? 'Exporting…' : 'Export PPTX'}
+              </button>
+            </div>
           </div>
-          <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{result}</div>
+
+          {/* KPI cards from structured data */}
+          {structuredData?.kpis && structuredData.kpis.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-6 pb-0">
+              {structuredData.kpis.slice(0, 4).map(kpi => (
+                <div key={kpi.label} className="rounded-xl border border-novax-border p-4" style={{ background: B.light }}>
+                  <p className="text-2xl font-bold text-slate-900">{kpi.value}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{kpi.label}</p>
+                  {kpi.change && <p className="text-xs font-semibold mt-1" style={{ color: B.muted }}>{kpi.change}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Platform chart from structured data */}
+          {structuredData?.platforms && structuredData.platforms.length > 0 && (
+            <div className="px-6 pt-5">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Platform Breakdown</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={structuredData.platforms} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
+                  <Tooltip formatter={(v, n) => [n === 'reach' ? formatNumber(Number(v)) : `${v}%`, n === 'reach' ? 'Reach' : 'ER']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
+                  <Bar dataKey="reach" fill={B.primary} radius={[3,3,0,0]} name="Reach"/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Styled markdown report */}
+          <div className="p-6 space-y-6">
+            {result.split(/^### /m).filter(Boolean).map((section, i) => {
+              const lines = section.trim().split('\n')
+              const title = lines[0].trim()
+              const body = lines.slice(1).join('\n').trim()
+              return (
+                <div key={i}>
+                  <h3 className="text-sm font-bold uppercase tracking-wider mb-3 pb-2 border-b" style={{ color: B.primary, borderColor: B.border }}>{title}</h3>
+                  <div className="space-y-0.5">{renderMarkdown(body)}</div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>

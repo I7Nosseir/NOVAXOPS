@@ -8,11 +8,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
 import type { SchedulePostInput } from '@/lib/hooks/use-posts'
 import { useClients } from '@/lib/hooks/use-clients'
-import { PLATFORM_CONFIG, formatDateTime, formatDate, formatNumber, cn } from '@/lib/utils'
+import { PLATFORM_CONFIG, formatDateTime, formatDate, formatNumber, cn, vendorName } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
 import type { ScheduledPost, SocialPlatform } from '@/lib/types'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import { supabase } from '@/lib/supabase'
-import { convertGoogleDriveUrl, isGoogleDriveUrl } from '@/lib/google-drive'
+import { convertGoogleDriveUrl, isGoogleDriveUrl, isProxyDriveUrl, importDriveFileToStorage } from '@/lib/google-drive'
 interface PinterestPin { id: string; title: string; description: string; imageUrl: string; link: string; dominantColor: string }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -128,6 +129,7 @@ function EditPostDialog({ post, onClose }: { post: ScheduledPost; onClose: () =>
 function PostCard({ post }: { post: ScheduledPost }) {
   const { clients } = useClients()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const client = clients.find(c => c.id === post.client_id)
   const status = STATUS_CONFIG[post.status]
   const perf = post.performance
@@ -267,7 +269,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
               {actionLoading === 'schedule'
                 ? <Loader2 className="w-3 h-3 animate-spin"/>
                 : <RefreshCw className="w-3 h-3"/>}
-              Push to Metricool
+              Push to {vendorName(user?.role, 'Metricool')}
             </button>
           )}
           <button
@@ -444,6 +446,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [uploadProgress, setUploadProgress] = useState(0) // 0-100
   const [dragOver, setDragOver] = useState(false)
   const [thumbnailUrl, setThumbnailUrl] = useState('')
+  const [driveImporting, setDriveImporting] = useState(false)
 
   const [aiLoading, setAiLoading] = useState(false)
   const [aiVariants, setAiVariants] = useState<CaptionVariant[] | null>(null)
@@ -594,7 +597,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
 
   const platforms: SocialPlatform[] = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter']
 
-  const isSubmitting = schedulePost.isPending || saveDraft.isPending
+  const isSubmitting = schedulePost.isPending || saveDraft.isPending || driveImporting
 
   function buildInput(overrides?: { platforms?: SocialPlatform[]; media_url?: string }): SchedulePostInput {
     const baseMediaUrl = mediaMode === 'single' ? singleUrl || undefined : undefined
@@ -611,17 +614,43 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function resolveUrl(url: string): Promise<string> {
+    if (!isProxyDriveUrl(url)) return url
+    return importDriveFileToStorage(url)
+  }
+
   async function handleSchedule() {
     if (!selectedClient) return toast.error('Select a client first.')
     if (!selectedPlatforms.length) return toast.error('Select at least one platform.')
     if (!caption.trim() && !captionAr.trim()) return toast.error('Caption cannot be empty.')
     if (!scheduleDate) return toast.error('Set a schedule date and time.')
 
+    // Import any Drive proxy URLs to Supabase Storage before scheduling
+    let resolvedSingleUrl = singleUrl
+    const resolvedPlatformUrls = { ...platformUrls }
+    if (driveConverted || isProxyDriveUrl(singleUrl)) {
+      setDriveImporting(true)
+      try {
+        if (singleUrl) resolvedSingleUrl = await resolveUrl(singleUrl)
+        for (const p of selectedPlatforms) {
+          if (platformUrls[p] && isProxyDriveUrl(platformUrls[p])) {
+            resolvedPlatformUrls[p] = await resolveUrl(platformUrls[p])
+          }
+        }
+        setSingleUrl(resolvedSingleUrl)
+        setDriveConverted(false)
+      } catch (err) {
+        setDriveImporting(false)
+        return toast.error(err instanceof Error ? err.message : 'Drive import failed.')
+      }
+      setDriveImporting(false)
+    }
+
     try {
       if (customPerPlatform && selectedPlatforms.length > 1) {
         const groups = new Map<string, SocialPlatform[]>()
         for (const p of selectedPlatforms) {
-          const url = platformUrls[p] || singleUrl
+          const url = resolvedPlatformUrls[p] || resolvedSingleUrl
           if (!groups.has(url)) groups.set(url, [])
           groups.get(url)!.push(p)
         }
@@ -760,11 +789,15 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                     )}
                   </div>
 
-                  {/* Drive converted notice */}
+                  {/* Drive import notice */}
                   {driveConverted && (
                     <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg">
                       <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0"/>
-                      <p className="text-[10px] text-blue-700">Drive URL routed via proxy — file must be shared as "Anyone with the link can view".</p>
+                      <p className="text-[10px] text-blue-700">
+                        {driveImporting
+                          ? 'Importing from Google Drive to secure storage…'
+                          : 'Drive link detected — will be uploaded to secure storage on schedule. File must be shared as "Anyone with the link".'}
+                      </p>
                     </div>
                   )}
 
@@ -1098,8 +1131,8 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
               disabled={isSubmitting}
               className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
             >
-              {schedulePost.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0"/> : <Send className="w-3.5 h-3.5 shrink-0"/>}
-              <span>{schedulePost.isPending ? 'Scheduling…' : 'Schedule'}</span>
+              {(schedulePost.isPending || driveImporting) ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0"/> : <Send className="w-3.5 h-3.5 shrink-0"/>}
+              <span>{driveImporting ? 'Importing…' : schedulePost.isPending ? 'Scheduling…' : 'Schedule'}</span>
             </button>
           </div>
         </div>
@@ -1329,6 +1362,15 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
       if (!row.caption.trim() || !row.scheduled_at || !row.platforms.length) continue
       updateRow(row.id, { status: 'scheduling' })
       try {
+        // Import any Drive proxy URLs to Supabase Storage before scheduling
+        let mediaUrls = resolveMediaUrls(row)
+        if (mediaUrls?.length) {
+          const resolved = await Promise.all(
+            mediaUrls.map(u => isProxyDriveUrl(u) ? importDriveFileToStorage(u) : Promise.resolve(u))
+          )
+          mediaUrls = resolved
+        }
+
         const res = await fetch('/api/metricool/schedule', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1336,7 +1378,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
             client_id: selectedClient,
             platforms: row.platforms,
             caption: row.caption,
-            media_urls: resolveMediaUrls(row),
+            media_urls: mediaUrls,
             scheduled_at: new Date(row.scheduled_at).toISOString(),
           }),
         })
@@ -2026,6 +2068,7 @@ function CalendarView({ onCompose }: { onCompose: () => void }) {
 export default function PublishingPage() {
   const { posts: allPosts } = usePosts()
   const { clients } = useClients()
+  const { user } = useAuth()
   const queryClient = useQueryClient()
   const [compose, setCompose] = useState(false)
   const [briefDialog, setBriefDialog] = useState(false)
@@ -2104,7 +2147,7 @@ export default function PublishingPage() {
           <button
             onClick={handleSync}
             disabled={syncing}
-            title="Pull latest post statuses from Metricool"
+            title={`Pull latest post statuses from ${vendorName(user?.role, 'Metricool')}`}
             className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')}/>

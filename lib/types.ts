@@ -48,6 +48,9 @@ export interface Client {
   metricool_blog_id?: string
   respond_io_channel_id?: string
   crisis_mode?: boolean
+  is_in_crisis?: boolean
+  performance_intel?: PerformanceIntel
+  performance_analyzed_at?: string
   created_at: string
 }
 
@@ -101,8 +104,8 @@ export interface AIResponse {
 export interface Asset {
   id: string
   task_id: string
-  source: 'freepik' | 'upload'
-  type: 'image' | 'illustration' | 'icon'
+  source: 'upload' | 'drive'
+  type: 'image' | 'video' | 'illustration' | 'icon' | 'document'
   file_url: string
   thumbnail_url: string
   license_info: string
@@ -157,4 +160,67 @@ export interface DashboardStats {
   posts_scheduled: number
   posts_published: number
   pipeline_velocity: number
+}
+
+export interface PostPerformanceSnapshot {
+  id: string
+  post_id: string
+  captured_at: string
+  platform: string
+  reach: number
+  impressions: number
+  likes: number
+  comments: number
+  shares: number
+  saves: number
+  link_clicks: number
+  engagement_rate: number
+}
+
+export interface CompetitorSnapshot {
+  id: string
+  client_id: string
+  platform: string
+  competitor_handle: string
+  followers: number
+  avg_er: number
+  top_content_types: Record<string, number>
+  posting_frequency: number
+  captured_at: string
+  notes?: string
+}
+
+export interface ContentRecommendation {
+  title: string
+  platform: string
+  format: string
+  caption_angle: string
+  timing: string
+  expected_er: string
+}
+
+export interface ContentMixRecommendation {
+  current: Record<string, number>
+  recommended: Record<string, number>
+  rationale: string
+}
+
+export interface PerformanceIntel {
+  viral_patterns: string[]
+  failure_patterns: string[]
+  optimal_times: Record<string, string>
+  content_mix_recommendation: ContentMixRecommendation
+  next_recommendations: ContentRecommendation[]
+  one_line_summary: string
+  // From client SWOT analysis (clients/analyze route)
+  strengths?: string[]
+  weaknesses?: string[]
+  opportunities?: string[]
+  threats?: string[]
+  market_position?: string
+  growth_score?: number
+  engagement_trend?: string
+  content_gap?: string[]
+  key_insights?: string[]
+  strategy_90_days?: string[]
 }

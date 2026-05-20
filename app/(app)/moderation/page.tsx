@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { MessageSquare, Send, EyeOff, AlertOctagon, CheckCircle, Sparkles, RefreshCw } from 'lucide-react'
 import { useModerationItems, useUpdateModerationItem } from '@/lib/hooks/use-moderation'
 import { useClients } from '@/lib/hooks/use-clients'
-import { PLATFORM_CONFIG, formatDateTime, cn } from '@/lib/utils'
+import { PLATFORM_CONFIG, formatDateTime, cn, vendorName } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
 import type { ModerationItem } from '@/lib/types'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 
@@ -19,9 +20,26 @@ function ModerationCard({ item }: { item: ModerationItem }) {
   const [reply, setReply] = useState(item.ai_suggested_reply ?? '')
   const [status, setStatus] = useState(item.status)
   const [generating, setGenerating] = useState(false)
+  const [sending, setSending] = useState(false)
   const { clients } = useClients()
   const updateItem = useUpdateModerationItem()
   const client = clients.find(c => c.id === item.client_id)
+
+  const handleSend = async () => {
+    if (!reply.trim()) return
+    setSending(true)
+    try {
+      await fetch('/api/respond-io/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moderation_item_id: item.id, reply_text: reply }),
+      })
+    } catch { /* DB update below is authoritative */ } finally {
+      setSending(false)
+    }
+    setStatus('replied')
+    updateItem.mutate({ id: item.id, status: 'replied', finalReply: reply })
+  }
   const platformCfg = PLATFORM_CONFIG[item.platform]
   const statusCfg = STATUS_CONFIG[status]
 
@@ -124,12 +142,12 @@ function ModerationCard({ item }: { item: ModerationItem }) {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => { setStatus('replied'); updateItem.mutate({ id: item.id, status: 'replied', finalReply: reply }) }}
-              disabled={!reply.trim()}
+              onClick={handleSend}
+              disabled={!reply.trim() || sending}
               className="flex items-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-xs font-medium rounded-lg transition-colors flex-1 justify-center"
             >
-              <Send className="w-3.5 h-3.5"/>
-              Send Reply
+              {sending ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Send className="w-3.5 h-3.5"/>}
+              {sending ? 'Sending…' : 'Send Reply'}
             </button>
             <button
               onClick={() => { setStatus('escalated'); updateItem.mutate({ id: item.id, status: 'escalated' }) }}
@@ -168,6 +186,7 @@ function ModerationCard({ item }: { item: ModerationItem }) {
 
 export default function ModerationPage() {
   const { items: allItems } = useModerationItems()
+  const { user } = useAuth()
   const [filter, setFilter] = useState<'all' | 'pending' | 'replied' | 'escalated'>('all')
 
   const filtered = allItems.filter(m => filter === 'all' || m.status === filter)
@@ -211,7 +230,7 @@ export default function ModerationPage() {
         ))}
         <div className="ml-auto text-xs text-slate-400 flex items-center gap-1">
           <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"/>
-          Synced via Respond.io
+          Synced via {vendorName(user?.role, 'Respond.io')}
         </div>
       </div>
 

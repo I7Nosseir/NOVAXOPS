@@ -28,7 +28,7 @@ const AGENTS: { type: AgentType; label: string; icon: typeof Sparkles; descripti
   { type: 'task_analyzer',       label: 'Analyze Task',  icon: Sparkles,   description: 'Breaks down brief and flags missing info' },
   { type: 'copywriter',          label: 'Write Copy',    icon: FileSearch, description: 'Generates brand-aware copy for this stage' },
   { type: 'researcher',          label: 'Research',      icon: Search,     description: 'Market context, trends, competitors' },
-  { type: 'asset_finder',        label: 'Find Assets',   icon: BookOpen,   description: 'Searches Freepik for relevant assets' },
+  { type: 'asset_finder',        label: 'Find Assets',   icon: BookOpen,   description: 'Finds relevant assets from Google Drive' },
   { type: 'presentation_builder', label: 'Build Deck',   icon: Zap,        description: 'Generates a .pptx from task outputs' },
 ]
 

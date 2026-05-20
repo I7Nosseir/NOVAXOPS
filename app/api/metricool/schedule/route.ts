@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { schedulePost, deleteScheduledPost, PLATFORM_TO_METRICOOL } from '@/lib/metricool'
+import { schedulePost, deleteScheduledPost, splitMediaUrls, PLATFORM_TO_METRICOOL } from '@/lib/metricool'
 import type { SocialPlatform } from '@/lib/types'
 
 const supabase = createClient(
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       text: finalCaption,
       providers,
       publicationDate,
-      imageUrls: resolvedMediaUrls,
+      ...splitMediaUrls(resolvedMediaUrls),
     })
 
     await supabase
@@ -244,7 +244,7 @@ export async function PATCH(req: NextRequest) {
     dateTime: effectiveAt2.toISOString().replace(/\.\d{3}Z$/, ''),
     timezone: 'UTC',
   }
-  const mediaUrls: string[] | undefined = (post.media_urls as string[])?.length
+  const rawMediaUrls: string[] | undefined = (post.media_urls as string[])?.length
     ? (post.media_urls as string[]).map(u => toAbsolute(u, req) ?? u)
     : undefined
 
@@ -254,7 +254,7 @@ export async function PATCH(req: NextRequest) {
       text: post.caption as string,
       providers,
       publicationDate,
-      imageUrls: mediaUrls,
+      ...splitMediaUrls(rawMediaUrls),
     })
 
     await supabase

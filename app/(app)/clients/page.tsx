@@ -1,21 +1,23 @@
 'use client'
 
 import React, { useState } from 'react'
-import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, Play } from 'lucide-react'
+import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, RefreshCw } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useProjects } from '@/lib/hooks/use-projects'
-import { formatDate, cn } from '@/lib/utils'
-import type { Client } from '@/lib/types'
+import { formatDate, cn, vendorName } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
+import type { Client, UserRole } from '@/lib/types'
 import { NewClientWizard } from '@/components/clients/new-client-wizard'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
 
-function ClientCard({ client, onSelect, isCrisis, onToggleCrisis }: {
+function ClientCard({ client, onSelect, isCrisis, onToggleCrisis, userRole }: {
   client: Client
   onSelect: (c: Client) => void
   isCrisis: boolean
   onToggleCrisis: (id: string) => void
+  userRole?: UserRole
 }) {
   const { tasks: allTasks } = useTasks()
   const { posts: allPosts } = usePosts()
@@ -106,10 +108,10 @@ function ClientCard({ client, onSelect, isCrisis, onToggleCrisis }: {
       {/* Integrations */}
       <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
         {client.metricool_blog_id && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">Metricool</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">{vendorName(userRole, 'Metricool')}</span>
         )}
         {client.respond_io_channel_id && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">Respond.io</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">{vendorName(userRole, 'Respond.io')}</span>
         )}
         <span className="ml-auto text-[10px] text-slate-400">Since {formatDate(client.created_at)}</span>
       </div>
@@ -117,46 +119,6 @@ function ClientCard({ client, onSelect, isCrisis, onToggleCrisis }: {
   )
 }
 
-const MOCK_INTEL: Record<string, {
-  strengths: string[]; weaknesses: string[]; opportunities: string[]; threats: string[]
-  market_position: string; growth_score: number; engagement_trend: string; content_gap: string[]
-  key_insights: string[]
-}> = {
-  'client-1': {
-    strengths: ['Strong local brand recognition in coastal communities', 'Authentic food photography performs 3.4x above industry avg', 'High repeat customer engagement on Instagram Stories'],
-    weaknesses: ['Limited presence on TikTok — missing Gen Z segment', 'Inconsistent posting schedule reduces algorithm reach', 'No video content strategy — reels underutilized'],
-    opportunities: ['Summer season 2026 — food tourism content demand spike', 'Influencer collab untapped — micro foodie accounts in region', 'UGC campaign potential — customers already tagging organically'],
-    threats: ['3 competitor restaurants launched social campaigns this quarter', 'Rising ad costs on Meta reducing organic reach viability', 'Negative reviews on Google surfacing in competitor comparison searches'],
-    market_position: 'Mid-tier local brand with strong loyalty base. Positioned as authentic and accessible vs. premium competitors.',
-    growth_score: 72,
-    engagement_trend: '+18% MoM',
-    content_gap: ['Behind-the-scenes kitchen content', 'Seasonal menu reveals', 'Staff spotlight series'],
-    key_insights: ['Best performing day: Saturday 11am–1pm', 'Audience 68% female, 25–44', 'Stories convert 2.1x better than feed posts for reservations'],
-  },
-  'client-2': {
-    strengths: ['Premium brand perception well-established', 'Beauty tutorial content drives 5x saves vs industry norm', 'Strong email list synergy — social drives newsletter signups'],
-    weaknesses: ['Copywriting tone inconsistent across platforms', 'Sensitive skin niche not differentiated clearly in content', 'Respond time on DMs averaging 4.2 hours — losing warm leads'],
-    opportunities: ['Clean beauty trend accelerating — strong keyword alignment', 'Dermatologist endorsement content untapped', 'TikTok before/after format highly viral in skincare niche'],
-    threats: ['Large competitor launched near-identical sensitive skin line', 'Price-sensitive market segment shifting to drugstore alternatives', 'Algorithm deprioritising beauty content without paid boost'],
-    market_position: 'Premium cosmetics with sensitive skin positioning. Differentiated by formulation transparency and dermatological backing.',
-    growth_score: 81,
-    engagement_trend: '+27% MoM',
-    content_gap: ['Ingredient transparency series', 'Real customer skin journeys', 'Side-by-side competitor product comparisons'],
-    key_insights: ['Reels with "sensitive skin" in caption get 3.8x more reach', 'Top converting content: tutorial + product tag combo', 'Audience skews 30–45 female, high purchase intent signals'],
-  },
-}
-
-const DEFAULT_INTEL = {
-  strengths: ['Established brand identity with consistent visual language', 'Engaged core audience with above-average retention', 'Clear unique value proposition across platforms'],
-  weaknesses: ['Content volume below competitor average', 'Limited use of short-form video formats', 'Audience growth plateaued in past 60 days'],
-  opportunities: ['Seasonal campaign window approaching — Q2 trending topics align', 'Platform algorithm changes favour consistent posting cadence', 'Collab opportunities with complementary brands identified'],
-  threats: ['Competitor increased ad spend this quarter', 'Market saturation in primary content category', 'Platform policy changes affecting organic reach'],
-  market_position: 'Established mid-market brand with loyal core audience. Growth potential in underserved content formats.',
-  growth_score: 65,
-  engagement_trend: '+9% MoM',
-  content_gap: ['Educational how-to content', 'Behind-the-scenes brand story', 'Community spotlight content'],
-  key_insights: ['Peak engagement window: weekday evenings 6–9pm', 'Video content outperforms static by 2.4x in this vertical', 'Hashtag strategy needs refresh — current tags over-saturated'],
-}
 
 function SwotQuadrant({ title, items, color, bg, icon: Icon }: {
   title: string; items: string[]; color: string; bg: string; icon: React.ComponentType<{ className?: string }>
@@ -182,10 +144,31 @@ function SwotQuadrant({ title, items, color, bg, icon: Icon }: {
 function ClientDetail({ client, onClose }: { client: Client; onClose: () => void }) {
   const { tasks: allTasks } = useTasks()
   const { posts: allPosts } = usePosts()
+  const updateClient = useUpdateClient()
   const [tab, setTab] = useState<'overview' | 'intelligence' | 'tasks'>('overview')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [localIntel, setLocalIntel] = useState(client.performance_intel ?? null)
   const tasks = allTasks.filter(t => t.client_id === client.id)
   const posts = allPosts.filter(p => p.client_id === client.id && p.status === 'published')
-  const intel = MOCK_INTEL[client.id] ?? DEFAULT_INTEL
+  const intel = localIntel
+
+  const runAnalysis = async () => {
+    setAnalyzing(true)
+    try {
+      const res = await fetch('/api/clients/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: client.id }),
+      })
+      const data = await res.json() as { intel?: typeof localIntel; error?: string }
+      if (res.ok && data.intel) {
+        setLocalIntel(data.intel)
+        updateClient.mutate({ id: client.id, performance_intel: data.intel } as Parameters<typeof updateClient.mutate>[0])
+      }
+    } catch { /* keep existing */ } finally {
+      setAnalyzing(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
@@ -254,39 +237,72 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
           </>}
 
           {tab === 'intelligence' && <>
+            {/* Analyze button */}
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-400">
+                {client.performance_analyzed_at
+                  ? `Last analyzed: ${new Date(client.performance_analyzed_at).toLocaleDateString()}`
+                  : 'Not yet analyzed'}
+              </p>
+              <button
+                onClick={runAnalysis}
+                disabled={analyzing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                {analyzing ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Zap className="w-3 h-3"/>}
+                {analyzing ? 'Analyzing…' : intel ? 'Re-analyze' : 'Analyze with AI'}
+              </button>
+            </div>
+
+            {!intel && !analyzing && (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <Zap className="w-8 h-8 mb-2 text-novax-border"/>
+                <p className="text-sm font-medium text-slate-600">No intelligence data yet</p>
+                <p className="text-xs mt-1">Click &ldquo;Analyze with AI&rdquo; to generate SWOT, market position, and content recommendations.</p>
+              </div>
+            )}
+
+            {intel && <>
             {/* Market Position */}
             <div className="p-4 bg-novax-light rounded-xl border border-novax-border">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <p className="text-[10px] text-novax-muted uppercase font-bold tracking-wider mb-1">Market Position</p>
-                  <p className="text-sm text-slate-700">{intel.market_position}</p>
+                  <p className="text-sm text-slate-700">{intel.market_position ?? '—'}</p>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-2xl font-bold text-novax">{intel.growth_score}</p>
-                  <p className="text-[10px] text-slate-400">Growth Score</p>
-                </div>
+                {intel.growth_score != null && (
+                  <div className="text-right shrink-0">
+                    <p className="text-2xl font-bold text-novax">{intel.growth_score}</p>
+                    <p className="text-[10px] text-slate-400">Growth Score</p>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-novax-border">
-                <div className="flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500"/>
-                  <span className="text-xs font-semibold text-emerald-600">{intel.engagement_trend}</span>
-                  <span className="text-xs text-slate-500">engagement</span>
+              {intel.engagement_trend && (
+                <div className="flex items-center gap-4 mt-3 pt-3 border-t border-novax-border">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500"/>
+                    <span className="text-xs font-semibold text-emerald-600">{intel.engagement_trend}</span>
+                    <span className="text-xs text-slate-500">engagement</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* SWOT */}
+            {intel.strengths && (
             <div>
               <h3 className="font-semibold text-slate-900 mb-3">SWOT Analysis</h3>
               <div className="grid grid-cols-2 gap-3">
-                <SwotQuadrant title="Strengths" items={intel.strengths} color="text-emerald-600" bg="bg-emerald-50 border-emerald-100" icon={CheckCircle}/>
-                <SwotQuadrant title="Weaknesses" items={intel.weaknesses} color="text-red-500" bg="bg-red-50 border-red-100" icon={TrendingDown}/>
-                <SwotQuadrant title="Opportunities" items={intel.opportunities} color="text-blue-600" bg="bg-blue-50 border-blue-100" icon={Lightbulb}/>
-                <SwotQuadrant title="Threats" items={intel.threats} color="text-amber-600" bg="bg-amber-50 border-amber-100" icon={AlertTriangle}/>
+                <SwotQuadrant title="Strengths" items={intel.strengths ?? []} color="text-emerald-600" bg="bg-emerald-50 border-emerald-100" icon={CheckCircle}/>
+                <SwotQuadrant title="Weaknesses" items={intel.weaknesses ?? []} color="text-red-500" bg="bg-red-50 border-red-100" icon={TrendingDown}/>
+                <SwotQuadrant title="Opportunities" items={intel.opportunities ?? []} color="text-blue-600" bg="bg-blue-50 border-blue-100" icon={Lightbulb}/>
+                <SwotQuadrant title="Threats" items={intel.threats ?? []} color="text-amber-600" bg="bg-amber-50 border-amber-100" icon={AlertTriangle}/>
               </div>
             </div>
+            )}
 
             {/* Content Gaps */}
+            {intel.content_gap && intel.content_gap.length > 0 && (
             <div>
               <h3 className="font-semibold text-slate-900 mb-3">Content Gaps</h3>
               <div className="flex flex-wrap gap-2">
@@ -298,8 +314,10 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
                 ))}
               </div>
             </div>
+            )}
 
             {/* Key Insights */}
+            {intel.key_insights && intel.key_insights.length > 0 && (
             <div>
               <h3 className="font-semibold text-slate-900 mb-3">Key Insights</h3>
               <div className="space-y-2">
@@ -313,6 +331,25 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
                 ))}
               </div>
             </div>
+            )}
+
+            {/* 90-day strategy */}
+            {intel.strategy_90_days && intel.strategy_90_days.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-slate-900 mb-3">90-Day Strategy</h3>
+              <div className="space-y-2">
+                {intel.strategy_90_days.map((action, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-novax-light rounded-lg border border-novax-border">
+                    <div className="w-5 h-5 rounded-full bg-novax flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-white text-[9px] font-bold">{i + 1}</span>
+                    </div>
+                    <p className="text-sm text-slate-700">{action}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            )}
+            </>}
           </>}
 
           {tab === 'tasks' && <>
@@ -356,6 +393,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
 export default function ClientsPage() {
   const { clients } = useClients()
   const updateClient = useUpdateClient()
+  const { user } = useAuth()
   const [selected, setSelected] = useState<Client | null>(null)
   const [search, setSearch] = useState('')
   const [showWizard, setShowWizard] = useState(false)
@@ -363,7 +401,7 @@ export default function ClientsPage() {
   const toggleCrisis = (id: string) => {
     const c = clients.find(cl => cl.id === id)
     if (!c) return
-    updateClient.mutate({ id, crisis_mode: !c.crisis_mode })
+    updateClient.mutate({ id, is_in_crisis: !(c.is_in_crisis ?? c.crisis_mode ?? false) } as Parameters<typeof updateClient.mutate>[0])
   }
 
   const filtered = clients.filter(c =>
@@ -374,11 +412,11 @@ export default function ClientsPage() {
   return (
     <div className="space-y-5">
       {/* Crisis Mode global alert */}
-      {clients.some(c => c.crisis_mode) && (
+      {clients.some(c => c.is_in_crisis ?? c.crisis_mode) && (
         <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
           <AlertTriangle className="w-4 h-4 text-red-500 shrink-0"/>
           <p className="text-sm font-semibold text-red-700">
-            Crisis Mode active for {clients.filter(c => c.crisis_mode).length} client{clients.filter(c => c.crisis_mode).length > 1 ? 's' : ''} — all scheduled publishing is paused.
+            Crisis Mode active for {clients.filter(c => c.is_in_crisis ?? c.crisis_mode).length} client{clients.filter(c => c.is_in_crisis ?? c.crisis_mode).length > 1 ? 's' : ''} — all scheduled publishing is paused.
           </p>
         </div>
       )}
@@ -412,8 +450,9 @@ export default function ClientsPage() {
             key={client.id}
             client={client}
             onSelect={setSelected}
-            isCrisis={client.crisis_mode ?? false}
+            isCrisis={client.is_in_crisis ?? client.crisis_mode ?? false}
             onToggleCrisis={toggleCrisis}
+            userRole={user?.role}
           />
         ))}
       </div>

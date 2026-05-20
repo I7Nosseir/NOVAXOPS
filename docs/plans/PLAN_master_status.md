@@ -77,7 +77,7 @@ Every step of this loop is live:
 | Presentation Builder (text → pptxgenjs → .pptx) | pptxgenjs installed, route not built |
 | Per-client pipeline view | Filter pipeline board by client |
 | Reference document upload per client | Feeds into report generation context |
-| Freepik real API search in Assets | MOCK_FREEPIK_RESULTS currently |
+| Google Drive file browser in Assets | OAuth routes built, browser UI now wired |
 | Report template upload + matching | Not built |
 | Best time to post recommendation | Dependent on performance data accumulation |
 | Vercel cron for daily performance sync | Needs post-performance pull built first |

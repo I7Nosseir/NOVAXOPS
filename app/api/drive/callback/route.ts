@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const error = req.nextUrl.searchParams.get('error')
 
   if (error || !code) {
-    return NextResponse.redirect(new URL('/library?drive_error=access_denied', req.url))
+    return NextResponse.redirect(new URL('/assets?drive_error=access_denied', req.url))
   }
 
   const oauth2Client = new OAuth2Client(
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { tokens } = await oauth2Client.getToken(code)
-    const res = NextResponse.redirect(new URL('/library?drive=connected', req.url))
+    const res = NextResponse.redirect(new URL('/assets?drive=connected', req.url))
 
     if (tokens.refresh_token) {
       res.cookies.set('drive_refresh_token', tokens.refresh_token, {
@@ -38,6 +38,6 @@ export async function GET(req: NextRequest) {
 
     return res
   } catch {
-    return NextResponse.redirect(new URL('/library?drive_error=token_exchange', req.url))
+    return NextResponse.redirect(new URL('/assets?drive_error=token_exchange', req.url))
   }
 }

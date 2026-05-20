@@ -108,9 +108,27 @@ FORMAT RULES:
 
 User context: ${userPrompt || 'No additional context provided.'}`
 
+  const structurePrompt = `From the report above, extract a JSON object with exactly this shape:
+{
+  "kpis": [{ "label": "...", "value": "...", "change": "..." }],
+  "platforms": [{ "name": "...", "reach": 0, "er": 0.0 }],
+  "trend": [{ "period": "...", "value": 0 }]
+}
+Return only valid JSON, no explanation. Use 0 for missing numeric values. Include up to 5 KPIs and all platforms found in the data.`
+
   try {
     const text = await callGemini(systemPrompt, images)
-    return NextResponse.json({ text })
+
+    // Second pass: extract structured data for charts
+    let data: { kpis: { label: string; value: string; change: string }[]; platforms: { name: string; reach: number; er: number }[]; trend: { period: string; value: number }[] } = { kpis: [], platforms: [], trend: [] }
+    try {
+      const structureInput = `Here is the report:\n\n${text}\n\n${structurePrompt}`
+      const structureText = await callGemini(structureInput, [])
+      const jsonMatch = structureText.match(/\{[\s\S]*\}/)
+      if (jsonMatch) data = JSON.parse(jsonMatch[0]) as typeof data
+    } catch { /* structured extraction is best-effort */ }
+
+    return NextResponse.json({ text, data })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Analysis failed.'
     return NextResponse.json({ error: message }, { status: 500 })

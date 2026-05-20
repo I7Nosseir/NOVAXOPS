@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { Client, BrandIdentity } from '@/lib/types'
+import type { Client, BrandIdentity, PerformanceIntel } from '@/lib/types'
 
 function mapClient(row: Record<string, unknown>): Client {
   return {
@@ -15,6 +15,9 @@ function mapClient(row: Record<string, unknown>): Client {
     metricool_blog_id: row.metricool_blog_id as string | undefined,
     respond_io_channel_id: row.respond_io_channel_id as string | undefined,
     crisis_mode: (row.crisis_mode as boolean | undefined) ?? false,
+    is_in_crisis: (row.is_in_crisis as boolean | undefined) ?? false,
+    performance_intel: (row.performance_intel as PerformanceIntel | undefined) ?? undefined,
+    performance_analyzed_at: row.performance_analyzed_at as string | undefined,
     created_at: row.created_at as string,
   }
 }

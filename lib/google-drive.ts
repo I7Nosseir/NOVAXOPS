@@ -24,6 +24,33 @@ export function getGoogleDriveFileId(url: string): string | null {
   return null
 }
 
+/** Returns true if the URL is our internal Drive proxy URL (already converted). */
+export function isProxyDriveUrl(url: string): boolean {
+  try { return new URL(url).pathname.endsWith('/api/proxy/drive') } catch { return false }
+}
+
+/** Extracts the fileId query param from a proxy drive URL. */
+export function getProxyDriveFileId(url: string): string | null {
+  try { return new URL(url).searchParams.get('id') } catch { return null }
+}
+
+/**
+ * Imports a Drive file to Supabase Storage via the server-side import route.
+ * Call this client-side before scheduling — returns the permanent Supabase public URL.
+ */
+export async function importDriveFileToStorage(proxyUrl: string): Promise<string> {
+  const fileId = getProxyDriveFileId(proxyUrl)
+  if (!fileId) throw new Error('Not a valid Drive proxy URL')
+  const res = await fetch('/api/proxy/drive/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileId }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error ?? 'Drive import failed')
+  return data.publicUrl as string
+}
+
 export function convertGoogleDriveUrl(url: string): { url: string; wasDrive: boolean; fileId: string | null } {
   if (!isGoogleDriveUrl(url)) return { url, wasDrive: false, fileId: null }
 

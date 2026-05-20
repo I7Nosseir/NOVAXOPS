@@ -69,13 +69,33 @@ export interface DateTimeInfo {
   timezone: string   // IANA timezone, e.g. "UTC"
 }
 
+export type TikTokPrivacyLevel = 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY'
+
 export interface MetricoolScheduleInput {
   blogId: string | number
   text: string
-  providers: MetricoolProvider[]   // [{ network: "instagram" }, { network: "facebook" }]
-  publicationDate: DateTimeInfo    // { dateTime: "YYYY-MM-DDTHH:mm:ss", timezone: "Africa/Cairo" }
-  imageUrls?: string[]             // public URLs — sent as media: [url, ...] in the API payload
-  autoPublish?: boolean            // must be true for Metricool to actually post to the platforms
+  providers: MetricoolProvider[]
+  publicationDate: DateTimeInfo
+  // Images / carousels → sent as media: [url, url, ...]
+  imageUrls?: string[]
+  // Video → sent as videoUrl: "url" (mutually exclusive with imageUrls)
+  videoUrl?: string
+  autoPublish?: boolean
+  // TikTok requires a privacy level; defaults to PUBLIC_TO_EVERYONE when TikTok is in providers
+  tiktokPrivacy?: TikTokPrivacyLevel
+}
+
+const VIDEO_RE = /\.(mp4|mov|webm|avi|mkv|m4v)(\?|$)/i
+
+/** Splits a flat URL list into { imageUrls, videoUrl } for Metricool's distinct fields. */
+export function splitMediaUrls(urls: string[] | undefined): { imageUrls?: string[]; videoUrl?: string } {
+  if (!urls?.length) return {}
+  const videos = urls.filter(u => VIDEO_RE.test(u))
+  const images = urls.filter(u => !VIDEO_RE.test(u))
+  return {
+    videoUrl: videos[0],
+    imageUrls: images.length ? images : undefined,
+  }
 }
 
 export interface MetricoolStats {
@@ -112,14 +132,22 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
  *   media?          string[]  — array of public image URLs (omit if no media)
  */
 export async function schedulePost(input: MetricoolScheduleInput): Promise<MetricoolScheduledPost> {
-  const { blogId, imageUrls, ...rest } = input
+  const { blogId, imageUrls, videoUrl, tiktokPrivacy, ...rest } = input
 
   const payload: Record<string, unknown> = {
-    autoPublish: true,   // required — without this Metricool saves a draft and never posts
+    autoPublish: true,
     ...rest,
   }
-  if (imageUrls?.length) {
-    payload.media = imageUrls
+
+  // Images (including carousels) → media array
+  if (imageUrls?.length) payload.media = imageUrls
+  // Video → separate videoUrl field; Metricool rejects videos in the media (image) array
+  if (videoUrl) payload.videoUrl = videoUrl
+
+  // TikTok requires privacyLevel — without it the TikTok API rejects the post
+  const hasTikTok = (rest.providers as MetricoolProvider[]).some(p => p.network === 'tiktok')
+  if (hasTikTok) {
+    payload.tiktok = { privacyLevel: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
   return mFetch<MetricoolScheduledPost>(`/scheduler/posts?${qs(blogId)}`, {
