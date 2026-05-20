@@ -163,6 +163,15 @@ function AspectBadge({ platform, dims }: { platform: SocialPlatform; dims: Media
   )
 }
 
+interface CaptionVariant {
+  id: string
+  label: string
+  tone: string
+  framework: string
+  hook: string
+  text: string
+}
+
 function ComposeDialog({ onClose }: { onClose: () => void }) {
   const { clients } = useClients()
   const schedulePost = useSchedulePost()
@@ -177,7 +186,48 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [mediaUrl, setMediaUrl] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [draftSuccess, setDraftSuccess] = useState(false)
+
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiVariants, setAiVariants] = useState<CaptionVariant[] | null>(null)
+  const [aiArLoading, setAiArLoading] = useState(false)
+  const [aiArVariants, setAiArVariants] = useState<CaptionVariant[] | null>(null)
+
   const mediaDims = useMediaDimensions(mediaUrl)
+
+  async function generateCaption(targetLang: 'en' | 'ar') {
+    const isAr = targetLang === 'ar'
+    if (isAr) setAiArLoading(true); else setAiLoading(true)
+    setSubmitError(null)
+
+    const clientObj = clients.find(c => c.id === selectedClient)
+    const brief = isAr
+      ? (captionAr.trim() || caption.trim() || 'Create an engaging social media post')
+      : (caption.trim() || 'Create an engaging social media post')
+
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent: 'post_caption',
+          client: clientObj
+            ? { id: clientObj.id, name: clientObj.name, brand_identity: clientObj.brand_identity }
+            : undefined,
+          brief,
+          language: targetLang,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Generation failed')
+      const raw = (data.text as string).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+      const variants: CaptionVariant[] = JSON.parse(raw)
+      if (isAr) setAiArVariants(variants); else setAiVariants(variants)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Caption generation failed. Check your AI API key.')
+    } finally {
+      if (isAr) setAiArLoading(false); else setAiLoading(false)
+    }
+  }
 
   // Sync selectedClient once clients finish loading (useState initial value runs before data arrives)
   useEffect(() => {
@@ -354,9 +404,35 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                 className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light resize-none transition-all"
               />
               <div className="flex justify-between mt-1">
-                <button className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"><Sparkles className="w-3 h-3"/>Generate with AI</button>
+                <button
+                  onClick={() => { setAiVariants(null); generateCaption('en') }}
+                  disabled={aiLoading || !selectedClient}
+                  className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors disabled:opacity-40"
+                >
+                  {aiLoading ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                  {aiLoading ? 'Generating…' : 'Generate with AI'}
+                </button>
                 <span className="text-[11px] text-slate-400">{caption.length} / 2200</span>
               </div>
+              {aiVariants && (
+                <div className="mt-2 space-y-1.5">
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">Select a variant to use:</p>
+                  {aiVariants.map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => { setCaption(v.text); setAiVariants(null) }}
+                      className="w-full text-left px-3 py-2 rounded-lg border border-slate-200 hover:border-novax-border-active hover:bg-novax-light transition-all"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-semibold text-novax">{v.label}</span>
+                        <span className="text-[9px] text-slate-400 italic">{v.tone}</span>
+                      </div>
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{v.hook}</p>
+                    </button>
+                  ))}
+                  <button onClick={() => setAiVariants(null)} className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors">Dismiss</button>
+                </div>
+              )}
             </div>
           )}
 
@@ -375,9 +451,35 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                 className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light resize-none transition-all text-right"
               />
               <div className="flex justify-between mt-1">
-                <button className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"><Sparkles className="w-3 h-3"/>Generate in Arabic</button>
+                <button
+                  onClick={() => { setAiArVariants(null); generateCaption('ar') }}
+                  disabled={aiArLoading || !selectedClient}
+                  className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors disabled:opacity-40"
+                >
+                  {aiArLoading ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                  {aiArLoading ? 'جارٍ التوليد…' : 'Generate in Arabic'}
+                </button>
                 <span className="text-[11px] text-slate-400">{captionAr.length} / 2200</span>
               </div>
+              {aiArVariants && (
+                <div className="mt-2 space-y-1.5" dir="rtl">
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">اختر نسخة:</p>
+                  {aiArVariants.map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => { setCaptionAr(v.text); setAiArVariants(null) }}
+                      className="w-full text-right px-3 py-2 rounded-lg border border-slate-200 hover:border-novax-border-active hover:bg-novax-light transition-all"
+                    >
+                      <div className="flex items-center justify-between mb-1 flex-row-reverse">
+                        <span className="text-[10px] font-semibold text-novax">{v.label}</span>
+                        <span className="text-[9px] text-slate-400 italic">{v.tone}</span>
+                      </div>
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{v.hook}</p>
+                    </button>
+                  ))}
+                  <button onClick={() => setAiArVariants(null)} className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors">إغلاق</button>
+                </div>
+              )}
             </div>
           )}
 

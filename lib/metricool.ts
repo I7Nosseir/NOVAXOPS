@@ -2,13 +2,13 @@ const BASE = 'https://app.metricool.com/api/v2'
 
 function requireToken(): string {
   const t = process.env.METRICOOL_API_TOKEN
-  if (!t) throw new Error('METRICOOL_API_TOKEN is not set')
+  if (!t) throw new Error('METRICOOL_API_TOKEN missing — add it to Vercel → Settings → Environment Variables and redeploy.')
   return t
 }
 
 function requireUserId(): string {
   const u = process.env.METRICOOL_USER_ID
-  if (!u) throw new Error('METRICOOL_USER_ID is not set')
+  if (!u) throw new Error('METRICOOL_USER_ID missing — add it to Vercel → Settings → Environment Variables (value: 4837620) and redeploy.')
   return u
 }
 

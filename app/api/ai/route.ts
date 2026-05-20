@@ -588,6 +588,53 @@ Return ONLY a valid JSON object, no markdown, no code fences:
       break
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    case 'post_caption': {
+      const captionLang = body.language ?? 'en'
+      const langNote = captionLang === 'ar'
+        ? 'Write ALL three caption variants in Modern Standard Arabic (فصحى). The "text" and "hook" fields must be in Arabic. The "label", "tone", and "framework" fields stay in English for UI display.'
+        : 'Write all caption variants in English.'
+
+      prompt = `You are a behavioural copywriter at NOVAX, a social media agency. Apply neuroscience and persuasion science to write social media captions that maximise scroll-stop rate, emotional engagement, and conversion.
+
+CLIENT CONTEXT
+Client: ${clientName}
+Industry: ${industry}
+Brand Voice: ${brandVoice}
+Target Audience: ${audience}
+Key Messages: ${keyMessages}
+
+POST BRIEF
+${body.brief ?? 'Create an engaging social media post for this brand.'}
+
+Generate three caption variants, one per framework:
+
+VARIANT 1 — AIDA (Attention → Interest → Desire → Action)
+First line must interrupt the scroll in under 1 second — counterintuitive, specific number, or emotionally loaded. Build desire with sensory language and future-self visualisation. End with one frictionless CTA.
+
+VARIANT 2 — PAS (Problem → Agitation → Solution)
+Open with the audience's exact pain point in their own words. Intensify the consequence of inaction. Present this post's message as the inevitable resolution.
+
+VARIANT 3 — SOCIAL CURRENCY (Berger's STEPPS)
+Position the reader inside an aspirational in-group or open with a shareable story/fact. Embed practical value. CTA is identity-affirming.
+
+RULES FOR ALL VARIANTS:
+- No hashtags or emojis
+- First line must be under 125 characters (visible before "see more")
+- Each variant must use a different emotional lever — not just tone variation
+- Match ${clientName}'s brand voice throughout
+
+${langNote}
+
+Return ONLY a valid JSON array, no markdown, no code fences, no explanation:
+[
+  {"id":"v1","label":"AIDA — Aspirational","tone":"Elegant & story-driven","framework":"AIDA","hook":"<first line only, max 125 chars>","text":"<full caption>"},
+  {"id":"v2","label":"PAS — Problem-led","tone":"Urgent & empathetic","framework":"PAS","hook":"<first line only, max 125 chars>","text":"<full caption>"},
+  {"id":"v3","label":"Social Currency","tone":"Peer-to-peer","framework":"STEPPS","hook":"<first line only, max 125 chars>","text":"<full caption>"}
+]`
+      break
+    }
+
     default:
       return NextResponse.json({ error: `Unknown agent type: ${agent}` }, { status: 400 })
   }
