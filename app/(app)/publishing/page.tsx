@@ -43,6 +43,11 @@ function PostCard({ post }: { post: ScheduledPost }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: post.id }),
       })
+      if (res.status === 404) {
+        // Post no longer exists — just refresh the list so it disappears
+        queryClient.invalidateQueries({ queryKey: ['posts'] })
+        return
+      }
       if (!res.ok) {
         const d = await res.json()
         throw new Error(d.error ?? 'Delete failed')

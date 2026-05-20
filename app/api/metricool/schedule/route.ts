@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
     ? `${enPart}\n\n${arPart}`
     : enPart || arPart
 
-  // Strip the time component to ISO 8601 without milliseconds for Metricool
-  const publicationDate = new Date(scheduled_at).toISOString().replace(/\.\d{3}Z$/, '')
+  // Metricool's Java DateTimeInfo requires ISO 8601 WITH timezone marker (Z)
+  const publicationDate = new Date(scheduled_at).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
   // Persist to DB first
   const { data: post, error: insertError } = await supabase
@@ -235,7 +235,7 @@ export async function PATCH(req: NextRequest) {
     .filter(Boolean)
     .map(network => ({ network }))
 
-  const publicationDate = new Date(post.scheduled_at).toISOString().replace(/\.\d{3}Z$/, '')
+  const publicationDate = new Date(post.scheduled_at).toISOString().replace(/\.\d{3}Z$/, 'Z')
   const mediaUrls: string[] | undefined = (post.media_urls as string[])?.length
     ? (post.media_urls as string[]).map(u => toAbsolute(u, req) ?? u)
     : undefined
