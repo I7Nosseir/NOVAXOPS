@@ -14,6 +14,7 @@ function mapPost(row: Record<string, unknown>): ScheduledPost {
     media_url: mediaUrls[0],
     scheduled_at: row.scheduled_at as string,
     status: row.status as ScheduledPost['status'],
+    metricool_post_id: row.metricool_post_id as string | undefined,
     performance: perf && Object.keys(perf).length > 0 ? (perf as unknown as PostPerformance) : undefined,
     published_at: row.published_at as string | undefined,
   }
@@ -42,6 +43,68 @@ export function useUpdatePost() {
     mutationFn: async ({ id, ...updates }: Partial<ScheduledPost> & { id: string }) => {
       const { error } = await supabase.from('scheduled_posts').update(updates).eq('id', id)
       if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+    },
+  })
+}
+
+export interface SchedulePostInput {
+  client_id: string
+  platforms: SocialPlatform[]
+  caption: string
+  caption_ar?: string
+  media_url?: string
+  scheduled_at: string
+  task_id?: string
+}
+
+/** Sends a post to Metricool for scheduling. Saves to DB first; falls back to draft if Metricool fails. */
+export function useSchedulePost() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: SchedulePostInput): Promise<{ post_id: string; metricool_post_id?: string; saved_as_draft?: boolean; error?: string }> => {
+      const res = await fetch('/api/metricool/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      const data = await res.json()
+      if (!res.ok && !data.saved_as_draft) {
+        throw new Error(data.error ?? 'Scheduling failed')
+      }
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+    },
+  })
+}
+
+/** Saves a post directly to DB as draft (no Metricool call). */
+export function useSaveDraft() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: SchedulePostInput): Promise<ScheduledPost> => {
+      const finalCaption = input.caption_ar
+        ? `${input.caption.trim()}\n\n${input.caption_ar.trim()}`
+        : input.caption.trim()
+      const { data, error } = await supabase
+        .from('scheduled_posts')
+        .insert({
+          client_id: input.client_id,
+          task_id: input.task_id ?? null,
+          platforms: input.platforms,
+          caption: finalCaption,
+          media_urls: input.media_url ? [input.media_url] : [],
+          scheduled_at: input.scheduled_at || null,
+          status: 'draft',
+        })
+        .select()
+        .single()
+      if (error) throw error
+      return mapPost(data as Record<string, unknown>)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] })

@@ -119,6 +119,7 @@ export interface ScheduledPost {
   media_url?: string
   scheduled_at: string
   status: 'draft' | 'scheduled' | 'published' | 'failed'
+  metricool_post_id?: string
   performance?: PostPerformance
   published_at?: string
 }
