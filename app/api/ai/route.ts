@@ -77,7 +77,7 @@ interface AIRequest {
   project?: { name: string }
   commentText?: string; commenterName?: string; postCaption?: string; platform?: string
   brief?: string; month?: string; frequency?: string; language?: 'en' | 'ar'
-  media_url?: string  // public image URL — included as vision input for post_caption
+  media_url?: string  // public image or video URL — images passed as vision block, videos as text context
   imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video'
 }
 
@@ -601,21 +601,34 @@ Return ONLY a valid JSON object, no markdown, no code fences:
         ? 'Write ALL three caption variants in Arabic. Use the dialect specified above. The "text" and "hook" fields must be in Arabic. The "label", "tone", and "framework" fields stay in English for UI display.'
         : 'Write all caption variants in English.'
 
-      // Attach the uploaded image as a vision block so Claude can see what it's writing about.
-      // Only for image URLs (not video — Claude can't process video frames).
       const mediaUrl = body.media_url
+      const isVideoUrl = mediaUrl && /\.(mp4|mov|webm|avi|mkv|m4v)(\?|$)/i.test(mediaUrl)
       const isImageUrl = mediaUrl && /\.(jpe?g|png|webp|gif)(\?|$)/i.test(mediaUrl)
       const isStorageUrl = mediaUrl && (mediaUrl.includes('supabase') || mediaUrl.includes('/api/proxy/drive'))
-      if (mediaUrl && (isImageUrl || isStorageUrl)) {
+      const isProxyDrive = mediaUrl?.includes('/api/proxy/drive')
+
+      // Attach image as vision block — Claude can see images but not video frames.
+      if (mediaUrl && !isVideoUrl && (isImageUrl || isStorageUrl)) {
         imageBlock = {
           type: 'image',
           source: { type: 'url', url: mediaUrl } as Anthropic.ImageBlockParam['source'],
         }
       }
 
-      const mediaContext = mediaUrl
-        ? `\nMEDIA: The post includes the image/video attached above. Write captions that directly describe, reference, or respond to what is shown — do not write generic brand copy.`
-        : ''
+      // Build media context line — images get vision, videos get descriptive text hints.
+      let mediaContext = ''
+      if (mediaUrl && isVideoUrl) {
+        // Extract filename from URL for context hints (e.g. "product-launch-reel.mp4")
+        const filename = mediaUrl.split('/').pop()?.split('?')[0] ?? ''
+        const nameHint = filename && !filename.match(/^\d+$/)
+          ? ` The video filename is "${filename}" — use this as a content hint.`
+          : ''
+        mediaContext = `\nMEDIA: This post contains a VIDEO (not an image — Claude cannot view video frames).${nameHint} Write captions that suit a video post: strong hook for the first 3 seconds, build curiosity or tell a story, and drive saves/shares. Do NOT describe visuals you cannot see — write as if the video is dynamic and engaging content aligned with the brief.`
+      } else if (mediaUrl && (imageBlock || isProxyDrive)) {
+        mediaContext = `\nMEDIA: The post includes the image attached. Write captions that directly describe, reference, or respond to what is shown — do not write generic brand copy.`
+      } else if (mediaUrl) {
+        mediaContext = `\nMEDIA: This post includes media. Write captions that reference and complement the visual content.`
+      }
 
       prompt = `You are a behavioural copywriter at NOVAX, a social media agency. Apply neuroscience and persuasion science to write social media captions that maximise scroll-stop rate, emotional engagement, and conversion.
 
