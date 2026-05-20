@@ -7,6 +7,10 @@ import { PlatformIcon } from '@/components/ui/platform-icon'
 import type { ScheduledPost, SocialPlatform } from '@/lib/types'
 import { useParams } from 'next/navigation'
 
+interface ApprovalPost extends ScheduledPost {
+  media_urls?: string[]
+}
+
 interface ApprovalData {
   request: {
     id: string
@@ -20,7 +24,7 @@ interface ApprovalData {
     expires_at: string
     approval_post_statuses: { post_id: string; status: string }[]
   }
-  posts: ScheduledPost[]
+  posts: ApprovalPost[]
 }
 
 type PostDecision = { status: 'approved' | 'changes_requested'; note: string }
@@ -196,13 +200,44 @@ export default function ApprovalPortalPage() {
                   <span className="text-[11px] text-slate-400 ml-auto">{formatDate(post.scheduled_at)}</span>
                 </div>
 
-                {/* Media */}
-                {post.media_url && (
-                  <div className="mb-4 rounded-xl overflow-hidden bg-slate-100 max-h-64">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={post.media_url} alt="" className="w-full object-cover"/>
-                  </div>
-                )}
+                {/* Media — supports single image, carousel, and video */}
+                {(() => {
+                  const allUrls = post.media_urls?.filter(Boolean) ?? (post.media_url ? [post.media_url] : [])
+                  if (allUrls.length === 0) return null
+                  const isVideo = (url: string) => /\.(mp4|mov|webm)(\?|$)/i.test(url)
+
+                  if (allUrls.length === 1) {
+                    return isVideo(allUrls[0]) ? (
+                      // eslint-disable-next-line jsx-a11y/media-has-caption
+                      <video
+                        src={allUrls[0]}
+                        controls
+                        className="mb-4 w-full rounded-xl bg-slate-100 max-h-64 object-cover"
+                      />
+                    ) : (
+                      <div className="mb-4 rounded-xl overflow-hidden bg-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={allUrls[0]} alt="" className="w-full object-cover max-h-72"/>
+                      </div>
+                    )
+                  }
+
+                  // Carousel — horizontal scroll strip
+                  return (
+                    <div className="mb-4 flex gap-2 overflow-x-auto pb-1 -mx-5 px-5">
+                      {allUrls.map((url, i) => (
+                        <div key={i} className="shrink-0 w-44 h-44 rounded-xl overflow-hidden bg-slate-100">
+                          {isVideo(url)
+                            // eslint-disable-next-line jsx-a11y/media-has-caption
+                            ? <video src={url} className="w-full h-full object-cover"/>
+                            // eslint-disable-next-line @next/next/no-img-element
+                            : <img src={url} alt={`Slide ${i + 1}`} className="w-full h-full object-cover"/>
+                          }
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
 
                 {/* Caption */}
                 <p className="text-sm text-slate-700 leading-relaxed mb-4">{post.caption}</p>

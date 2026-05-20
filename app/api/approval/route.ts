@@ -32,7 +32,14 @@ export async function GET(req: NextRequest) {
     ? await db.from('scheduled_posts').select('*').in('id', postIds)
     : { data: [] }
 
-  return NextResponse.json({ request, posts: posts ?? [] })
+  // DB stores media_urls (array). The client expects media_url (singular) for the
+  // first image AND media_urls for carousels. Add both to every row.
+  const mappedPosts = (posts ?? []).map(p => {
+    const urls = (p.media_urls as string[] | null) ?? []
+    return { ...p, media_url: urls[0] ?? null, media_urls: urls }
+  })
+
+  return NextResponse.json({ request, posts: mappedPosts })
 }
 
 // POST /api/approval — create new request (authenticated)
