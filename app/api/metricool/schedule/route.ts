@@ -24,9 +24,28 @@ const supabase = createClient(
  *   scheduled_at  string (ISO 8601)
  *   task_id?      string (UUID)
  */
+// Converts relative proxy URLs (e.g. /api/proxy/drive?id=…) to absolute so Metricool
+// can fetch them. Relative URLs would only work from the same origin — Metricool is external.
+function toAbsolute(url: string | undefined, req: NextRequest): string | undefined {
+  if (!url) return undefined
+  if (url.startsWith('/')) {
+    const host = req.headers.get('host') ?? 'localhost:3000'
+    const proto = host.includes('localhost') ? 'http' : 'https'
+    return `${proto}://${host}${url}`
+  }
+  return url
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { client_id, platforms, caption, caption_ar, media_url, scheduled_at, task_id } = body
+  const { client_id, platforms, caption, caption_ar, media_url, media_urls, thumbnail_url, scheduled_at, task_id } = body
+
+  // Carousel takes precedence over single URL; make all URLs absolute
+  const rawUrls: string[] | undefined = media_urls?.filter(Boolean).length
+    ? media_urls.filter(Boolean)
+    : media_url ? [media_url] : undefined
+  const resolvedMediaUrls = rawUrls?.map(u => toAbsolute(u, req) ?? u)
+  const resolvedThumbnail = toAbsolute(thumbnail_url, req)
 
   if (!client_id || !platforms?.length || (!caption?.trim() && !caption_ar?.trim()) || !scheduled_at) {
     return NextResponse.json(
@@ -67,7 +86,7 @@ export async function POST(req: NextRequest) {
       task_id: task_id || null,
       platforms: platforms as SocialPlatform[],
       caption: finalCaption,
-      media_urls: media_url ? [media_url] : [],
+      media_urls: resolvedMediaUrls ?? [],
       scheduled_at,
       status: 'draft',
     })
@@ -103,7 +122,8 @@ export async function POST(req: NextRequest) {
       text: finalCaption,
       providers,
       publicationDate,
-      imageUrls: media_url ? [media_url] : undefined,
+      imageUrls: resolvedMediaUrls,
+      thumbnailUrl: resolvedThumbnail,
     })
 
     await supabase

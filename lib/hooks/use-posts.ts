@@ -55,7 +55,9 @@ export interface SchedulePostInput {
   platforms: SocialPlatform[]
   caption: string
   caption_ar?: string
-  media_url?: string
+  media_url?: string    // single image or video
+  media_urls?: string[] // carousel (2-10 slides) — takes precedence over media_url
+  thumbnail_url?: string // custom cover image for video/reel posts
   scheduled_at: string
   task_id?: string
 }
@@ -90,6 +92,9 @@ export function useSaveDraft() {
       const enPart = input.caption?.trim() ?? ''
       const arPart = input.caption_ar?.trim() ?? ''
       const finalCaption = enPart && arPart ? `${enPart}\n\n${arPart}` : enPart || arPart
+      const dbMediaUrls = input.media_urls?.filter(Boolean).length
+        ? input.media_urls.filter(Boolean)
+        : input.media_url ? [input.media_url] : []
       const { data, error } = await supabase
         .from('scheduled_posts')
         .insert({
@@ -97,7 +102,7 @@ export function useSaveDraft() {
           task_id: input.task_id ?? null,
           platforms: input.platforms,
           caption: finalCaption,
-          media_urls: input.media_url ? [input.media_url] : [],
+          media_urls: dbMediaUrls,
           scheduled_at: input.scheduled_at || null,
           status: 'draft',
         })

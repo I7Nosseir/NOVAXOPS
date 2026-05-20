@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Upload, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert } from 'lucide-react'
+import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
 import type { SchedulePostInput } from '@/lib/hooks/use-posts'
@@ -9,6 +9,8 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { PLATFORM_CONFIG, formatDateTime, formatDate, formatNumber, cn } from '@/lib/utils'
 import type { ScheduledPost, SocialPlatform } from '@/lib/types'
 import { PlatformIcon } from '@/components/ui/platform-icon'
+import { supabase } from '@/lib/supabase'
+import { convertGoogleDriveUrl, isGoogleDriveUrl } from '@/lib/google-drive'
 interface PinterestPin { id: string; title: string; description: string; imageUrl: string; link: string; dominantColor: string }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -163,6 +165,54 @@ function AspectBadge({ platform, dims }: { platform: SocialPlatform; dims: Media
   )
 }
 
+function PlatformMediaRow({
+  platform, url, fallbackUrl, onChange,
+}: {
+  platform: SocialPlatform
+  url: string
+  fallbackUrl: string
+  onChange: (url: string) => void
+}) {
+  const dims = useMediaDimensions(url || fallbackUrl)
+  const cfg = PLATFORM_CONFIG[platform]
+  const isOverride = !!url
+  return (
+    <div className="flex items-start gap-2.5">
+      <div className="flex items-center gap-1.5 w-[88px] pt-2 shrink-0">
+        <PlatformIcon platform={platform} size="xs"/>
+        <span className="text-[11px] font-medium text-slate-600 truncate">{cfg.label}</span>
+      </div>
+      <div className="flex-1 space-y-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <input
+            type="url"
+            value={url}
+            onChange={e => onChange(e.target.value)}
+            placeholder={fallbackUrl ? 'Uses default — paste to override' : 'Paste URL…'}
+            className={cn(
+              'flex-1 min-w-0 px-2.5 py-1.5 text-xs border rounded-lg outline-none transition-all',
+              isOverride
+                ? 'border-novax-border bg-white text-slate-700 focus:border-novax-border-active focus:ring-2 focus:ring-novax-light'
+                : 'border-slate-200 bg-slate-50 text-slate-400 placeholder:text-slate-300 focus:border-slate-300 focus:bg-white'
+            )}
+          />
+          {url && (
+            <button onClick={() => onChange('')} className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
+              <X className="w-3.5 h-3.5"/>
+            </button>
+          )}
+        </div>
+        {dims && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-slate-400 shrink-0">{dims.width}×{dims.height}</span>
+            <AspectBadge platform={platform} dims={dims}/>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface CaptionVariant {
   id: string
   label: string
@@ -183,7 +233,18 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [selectedClient, setSelectedClient] = useState('')
   const [scheduleDate, setScheduleDate] = useState('')
   const [lang, setLang] = useState<'en' | 'ar' | 'both'>('en')
-  const [mediaUrl, setMediaUrl] = useState('')
+
+  // Media
+  const [mediaMode, setMediaMode] = useState<'single' | 'carousel'>('single')
+  const [singleUrl, setSingleUrl] = useState('')
+  const [driveConverted, setDriveConverted] = useState(false)
+  const [carouselUrls, setCarouselUrls] = useState<string[]>(['', ''])
+  const [customPerPlatform, setCustomPerPlatform] = useState(false)
+  const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({})
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [thumbnailUrl, setThumbnailUrl] = useState('')
+
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [draftSuccess, setDraftSuccess] = useState(false)
 
@@ -194,7 +255,9 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [humanizing, setHumanizing] = useState(false)
   const [humanizingAr, setHumanizingAr] = useState(false)
 
-  const mediaDims = useMediaDimensions(mediaUrl)
+  const mediaDims = useMediaDimensions(singleUrl)
+  const isVideoMedia = /\.(mp4|mov|webm|avi)(\?|$)/i.test(singleUrl)
+  const showThumbnailField = singleUrl.trim() !== '' && (isVideoMedia || driveConverted)
 
   async function humanizeCaption(targetLang: 'en' | 'ar') {
     const isAr = targetLang === 'ar'
@@ -262,6 +325,41 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  function handleSingleUrlChange(raw: string) {
+    const { url, wasDrive } = convertGoogleDriveUrl(raw.trim())
+    // Proxy returns a relative URL — make it absolute so Metricool can fetch it
+    const finalUrl = wasDrive && url.startsWith('/') ? `${window.location.origin}${url}` : url
+    setSingleUrl(finalUrl)
+    setDriveConverted(wasDrive)
+    if (wasDrive) setCustomPerPlatform(false)
+  }
+
+  async function handleFileUpload(file: File) {
+    if (!file) return
+    setUploading(true)
+    setSubmitError(null)
+    try {
+      const ext = file.name.split('.').pop() ?? 'bin'
+      const path = `posts/${selectedClient || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { error } = await supabase.storage.from('assets').upload(path, file, { cacheControl: '31536000', upsert: false })
+      if (error) throw new Error(error.message)
+      const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
+      setSingleUrl(publicUrl)
+      setDriveConverted(false)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Upload failed. Make sure the "assets" storage bucket exists in Supabase (Storage → New bucket → name: assets, public: on).')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function handleDropZone(e: React.DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleFileUpload(file)
+  }
+
   // Sync selectedClient once clients finish loading (useState initial value runs before data arrives)
   useEffect(() => {
     if (!selectedClient && clients.length > 0) {
@@ -279,13 +377,17 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
 
   const isSubmitting = schedulePost.isPending || saveDraft.isPending
 
-  function buildInput(): SchedulePostInput {
+  function buildInput(overrides?: { platforms?: SocialPlatform[]; media_url?: string }): SchedulePostInput {
+    const baseMediaUrl = mediaMode === 'single' ? singleUrl || undefined : undefined
+    const baseMediaUrls = mediaMode === 'carousel' ? carouselUrls.filter(Boolean) : undefined
     return {
       client_id: selectedClient,
-      platforms: selectedPlatforms,
+      platforms: overrides?.platforms ?? selectedPlatforms,
       caption,
       caption_ar: captionAr || undefined,
-      media_url: mediaUrl || undefined,
+      media_url: overrides ? (overrides.media_url ?? undefined) : baseMediaUrl,
+      media_urls: overrides ? undefined : baseMediaUrls,
+      thumbnail_url: thumbnailUrl.trim() || undefined,
       scheduled_at: scheduleDate ? new Date(scheduleDate).toISOString() : '',
     }
   }
@@ -298,17 +400,30 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     if (!scheduleDate) return setSubmitError('Set a schedule date and time.')
 
     try {
-      const result = await schedulePost.mutateAsync(buildInput())
-      if (result.saved_as_draft) {
-        setSubmitError(result.error
-          ? `Saved as draft — ${result.error}`
-          : 'Saved as draft (Metricool blog ID not set for this client).'
-        )
-        return
+      if (customPerPlatform && selectedPlatforms.length > 1) {
+        // Group platforms by their assigned URL, one Metricool call per group
+        const groups = new Map<string, SocialPlatform[]>()
+        for (const p of selectedPlatforms) {
+          const url = platformUrls[p] || singleUrl
+          if (!groups.has(url)) groups.set(url, [])
+          groups.get(url)!.push(p)
+        }
+        let anyDraft = false
+        for (const [url, platforms] of groups) {
+          const res = await schedulePost.mutateAsync(buildInput({ platforms, media_url: url || undefined }))
+          if (res.saved_as_draft) { anyDraft = true; setSubmitError(res.error ? `Saved as draft — ${res.error}` : 'Partially saved as draft.') }
+        }
+        if (!anyDraft) onClose()
+      } else {
+        const result = await schedulePost.mutateAsync(buildInput())
+        if (result.saved_as_draft) {
+          setSubmitError(result.error ? `Saved as draft — ${result.error}` : 'Saved as draft (no Metricool blog ID for this client).')
+          return
+        }
+        onClose()
       }
-      onClose()
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Scheduling failed. Check the console for details.')
+      setSubmitError(err instanceof Error ? err.message : 'Scheduling failed.')
     }
   }
 
@@ -316,7 +431,6 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     setSubmitError(null)
     if (!selectedClient) return setSubmitError('Select a client first.')
     if (!caption.trim() && !captionAr.trim()) return setSubmitError('Caption cannot be empty.')
-
     try {
       await saveDraft.mutateAsync(buildInput())
       setDraftSuccess(true)
@@ -382,31 +496,197 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          {/* Media upload */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Media URL</label>
-            <input
-              type="url"
-              value={mediaUrl}
-              onChange={e => setMediaUrl(e.target.value)}
-              placeholder="https://… or leave blank"
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
-            />
-            {mediaDims && selectedPlatforms.length > 0 && (
-              <div className="mt-2 space-y-1">
-                <p className="text-[10px] text-slate-400">
-                  {mediaDims.width}×{mediaDims.height}px — ratio check:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedPlatforms.map(p => (
-                    <AspectBadge key={p} platform={p} dims={mediaDims} />
-                  ))}
-                </div>
+          {/* ── Media ─────────────────────────────────────────────── */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            {/* Mode tabs */}
+            <div className="flex items-center justify-between px-3 py-2.5 bg-slate-50 border-b border-slate-200">
+              <span className="text-xs font-semibold text-slate-700">Media</span>
+              <div className="flex gap-0.5 bg-slate-200 rounded-lg p-0.5">
+                {([
+                  { id: 'single',   label: 'Single',   Icon: ImageIcon },
+                  { id: 'carousel', label: 'Carousel', Icon: Layers },
+                ] as const).map(({ id, label, Icon }) => (
+                  <button key={id}
+                    onClick={() => { setMediaMode(id); setCustomPerPlatform(false) }}
+                    className={cn(
+                      'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                      mediaMode === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    )}>
+                    <Icon className="w-3 h-3"/>{label}
+                  </button>
+                ))}
               </div>
-            )}
-            {!mediaUrl && (
-              <p className="text-[10px] text-slate-400 mt-1">Paste a public image/video URL. Supabase Storage upload coming soon.</p>
-            )}
+            </div>
+
+            <div className="p-3 space-y-3">
+              {/* ── Single mode ── */}
+              {mediaMode === 'single' && (
+                <>
+                  {/* URL input */}
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <Link2 className="w-3.5 h-3.5"/>
+                    </div>
+                    <input
+                      type="url"
+                      value={singleUrl}
+                      onChange={e => handleSingleUrlChange(e.target.value)}
+                      placeholder="Paste image/video URL or Google Drive link"
+                      className="w-full pl-8 pr-8 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
+                    />
+                    {singleUrl && (
+                      <button onClick={() => { setSingleUrl(''); setDriveConverted(false); setCustomPerPlatform(false) }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                        <X className="w-3.5 h-3.5"/>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Drive converted notice */}
+                  {driveConverted && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg">
+                      <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0"/>
+                      <p className="text-[10px] text-blue-700">Drive URL routed via proxy — file must be shared as "Anyone with the link can view".</p>
+                    </div>
+                  )}
+
+                  {/* Thumbnail — shown for videos or Drive links (content type unknown until fetch) */}
+                  {showThumbnailField && (
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-semibold text-slate-500">
+                        Custom Thumbnail <span className="font-normal text-slate-400">(optional — for reels & videos)</span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                          <ImageIcon className="w-3.5 h-3.5"/>
+                        </div>
+                        <input
+                          type="url"
+                          value={thumbnailUrl}
+                          onChange={e => setThumbnailUrl(e.target.value)}
+                          placeholder="Paste cover image URL…"
+                          className="w-full pl-8 pr-8 py-2 text-xs border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
+                        />
+                        {thumbnailUrl && (
+                          <button onClick={() => setThumbnailUrl('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                            <X className="w-3.5 h-3.5"/>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ratio check row */}
+                  {mediaDims && selectedPlatforms.length > 0 && (
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-medium shrink-0">{mediaDims.width}×{mediaDims.height}</span>
+                      {selectedPlatforms.map(p => <AspectBadge key={p} platform={p} dims={mediaDims}/>)}
+                    </div>
+                  )}
+
+                  {/* Upload dropzone */}
+                  <label
+                    className={cn(
+                      'flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border-2 border-dashed transition-colors cursor-pointer',
+                      dragOver ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-slate-300 bg-slate-50',
+                      uploading && 'pointer-events-none opacity-60'
+                    )}
+                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={handleDropZone}
+                  >
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+                      className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }}
+                    />
+                    {uploading
+                      ? <Loader2 className="w-5 h-5 text-novax animate-spin"/>
+                      : <Upload className="w-5 h-5 text-slate-400"/>
+                    }
+                    <p className="text-[11px] font-medium text-slate-500">
+                      {uploading ? 'Uploading to Supabase Storage…' : dragOver ? 'Drop to upload' : 'Drag & drop or click to upload'}
+                    </p>
+                    <p className="text-[10px] text-slate-400">JPG, PNG, WebP, GIF, MP4, MOV — max 50 MB</p>
+                  </label>
+
+                  {/* Per-platform toggle — only when 2+ platforms selected and a URL is set */}
+                  {singleUrl && selectedPlatforms.length > 1 && (
+                    <div className="pt-1 border-t border-slate-100">
+                      <button
+                        onClick={() => setCustomPerPlatform(v => !v)}
+                        className="flex items-center gap-2.5 w-full py-1 group"
+                      >
+                        <div className={cn('w-8 h-4 rounded-full transition-colors relative shrink-0', customPerPlatform ? 'bg-novax' : 'bg-slate-200 group-hover:bg-slate-300')}>
+                          <div className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform', customPerPlatform ? 'translate-x-4' : 'translate-x-0.5')}/>
+                        </div>
+                        <span className="text-[11px] font-medium text-slate-500 group-hover:text-slate-700 transition-colors">
+                          Different creative per platform
+                        </span>
+                      </button>
+
+                      {customPerPlatform && (
+                        <div className="mt-2.5 space-y-3 pl-2 border-l-2 border-novax-light">
+                          <p className="text-[10px] text-slate-400 pl-2.5">Override the default URL for specific platforms. Leave blank to use the default above.</p>
+                          {selectedPlatforms.map(p => (
+                            <PlatformMediaRow
+                              key={p}
+                              platform={p}
+                              url={platformUrls[p] ?? ''}
+                              fallbackUrl={singleUrl}
+                              onChange={url => setPlatformUrls(prev => ({ ...prev, [p]: url }))}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── Carousel mode ── */}
+              {mediaMode === 'carousel' && (
+                <div className="space-y-2">
+                  {carouselUrls.map((url, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0">
+                        {i + 1}
+                      </div>
+                      <input
+                        type="url"
+                        value={url}
+                        onChange={e => {
+                          const next = [...carouselUrls]
+                          next[i] = e.target.value
+                          setCarouselUrls(next)
+                        }}
+                        placeholder={`Slide ${i + 1} — paste image URL`}
+                        className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
+                      />
+                      {carouselUrls.length > 2 && (
+                        <button
+                          onClick={() => setCarouselUrls(prev => prev.filter((_, idx) => idx !== i))}
+                          className="shrink-0 text-slate-400 hover:text-red-400 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5"/>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {carouselUrls.length < 10 && (
+                    <button
+                      onClick={() => setCarouselUrls(prev => [...prev, ''])}
+                      className="flex items-center gap-1.5 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors mt-1"
+                    >
+                      <Plus className="w-3 h-3"/> Add slide ({carouselUrls.length}/10)
+                    </button>
+                  )}
+                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-100">Carousels supported on Instagram, Facebook, and LinkedIn.</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Language toggle */}
@@ -750,6 +1030,387 @@ function PinterestPanel({ query }: { query: string }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Bulk Schedule ────────────────────────────────────────────────────────────
+
+interface BulkRow {
+  id: string
+  scheduled_at: string
+  platforms: SocialPlatform[]
+  caption: string
+  media_url: string
+  status: 'pending' | 'scheduling' | 'scheduled' | 'draft' | 'failed'
+  error?: string
+}
+
+function newRow(): BulkRow {
+  return { id: Math.random().toString(36).slice(2), scheduled_at: '', platforms: ['instagram'], caption: '', media_url: '', status: 'pending' }
+}
+
+const BULK_PLATFORMS: SocialPlatform[] = ['instagram', 'facebook', 'tiktok', 'linkedin', 'twitter']
+
+function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
+  const { clients } = useClients()
+  const [selectedClient, setSelectedClient] = useState('')
+  const [rows, setRows] = useState<BulkRow[]>([newRow(), newRow(), newRow()])
+  const [scheduling, setScheduling] = useState(false)
+  const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    if (!selectedClient && clients.length > 0) setSelectedClient(clients[0].id)
+  }, [clients, selectedClient])
+
+  function updateRow(id: string, patch: Partial<BulkRow>) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r))
+  }
+
+  function togglePlatform(rowId: string, p: SocialPlatform) {
+    setRows(prev => prev.map(r => {
+      if (r.id !== rowId) return r
+      const has = r.platforms.includes(p)
+      const next = has ? r.platforms.filter(x => x !== p) : [...r.platforms, p]
+      return { ...r, platforms: next.length ? next : [p] }
+    }))
+  }
+
+  function handleUrlChange(rowId: string, raw: string) {
+    const { url, wasDrive } = convertGoogleDriveUrl(raw.trim())
+    const finalUrl = wasDrive && url.startsWith('/') ? `${window.location.origin}${url}` : url
+    updateRow(rowId, { media_url: finalUrl })
+  }
+
+  async function scheduleAll() {
+    if (!selectedClient) return
+    setScheduling(true)
+    for (const row of rows) {
+      if (!row.caption.trim() || !row.scheduled_at || !row.platforms.length) continue
+      updateRow(row.id, { status: 'scheduling' })
+      try {
+        const res = await fetch('/api/metricool/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: selectedClient,
+            platforms: row.platforms,
+            caption: row.caption,
+            media_url: row.media_url || undefined,
+            scheduled_at: new Date(row.scheduled_at).toISOString(),
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok && !data.saved_as_draft) throw new Error(data.error ?? 'Failed')
+        updateRow(row.id, { status: data.saved_as_draft ? 'draft' : 'scheduled', error: data.saved_as_draft ? data.error : undefined })
+      } catch (err) {
+        updateRow(row.id, { status: 'failed', error: err instanceof Error ? err.message : 'Unknown error' })
+      }
+    }
+    setScheduling(false)
+    setDone(true)
+  }
+
+  function downloadTemplate() {
+    const wb = XLSX.utils.book_new()
+
+    // ── Instructions sheet ────────────────────────────────────────────────────
+    const info = [
+      ['NOVAX Ops — Bulk Schedule Template'],
+      [''],
+      ['Column', 'Format', 'Valid Values', 'Required'],
+      ['Date', 'YYYY-MM-DD', 'e.g. 2026-06-01', 'Yes'],
+      ['Time', 'HH:MM (24-hour)', 'e.g. 09:00 or 14:30', 'Yes'],
+      ['Platforms', 'Comma-separated', 'instagram · facebook · tiktok · linkedin · twitter', 'Yes'],
+      ['Caption', 'Plain text', 'Your post caption (max 2 200 chars)', 'Yes'],
+      ['Media URL', 'URL', 'Google Drive share link, Supabase URL, or any public image/video URL', 'No'],
+      ['Language', 'Code', 'en / ar / both', 'No (default: en)'],
+      [''],
+      ['Tips'],
+      ['• Google Drive links are auto-converted — just paste the share URL.'],
+      ['• File must be shared as "Anyone with the link can view" in Google Drive.'],
+      ['• Platforms: separate multiple with a comma — e.g.  instagram,facebook'],
+      ['• Date + Time are separate columns so Excel date-pickers work correctly.'],
+    ]
+    const wsInfo = XLSX.utils.aoa_to_sheet(info)
+    wsInfo['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 58 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(wb, wsInfo, 'Instructions')
+
+    // ── Schedule sheet ────────────────────────────────────────────────────────
+    const headers = ['Date', 'Time', 'Platforms', 'Caption', 'Media URL', 'Language']
+    const example = [
+      '2026-06-01',
+      '09:00',
+      'instagram,facebook',
+      'Your caption goes here.',
+      'https://drive.google.com/file/d/YOUR_FILE_ID/view',
+      'en',
+    ]
+    const ws = XLSX.utils.aoa_to_sheet([headers, example])
+    ws['!cols'] = [{ wch: 14 }, { wch: 8 }, { wch: 32 }, { wch: 52 }, { wch: 52 }, { wch: 10 }]
+
+    // Freeze the header row
+    ws['!freeze'] = { xSplit: 0, ySplit: 1 }
+
+    // Drop-down validation for Language column (F2:F10000)
+    // SheetJS CE writes the dataValidations node to the XLSX XML.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(ws as any)['!dataValidations'] = [
+      {
+        sqref: 'F2:F10000',
+        type: 'list',
+        formula1: '"en,ar,both"',
+        showDropDown: false,
+        allowBlank: true,
+        showErrorMessage: true,
+        errorTitle: 'Invalid language',
+        error: 'Enter:  en  /  ar  /  both',
+      },
+      {
+        sqref: 'C2:C10000',
+        type: 'list',
+        formula1: '"instagram,facebook,tiktok,linkedin,twitter,instagram\\,facebook,instagram\\,tiktok,instagram\\,linkedin"',
+        showDropDown: false,
+        allowBlank: false,
+        showErrorMessage: false,
+      },
+    ]
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Schedule')
+    XLSX.writeFile(wb, 'NOVAX_Bulk_Schedule_Template.xlsx')
+  }
+
+  async function handleImportFile(file: File) {
+    try {
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
+      // Prefer a sheet named 'Schedule', fall back to the first sheet
+      const sheetName =
+        wb.SheetNames.find(n => n.toLowerCase().includes('schedule')) ?? wb.SheetNames[0]
+      const ws = wb.Sheets[sheetName]
+      // raw:false keeps dates as formatted strings; header:1 gives array-of-arrays
+      const rows2d = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, raw: false, defval: '' })
+
+      // Find the header row (first row that contains 'Date')
+      const headerIdx = rows2d.findIndex(r =>
+        r.some(c => String(c).toLowerCase() === 'date')
+      )
+      if (headerIdx === -1) return
+
+      const headers = rows2d[headerIdx].map(h => String(h).toLowerCase().trim())
+      const col = (name: string) => headers.findIndex(h => h.includes(name))
+      const iDate = col('date')
+      const iTime = col('time')
+      const iPlat = col('platform')
+      const iCapt = col('caption')
+      const iUrl  = col('media')
+      const iLang = col('lang')
+
+      const importedRows: BulkRow[] = []
+
+      for (let i = headerIdx + 1; i < rows2d.length; i++) {
+        const r = rows2d[i]
+        const caption = iCapt >= 0 ? String(r[iCapt] ?? '').trim() : ''
+        if (!caption) continue
+
+        // Normalise date: Excel serial dates come as "MM/DD/YYYY" or "YYYY-MM-DD"
+        let rawDate = iDate >= 0 ? String(r[iDate] ?? '').trim() : ''
+        // If format is M/D/YYYY convert to YYYY-MM-DD
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDate)) {
+          const [m, d, y] = rawDate.split('/')
+          rawDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+        }
+        const time = iTime >= 0 ? String(r[iTime] ?? '09:00').trim() : '09:00'
+        const scheduledAt = rawDate ? `${rawDate}T${time}` : ''
+
+        const platformsRaw = iPlat >= 0 ? String(r[iPlat] ?? 'instagram').toLowerCase() : 'instagram'
+        const platforms = platformsRaw
+          .split(/[,;|]/)
+          .map(p => p.trim())
+          .filter(p => (BULK_PLATFORMS as string[]).includes(p)) as SocialPlatform[]
+
+        const rawUrl = iUrl >= 0 ? String(r[iUrl] ?? '').trim() : ''
+        const { url: convertedUrl, wasDrive } = convertGoogleDriveUrl(rawUrl)
+        const mediaUrl = wasDrive && convertedUrl.startsWith('/')
+          ? `${window.location.origin}${convertedUrl}`
+          : convertedUrl
+
+        importedRows.push({
+          id: Math.random().toString(36).slice(2),
+          scheduled_at: scheduledAt,
+          platforms: platforms.length ? platforms : ['instagram'],
+          caption,
+          media_url: mediaUrl,
+          status: 'pending',
+        })
+      }
+
+      if (importedRows.length > 0) setRows(importedRows)
+    } catch {
+      // silently ignore parse errors — rows remain unchanged
+    }
+  }
+
+  const readyCount = rows.filter(r => r.caption.trim() && r.scheduled_at && r.platforms.length).length
+
+  const statusIcon = (status: BulkRow['status']) => {
+    if (status === 'scheduling') return <Loader2 className="w-3.5 h-3.5 text-novax animate-spin"/>
+    if (status === 'scheduled') return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500"/>
+    if (status === 'draft') return <FileText className="w-3.5 h-3.5 text-amber-500"/>
+    if (status === 'failed') return <AlertTriangle className="w-3.5 h-3.5 text-red-500"/>
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+          <div>
+            <h2 className="font-semibold text-slate-900">Bulk Schedule</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Add rows, fill content, schedule all at once. Google Drive URLs auto-convert.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <select value={selectedClient} onChange={e => setSelectedClient(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted bg-white">
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {/* Download template */}
+              <button
+                onClick={downloadTemplate}
+                title="Download Excel template"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors font-medium"
+              >
+                <Download className="w-3.5 h-3.5"/>
+                Template
+              </button>
+              {/* Import CSV / Excel */}
+              <label className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-novax-border rounded-lg text-novax cursor-pointer hover:bg-novax-light transition-colors font-medium" title="Import filled template">
+                <Upload className="w-3.5 h-3.5"/>
+                Import
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = '' }}
+                />
+              </label>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors ml-1">
+              <X className="w-4 h-4 text-slate-500"/>
+            </button>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+              <tr>
+                <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-44">Date & Time</th>
+                <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-48">Platforms</th>
+                <th className="text-left px-3 py-2.5 font-semibold text-slate-500">Caption</th>
+                <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-52">Media URL</th>
+                <th className="px-3 py-2.5 w-10"></th>
+                <th className="px-3 py-2.5 w-8"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map(row => (
+                <tr key={row.id} className={cn('align-top', row.status === 'scheduled' && 'bg-emerald-50/50', row.status === 'failed' && 'bg-red-50/50')}>
+                  <td className="px-3 py-2">
+                    <input
+                      type="datetime-local"
+                      value={row.scheduled_at}
+                      onChange={e => updateRow(row.id, { scheduled_at: e.target.value })}
+                      disabled={scheduling || row.status === 'scheduled'}
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 outline-none focus:border-novax-muted bg-white disabled:opacity-50"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {BULK_PLATFORMS.map(p => (
+                        <button
+                          key={p}
+                          onClick={() => togglePlatform(row.id, p)}
+                          disabled={scheduling || row.status === 'scheduled'}
+                          className={cn(
+                            'p-1 rounded-md border transition-colors disabled:opacity-50',
+                            row.platforms.includes(p) ? 'border-novax-border-active bg-novax-light' : 'border-slate-200 hover:border-slate-300'
+                          )}
+                          title={PLATFORM_CONFIG[p].label}
+                        >
+                          <PlatformIcon platform={p} size="xs"/>
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <textarea
+                      value={row.caption}
+                      onChange={e => updateRow(row.id, { caption: e.target.value })}
+                      disabled={scheduling || row.status === 'scheduled'}
+                      rows={3}
+                      placeholder="Write caption…"
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-300 outline-none focus:border-novax-muted resize-none bg-white disabled:opacity-50"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="url"
+                      value={row.media_url}
+                      onChange={e => handleUrlChange(row.id, e.target.value)}
+                      disabled={scheduling || row.status === 'scheduled'}
+                      placeholder="Image/video URL or Drive link"
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-300 outline-none focus:border-novax-muted bg-white disabled:opacity-50"
+                    />
+                    {row.error && <p className="text-[10px] text-red-500 mt-1 leading-tight">{row.error}</p>}
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    {statusIcon(row.status)}
+                  </td>
+                  <td className="px-3 py-2">
+                    <button
+                      onClick={() => setRows(prev => prev.filter(r => r.id !== row.id))}
+                      disabled={scheduling || rows.length <= 1}
+                      className="text-slate-300 hover:text-red-400 transition-colors disabled:opacity-0"
+                    >
+                      <X className="w-3.5 h-3.5"/>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between shrink-0">
+          <button
+            onClick={() => setRows(prev => [...prev, newRow()])}
+            disabled={scheduling}
+            className="flex items-center gap-1.5 text-sm text-novax-muted hover:text-novax font-medium transition-colors disabled:opacity-40"
+          >
+            <Plus className="w-4 h-4"/> Add Row
+          </button>
+          <div className="flex items-center gap-3">
+            {done && <p className="text-xs text-emerald-600 font-medium">Done — check statuses above</p>}
+            <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors">
+              {done ? 'Close' : 'Cancel'}
+            </button>
+            <button
+              onClick={scheduleAll}
+              disabled={scheduling || !selectedClient || readyCount === 0}
+              className="flex items-center gap-2 px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40"
+            >
+              {scheduling ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}
+              {scheduling ? 'Scheduling…' : `Schedule All (${readyCount})`}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1114,6 +1775,7 @@ export default function PublishingPage() {
   const { clients } = useClients()
   const [compose, setCompose] = useState(false)
   const [briefDialog, setBriefDialog] = useState(false)
+  const [bulkDialog, setBulkDialog] = useState(false)
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
   const [view, setView] = useState<'grid' | 'calendar'>('grid')
 
@@ -1170,6 +1832,13 @@ export default function PublishingPage() {
             </button>
           </div>
           <button
+            onClick={() => setBulkDialog(true)}
+            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors"
+          >
+            <TableProperties className="w-3.5 h-3.5"/>
+            Bulk Schedule
+          </button>
+          <button
             onClick={() => setBriefDialog(true)}
             className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors"
           >
@@ -1217,6 +1886,7 @@ export default function PublishingPage() {
 
       {compose && <ComposeDialog onClose={() => setCompose(false)}/>}
       {briefDialog && <BriefToCalendarDialog onClose={() => setBriefDialog(false)}/>}
+      {bulkDialog && <BulkScheduleDialog onClose={() => setBulkDialog(false)}/>}
     </div>
   )
 }

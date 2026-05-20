@@ -70,6 +70,7 @@ export interface MetricoolScheduleInput {
   providers: MetricoolProvider[]    // [{ network: "INSTAGRAM" }, { network: "FACEBOOK" }]
   publicationDate: string           // ISO 8601 without Z, e.g. "2026-06-01T10:00:00"
   imageUrls?: string[]
+  thumbnailUrl?: string             // Custom cover image for video / reel posts
 }
 
 export interface MetricoolStats {
