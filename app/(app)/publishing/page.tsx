@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Upload, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Upload, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
 import type { SchedulePostInput } from '@/lib/hooks/use-posts'
@@ -101,6 +101,68 @@ function PostCard({ post }: { post: ScheduledPost }) {
   )
 }
 
+// ── Aspect ratio validation ───────────────────────────────────────────────────
+// Each platform lists its accepted ratios (w:h) in preference order.
+// Tolerance is ±6% — handles minor encoding differences.
+const ASPECT_RULES: Record<string, Array<{ w: number; h: number; label: string }>> = {
+  instagram: [{ w: 4, h: 5, label: '4:5 Portrait' }, { w: 1, h: 1, label: '1:1 Square' }, { w: 1.91, h: 1, label: '1.91:1 Landscape' }],
+  facebook:  [{ w: 1, h: 1, label: '1:1 Square' }, { w: 1.91, h: 1, label: '1.91:1 Landscape' }, { w: 4, h: 5, label: '4:5 Portrait' }],
+  tiktok:    [{ w: 9, h: 16, label: '9:16 Vertical' }],
+  linkedin:  [{ w: 1.91, h: 1, label: '1.91:1 Landscape' }, { w: 1, h: 1, label: '1:1 Square' }],
+  twitter:   [{ w: 16, h: 9, label: '16:9 Landscape' }, { w: 1, h: 1, label: '1:1 Square' }],
+  youtube:   [{ w: 16, h: 9, label: '16:9 Landscape' }],
+}
+
+const RATIO_TOLERANCE = 0.06
+
+function checkRatio(w: number, h: number, platform: string): { ok: boolean; best: string } {
+  const rules = ASPECT_RULES[platform]
+  if (!rules?.length) return { ok: true, best: 'Any' }
+  const actual = w / h
+  const match = rules.find(r => Math.abs(actual - r.w / r.h) / (r.w / r.h) <= RATIO_TOLERANCE)
+  return { ok: !!match, best: rules[0].label }
+}
+
+interface MediaDims { width: number; height: number }
+
+function useMediaDimensions(url: string): MediaDims | null {
+  const [dims, setDims] = useState<MediaDims | null>(null)
+  useEffect(() => {
+    if (!url.trim()) { setDims(null); return }
+    const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url)
+    if (isVideo) {
+      const v = document.createElement('video')
+      v.onloadedmetadata = () => setDims({ width: v.videoWidth, height: v.videoHeight })
+      v.onerror = () => setDims(null)
+      v.src = url
+    } else {
+      const img = new Image()
+      img.onload = () => setDims({ width: img.naturalWidth, height: img.naturalHeight })
+      img.onerror = () => setDims(null)
+      img.src = url
+    }
+  }, [url])
+  return dims
+}
+
+function AspectBadge({ platform, dims }: { platform: SocialPlatform; dims: MediaDims }) {
+  const { ok, best } = checkRatio(dims.width, dims.height, platform)
+  const cfg = PLATFORM_CONFIG[platform]
+  return (
+    <div className={cn(
+      'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium border',
+      ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'
+    )}>
+      {ok
+        ? <CheckCircle2 className="w-3 h-3 shrink-0" />
+        : <TriangleAlert className="w-3 h-3 shrink-0" />
+      }
+      <span>{cfg.label}</span>
+      {!ok && <span className="opacity-70">→ {best}</span>}
+    </div>
+  )
+}
+
 function ComposeDialog({ onClose }: { onClose: () => void }) {
   const { clients } = useClients()
   const schedulePost = useSchedulePost()
@@ -109,13 +171,20 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [caption, setCaption] = useState('')
   const [captionAr, setCaptionAr] = useState('')
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(['instagram'])
-  const [selectedClient, setSelectedClient] = useState(clients[0]?.id ?? '')
+  const [selectedClient, setSelectedClient] = useState('')
   const [scheduleDate, setScheduleDate] = useState('')
   const [lang, setLang] = useState<'en' | 'ar' | 'both'>('en')
   const [mediaUrl, setMediaUrl] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [draftSuccess, setDraftSuccess] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const mediaDims = useMediaDimensions(mediaUrl)
+
+  // Sync selectedClient once clients finish loading (useState initial value runs before data arrives)
+  useEffect(() => {
+    if (!selectedClient && clients.length > 0) {
+      setSelectedClient(clients[0].id)
+    }
+  }, [clients, selectedClient])
 
   const togglePlatform = (p: SocialPlatform) => {
     setSelectedPlatforms(prev =>
@@ -140,26 +209,38 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
 
   async function handleSchedule() {
     setSubmitError(null)
-    if (!selectedClient) return setSubmitError('Please select a client.')
+    if (!selectedClient) return setSubmitError('Select a client first.')
     if (!selectedPlatforms.length) return setSubmitError('Select at least one platform.')
     if (!caption.trim() && !captionAr.trim()) return setSubmitError('Caption cannot be empty.')
-    if (!scheduleDate) return setSubmitError('Please set a schedule date and time.')
+    if (!scheduleDate) return setSubmitError('Set a schedule date and time.')
 
-    const result = await schedulePost.mutateAsync(buildInput())
-    if (result.saved_as_draft && result.error) {
-      setSubmitError(`Saved as draft — ${result.error}`)
-      return
+    try {
+      const result = await schedulePost.mutateAsync(buildInput())
+      if (result.saved_as_draft) {
+        setSubmitError(result.error
+          ? `Saved as draft — ${result.error}`
+          : 'Saved as draft (Metricool blog ID not set for this client).'
+        )
+        return
+      }
+      onClose()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Scheduling failed. Check the console for details.')
     }
-    onClose()
   }
 
   async function handleDraft() {
     setSubmitError(null)
-    if (!selectedClient) return setSubmitError('Please select a client.')
+    if (!selectedClient) return setSubmitError('Select a client first.')
     if (!caption.trim() && !captionAr.trim()) return setSubmitError('Caption cannot be empty.')
-    await saveDraft.mutateAsync(buildInput())
-    setDraftSuccess(true)
-    setTimeout(onClose, 800)
+
+    try {
+      await saveDraft.mutateAsync(buildInput())
+      setDraftSuccess(true)
+      setTimeout(onClose, 800)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to save draft.')
+    }
   }
 
   return (
@@ -182,7 +263,13 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
               onChange={e => setSelectedClient(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
             >
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {clients.length === 0
+                ? <option value="">Loading clients…</option>
+                : <>
+                    <option value="" disabled>Select client</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </>
+              }
             </select>
           </div>
 
@@ -222,7 +309,21 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
               placeholder="https://… or leave blank"
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
             />
-            <p className="text-[10px] text-slate-400 mt-1">Paste a public image/video URL. Supabase Storage upload coming soon.</p>
+            {mediaDims && selectedPlatforms.length > 0 && (
+              <div className="mt-2 space-y-1">
+                <p className="text-[10px] text-slate-400">
+                  {mediaDims.width}×{mediaDims.height}px — ratio check:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedPlatforms.map(p => (
+                    <AspectBadge key={p} platform={p} dims={mediaDims} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {!mediaUrl && (
+              <p className="text-[10px] text-slate-400 mt-1">Paste a public image/video URL. Supabase Storage upload coming soon.</p>
+            )}
           </div>
 
           {/* Language toggle */}

@@ -399,7 +399,12 @@ export default function ClientsPage() {
           <Plus className="w-3.5 h-3.5" />New Client
         </button>
       </div>
-      {showWizard && <NewClientWizard onClose={() => setShowWizard(false)} onSave={(data) => { console.log('New client:', data); setShowWizard(false) }} />}
+      {showWizard && (
+        <NewClientWizard
+          onClose={() => setShowWizard(false)}
+          onSave={() => setShowWizard(false)}
+        />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {filtered.map(client => (

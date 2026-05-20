@@ -64,3 +64,69 @@ export function useUpdateClient() {
     },
   })
 }
+
+export interface CreateClientInput {
+  name: string
+  industry: string
+  primary_color: string
+  language: 'en' | 'ar' | 'both'
+  website?: string
+  tone_formal: number
+  tone_energy: number
+  audience: string
+  key_messages: string[]
+  metricool_blog_id?: string
+  platforms: string[]
+  posts_per_week: number
+}
+
+export function useCreateClient() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: CreateClientInput): Promise<Client> => {
+      const initials = input.name
+        .split(' ')
+        .map(w => w[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+
+      const toneDesc = [
+        input.tone_formal > 60 ? 'formal' : input.tone_formal < 40 ? 'casual' : 'balanced',
+        input.tone_energy > 60 ? 'playful' : input.tone_energy < 40 ? 'serious' : 'measured',
+      ].join(', ')
+
+      const { data, error } = await supabase
+        .from('clients')
+        .insert({
+          name: input.name,
+          initials,
+          color: input.primary_color,
+          status: 'active',
+          metricool_blog_id: input.metricool_blog_id || null,
+          brand_identity_json: {
+            primary_color: input.primary_color,
+            secondary_color: '#FFFFFF',
+            tone_of_voice: `${toneDesc.charAt(0).toUpperCase() + toneDesc.slice(1)}. ${input.audience}`,
+            target_audience: input.audience,
+            key_messages: input.key_messages.filter(Boolean),
+            industry: input.industry,
+            language: input.language,
+            website: input.website ?? '',
+            platforms: input.platforms,
+            posts_per_week: input.posts_per_week,
+          },
+          competitor_context_json: [],
+          reference_links: [],
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      return mapClient(data as Record<string, unknown>)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+    },
+  })
+}

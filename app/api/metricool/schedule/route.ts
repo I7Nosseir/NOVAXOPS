@@ -38,18 +38,14 @@ export async function POST(req: NextRequest) {
   // Resolve client
   const { data: client, error: clientError } = await supabase
     .from('clients')
-    .select('metricool_blog_id, name, crisis_mode')
+    .select('metricool_blog_id, name')
     .eq('id', client_id)
     .single()
 
   if (clientError || !client) {
-    return NextResponse.json({ error: 'Client not found' }, { status: 404 })
-  }
-
-  if (client.crisis_mode) {
     return NextResponse.json(
-      { error: `Publishing is paused for "${client.name}" — Crisis Mode is active.` },
-      { status: 409 }
+      { error: `Client not found (id: ${client_id}). ${clientError?.message ?? ''}` },
+      { status: 404 }
     )
   }
 
