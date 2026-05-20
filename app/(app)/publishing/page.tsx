@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw } from 'lucide-react'
+import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw, Pencil } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
@@ -23,6 +23,110 @@ const STATUS_CONFIG = {
   failed:     { label: 'Failed',     color: 'text-red-600',     bg: 'bg-red-50' },
 }
 
+function EditPostDialog({ post, onClose }: { post: ScheduledPost; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const [caption, setCaption] = useState(post.caption)
+  const [scheduledAt, setScheduledAt] = useState(
+    post.scheduled_at ? new Date(post.scheduled_at).toISOString().slice(0, 16) : ''
+  )
+  const [platforms, setPlatforms] = useState<SocialPlatform[]>(post.platforms)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function togglePlatform(p: SocialPlatform) {
+    setPlatforms(prev => prev.includes(p) ? (prev.length > 1 ? prev.filter(x => x !== p) : prev) : [...prev, p])
+  }
+
+  async function handleSave() {
+    if (!caption.trim() || !scheduledAt || !platforms.length) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/metricool/schedule/edit', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: post.id, caption, scheduled_at: new Date(scheduledAt).toISOString(), platforms }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Save failed')
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const ALL_PLATFORMS: SocialPlatform[] = ['instagram', 'facebook', 'tiktok', 'linkedin', 'twitter']
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">Edit Post</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4"/></button>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600">Caption</label>
+          <textarea
+            value={caption}
+            onChange={e => setCaption(e.target.value)}
+            rows={5}
+            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-novax/30 focus:border-novax"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600">Scheduled time</label>
+          <input
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={e => setScheduledAt(e.target.value)}
+            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-novax/30 focus:border-novax"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600">Platforms</label>
+          <div className="flex flex-wrap gap-2">
+            {ALL_PLATFORMS.map(p => (
+              <button
+                key={p}
+                onClick={() => togglePlatform(p)}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+                  platforms.includes(p)
+                    ? 'bg-novax-light border-novax-border text-novax'
+                    : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                )}
+              >
+                <PlatformIcon platform={p} size="xs"/>
+                {PLATFORM_CONFIG[p].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-red-500">{error}</p>}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !caption.trim() || !scheduledAt}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-novax hover:bg-novax-hover text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin"/>}
+            Save & Reschedule
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PostCard({ post }: { post: ScheduledPost }) {
   const { clients } = useClients()
   const queryClient = useQueryClient()
@@ -32,6 +136,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
   const isCrisis = client?.crisis_mode ?? false
   const [actionLoading, setActionLoading] = useState<'delete' | 'schedule' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
 
   async function handleDelete() {
     if (!confirm('Delete this post? If scheduled in Metricool it will be cancelled.')) return
@@ -173,6 +278,14 @@ function PostCard({ post }: { post: ScheduledPost }) {
             </button>
           )}
           <button
+            onClick={() => setEditing(true)}
+            disabled={!!actionLoading}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-novax hover:bg-novax-light rounded-lg transition-colors disabled:opacity-40"
+          >
+            <Pencil className="w-3 h-3"/>
+            Edit
+          </button>
+          <button
             onClick={handleDelete}
             disabled={!!actionLoading}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 ml-auto"
@@ -187,6 +300,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
       {actionError && (
         <p className="mt-1.5 text-[10px] text-red-500 leading-tight">{actionError}</p>
       )}
+      {editing && <EditPostDialog post={post} onClose={() => setEditing(false)}/>}
     </div>
   )
 }
@@ -1186,13 +1300,22 @@ interface BulkRow {
   scheduled_at: string
   platforms: SocialPlatform[]
   caption: string
-  media_url: string
+  media_url: string        // single image/video
+  media_urls_extra: string // pipe-separated additional slides for carousel
   status: 'pending' | 'scheduling' | 'scheduled' | 'draft' | 'failed'
   error?: string
 }
 
 function newRow(): BulkRow {
-  return { id: Math.random().toString(36).slice(2), scheduled_at: '', platforms: ['instagram'], caption: '', media_url: '', status: 'pending' }
+  return { id: Math.random().toString(36).slice(2), scheduled_at: '', platforms: ['instagram'], caption: '', media_url: '', media_urls_extra: '', status: 'pending' }
+}
+
+function resolveMediaUrls(row: BulkRow): string[] | undefined {
+  const extra = row.media_urls_extra.split('|').map(u => u.trim()).filter(Boolean)
+  if (row.media_url && extra.length) return [row.media_url, ...extra]
+  if (extra.length) return extra
+  if (row.media_url) return [row.media_url]
+  return undefined
 }
 
 const BULK_PLATFORMS: SocialPlatform[] = ['instagram', 'facebook', 'tiktok', 'linkedin', 'twitter']
@@ -1241,7 +1364,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
             client_id: selectedClient,
             platforms: row.platforms,
             caption: row.caption,
-            media_url: row.media_url || undefined,
+            media_urls: resolveMediaUrls(row),
             scheduled_at: new Date(row.scheduled_at).toISOString(),
           }),
         })
@@ -1269,6 +1392,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
       ['Platforms', 'Comma-separated', 'instagram · facebook · tiktok · linkedin · twitter', 'Yes'],
       ['Caption', 'Plain text', 'Your post caption (max 2 200 chars)', 'Yes'],
       ['Media URL', 'URL', 'Google Drive share link, Supabase URL, or any public image/video URL', 'No'],
+      ['Carousel URLs', 'URLs separated by |', 'Additional slides — up to 9 extra URLs separated by a pipe |', 'No'],
       ['Language', 'Code', 'en / ar / both', 'No (default: en)'],
       [''],
       ['Tips'],
@@ -1276,23 +1400,25 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
       ['• File must be shared as "Anyone with the link can view" in Google Drive.'],
       ['• Platforms: separate multiple with a comma — e.g.  instagram,facebook'],
       ['• Date + Time are separate columns so Excel date-pickers work correctly.'],
+      ['• Carousel: put the first image in "Media URL", then extra slides in "Carousel URLs" separated by |'],
     ]
     const wsInfo = XLSX.utils.aoa_to_sheet(info)
     wsInfo['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 58 }, { wch: 10 }]
     XLSX.utils.book_append_sheet(wb, wsInfo, 'Instructions')
 
     // ── Schedule sheet ────────────────────────────────────────────────────────
-    const headers = ['Date', 'Time', 'Platforms', 'Caption', 'Media URL', 'Language']
+    const headers = ['Date', 'Time', 'Platforms', 'Caption', 'Media URL', 'Carousel URLs', 'Language']
     const example = [
       '2026-06-01',
       '09:00',
       'instagram,facebook',
       'Your caption goes here.',
-      'https://drive.google.com/file/d/YOUR_FILE_ID/view',
+      'https://drive.google.com/file/d/SLIDE1_ID/view',
+      'https://drive.google.com/file/d/SLIDE2_ID/view|https://drive.google.com/file/d/SLIDE3_ID/view',
       'en',
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers, example])
-    ws['!cols'] = [{ wch: 14 }, { wch: 8 }, { wch: 32 }, { wch: 52 }, { wch: 52 }, { wch: 10 }]
+    ws['!cols'] = [{ wch: 14 }, { wch: 8 }, { wch: 32 }, { wch: 52 }, { wch: 52 }, { wch: 72 }, { wch: 10 }]
 
     // Freeze the header row
     ws['!freeze'] = { xSplit: 0, ySplit: 1 }
@@ -1302,7 +1428,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(ws as any)['!dataValidations'] = [
       {
-        sqref: 'F2:F10000',
+        sqref: 'G2:G10000',
         type: 'list',
         formula1: '"en,ar,both"',
         showDropDown: false,
@@ -1344,12 +1470,13 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
 
       const headers = rows2d[headerIdx].map(h => String(h).toLowerCase().trim())
       const col = (name: string) => headers.findIndex(h => h.includes(name))
-      const iDate = col('date')
-      const iTime = col('time')
-      const iPlat = col('platform')
-      const iCapt = col('caption')
-      const iUrl  = col('media')
-      const iLang = col('lang')
+      const iDate     = col('date')
+      const iTime     = col('time')
+      const iPlat     = col('platform')
+      const iCapt     = col('caption')
+      const iUrl      = headers.findIndex(h => h.includes('media') && !h.includes('carousel'))
+      const iCarousel = col('carousel')
+      const iLang     = col('lang')
 
       const importedRows: BulkRow[] = []
 
@@ -1386,6 +1513,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
           platforms: platforms.length ? platforms : ['instagram'],
           caption,
           media_url: mediaUrl,
+          media_urls_extra: iCarousel >= 0 ? String(r[iCarousel] ?? '').trim() : '',
           status: 'pending',
         })
       }
@@ -1508,8 +1636,16 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
                       value={row.media_url}
                       onChange={e => handleUrlChange(row.id, e.target.value)}
                       disabled={scheduling || row.status === 'scheduled'}
-                      placeholder="Image/video URL or Drive link"
+                      placeholder="Slide 1 URL (or single image/video)"
                       className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-300 outline-none focus:border-novax-muted bg-white disabled:opacity-50"
+                    />
+                    <input
+                      type="text"
+                      value={row.media_urls_extra}
+                      onChange={e => updateRow(row.id, { media_urls_extra: e.target.value })}
+                      disabled={scheduling || row.status === 'scheduled'}
+                      placeholder="Slides 2–10 separated by |  (carousel)"
+                      className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-300 outline-none focus:border-novax-muted bg-white disabled:opacity-50"
                     />
                     {row.error && <p className="text-[10px] text-red-500 mt-1 leading-tight">{row.error}</p>}
                   </td>

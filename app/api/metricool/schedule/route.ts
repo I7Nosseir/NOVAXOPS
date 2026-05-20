@@ -74,9 +74,11 @@ export async function POST(req: NextRequest) {
     ? `${enPart}\n\n${arPart}`
     : enPart || arPart
 
-  // Metricool DateTimeInfo: { dateTime: "YYYY-MM-DDTHH:mm:ss", timezone: "UTC" }
+  // If the scheduled time is in the past, move it 2 minutes ahead so Metricool publishes immediately
+  const requestedAt = new Date(scheduled_at)
+  const effectiveAt = requestedAt < new Date() ? new Date(Date.now() + 2 * 60 * 1000) : requestedAt
   const publicationDate = {
-    dateTime: new Date(scheduled_at).toISOString().replace(/\.\d{3}Z$/, ''),
+    dateTime: effectiveAt.toISOString().replace(/\.\d{3}Z$/, ''),
     timezone: 'UTC',
   }
 
@@ -236,8 +238,10 @@ export async function PATCH(req: NextRequest) {
     .filter(Boolean)
     .map(network => ({ network }))
 
+  const requestedAt2 = new Date(post.scheduled_at)
+  const effectiveAt2 = requestedAt2 < new Date() ? new Date(Date.now() + 2 * 60 * 1000) : requestedAt2
   const publicationDate = {
-    dateTime: new Date(post.scheduled_at).toISOString().replace(/\.\d{3}Z$/, ''),
+    dateTime: effectiveAt2.toISOString().replace(/\.\d{3}Z$/, ''),
     timezone: 'UTC',
   }
   const mediaUrls: string[] | undefined = (post.media_urls as string[])?.length
