@@ -70,6 +70,7 @@ export interface CreateClientInput {
   industry: string
   primary_color: string
   language: 'en' | 'ar' | 'both'
+  dialect?: 'msa' | 'saudi' | 'egyptian' | 'gulf'
   website?: string
   tone_formal: number
   tone_energy: number
@@ -112,6 +113,7 @@ export function useCreateClient() {
             key_messages: input.key_messages.filter(Boolean),
             industry: input.industry,
             language: input.language,
+            dialect: input.dialect ?? 'msa',
             website: input.website ?? '',
             platforms: input.platforms,
             posts_per_week: input.posts_per_week,

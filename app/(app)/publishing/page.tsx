@@ -191,8 +191,41 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [aiVariants, setAiVariants] = useState<CaptionVariant[] | null>(null)
   const [aiArLoading, setAiArLoading] = useState(false)
   const [aiArVariants, setAiArVariants] = useState<CaptionVariant[] | null>(null)
+  const [humanizing, setHumanizing] = useState(false)
+  const [humanizingAr, setHumanizingAr] = useState(false)
 
   const mediaDims = useMediaDimensions(mediaUrl)
+
+  async function humanizeCaption(targetLang: 'en' | 'ar') {
+    const isAr = targetLang === 'ar'
+    const text = isAr ? captionAr : caption
+    if (!text.trim()) return
+    if (isAr) setHumanizingAr(true); else setHumanizing(true)
+    setSubmitError(null)
+    const clientObj = clients.find(c => c.id === selectedClient)
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent: 'humanizer',
+          client: clientObj
+            ? { id: clientObj.id, name: clientObj.name, brand_identity: clientObj.brand_identity }
+            : undefined,
+          brief: text,
+          language: targetLang,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Humanization failed')
+      if (isAr) setCaptionAr(data.text?.trim() ?? captionAr)
+      else setCaption(data.text?.trim() ?? caption)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Humanization failed.')
+    } finally {
+      if (isAr) setHumanizingAr(false); else setHumanizing(false)
+    }
+  }
 
   async function generateCaption(targetLang: 'en' | 'ar') {
     const isAr = targetLang === 'ar'
@@ -403,15 +436,28 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                 placeholder="Write your caption…"
                 className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light resize-none transition-all"
               />
-              <div className="flex justify-between mt-1">
-                <button
-                  onClick={() => { setAiVariants(null); generateCaption('en') }}
-                  disabled={aiLoading || !selectedClient}
-                  className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors disabled:opacity-40"
-                >
-                  {aiLoading ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
-                  {aiLoading ? 'Generating…' : 'Generate with AI'}
-                </button>
+              <div className="flex items-center justify-between mt-1 gap-2">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setAiVariants(null); generateCaption('en') }}
+                    disabled={aiLoading || humanizing || !selectedClient}
+                    className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors disabled:opacity-40"
+                  >
+                    {aiLoading ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                    {aiLoading ? 'Generating…' : 'Generate with AI'}
+                  </button>
+                  {caption.trim() && (
+                    <button
+                      onClick={() => humanizeCaption('en')}
+                      disabled={humanizing || aiLoading}
+                      className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 font-medium transition-colors disabled:opacity-40"
+                      title="Rewrite to pass AI detectors — undetectable, natural, human-sounding"
+                    >
+                      {humanizing ? <Loader2 className="w-3 h-3 animate-spin"/> : <Eye className="w-3 h-3"/>}
+                      {humanizing ? 'Humanizing…' : 'Make Human'}
+                    </button>
+                  )}
+                </div>
                 <span className="text-[11px] text-slate-400">{caption.length} / 2200</span>
               </div>
               {aiVariants && (
@@ -450,16 +496,31 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                 placeholder="اكتب التعليق هنا…"
                 className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light resize-none transition-all text-right"
               />
-              <div className="flex justify-between mt-1">
-                <button
-                  onClick={() => { setAiArVariants(null); generateCaption('ar') }}
-                  disabled={aiArLoading || !selectedClient}
-                  className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors disabled:opacity-40"
-                >
-                  {aiArLoading ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
-                  {aiArLoading ? 'جارٍ التوليد…' : 'Generate in Arabic'}
-                </button>
-                <span className="text-[11px] text-slate-400">{captionAr.length} / 2200</span>
+              <div className="flex items-center justify-between mt-1 gap-2">
+                <div className="flex items-center gap-3 flex-row-reverse w-full">
+                  <span className="text-[11px] text-slate-400">{captionAr.length} / 2200</span>
+                  <div className="flex items-center gap-3 mr-auto">
+                    <button
+                      onClick={() => { setAiArVariants(null); generateCaption('ar') }}
+                      disabled={aiArLoading || humanizingAr || !selectedClient}
+                      className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors disabled:opacity-40"
+                    >
+                      {aiArLoading ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                      {aiArLoading ? 'جارٍ التوليد…' : 'Generate in Arabic'}
+                    </button>
+                    {captionAr.trim() && (
+                      <button
+                        onClick={() => humanizeCaption('ar')}
+                        disabled={humanizingAr || aiArLoading}
+                        className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 font-medium transition-colors disabled:opacity-40"
+                        title="إعادة الكتابة لتجاوز كواشف الذكاء الاصطناعي"
+                      >
+                        {humanizingAr ? <Loader2 className="w-3 h-3 animate-spin"/> : <Eye className="w-3 h-3"/>}
+                        {humanizingAr ? 'جارٍ المعالجة…' : 'Make Human'}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
               {aiArVariants && (
                 <div className="mt-2 space-y-1.5" dir="rtl">

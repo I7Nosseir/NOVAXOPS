@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { client_id, platforms, caption, caption_ar, media_url, scheduled_at, task_id } = body
 
-  if (!client_id || !platforms?.length || !caption?.trim() || !scheduled_at) {
+  if (!client_id || !platforms?.length || (!caption?.trim() && !caption_ar?.trim()) || !scheduled_at) {
     return NextResponse.json(
       { error: 'client_id, platforms, caption, and scheduled_at are required' },
       { status: 400 }
@@ -49,10 +49,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Merge captions
-  const finalCaption = caption_ar
-    ? `${caption.trim()}\n\n${caption_ar.trim()}`
-    : caption.trim()
+  // Merge captions — handle Arabic-only posts (caption may be empty)
+  const enPart = caption?.trim() ?? ''
+  const arPart = caption_ar?.trim() ?? ''
+  const finalCaption = enPart && arPart
+    ? `${enPart}\n\n${arPart}`
+    : enPart || arPart
 
   // Strip the time component to ISO 8601 without milliseconds for Metricool
   const publicationDate = new Date(scheduled_at).toISOString().replace(/\.\d{3}Z$/, '')

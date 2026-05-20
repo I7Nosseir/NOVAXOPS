@@ -37,8 +37,9 @@ interface FormState {
   language: 'en' | 'ar' | 'both'
   website: string
   // Step 2
-  tone_formal: number   // 0=Casual 100=Formal
-  tone_energy: number   // 0=Serious 100=Playful
+  tone_formal: number
+  tone_energy: number
+  dialect: 'msa' | 'saudi' | 'egyptian' | 'gulf'
   audience: string
   key_messages: [string, string, string]
   // Step 3
@@ -49,7 +50,7 @@ interface FormState {
 
 const INIT: FormState = {
   name: '', industry: '', primary_color: '#1B3D38', language: 'en', website: '',
-  tone_formal: 50, tone_energy: 50,
+  tone_formal: 50, tone_energy: 50, dialect: 'msa',
   audience: '',
   key_messages: ['', '', ''],
   metricool_blog_id: '', platforms: ['instagram', 'facebook'], posts_per_week: 4,
@@ -115,6 +116,7 @@ export function NewClientWizard({
       industry: form.industry,
       primary_color: form.primary_color,
       language: form.language,
+      dialect: form.dialect,
       website: form.website,
       tone_formal: form.tone_formal,
       tone_energy: form.tone_energy,
@@ -235,6 +237,32 @@ export function NewClientWizard({
                 <Slider label="Energy" left="Serious" right="Playful"
                   value={form.tone_energy} onChange={v => set('tone_energy', v)} />
               </div>
+
+              {(form.language === 'ar' || form.language === 'both') && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Arabic Dialect</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { id: 'msa',      label: 'MSA (فصحى)',      desc: 'Pan-Arab, formal' },
+                      { id: 'saudi',    label: 'Saudi (خليجي)',    desc: 'KSA / Gulf social media' },
+                      { id: 'egyptian', label: 'Egyptian (مصري)',  desc: 'Most understood dialect' },
+                      { id: 'gulf',     label: 'Gulf (خليجي عام)', desc: 'UAE, Kuwait, Qatar, Oman' },
+                    ] as const).map(d => (
+                      <button key={d.id}
+                        onClick={() => set('dialect', d.id)}
+                        className={cn(
+                          'text-left px-3 py-2 rounded-lg border text-xs transition-all',
+                          form.dialect === d.id
+                            ? 'border-novax-border-active bg-novax-light text-novax'
+                            : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                        )}>
+                        <p className="font-semibold">{d.label}</p>
+                        <p className="text-[10px] mt-0.5 opacity-60">{d.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">

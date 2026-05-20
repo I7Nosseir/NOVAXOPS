@@ -87,9 +87,9 @@ export function useSaveDraft() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: SchedulePostInput): Promise<ScheduledPost> => {
-      const finalCaption = input.caption_ar
-        ? `${input.caption.trim()}\n\n${input.caption_ar.trim()}`
-        : input.caption.trim()
+      const enPart = input.caption?.trim() ?? ''
+      const arPart = input.caption_ar?.trim() ?? ''
+      const finalCaption = enPart && arPart ? `${enPart}\n\n${arPart}` : enPart || arPart
       const { data, error } = await supabase
         .from('scheduled_posts')
         .insert({

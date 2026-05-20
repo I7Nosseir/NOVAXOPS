@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createHash } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
+import { getArabicDialectGuide, getClientDialect, HUMANIZATION_RULES_EN, HUMANIZATION_RULES_AR } from '@/lib/arabic-dialect'
 
 const PRIMARY_MODEL = 'claude-sonnet-4-6'
 const ADVANCED_MODEL = 'claude-opus-4-7'
@@ -591,8 +592,12 @@ Return ONLY a valid JSON object, no markdown, no code fences:
     // ─────────────────────────────────────────────────────────────────────────
     case 'post_caption': {
       const captionLang = body.language ?? 'en'
-      const langNote = captionLang === 'ar'
-        ? 'Write ALL three caption variants in Modern Standard Arabic (فصحى). The "text" and "hook" fields must be in Arabic. The "label", "tone", and "framework" fields stay in English for UI display.'
+      const isArCaption = captionLang === 'ar'
+      const clientDialect = getClientDialect((client?.brand_identity ?? {}) as Record<string, unknown>)
+      const dialectGuide = isArCaption ? getArabicDialectGuide(clientDialect) : ''
+      const humanRules = isArCaption ? HUMANIZATION_RULES_AR : HUMANIZATION_RULES_EN
+      const langNote = isArCaption
+        ? 'Write ALL three caption variants in Arabic. Use the dialect specified above. The "text" and "hook" fields must be in Arabic. The "label", "tone", and "framework" fields stay in English for UI display.'
         : 'Write all caption variants in English.'
 
       prompt = `You are a behavioural copywriter at NOVAX, a social media agency. Apply neuroscience and persuasion science to write social media captions that maximise scroll-stop rate, emotional engagement, and conversion.
@@ -606,6 +611,7 @@ Key Messages: ${keyMessages}
 
 POST BRIEF
 ${body.brief ?? 'Create an engaging social media post for this brand.'}
+${dialectGuide}
 
 Generate three caption variants, one per framework:
 
@@ -624,6 +630,8 @@ RULES FOR ALL VARIANTS:
 - Each variant must use a different emotional lever — not just tone variation
 - Match ${clientName}'s brand voice throughout
 
+${humanRules}
+
 ${langNote}
 
 Return ONLY a valid JSON array, no markdown, no code fences, no explanation:
@@ -632,6 +640,53 @@ Return ONLY a valid JSON array, no markdown, no code fences, no explanation:
   {"id":"v2","label":"PAS — Problem-led","tone":"Urgent & empathetic","framework":"PAS","hook":"<first line only, max 125 chars>","text":"<full caption>"},
   {"id":"v3","label":"Social Currency","tone":"Peer-to-peer","framework":"STEPPS","hook":"<first line only, max 125 chars>","text":"<full caption>"}
 ]`
+      break
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    case 'humanizer': {
+      const hLang = body.language ?? 'en'
+      const isArH = hLang === 'ar'
+      const clientDialectH = getClientDialect((client?.brand_identity ?? {}) as Record<string, unknown>)
+      const dialectGuideH = isArH ? getArabicDialectGuide(clientDialectH) : ''
+
+      if (isArH) {
+        prompt = `أنت محرر محتوى بارع في جعل النصوص العربية تبدو طبيعية وإنسانية بالكامل.
+
+مهمّتك: أعد كتابة النص التالي ليبدو كأنه كتبه مسوّق بشري ماهر — لا نموذج ذكاء اصطناعي.
+${dialectGuideH}
+
+النص الأصلي:
+${body.brief}
+
+${HUMANIZATION_RULES_AR}
+
+قواعد إضافية:
+- احتفظ بالرسالة والمنتج والعرض كما هو — غيّر فقط الأسلوب
+- صوت العميل: ${brandVoice}
+- الجمهور: ${audience}
+- لا هاشتاقات، لا إيموجي
+
+أعد النص فقط. بلا شرح، بلا اقتباسات، بلا عناوين.`
+      } else {
+        prompt = `You are a professional content editor specialised in making AI-generated text undetectable.
+
+Your task: rewrite the text below so it reads like it was written by a skilled human copywriter — not a language model. It must pass AI detection tools (GPTZero, Originality.ai, Copyleaks).
+
+ORIGINAL TEXT:
+${body.brief}
+
+${HUMANIZATION_RULES_EN}
+
+ADDITIONAL RULES:
+- Preserve the product, offer, brand, and core message exactly — only change HOW it's expressed
+- Brand voice: ${brandVoice}
+- Target audience: ${audience}
+- No hashtags, no emojis
+- Output length should match the input length (±20%)
+
+Return ONLY the rewritten text. No labels, no explanation, no quotes around it.`
+      }
       break
     }
 
