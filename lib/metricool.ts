@@ -40,27 +40,27 @@ async function mFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // ─── Network mapping ──────────────────────────────────────────────────────────
-// Metricool uses uppercase enum values for provider names
+// Metricool v2 requires lowercase network names in the providers array
 export const PLATFORM_TO_METRICOOL: Record<string, string> = {
-  instagram: 'INSTAGRAM',
-  facebook:  'FACEBOOK',
-  linkedin:  'LINKEDIN',
-  tiktok:    'TIKTOK',
-  twitter:   'TWITTER',
-  youtube:   'YOUTUBE',
+  instagram: 'instagram',
+  facebook:  'facebook',
+  linkedin:  'linkedin',
+  tiktok:    'tiktok',
+  twitter:   'twitter',
+  youtube:   'youtube',
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface MetricoolProvider {
-  network: string   // "INSTAGRAM" | "FACEBOOK" | "LINKEDIN" | "TIKTOK" | "TWITTER"
+  network: string   // "instagram" | "facebook" | "linkedin" | "tiktok" | "twitter" | "youtube"
 }
 
 export interface MetricoolScheduledPost {
   id: string
   text: string
   providers: MetricoolProvider[]
-  publicationDate: string
+  publicationDate: unknown
   status?: string
 }
 
@@ -72,10 +72,9 @@ export interface DateTimeInfo {
 export interface MetricoolScheduleInput {
   blogId: string | number
   text: string
-  providers: MetricoolProvider[]    // [{ network: "INSTAGRAM" }, { network: "FACEBOOK" }]
-  publicationDate: DateTimeInfo     // { date: "YYYY-MM-DD", time: "HH:mm" }
-  imageUrls?: string[]
-  thumbnailUrl?: string             // Custom cover image for video / reel posts
+  providers: MetricoolProvider[]   // [{ network: "instagram" }, { network: "facebook" }]
+  publicationDate: DateTimeInfo    // { date: "YYYY-MM-DD", time: "HH:mm" }
+  imageUrls?: string[]             // public URLs — sent as media: [url, ...] in the API payload
 }
 
 export interface MetricoolStats {
@@ -102,45 +101,22 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
 }
 
 /**
- * Normalize a public image URL into a Metricool mediaId.
- * Must be called before attaching media to a scheduled post.
- * GET https://app.metricool.com/api/actions/normalize/image/url?url=...
- */
-async function normalizeMediaUrl(url: string): Promise<string> {
-  const endpoint = `https://app.metricool.com/api/actions/normalize/image/url?url=${encodeURIComponent(url)}`
-  const res = await fetch(endpoint, {
-    headers: { 'X-Mc-Auth': requireToken(), Accept: 'application/json' },
-  })
-  if (!res.ok) {
-    let body = ''
-    try { body = await res.text() } catch { /* ignore */ }
-    throw new Error(`Metricool normalize failed for URL (${res.status}): ${body}`)
-  }
-  const data = await res.json() as { mediaId?: string; id?: string }
-  const id = data.mediaId ?? data.id
-  if (!id) throw new Error(`Metricool normalize returned no mediaId for: ${url}`)
-  return id
-}
-
-/**
  * Schedule a post to one or more networks.
  * POST /api/v2/scheduler/posts?blogId=&userId=
  *
- * Metricool does not accept imageUrls directly — each image URL must first be
- * normalized to a mediaId via /api/actions/normalize/image/url, then sent as
- * media: { mediaId } (single) or media: [{ mediaId }, ...] (carousel).
+ * Confirmed payload shape:
+ *   text            string
+ *   providers       [{ network: "instagram" }]  — lowercase
+ *   publicationDate { date: "YYYY-MM-DD", time: "HH:mm" }
+ *   media?          string[]  — array of public image URLs (omit if no media)
  */
 export async function schedulePost(input: MetricoolScheduleInput): Promise<MetricoolScheduledPost> {
-  const { blogId, imageUrls, thumbnailUrl: _thumb, ...rest } = input
+  const { blogId, imageUrls, ...rest } = input
 
-  // Normalize image URLs → mediaIds (skip if no media)
-  let media: { mediaId: string } | { mediaId: string }[] | undefined
+  const payload: Record<string, unknown> = { ...rest }
   if (imageUrls?.length) {
-    const ids = await Promise.all(imageUrls.map(normalizeMediaUrl))
-    media = ids.length === 1 ? { mediaId: ids[0] } : ids.map(id => ({ mediaId: id }))
+    payload.media = imageUrls
   }
-
-  const payload = { ...rest, ...(media !== undefined ? { media } : {}) }
 
   return mFetch<MetricoolScheduledPost>(`/scheduler/posts?${qs(blogId)}`, {
     method: 'POST',
@@ -158,7 +134,6 @@ export async function deleteScheduledPost(postId: string, blogId: string | numbe
 
 /**
  * Fetch analytics stats for a blog in a date range.
- * The exact analytics path is TBD — probe if this endpoint returns 404.
  */
 export async function getStats(
   blogId: string | number,

@@ -38,14 +38,13 @@ function toAbsolute(url: string | undefined, req: NextRequest): string | undefin
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { client_id, platforms, caption, caption_ar, media_url, media_urls, thumbnail_url, scheduled_at, task_id } = body
+  const { client_id, platforms, caption, caption_ar, media_url, media_urls, scheduled_at, task_id } = body
 
   // Carousel takes precedence over single URL; make all URLs absolute
   const rawUrls: string[] | undefined = media_urls?.filter(Boolean).length
     ? media_urls.filter(Boolean)
     : media_url ? [media_url] : undefined
   const resolvedMediaUrls = rawUrls?.map(u => toAbsolute(u, req) ?? u)
-  const resolvedThumbnail = toAbsolute(thumbnail_url, req)
 
   if (!client_id || !platforms?.length || (!caption?.trim() && !caption_ar?.trim()) || !scheduled_at) {
     return NextResponse.json(
@@ -127,7 +126,6 @@ export async function POST(req: NextRequest) {
       providers,
       publicationDate,
       imageUrls: resolvedMediaUrls,
-      thumbnailUrl: resolvedThumbnail,
     })
 
     await supabase
