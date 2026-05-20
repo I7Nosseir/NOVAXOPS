@@ -73,8 +73,9 @@ export interface MetricoolScheduleInput {
   blogId: string | number
   text: string
   providers: MetricoolProvider[]   // [{ network: "instagram" }, { network: "facebook" }]
-  publicationDate: DateTimeInfo    // { dateTime: "YYYY-MM-DDTHH:mm:ss", timezone: "UTC" }
+  publicationDate: DateTimeInfo    // { dateTime: "YYYY-MM-DDTHH:mm:ss", timezone: "Africa/Cairo" }
   imageUrls?: string[]             // public URLs — sent as media: [url, ...] in the API payload
+  autoPublish?: boolean            // must be true for Metricool to actually post to the platforms
 }
 
 export interface MetricoolStats {
@@ -113,7 +114,10 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
 export async function schedulePost(input: MetricoolScheduleInput): Promise<MetricoolScheduledPost> {
   const { blogId, imageUrls, ...rest } = input
 
-  const payload: Record<string, unknown> = { ...rest }
+  const payload: Record<string, unknown> = {
+    autoPublish: true,   // required — without this Metricool saves a draft and never posts
+    ...rest,
+  }
   if (imageUrls?.length) {
     payload.media = imageUrls
   }

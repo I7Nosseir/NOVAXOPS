@@ -37,23 +37,30 @@ function PostCard({ post }: { post: ScheduledPost }) {
     if (!confirm('Delete this post? If scheduled in Metricool it will be cancelled.')) return
     setActionLoading('delete')
     setActionError(null)
+
+    // Optimistically remove this specific post from every ['posts', *] query so
+    // the correct card disappears immediately without waiting for a refetch.
+    const snapshots = queryClient.getQueriesData<ScheduledPost[]>({ queryKey: ['posts'] })
+    queryClient.setQueriesData<ScheduledPost[]>({ queryKey: ['posts'] }, (old) =>
+      old ? old.filter(p => p.id !== post.id) : old
+    )
+
     try {
       const res = await fetch('/api/metricool/schedule', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: post.id }),
       })
-      if (res.status === 404) {
-        // Post no longer exists — just refresh the list so it disappears
-        queryClient.invalidateQueries({ queryKey: ['posts'] })
-        return
-      }
-      if (!res.ok) {
+      if (!res.ok && res.status !== 404) {
         const d = await res.json()
         throw new Error(d.error ?? 'Delete failed')
       }
       queryClient.invalidateQueries({ queryKey: ['posts'] })
     } catch (err) {
+      // Rollback — restore every query to its pre-delete snapshot
+      for (const [key, data] of snapshots) {
+        queryClient.setQueryData(key, data)
+      }
       setActionError(err instanceof Error ? err.message : 'Delete failed')
     } finally {
       setActionLoading(null)
@@ -1911,11 +1918,30 @@ function CalendarView({ onCompose }: { onCompose: () => void }) {
 export default function PublishingPage() {
   const { posts: allPosts } = usePosts()
   const { clients } = useClients()
+  const queryClient = useQueryClient()
   const [compose, setCompose] = useState(false)
   const [briefDialog, setBriefDialog] = useState(false)
   const [bulkDialog, setBulkDialog] = useState(false)
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
   const [view, setView] = useState<'grid' | 'calendar'>('grid')
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch('/api/metricool/sync', { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Sync failed')
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+      setSyncResult(d.updated > 0 ? `${d.updated} post${d.updated > 1 ? 's' : ''} updated` : 'Already up to date')
+    } catch (err) {
+      setSyncResult(err instanceof Error ? err.message : 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const crisisClients = clients.filter(c => c.crisis_mode)
 
@@ -1968,6 +1994,20 @@ export default function PublishingPage() {
             <button onClick={() => setView('calendar')} className={cn('p-1.5 rounded-md transition-colors', view === 'calendar' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-600')} title="Calendar view">
               <Calendar className="w-3.5 h-3.5"/>
             </button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              title="Pull latest post statuses from Metricool"
+              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')}/>
+              {syncing ? 'Syncing…' : 'Sync Status'}
+            </button>
+            {syncResult && (
+              <span className="text-xs text-slate-500">{syncResult}</span>
+            )}
           </div>
           <button
             onClick={() => setBulkDialog(true)}
