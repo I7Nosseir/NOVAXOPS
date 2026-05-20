@@ -64,11 +64,16 @@ export interface MetricoolScheduledPost {
   status?: string
 }
 
+export interface DateTimeInfo {
+  dateTime: string    // ISO 8601 without timezone suffix, e.g. "2026-06-01T10:00:00"
+  timezone: string    // IANA timezone identifier, e.g. "UTC" or "America/New_York"
+}
+
 export interface MetricoolScheduleInput {
   blogId: string | number
   text: string
   providers: MetricoolProvider[]    // [{ network: "INSTAGRAM" }, { network: "FACEBOOK" }]
-  publicationDate: string           // ISO 8601 without Z, e.g. "2026-06-01T10:00:00"
+  publicationDate: DateTimeInfo     // { dateTime: "2026-06-01T10:00:00", timezone: "UTC" }
   imageUrls?: string[]
   thumbnailUrl?: string             // Custom cover image for video / reel posts
 }
