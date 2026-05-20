@@ -77,6 +77,7 @@ interface AIRequest {
   project?: { name: string }
   commentText?: string; commenterName?: string; postCaption?: string; platform?: string
   brief?: string; month?: string; frequency?: string; language?: 'en' | 'ar'
+  media_url?: string  // public image URL — included as vision input for post_caption
   imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video'
 }
 
@@ -600,6 +601,22 @@ Return ONLY a valid JSON object, no markdown, no code fences:
         ? 'Write ALL three caption variants in Arabic. Use the dialect specified above. The "text" and "hook" fields must be in Arabic. The "label", "tone", and "framework" fields stay in English for UI display.'
         : 'Write all caption variants in English.'
 
+      // Attach the uploaded image as a vision block so Claude can see what it's writing about.
+      // Only for image URLs (not video — Claude can't process video frames).
+      const mediaUrl = body.media_url
+      const isImageUrl = mediaUrl && /\.(jpe?g|png|webp|gif)(\?|$)/i.test(mediaUrl)
+      const isStorageUrl = mediaUrl && (mediaUrl.includes('supabase') || mediaUrl.includes('/api/proxy/drive'))
+      if (mediaUrl && (isImageUrl || isStorageUrl)) {
+        imageBlock = {
+          type: 'image',
+          source: { type: 'url', url: mediaUrl } as Anthropic.ImageBlockParam['source'],
+        }
+      }
+
+      const mediaContext = mediaUrl
+        ? `\nMEDIA: The post includes the image/video attached above. Write captions that directly describe, reference, or respond to what is shown — do not write generic brand copy.`
+        : ''
+
       prompt = `You are a behavioural copywriter at NOVAX, a social media agency. Apply neuroscience and persuasion science to write social media captions that maximise scroll-stop rate, emotional engagement, and conversion.
 
 CLIENT CONTEXT
@@ -610,7 +627,7 @@ Target Audience: ${audience}
 Key Messages: ${keyMessages}
 
 POST BRIEF
-${body.brief ?? 'Create an engaging social media post for this brand.'}
+${body.brief ?? 'Create an engaging social media post for this brand.'}${mediaContext}
 ${dialectGuide}
 
 Generate three caption variants, one per framework:

@@ -9,7 +9,7 @@ VALUES (
   'assets',
   'assets',
   true,
-  52428800,   -- 50 MB per file
+  524288000,  -- 500 MB per file (covers Instagram Reels, TikTok, Facebook video)
   ARRAY[
     'image/jpeg',
     'image/png',

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties } from 'lucide-react'
+import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { useQueryClient } from '@tanstack/react-query'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
 import type { SchedulePostInput } from '@/lib/hooks/use-posts'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -24,10 +25,54 @@ const STATUS_CONFIG = {
 
 function PostCard({ post }: { post: ScheduledPost }) {
   const { clients } = useClients()
+  const queryClient = useQueryClient()
   const client = clients.find(c => c.id === post.client_id)
   const status = STATUS_CONFIG[post.status]
   const perf = post.performance
   const isCrisis = client?.crisis_mode ?? false
+  const [actionLoading, setActionLoading] = useState<'delete' | 'schedule' | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    if (!confirm('Delete this post? If scheduled in Metricool it will be cancelled.')) return
+    setActionLoading('delete')
+    setActionError(null)
+    try {
+      const res = await fetch('/api/metricool/schedule', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: post.id }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error ?? 'Delete failed')
+      }
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Delete failed')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleReschedule() {
+    setActionLoading('schedule')
+    setActionError(null)
+    try {
+      const res = await fetch('/api/metricool/schedule', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: post.id }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Scheduling failed')
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Scheduling failed')
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   return (
     <div className={cn('bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow', isCrisis ? 'border-red-200' : 'border-slate-200')}>
@@ -98,6 +143,37 @@ function PostCard({ post }: { post: ScheduledPost }) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Actions — hidden for published posts */}
+      {post.status !== 'published' && (
+        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
+          {post.status === 'draft' && (
+            <button
+              onClick={handleReschedule}
+              disabled={!!actionLoading}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium bg-novax-light text-novax hover:bg-novax hover:text-white rounded-lg transition-colors disabled:opacity-40"
+            >
+              {actionLoading === 'schedule'
+                ? <Loader2 className="w-3 h-3 animate-spin"/>
+                : <RefreshCw className="w-3 h-3"/>}
+              Push to Metricool
+            </button>
+          )}
+          <button
+            onClick={handleDelete}
+            disabled={!!actionLoading}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 ml-auto"
+          >
+            {actionLoading === 'delete'
+              ? <Loader2 className="w-3 h-3 animate-spin"/>
+              : <Trash2 className="w-3 h-3"/>}
+            Delete
+          </button>
+        </div>
+      )}
+      {actionError && (
+        <p className="mt-1.5 text-[10px] text-red-500 leading-tight">{actionError}</p>
       )}
     </div>
   )
@@ -227,6 +303,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const schedulePost = useSchedulePost()
   const saveDraft = useSaveDraft()
 
+  const [brief, setBrief] = useState('')
   const [caption, setCaption] = useState('')
   const [captionAr, setCaptionAr] = useState('')
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(['instagram'])
@@ -242,6 +319,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [customPerPlatform, setCustomPerPlatform] = useState(false)
   const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({})
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0) // 0-100
   const [dragOver, setDragOver] = useState(false)
   const [thumbnailUrl, setThumbnailUrl] = useState('')
 
@@ -296,9 +374,10 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     setSubmitError(null)
 
     const clientObj = clients.find(c => c.id === selectedClient)
-    const brief = isAr
-      ? (captionAr.trim() || caption.trim() || 'Create an engaging social media post')
-      : (caption.trim() || 'Create an engaging social media post')
+    // Prefer explicit brief; fall back to existing caption text; last resort generic
+    const effectiveBrief = brief.trim()
+      || (isAr ? captionAr.trim() : caption.trim())
+      || 'Create an engaging social media post for this brand.'
 
     try {
       const res = await fetch('/api/ai', {
@@ -309,7 +388,8 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
           client: clientObj
             ? { id: clientObj.id, name: clientObj.name, brand_identity: clientObj.brand_identity }
             : undefined,
-          brief,
+          brief: effectiveBrief,
+          media_url: singleUrl || undefined,
           language: targetLang,
         }),
       })
@@ -337,19 +417,45 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   async function handleFileUpload(file: File) {
     if (!file) return
     setUploading(true)
+    setUploadProgress(0)
     setSubmitError(null)
     try {
       const ext = file.name.split('.').pop() ?? 'bin'
       const path = `posts/${selectedClient || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
-      const { error } = await supabase.storage.from('assets').upload(path, file, { cacheControl: '31536000', upsert: false })
-      if (error) throw new Error(error.message)
+
+      // Get a pre-signed upload URL so we can use XHR for progress events.
+      // supabase.storage.upload() uses fetch internally and has no onProgress hook.
+      const { data: signedData, error: signedErr } = await supabase.storage
+        .from('assets')
+        .createSignedUploadUrl(path)
+      if (signedErr || !signedData) throw new Error(signedErr?.message ?? 'Could not get upload URL')
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('PUT', signedData.signedUrl)
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100))
+        }
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve()
+          else reject(new Error(`Upload failed (${xhr.status})`))
+        }
+        xhr.onerror = () => reject(new Error('Network error during upload'))
+        xhr.send(file)
+      })
+
       const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
       setSingleUrl(publicUrl)
       setDriveConverted(false)
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Upload failed. Make sure the "assets" storage bucket exists in Supabase (Storage → New bucket → name: assets, public: on).')
+      setSubmitError(
+        err instanceof Error ? err.message :
+        'Upload failed. Run sql/006_storage_assets_bucket.sql in Supabase to create the assets bucket.'
+      )
     } finally {
       setUploading(false)
+      setUploadProgress(0)
     }
   }
 
@@ -590,7 +696,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                     className={cn(
                       'flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border-2 border-dashed transition-colors cursor-pointer',
                       dragOver ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-slate-300 bg-slate-50',
-                      uploading && 'pointer-events-none opacity-60'
+                      uploading && 'pointer-events-none'
                     )}
                     onDragOver={e => { e.preventDefault(); setDragOver(true) }}
                     onDragLeave={() => setDragOver(false)}
@@ -598,7 +704,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                   >
                     <input
                       type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+                      accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
                       className="hidden"
                       onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }}
                     />
@@ -607,10 +713,23 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                       : <Upload className="w-5 h-5 text-slate-400"/>
                     }
                     <p className="text-[11px] font-medium text-slate-500">
-                      {uploading ? 'Uploading to Supabase Storage…' : dragOver ? 'Drop to upload' : 'Drag & drop or click to upload'}
+                      {uploading
+                        ? `Uploading… ${uploadProgress}%`
+                        : dragOver ? 'Drop to upload'
+                        : 'Drag & drop or click to upload'}
                     </p>
-                    <p className="text-[10px] text-slate-400">JPG, PNG, WebP, GIF, MP4, MOV — max 50 MB</p>
+                    <p className="text-[10px] text-slate-400">JPG, PNG, WebP, GIF, MP4, MOV, WebM — max 500 MB</p>
                   </label>
+
+                  {/* Upload progress bar */}
+                  {uploading && (
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-full bg-novax transition-all duration-200 rounded-full"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  )}
 
                   {/* Per-platform toggle — only when 2+ platforms selected and a URL is set */}
                   {singleUrl && selectedPlatforms.length > 1 && (
@@ -687,6 +806,20 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Content brief — feeds the AI generator */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Content Brief <span className="font-normal text-slate-400">(what is this post about?)</span>
+            </label>
+            <textarea
+              value={brief}
+              onChange={e => setBrief(e.target.value)}
+              rows={2}
+              placeholder="Describe the content — product launch, promotion detail, what the image/video shows, campaign angle… The AI uses this + the uploaded media to write relevant captions."
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light resize-none transition-all"
+            />
           </div>
 
           {/* Language toggle */}

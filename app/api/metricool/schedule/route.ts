@@ -196,3 +196,67 @@ export async function DELETE(req: NextRequest) {
   await supabase.from('scheduled_posts').delete().eq('id', post_id)
   return NextResponse.json({ success: true })
 }
+
+/**
+ * PATCH /api/metricool/schedule
+ * Body: { post_id: string }
+ *
+ * Re-attempts scheduling an existing draft post in Metricool.
+ * Updates status='scheduled' and stores metricool_post_id on success.
+ */
+export async function PATCH(req: NextRequest) {
+  const { post_id } = await req.json()
+  if (!post_id) return NextResponse.json({ error: 'post_id required' }, { status: 400 })
+
+  const { data: post, error: postError } = await supabase
+    .from('scheduled_posts')
+    .select('*')
+    .eq('id', post_id)
+    .single()
+
+  if (postError || !post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+  if (post.status === 'published') return NextResponse.json({ error: 'Cannot reschedule a published post' }, { status: 409 })
+
+  const { data: client } = await supabase
+    .from('clients')
+    .select('metricool_blog_id, name')
+    .eq('id', post.client_id)
+    .single()
+
+  if (!client?.metricool_blog_id) {
+    return NextResponse.json(
+      { error: `"${client?.name}" has no Metricool blog ID — set it in the client settings.` },
+      { status: 400 }
+    )
+  }
+
+  const providers = (post.platforms as string[])
+    .map(p => PLATFORM_TO_METRICOOL[p])
+    .filter(Boolean)
+    .map(network => ({ network }))
+
+  const publicationDate = new Date(post.scheduled_at).toISOString().replace(/\.\d{3}Z$/, '')
+  const mediaUrls: string[] | undefined = (post.media_urls as string[])?.length
+    ? (post.media_urls as string[]).map(u => toAbsolute(u, req) ?? u)
+    : undefined
+
+  try {
+    const metricoolPost = await schedulePost({
+      blogId: client.metricool_blog_id,
+      text: post.caption as string,
+      providers,
+      publicationDate,
+      imageUrls: mediaUrls,
+    })
+
+    await supabase
+      .from('scheduled_posts')
+      .update({ metricool_post_id: metricoolPost.id, status: 'scheduled' })
+      .eq('id', post_id)
+
+    return NextResponse.json({ success: true, metricool_post_id: metricoolPost.id })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: `Metricool scheduling failed: ${message}` }, { status: 502 })
+  }
+}
