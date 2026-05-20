@@ -65,8 +65,8 @@ export interface MetricoolScheduledPost {
 }
 
 export interface DateTimeInfo {
-  dateTime: string    // ISO 8601 without timezone suffix, e.g. "2026-06-01T10:00:00"
-  timezone: string    // IANA timezone identifier, e.g. "UTC" or "America/New_York"
+  date: string   // "YYYY-MM-DD"
+  time: string   // "HH:mm"
 }
 
 export interface MetricoolScheduleInput {
