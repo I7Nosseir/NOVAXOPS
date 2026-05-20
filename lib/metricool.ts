@@ -73,7 +73,7 @@ export interface MetricoolScheduleInput {
   blogId: string | number
   text: string
   providers: MetricoolProvider[]    // [{ network: "INSTAGRAM" }, { network: "FACEBOOK" }]
-  publicationDate: DateTimeInfo     // { dateTime: "2026-06-01T10:00:00", timezone: "UTC" }
+  publicationDate: DateTimeInfo     // { date: "YYYY-MM-DD", time: "HH:mm" }
   imageUrls?: string[]
   thumbnailUrl?: string             // Custom cover image for video / reel posts
 }
@@ -102,16 +102,49 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
 }
 
 /**
+ * Normalize a public image URL into a Metricool mediaId.
+ * Must be called before attaching media to a scheduled post.
+ * GET https://app.metricool.com/api/actions/normalize/image/url?url=...
+ */
+async function normalizeMediaUrl(url: string): Promise<string> {
+  const endpoint = `https://app.metricool.com/api/actions/normalize/image/url?url=${encodeURIComponent(url)}`
+  const res = await fetch(endpoint, {
+    headers: { 'X-Mc-Auth': requireToken(), Accept: 'application/json' },
+  })
+  if (!res.ok) {
+    let body = ''
+    try { body = await res.text() } catch { /* ignore */ }
+    throw new Error(`Metricool normalize failed for URL (${res.status}): ${body}`)
+  }
+  const data = await res.json() as { mediaId?: string; id?: string }
+  const id = data.mediaId ?? data.id
+  if (!id) throw new Error(`Metricool normalize returned no mediaId for: ${url}`)
+  return id
+}
+
+/**
  * Schedule a post to one or more networks.
  * POST /api/v2/scheduler/posts?blogId=&userId=
  *
- * Body: { text, providers: [{ network: "INSTAGRAM" }], publicationDate, imageUrls? }
+ * Metricool does not accept imageUrls directly — each image URL must first be
+ * normalized to a mediaId via /api/actions/normalize/image/url, then sent as
+ * media: { mediaId } (single) or media: [{ mediaId }, ...] (carousel).
  */
 export async function schedulePost(input: MetricoolScheduleInput): Promise<MetricoolScheduledPost> {
-  const { blogId, ...body } = input
+  const { blogId, imageUrls, thumbnailUrl: _thumb, ...rest } = input
+
+  // Normalize image URLs → mediaIds (skip if no media)
+  let media: { mediaId: string } | { mediaId: string }[] | undefined
+  if (imageUrls?.length) {
+    const ids = await Promise.all(imageUrls.map(normalizeMediaUrl))
+    media = ids.length === 1 ? { mediaId: ids[0] } : ids.map(id => ({ mediaId: id }))
+  }
+
+  const payload = { ...rest, ...(media !== undefined ? { media } : {}) }
+
   return mFetch<MetricoolScheduledPost>(`/scheduler/posts?${qs(blogId)}`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   })
 }
 
