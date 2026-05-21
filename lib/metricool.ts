@@ -149,9 +149,24 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
 /**
  * Delete (cancel) a scheduled post.
  * DELETE /api/v2/scheduler/posts/{id}?blogId=&userId=
+ *
+ * Does NOT use mFetch because DELETE responses are often 204 No Content
+ * (empty body), which causes res.json() to throw even on success.
  */
 export async function deleteScheduledPost(postId: string, blogId: string | number): Promise<void> {
-  await mFetch(`/scheduler/posts/${postId}?${qs(blogId)}`, { method: 'DELETE' })
+  const res = await fetch(`${BASE}/scheduler/posts/${postId}?${qs(blogId)}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      'X-Mc-Auth': requireToken(),
+    },
+  })
+  // 204 No Content = success. 404 = already gone = also fine.
+  if (!res.ok && res.status !== 404) {
+    let body = ''
+    try { body = await res.text() } catch { /* ignore */ }
+    throw new Error(`Metricool ${res.status} on DELETE post ${postId}: ${body}`)
+  }
 }
 
 /**

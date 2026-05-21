@@ -158,7 +158,12 @@ function PostCard({ post }: { post: ScheduledPost }) {
         const d = await res.json()
         throw new Error(d.error ?? 'Delete failed')
       }
-      toast.success('Post deleted')
+      const d = await res.json()
+      if (d.metricool_warning) {
+        toast.warning('Deleted from app — remove it manually in Metricool (could not reach API)')
+      } else {
+        toast.success('Post deleted')
+      }
       queryClient.invalidateQueries({ queryKey: ['posts'] })
     } catch (err) {
       for (const [key, data] of snapshots) queryClient.setQueryData(key, data)
@@ -2106,20 +2111,25 @@ export default function PublishingPage() {
   const [view, setView] = useState<'grid' | 'calendar'>('grid')
   const [syncing, setSyncing] = useState(false)
 
-  async function handleSync() {
+  async function handleSync(silent = false) {
     setSyncing(true)
     try {
       const res = await fetch('/api/metricool/sync', { method: 'POST' })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Sync failed')
       queryClient.invalidateQueries({ queryKey: ['posts'] })
-      toast.success(d.updated > 0 ? `${d.updated} post${d.updated > 1 ? 's' : ''} updated from Metricool` : 'Already up to date')
+      if (!silent && d.updated > 0) {
+        toast.success(`${d.updated} post${d.updated > 1 ? 's' : ''} updated from Metricool`)
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Sync failed')
+      if (!silent) toast.error(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
     }
   }
+
+  // Auto-sync on mount so published/failed statuses are always current
+  useEffect(() => { handleSync(true) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const crisisClients = clients.filter(c => c.crisis_mode)
 

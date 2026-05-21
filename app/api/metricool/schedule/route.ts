@@ -179,8 +179,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Cannot delete a published post' }, { status: 409 })
   }
 
+  let metricoolWarning: string | undefined
+
   if (post.metricool_post_id) {
-    // Get blog ID for this client
     const { data: client } = await supabase
       .from('clients')
       .select('metricool_blog_id')
@@ -191,13 +192,16 @@ export async function DELETE(req: NextRequest) {
       try {
         await deleteScheduledPost(post.metricool_post_id, client.metricool_blog_id)
       } catch (err) {
-        console.error('[metricool] delete from Metricool failed (continuing):', err)
+        // Still delete from DB — but surface the warning so the user knows
+        // the post may still exist in Metricool and must be removed manually.
+        metricoolWarning = err instanceof Error ? err.message : 'Could not remove from Metricool'
+        console.error('[metricool] delete failed:', metricoolWarning)
       }
     }
   }
 
   await supabase.from('scheduled_posts').delete().eq('id', post_id)
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, ...(metricoolWarning ? { metricool_warning: metricoolWarning } : {}) })
 }
 
 /**
