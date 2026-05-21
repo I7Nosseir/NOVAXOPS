@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { schedulePost, deleteScheduledPost, splitMediaUrls, PLATFORM_TO_METRICOOL } from '@/lib/metricool'
+import { isGoogleDriveUrl, getGoogleDriveFileId } from '@/lib/google-drive'
 import type { SocialPlatform } from '@/lib/types'
 
 const supabase = createClient(
@@ -24,16 +25,21 @@ const supabase = createClient(
  *   scheduled_at  string (ISO 8601)
  *   task_id?      string (UUID)
  */
-// Converts relative proxy URLs (e.g. /api/proxy/drive?id=…) to absolute so Metricool
-// can fetch them. Relative URLs would only work from the same origin — Metricool is external.
-function toAbsolute(url: string | undefined, req: NextRequest): string | undefined {
-  if (!url) return undefined
-  if (url.startsWith('/')) {
+// Resolves any media URL to an absolute URL Metricool can fetch.
+// Raw Drive share links (/view?usp=…) return HTML — route them through our proxy first,
+// then make absolute so Metricool can fetch the actual binary with correct Content-Type.
+function resolveMediaUrl(url: string, req: NextRequest): string {
+  let resolved = url
+  if (isGoogleDriveUrl(url)) {
+    const fileId = getGoogleDriveFileId(url)
+    if (fileId) resolved = `/api/proxy/drive?id=${fileId}`
+  }
+  if (resolved.startsWith('/')) {
     const host = req.headers.get('host') ?? 'localhost:3000'
     const proto = host.includes('localhost') ? 'http' : 'https'
-    return `${proto}://${host}${url}`
+    return `${proto}://${host}${resolved}`
   }
-  return url
+  return resolved
 }
 
 export async function POST(req: NextRequest) {
@@ -44,7 +50,7 @@ export async function POST(req: NextRequest) {
   const rawUrls: string[] | undefined = media_urls?.filter(Boolean).length
     ? media_urls.filter(Boolean)
     : media_url ? [media_url] : undefined
-  const resolvedMediaUrls = rawUrls?.map(u => toAbsolute(u, req) ?? u)
+  const resolvedMediaUrls = rawUrls?.map(u => resolveMediaUrl(u, req))
 
   if (!client_id || !platforms?.length || (!caption?.trim() && !caption_ar?.trim()) || !scheduled_at) {
     return NextResponse.json(
@@ -249,7 +255,7 @@ export async function PATCH(req: NextRequest) {
     timezone: 'UTC',
   }
   const rawMediaUrls: string[] | undefined = (post.media_urls as string[])?.length
-    ? (post.media_urls as string[]).map(u => toAbsolute(u, req) ?? u)
+    ? (post.media_urls as string[]).map(u => resolveMediaUrl(u, req))
     : undefined
 
   try {
