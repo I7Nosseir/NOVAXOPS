@@ -2184,7 +2184,7 @@ export default function PublishingPage() {
             </button>
           </div>
           <button
-            onClick={handleSync}
+            onClick={() => handleSync()}
             disabled={syncing}
             title={`Pull latest post statuses from ${vendorName(user?.role, 'Metricool')}`}
             className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
