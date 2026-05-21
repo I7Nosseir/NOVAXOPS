@@ -27,6 +27,22 @@ interface TextLayer {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+const MODELS = [
+  { id: 'gemini-2.5-flash-image',        label: 'Flash Image',         tag: 'Fast · $0.039',  badge: ''    },
+  { id: 'gemini-3.1-flash-image-preview', label: 'Flash Image Preview', tag: 'Preview · $0.045', badge: '🍌' },
+  { id: 'gemini-3-pro-image-preview',     label: 'Pro Image Preview',   tag: 'Preview · $0.134', badge: '🍌' },
+  { id: 'imagen-4.0-fast-generate-001',   label: 'Imagen 4 Fast',       tag: '$0.02 · AR support', badge: '' },
+  { id: 'imagen-4.0-generate-001',        label: 'Imagen 4',            tag: '$0.04 · AR support', badge: '' },
+  { id: 'imagen-4.0-ultra-generate-001',  label: 'Imagen 4 Ultra',      tag: '$0.06 · Best quality', badge: '' },
+]
+
+// Models that natively support aspect ratio as a parameter (not baked into prompt)
+const SUPPORTS_NATIVE_AR = new Set([
+  'imagen-4.0-fast-generate-001',
+  'imagen-4.0-generate-001',
+  'imagen-4.0-ultra-generate-001',
+])
+
 const STYLES = [
   { id: 'photorealistic', label: 'Photorealistic' },
   { id: 'cinematic',      label: 'Cinematic'       },
@@ -277,6 +293,7 @@ export default function AIImagePage() {
   const [negativePrompt, setNegativePrompt] = useState('')
   const [style, setStyle] = useState('photorealistic')
   const [aspectRatio, setAspectRatio] = useState('1:1')
+  const [model, setModel] = useState('gemini-2.5-flash-image')
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [imageData, setImageData] = useState<string | null>(null)
@@ -288,6 +305,9 @@ export default function AIImagePage() {
   const layerCounter = useRef(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const uid = useId()
+
+  const selectedModel = MODELS.find(m => m.id === model) ?? MODELS[0]
+  const nativeAR = SUPPORTS_NATIVE_AR.has(model)
 
   const ar = ASPECT_RATIOS.find(a => a.id === aspectRatio) ?? ASPECT_RATIOS[0]
 
@@ -301,7 +321,7 @@ export default function AIImagePage() {
       const res = await fetch('/api/ai-image/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, style, aspectRatio, negativePrompt }),
+        body: JSON.stringify({ prompt, style, aspectRatio, negativePrompt, model }),
       })
       const data = await res.json() as { imageData?: string; mimeType?: string; error?: string }
       if (!res.ok || data.error) { setError(data.error ?? 'Generation failed'); return }
@@ -464,6 +484,36 @@ export default function AIImagePage() {
             </div>
           </div>
 
+          {/* Model */}
+          <div>
+            <label className="text-xs font-semibold text-slate-600 mb-2 block">Model</label>
+            <div className="space-y-1">
+              {MODELS.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setModel(m.id)}
+                  className={cn(
+                    'w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-all text-left',
+                    model === m.id
+                      ? 'bg-novax text-white border-novax'
+                      : 'border-slate-200 text-slate-600 hover:border-novax-border hover:text-novax',
+                  )}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {m.badge && <span>{m.badge}</span>}
+                    {m.label}
+                  </span>
+                  <span className={cn('text-[10px] font-normal', model === m.id ? 'text-white/70' : 'text-slate-400')}>
+                    {m.tag}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {!nativeAR && (
+              <p className="text-[10px] text-slate-400 mt-1.5">Aspect ratio is baked into the prompt for Gemini models</p>
+            )}
+          </div>
+
           {/* Aspect Ratio */}
           <div>
             <label className="text-xs font-semibold text-slate-600 mb-2 block">Aspect Ratio</label>
@@ -524,14 +574,14 @@ export default function AIImagePage() {
             <div className="flex flex-col items-center gap-3 text-slate-400 select-none">
               <Wand2 className="w-12 h-12 text-slate-300"/>
               <p className="text-sm font-medium text-slate-500">Enter a prompt and generate an image</p>
-              <p className="text-xs">Powered by Google Imagen 3</p>
+              <p className="text-xs text-slate-400">{selectedModel.label} · {selectedModel.tag}</p>
             </div>
           )}
 
           {generating && (
             <div className="flex flex-col items-center gap-4 text-slate-500">
               <div className="w-16 h-16 rounded-2xl border-4 border-novax-border border-t-novax-accent animate-spin"/>
-              <p className="text-sm font-medium">Generating with Imagen 3…</p>
+              <p className="text-sm font-medium">Generating with {selectedModel.label}…</p>
               <p className="text-xs text-slate-400">This takes about 10–20 seconds</p>
             </div>
           )}
