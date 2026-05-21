@@ -134,10 +134,10 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
   // Metricool infers the content type from the URL — no separate videoUrl field exists.
   if (imageUrls?.length) payload.media = imageUrls
 
-  // TikTok requires privacyLevel inside tiktokData — top-level "tiktok" is rejected
+  // TikTok requires privacy inside tiktokData — field name confirmed by Metricool's ScheduledPostTikTokData class
   const hasTikTok = (rest.providers as MetricoolProvider[]).some(p => p.network === 'tiktok')
   if (hasTikTok) {
-    payload.tiktokData = { privacyLevel: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
+    payload.tiktokData = { privacy: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
   return mFetch<MetricoolScheduledPost>(`/scheduler/posts?${qs(blogId)}`, {
