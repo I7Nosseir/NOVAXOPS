@@ -137,7 +137,7 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
   // TikTok requires privacy inside tiktokData — field name confirmed by Metricool's ScheduledPostTikTokData class
   const hasTikTok = (rest.providers as MetricoolProvider[]).some(p => p.network === 'tiktok')
   if (hasTikTok) {
-    payload.tiktokData = { privacy: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
+    payload.tiktokData = { privacyOption: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
   return mFetch<MetricoolScheduledPost>(`/scheduler/posts?${qs(blogId)}`, {
