@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
-  ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp,
+  ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: '/approval',    icon: CheckSquare,      label: 'Approval', badge: 4 },
   { href: '/moderation',  icon: MessageSquare,    label: 'Moderation', badge: 3 },
   { href: '/assets',      icon: Image,            label: 'Assets' },
+  { href: '/ai-image',    icon: Wand2,            label: 'AI Image' },
   { href: '/creative-eval', icon: Sparkles,       label: 'Creative Eval' },
   { href: '/workload',    icon: Users,            label: 'Workload' },
   { href: '/library',     icon: BookMarked,       label: 'Content Library' },
