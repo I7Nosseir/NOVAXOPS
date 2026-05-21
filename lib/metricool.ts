@@ -71,10 +71,6 @@ export interface DateTimeInfo {
 
 export type TikTokPrivacyLevel = 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY'
 
-// Metricool post types — must be sent explicitly so validation runs against the correct type only.
-// Without this field, Metricool validates against all types and returns every possible error.
-export type MetricoolPostType = 'post' | 'reel' | 'story' | 'carousel'
-
 export interface MetricoolScheduleInput {
   blogId: string | number
   text: string
@@ -85,7 +81,8 @@ export interface MetricoolScheduleInput {
   imageUrls?: string[]
   autoPublish?: boolean
   tiktokPrivacy?: TikTokPrivacyLevel
-  type?: MetricoolPostType
+  instagramData?: Record<string, unknown>
+  facebookData?: Record<string, unknown>
 }
 
 /** Pass-through helper — keeps call sites uniform across all schedule routes. */
@@ -135,14 +132,7 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     ...rest,
   }
 
-  if (imageUrls?.length) {
-    payload.media = imageUrls
-    // Auto-set type so Metricool validates against exactly one post type.
-    // Without this, it validates against all types simultaneously and returns every error.
-    if (!payload.type) {
-      payload.type = imageUrls.length > 1 ? 'carousel' : 'post'
-    }
-  }
+  if (imageUrls?.length) payload.media = imageUrls
 
   // TikTok requires privacy inside tiktokData — field name confirmed by Metricool's ScheduledPostTikTokData class
   const hasTikTok = (rest.providers as MetricoolProvider[]).some(p => p.network === 'tiktok')
