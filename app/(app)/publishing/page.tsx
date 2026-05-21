@@ -137,6 +137,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
   const [actionLoading, setActionLoading] = useState<'delete' | 'schedule' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [syncingStats, setSyncingStats] = useState(false)
 
   async function doDelete() {
     setConfirmDelete(false)
@@ -183,6 +184,21 @@ function PostCard({ post }: { post: ScheduledPost }) {
       toast.error(err instanceof Error ? err.message : 'Scheduling failed')
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  async function handleSyncStats() {
+    setSyncingStats(true)
+    try {
+      const res = await fetch(`/api/metricool/post-stats?post_id=${post.id}`)
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Sync failed')
+      toast.success('Performance stats updated')
+      queryClient.invalidateQueries({ queryKey: ['posts'] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Stats sync failed')
+    } finally {
+      setSyncingStats(false)
     }
   }
 
@@ -257,44 +273,57 @@ function PostCard({ post }: { post: ScheduledPost }) {
         </div>
       )}
 
-      {/* Actions — hidden for published posts */}
-      {post.status !== 'published' && (
+      {/* Actions */}
+      {(post.status !== 'published' || post.metricool_post_id) && (
         <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
-          {post.status === 'draft' && (
+          {post.status === 'published' ? (
             <button
-              onClick={handleReschedule}
-              disabled={!!actionLoading}
+              onClick={handleSyncStats}
+              disabled={syncingStats}
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium bg-novax-light text-novax hover:bg-novax hover:text-white rounded-lg transition-colors disabled:opacity-40"
             >
-              {actionLoading === 'schedule'
-                ? <Loader2 className="w-3 h-3 animate-spin"/>
-                : <RefreshCw className="w-3 h-3"/>}
-              Push to {vendorName(user?.role, 'Metricool')}
+              {syncingStats ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
+              Sync Stats
             </button>
-          )}
-          <button
-            onClick={() => setEditing(true)}
-            disabled={!!actionLoading}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-novax hover:bg-novax-light rounded-lg transition-colors disabled:opacity-40"
-          >
-            <Pencil className="w-3 h-3"/>
-            Edit
-          </button>
-          {confirmDelete ? (
-            <div className="ml-auto flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-500">Delete this post?</span>
-              <button onClick={doDelete} className="px-2 py-1 text-[11px] font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">Yes, delete</button>
-              <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
-            </div>
           ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              disabled={!!actionLoading}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 ml-auto"
-            >
-              {actionLoading === 'delete' ? <Loader2 className="w-3 h-3 animate-spin"/> : <Trash2 className="w-3 h-3"/>}
-              Delete
-            </button>
+            <>
+              {post.status === 'draft' && (
+                <button
+                  onClick={handleReschedule}
+                  disabled={!!actionLoading}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium bg-novax-light text-novax hover:bg-novax hover:text-white rounded-lg transition-colors disabled:opacity-40"
+                >
+                  {actionLoading === 'schedule'
+                    ? <Loader2 className="w-3 h-3 animate-spin"/>
+                    : <RefreshCw className="w-3 h-3"/>}
+                  Push to {vendorName(user?.role, 'Metricool')}
+                </button>
+              )}
+              <button
+                onClick={() => setEditing(true)}
+                disabled={!!actionLoading}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-novax hover:bg-novax-light rounded-lg transition-colors disabled:opacity-40"
+              >
+                <Pencil className="w-3 h-3"/>
+                Edit
+              </button>
+              {confirmDelete ? (
+                <div className="ml-auto flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-500">Delete this post?</span>
+                  <button onClick={doDelete} className="px-2 py-1 text-[11px] font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">Yes, delete</button>
+                  <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={!!actionLoading}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 ml-auto"
+                >
+                  {actionLoading === 'delete' ? <Loader2 className="w-3 h-3 animate-spin"/> : <Trash2 className="w-3 h-3"/>}
+                  Delete
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

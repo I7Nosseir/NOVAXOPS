@@ -628,7 +628,7 @@ function CompetitorTable({ rows }: { rows: Competitor[] }) {
 
 // ─── Monthly Report ─────────────────────────────────────────────────────────────
 
-function MonthlyReport({ client }: { client: string }) {
+function MonthlyReport({ client, liveStats }: { client: string; liveStats?: Record<string, number> | null }) {
   const d = MONTHLY_DEMO
   const maxReach = Math.max(...d.platforms.map(p => p.reach))
   return (
@@ -644,9 +644,9 @@ function MonthlyReport({ client }: { client: string }) {
       {/* Highlight callouts */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { icon: Eye,        label: 'Total Reach',        value: formatNumber(d.kpis.reach),          delta: d.deltas.reach },
-          { icon: TrendingUp, label: 'Avg Engagement Rate', value: `${d.kpis.er}%`,                    delta: d.deltas.er },
-          { icon: Users,      label: 'New Followers',      value: `+${formatNumber(d.kpis.followers)}`, delta: d.deltas.followers },
+          { icon: Eye,                          label: 'Total Reach',         value: liveStats?.reach != null ? formatNumber(liveStats.reach) : formatNumber(d.kpis.reach), delta: d.deltas.reach },
+          { icon: TrendingUp,                   label: 'Avg Engagement Rate', value: liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : `${d.kpis.er}%`, delta: d.deltas.er },
+          { icon: liveStats ? BarChart2 : Users, label: liveStats ? 'Total Impressions' : 'New Followers', value: liveStats?.impressions != null ? formatNumber(liveStats.impressions) : `+${formatNumber(d.kpis.followers)}`, delta: d.deltas.followers },
         ].map(({ icon: Icon, label, value, delta }) => (
           <div key={label} className="rounded-2xl border border-novax-border p-5" style={{ background: B.light }}>
             <div className="flex items-center gap-2 mb-3">
@@ -1471,7 +1471,7 @@ function QuarterlyReport({ client }: { client: string }) {
 
 // ─── Executive Summary ──────────────────────────────────────────────────────────
 
-function ExecutiveReport({ client }: { client: string }) {
+function ExecutiveReport({ client, liveStats }: { client: string; liveStats?: Record<string, number> | null }) {
   const d = EXECUTIVE_DEMO
   return (
     <div className="space-y-5">
@@ -1484,13 +1484,20 @@ function ExecutiveReport({ client }: { client: string }) {
       <ReportHeader title="Executive Summary" subtitle="CEO-ready portfolio overview — all clients" client={client} period={d.period}/>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {d.kpis.map(({ label, value, delta, positive }) => (
+        {d.kpis.map(({ label, value, delta, positive }, idx) => {
+          let displayValue = value
+          if (liveStats) {
+            if (idx === 0 && liveStats.reach != null) displayValue = formatNumber(liveStats.reach)
+            if (idx === 1 && liveStats.engagement_rate != null) displayValue = `${Number(liveStats.engagement_rate).toFixed(1)}%`
+          }
+          return (
           <div key={label} className="bg-white rounded-2xl border-2 border-slate-100 p-6 text-center hover:border-novax-border transition-colors">
-            <p className="text-4xl font-bold mb-2" style={{ color: B.primary }}>{value}</p>
+            <p className="text-4xl font-bold mb-2" style={{ color: B.primary }}>{displayValue}</p>
             <p className="text-xs font-semibold text-slate-500 mb-3">{label}</p>
             <DeltaBadge delta={delta} positive={positive}/>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -1930,6 +1937,28 @@ function AIBuilder() {
   )
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+function parsePeriodToRange(period: string): { startDate: string; endDate: string } | null {
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const mMatch = period.match(/^(\w+)\s+(\d{4})$/)
+  if (mMatch) {
+    const mi = MONTHS.findIndex(m => m === mMatch[1])
+    if (mi >= 0) {
+      const y = mMatch[2]
+      const last = new Date(Number(y), mi + 1, 0).getDate()
+      return { startDate: `${y}-${String(mi + 1).padStart(2, '0')}-01`, endDate: `${y}-${String(mi + 1).padStart(2, '0')}-${last}` }
+    }
+  }
+  const qMatch = period.match(/^Q(\d)\s+(\d{4})$/)
+  if (qMatch) {
+    const q = Number(qMatch[1]); const y = qMatch[2]
+    const sm = (q - 1) * 3 + 1; const em = q * 3
+    return { startDate: `${y}-${String(sm).padStart(2, '0')}-01`, endDate: `${y}-${String(em).padStart(2, '0')}-${new Date(Number(y), em, 0).getDate()}` }
+  }
+  return null
+}
+
 // ─── Main page ──────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
@@ -1939,6 +1968,8 @@ export default function ReportsPage() {
   const [period, setPeriod]           = useState('May 2026')
   const [generating, setGenerating]   = useState(false)
   const [generated, setGenerated]     = useState(false)
+  const [liveStats, setLiveStats]     = useState<Record<string, number> | null>(null)
+  const [liveError, setLiveError]     = useState<string | null>(null)
 
   const clientName = selectedClient === 'all'
     ? 'All Clients'
@@ -1947,7 +1978,22 @@ export default function ReportsPage() {
   const handleGenerate = async () => {
     setGenerating(true)
     setGenerated(false)
-    await new Promise(r => setTimeout(r, 1500))
+    setLiveStats(null)
+    setLiveError(null)
+    if (selectedClient !== 'all') {
+      const range = parsePeriodToRange(period)
+      if (range) {
+        try {
+          const res = await fetch(`/api/metricool/analytics?client_id=${selectedClient}&startDate=${range.startDate}&endDate=${range.endDate}`)
+          const data = await res.json()
+          if (res.ok && data.stats) setLiveStats(data.stats)
+          else setLiveError(data.error ?? 'Live data unavailable')
+        } catch {
+          setLiveError('Could not connect to analytics API')
+        }
+      }
+    }
+    await new Promise(r => setTimeout(r, 400))
     setGenerating(false)
     setGenerated(true)
   }
@@ -2015,8 +2061,18 @@ export default function ReportsPage() {
               >
                 {generating
                   ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Generating…</>
-                  : <><FileText className="w-3.5 h-3.5"/> Generate Demo Report</>}
+                  : <><FileText className="w-3.5 h-3.5"/> {selectedClient !== 'all' ? 'Generate Report' : 'Generate Demo Report'}</>}
               </button>
+              {generated && liveStats && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
+                  <Activity className="w-3 h-3"/> Live Data
+                </span>
+              )}
+              {generated && liveError && selectedClient !== 'all' && (
+                <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={liveError}>
+                  <AlertCircle className="w-3 h-3"/> Demo Data
+                </span>
+              )}
               {generated && (
                 <button
                   onClick={() => {
@@ -2050,12 +2106,12 @@ export default function ReportsPage() {
         <AIBuilder/>
       ) : generated ? (
         <div id="printable-report" className="space-y-5">
-          {activeTab === 'monthly'   && <MonthlyReport   client={clientName}/>}
+          {activeTab === 'monthly'   && <MonthlyReport   client={clientName} liveStats={liveStats}/>}
           {activeTab === 'paid'      && <PaidReport       client={clientName}/>}
           {activeTab === 'combined'  && <CombinedReport   client={clientName}/>}
           {activeTab === 'platform'  && <PlatformReport   client={clientName}/>}
           {activeTab === 'quarterly' && <QuarterlyReport  client={clientName}/>}
-          {activeTab === 'executive' && <ExecutiveReport  client={clientName}/>}
+          {activeTab === 'executive' && <ExecutiveReport  client={clientName} liveStats={liveStats}/>}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200">
