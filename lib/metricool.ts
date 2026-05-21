@@ -1,4 +1,5 @@
-const BASE = 'https://app.metricool.com/api/v2'
+const BASE_ROOT = 'https://app.metricool.com'
+const BASE = `${BASE_ROOT}/api/v2`
 
 function requireToken(): string {
   const t = process.env.METRICOOL_API_TOKEN
@@ -76,8 +77,7 @@ export interface MetricoolScheduleInput {
   text: string
   providers: MetricoolProvider[]
   publicationDate: DateTimeInfo
-  // All media (images, carousels, videos) → sent as media: [url, ...]
-  // Metricool detects content type from the URL itself
+  // Public URLs — normalized to Metricool mediaIds before the API call
   imageUrls?: string[]
   autoPublish?: boolean
   tiktokPrivacy?: TikTokPrivacyLevel
@@ -101,6 +101,39 @@ export interface MetricoolStats {
   saves: number
 }
 
+// ─── Media normalization ──────────────────────────────────────────────────────
+
+/**
+ * Normalizes a public media URL to a Metricool-hosted mediaId.
+ *
+ * Metricool validates dimensions/duration/MIME type from its own servers, not
+ * from raw external URLs. Skipping this step causes the vague "cannot determine
+ * media type" errors on carousel and video posts.
+ *
+ * GET /api/actions/normalize/image/url?url=<encoded_url>
+ */
+async function normalizeMediaUrl(url: string): Promise<string> {
+  const endpoint = `${BASE_ROOT}/api/actions/normalize/image/url?url=${encodeURIComponent(url)}`
+  const res = await fetch(endpoint, {
+    headers: {
+      Accept: 'application/json',
+      'X-Mc-Auth': requireToken(),
+    },
+  })
+  if (!res.ok) {
+    let body = ''
+    try { body = await res.text() } catch { /* ignore */ }
+    throw new Error(`Metricool media normalize failed (${res.status}): ${body}. URL was: ${url}`)
+  }
+  const data = await res.json() as Record<string, unknown>
+  // Response field may be "mediaId" or "id" depending on API version
+  const mediaId = (data.mediaId ?? data.id) as string | undefined
+  if (!mediaId) {
+    throw new Error(`Metricool normalize returned no mediaId. Response: ${JSON.stringify(data)}`)
+  }
+  return mediaId
+}
+
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 /**
@@ -118,11 +151,8 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
  * Schedule a post to one or more networks.
  * POST /api/v2/scheduler/posts?blogId=&userId=
  *
- * Confirmed payload shape:
- *   text            string
- *   providers       [{ network: "instagram" }]  — lowercase
- *   publicationDate { date: "YYYY-MM-DD", time: "HH:mm" }
- *   media?          string[]  — array of public image URLs (omit if no media)
+ * Pass imageUrls[] — each URL is normalized to a Metricool mediaId before the
+ * payload is sent. Single image → media: { mediaId }; carousel → media: [{ mediaId }].
  */
 export async function schedulePost(input: MetricoolScheduleInput): Promise<MetricoolScheduledPost> {
   const { blogId, imageUrls, tiktokPrivacy, ...rest } = input
@@ -132,7 +162,15 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     ...rest,
   }
 
-  if (imageUrls?.length) payload.media = imageUrls
+  if (imageUrls?.length) {
+    // Normalize all URLs in parallel — Metricool requires mediaIds, not raw URLs.
+    // Raw URLs cause "cannot determine media type/dimensions" errors on carousels.
+    const mediaIds = await Promise.all(imageUrls.map(normalizeMediaUrl))
+    // Single image → object; carousel (2+) → array of objects
+    payload.media = mediaIds.length === 1
+      ? { mediaId: mediaIds[0] }
+      : mediaIds.map(id => ({ mediaId: id }))
+  }
 
   // TikTok requires privacy inside tiktokData — field name confirmed by Metricool's ScheduledPostTikTokData class
   const hasTikTok = (rest.providers as MetricoolProvider[]).some(p => p.network === 'tiktok')
