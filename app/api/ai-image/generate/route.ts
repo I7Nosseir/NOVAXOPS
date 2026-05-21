@@ -41,7 +41,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'GEMINI_API_KEY is not configured.' }, { status: 500 })
   }
 
-  let body: { prompt?: string; style?: string; aspectRatio?: string; negativePrompt?: string; model?: string }
+  let body: {
+    prompt?: string
+    style?: string
+    aspectRatio?: string
+    negativePrompt?: string
+    model?: string
+    referenceImageData?: string
+    referenceMime?: string
+  }
   try { body = await req.json() as typeof body } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
@@ -52,6 +60,8 @@ export async function POST(req: NextRequest) {
     aspectRatio = '1:1',
     negativePrompt = '',
     model = 'gemini-2.5-flash-image',
+    referenceImageData,
+    referenceMime = 'image/png',
   } = body
 
   if (!prompt?.trim()) {
@@ -78,8 +88,19 @@ export async function POST(req: NextRequest) {
         + (negativePrompt?.trim() ? ` Avoid: ${negativePrompt.trim()}.` : '')
 
       const url = `${BASE}/${model}:generateContent?key=${apiKey}`
+
+      // Build request parts — prepend reference image if supplied
+      type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } }
+      const reqParts: GeminiPart[] = []
+      if (referenceImageData) {
+        reqParts.push({ inlineData: { mimeType: referenceMime, data: referenceImageData } })
+        reqParts.push({ text: `Using the above reference image as visual inspiration (maintain its subject, product, logo, or character faithfully), create: ${finalPrompt}` })
+      } else {
+        reqParts.push({ text: finalPrompt })
+      }
+
       const payload = {
-        contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
+        contents: [{ role: 'user', parts: reqParts }],
         generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
       }
 
@@ -90,7 +111,10 @@ export async function POST(req: NextRequest) {
       })
 
       const json = await res.json() as {
-        candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[]
+        candidates?: {
+          content?: { parts?: { inlineData?: { data?: string; mimeType?: string }; text?: string }[] }
+          finishReason?: string
+        }[]
         error?: { message?: string }
       }
 
@@ -98,10 +122,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: json.error?.message ?? `API error ${res.status}` }, { status: res.status })
       }
 
-      const parts = json.candidates?.[0]?.content?.parts ?? []
-      const imagePart = parts.find(p => p.inlineData?.data)
+      const resParts = json.candidates?.[0]?.content?.parts ?? []
+      const imagePart = resParts.find(p => p.inlineData?.data)
       if (!imagePart?.inlineData?.data) {
-        return NextResponse.json({ error: 'No image returned. Try a different prompt or model.' }, { status: 502 })
+        const finishReason = json.candidates?.[0]?.finishReason
+        const modelText = resParts.find(p => p.text)?.text?.slice(0, 300)
+        const reason = finishReason === 'SAFETY'
+          ? 'Blocked by safety filters — try a different prompt.'
+          : modelText
+            ? `Model response: ${modelText}`
+            : 'No image returned. Try a different prompt or model.'
+        return NextResponse.json({ error: reason }, { status: 502 })
       }
 
       return NextResponse.json({
@@ -112,14 +143,19 @@ export async function POST(req: NextRequest) {
 
     // ── Imagen 4 (predict) ─────────────────────────────────────────────────────
     if (IMAGEN_MODELS.has(model)) {
+      // Imagen 4 only supports these aspect ratios — map 4:5 to the closest (3:4)
+      const IMAGEN_AR_MAP: Record<string, string> = {
+        '1:1': '1:1', '9:16': '9:16', '16:9': '16:9', '4:3': '4:3', '3:4': '3:4', '4:5': '3:4',
+      }
+      const imagenAR = IMAGEN_AR_MAP[aspectRatio] ?? '1:1'
+
       const url = `${BASE}/${model}:predict?key=${apiKey}`
       const payload = {
         instances: [{ prompt: fullPrompt }],
         parameters: {
           sampleCount: 1,
-          aspectRatio,
-          safetySetting: 'block_some',
-          personGeneration: 'allow_all',
+          aspectRatio: imagenAR,
+          personGeneration: 'ALLOW_ALL',
           ...(negativePrompt?.trim() ? { negativePrompt: negativePrompt.trim() } : {}),
         },
       }
