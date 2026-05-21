@@ -115,8 +115,9 @@ export interface MetricoolStats {
 async function normalizeMediaUrl(url: string): Promise<string> {
   const endpoint = `${BASE_ROOT}/api/actions/normalize/image/url?url=${encodeURIComponent(url)}`
   const res = await fetch(endpoint, {
+    // No Accept header — the normalize endpoint returns an opaque type (not necessarily JSON).
+    // Sending Accept: application/json causes Apache Tomcat to return 406 Not Acceptable.
     headers: {
-      Accept: 'application/json',
       'X-Mc-Auth': requireToken(),
     },
   })
@@ -125,13 +126,25 @@ async function normalizeMediaUrl(url: string): Promise<string> {
     try { body = await res.text() } catch { /* ignore */ }
     throw new Error(`Metricool media normalize failed (${res.status}): ${body}. URL was: ${url}`)
   }
-  const data = await res.json() as Record<string, unknown>
-  // Response field may be "mediaId" or "id" depending on API version
-  const mediaId = (data.mediaId ?? data.id) as string | undefined
-  if (!mediaId) {
-    throw new Error(`Metricool normalize returned no mediaId. Response: ${JSON.stringify(data)}`)
+
+  const contentType = res.headers.get('content-type') ?? ''
+  const rawText = await res.text()
+
+  // Response may be JSON object, a JSON string, or plain text depending on API version
+  if (contentType.includes('application/json')) {
+    try {
+      const data = JSON.parse(rawText) as Record<string, unknown>
+      const mediaId = (data.mediaId ?? data.id ?? data.url) as string | undefined
+      if (mediaId) return mediaId
+    } catch { /* fall through to plain-text path */ }
   }
-  return mediaId
+
+  // Plain-text response — the value itself is the mediaId/URL
+  const trimmed = rawText.trim()
+  if (!trimmed) {
+    throw new Error(`Metricool normalize returned empty response for URL: ${url}`)
+  }
+  return trimmed
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
