@@ -243,12 +243,12 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.facebookData = { type: hasVideo ? 'REEL' : 'POST', ...(facebookDataIn ?? {}) }
   }
 
-  // Instagram: 'POST' for images; 'REEL' + showReelOnFeed for videos.
-  // showReelOnFeed (NOT showReel1nFeed) confirmed from live Metricool scheduler payload capture.
+  // Instagram: 'POST' for images; 'REEL' + showReelInFeed for videos.
+  // showReelInFeed confirmed from live Metricool scheduler payload capture (PDF page 13).
   if (networks.includes('instagram')) {
     payload.instagramData = {
       type: hasVideo ? 'REEL' : 'POST',
-      ...(hasVideo ? { showReelOnFeed: true } : {}),
+      ...(hasVideo ? { showReelInFeed: true } : {}),
       ...(instagramDataIn ?? {}),
     }
   }
