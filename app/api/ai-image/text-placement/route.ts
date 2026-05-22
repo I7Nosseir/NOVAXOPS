@@ -96,7 +96,7 @@ Return ONLY a valid JSON array. No markdown fences, no explanation, nothing else
   }
 ]`
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`
 
   const payload = {
     contents: [{

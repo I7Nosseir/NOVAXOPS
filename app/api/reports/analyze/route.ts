@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const GEMINI_MODEL = 'gemini-2.0-flash-exp'
+const GEMINI_MODEL = 'gemini-3-flash-preview'
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
   monthly:   'Monthly Organic Performance',

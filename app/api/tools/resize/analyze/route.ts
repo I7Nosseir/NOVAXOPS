@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const GEMINI_MODEL = 'gemini-2.0-flash'
+const GEMINI_MODEL = 'gemini-3-flash-preview'
 
 export interface LayoutSchema {
   focal_point: { x: number; y: number }         // 0-100 percent from top-left
