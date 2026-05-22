@@ -58,6 +58,7 @@ export interface SchedulePostInput {
   media_url?: string    // single image or video
   media_urls?: string[] // carousel (2-10 slides) — takes precedence over media_url
   thumbnail_url?: string // custom cover image for video/reel posts
+  is_video?: boolean    // explicit override — set when URL extension alone can't determine media type
   scheduled_at: string
   task_id?: string
 }

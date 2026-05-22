@@ -83,6 +83,8 @@ export interface MetricoolScheduleInput {
   tiktokPrivacy?: TikTokPrivacyLevel
   instagramData?: Record<string, unknown>
   facebookData?: Record<string, unknown>
+  // Explicit override — use when URL extension alone can't determine media type (Drive, signed URLs, etc.)
+  isVideo?: boolean
 }
 
 /** Pass-through helper — keeps call sites uniform across all schedule routes. */
@@ -207,7 +209,7 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
  * Callers can override by passing instagramData/facebookData in the input.
  */
 export async function schedulePost(input: MetricoolScheduleInput): Promise<MetricoolScheduledPost> {
-  const { blogId, imageUrls, tiktokPrivacy, instagramData: instagramDataIn, facebookData: facebookDataIn, ...rest } = input
+  const { blogId, imageUrls, tiktokPrivacy, instagramData: instagramDataIn, facebookData: facebookDataIn, isVideo: isVideoOverride, ...rest } = input
 
   const payload: Record<string, unknown> = {
     autoPublish: true,
@@ -215,7 +217,8 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
   }
 
   const isCarousel = (imageUrls?.length ?? 0) > 1
-  const hasVideo = imageUrls?.some(isVideoUrl) ?? false
+  // isVideoOverride takes priority — URL extension is unreliable for Drive/signed/non-extension URLs.
+  const hasVideo = isVideoOverride ?? imageUrls?.some(isVideoUrl) ?? false
 
   if (imageUrls?.length) {
     // Normalize sequentially — parallel calls can hit Metricool's undocumented rate limit.

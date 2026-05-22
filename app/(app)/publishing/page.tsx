@@ -479,6 +479,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0) // 0-100
   const [dragOver, setDragOver] = useState(false)
+  const [isVideoUpload, setIsVideoUpload] = useState(false)
   const [carouselUploading, setCarouselUploading] = useState<Record<number, boolean>>({})
   const [thumbnailUrl, setThumbnailUrl] = useState('')
   const [driveImporting, setDriveImporting] = useState(false)
@@ -573,6 +574,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     if (!file) return
     setUploading(true)
     setUploadProgress(0)
+    setIsVideoUpload(file.type.startsWith('video/'))
     try {
       const ext = file.name.split('.').pop() ?? 'bin'
       const path = `posts/${selectedClient || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
@@ -663,6 +665,8 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   function buildInput(overrides?: { platforms?: SocialPlatform[]; media_url?: string }): SchedulePostInput {
     const baseMediaUrl = mediaMode === 'single' ? singleUrl || undefined : undefined
     const baseMediaUrls = mediaMode === 'carousel' ? carouselUrls.filter(Boolean) : undefined
+    const effectiveUrl = overrides?.media_url ?? baseMediaUrl
+    const urlIsVideo = /\.(mp4|mov|webm|avi|m4v|mkv|wmv|flv)(\?|$)/i.test(effectiveUrl ?? '')
     return {
       client_id: selectedClient,
       platforms: overrides?.platforms ?? selectedPlatforms,
@@ -671,6 +675,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
       media_url: overrides ? (overrides.media_url ?? undefined) : baseMediaUrl,
       media_urls: overrides ? undefined : baseMediaUrls,
       thumbnail_url: thumbnailUrl.trim() || undefined,
+      is_video: isVideoUpload || urlIsVideo || undefined,
       scheduled_at: scheduleDate ? new Date(scheduleDate).toISOString() : '',
     }
   }
@@ -843,7 +848,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                       className="w-full pl-8 pr-8 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
                     />
                     {singleUrl && (
-                      <button onClick={() => { setSingleUrl(''); setDriveConverted(false); setCustomPerPlatform(false) }}
+                      <button onClick={() => { setSingleUrl(''); setDriveConverted(false); setCustomPerPlatform(false); setIsVideoUpload(false) }}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
                         <X className="w-3.5 h-3.5"/>
                       </button>

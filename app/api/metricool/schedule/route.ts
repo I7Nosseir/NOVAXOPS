@@ -44,7 +44,7 @@ function resolveMediaUrl(url: string, req: NextRequest): string {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { client_id, platforms, caption, caption_ar, media_url, media_urls, scheduled_at, task_id } = body
+  const { client_id, platforms, caption, caption_ar, media_url, media_urls, scheduled_at, task_id, is_video } = body
 
   // Carousel takes precedence over single URL; make all URLs absolute
   const rawUrls: string[] | undefined = media_urls?.filter(Boolean).length
@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
       providers,
       publicationDate,
       ...splitMediaUrls(resolvedMediaUrls),
+      ...(is_video != null ? { isVideo: Boolean(is_video) } : {}),
     })
 
     await supabase
