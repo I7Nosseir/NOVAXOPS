@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
@@ -31,7 +31,10 @@ export function PipelineBoard({ initialTasks }: Props) {
   // Derive selected task from tasks so it auto-updates after mutations
   const selectedTask = tasks.find(t => t.id === selectedTaskId) ?? null
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  )
 
   const getTasksByStage = useCallback(
     (stage: PipelineStage) => tasks.filter(t => t.pipeline_stage === stage),

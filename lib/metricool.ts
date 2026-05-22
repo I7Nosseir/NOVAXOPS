@@ -213,9 +213,10 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     for (const url of imageUrls) {
       mediaIds.push(await normalizeMediaUrl(url))
     }
-    payload.media = mediaIds.length === 1
-      ? { url: mediaIds[0] }
-      : mediaIds.map(id => ({ url: id }))
+    // media is a flat array of CDN URL strings — confirmed from Metricool's own
+    // browser-intercepted payload. NOT objects ({ url } or { mediaId }), just strings.
+    // Single image → ["cdn_url"], carousel → ["cdn_url1", "cdn_url2", ...]
+    payload.media = mediaIds
   }
 
   const networks = (rest.providers as MetricoolProvider[]).map(p => p.network)

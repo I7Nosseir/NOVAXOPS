@@ -1,0 +1,48 @@
+{
+  "name": "NOVAX Ops",
+  "short_name": "NOVAX",
+  "description": "NOVAX unified operations platform",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#090c13",
+  "theme_color": "#1B3D38",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Pipeline",
+      "url": "/pipeline",
+      "description": "View the content pipeline"
+    },
+    {
+      "name": "Tasks",
+      "url": "/tasks",
+      "description": "View my tasks"
+    },
+    {
+      "name": "Publishing",
+      "url": "/publishing",
+      "description": "Schedule and publish content"
+    }
+  ]
+}

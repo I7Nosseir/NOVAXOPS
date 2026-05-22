@@ -1,14 +1,27 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist } from 'next/font/google'
 import { Providers } from './providers'
+import { SwRegister } from '@/components/layout/sw-register'
 import './globals.css'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#1B3D38',
+}
 
 export const metadata: Metadata = {
   title: 'NOVAX Ops',
   description: 'NOVAX unified operations platform',
   icons: { icon: '/icon.svg' },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'NOVAX Ops',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${geist.variable} font-sans antialiased`}>
         <Providers>{children}</Providers>
+        <SwRegister />
       </body>
     </html>
   )

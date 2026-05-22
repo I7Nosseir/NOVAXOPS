@@ -19,7 +19,7 @@ export function PipelineColumn({ stage, tasks, onSelectTask, onAddTask }: Props)
   const config = STAGE_CONFIG[stage]
 
   return (
-    <div className="flex flex-col w-72 shrink-0">
+    <div className="flex flex-col w-64 sm:w-72 shrink-0">
       {/* Column header */}
       <div className={cn('flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0', config.border, config.bg)}>
         <div className="flex items-center gap-2">
