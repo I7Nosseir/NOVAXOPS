@@ -199,8 +199,8 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
  * Single image → media: { mediaId }; carousel → media: [{ mediaId }, ...].
  *
  * Platform-specific data is auto-injected:
- *   Facebook  → facebookData: { type: 'POST' }   (required or Metricool drops media)
- *   Instagram → instagramData: { type: 'POST' }  (required or carousel fails entirely)
+ *   Facebook  → facebookData: { type: 'POST'|'REEL' }   (POST for images/carousels, REEL for video)
+ *   Instagram → instagramData: { type: 'POST'|'REEL' }  (POST for images/carousels, REEL for video)
  *   TikTok    → tiktokData: { privacyOption }
  * Callers can override by passing instagramData/facebookData in the input.
  */
@@ -217,8 +217,7 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
 
   if (imageUrls?.length) {
     // Normalize sequentially — parallel calls can hit Metricool's undocumented rate limit.
-    // Each URL is routed to /normalize/image/url or /normalize/video/url as appropriate.
-    // Using the image endpoint for a video causes "Error validating MP4" on Instagram/Facebook.
+    // /normalize/image/url handles BOTH images and videos (official PDF confirmed).
     const mediaIds: string[] = []
     for (const url of imageUrls) {
       mediaIds.push(await normalizeMediaUrl(url))
@@ -234,18 +233,20 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.tiktokData = { privacyOption: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
-  // Facebook: type:'POST' covers images, carousels, and videos.
+  // Facebook: 'POST' for images/carousels, 'REEL' for videos.
+  // Using 'POST' type with a video URL causes Facebook Graph API #100
+  // ("url should represent a valid URL") because FB routes it through the image upload API.
   if (networks.includes('facebook')) {
-    payload.facebookData = { type: 'POST', ...(facebookDataIn ?? {}) }
+    payload.facebookData = { type: hasVideo ? 'REEL' : 'POST', ...(facebookDataIn ?? {}) }
   }
 
-  // Instagram: type:'POST' covers images and carousels.
-  // For video posts, showReel1nFeed:true is required — confirmed from Metricool browser
-  // inspector capture (PDF page 14). Without it Instagram's Telephoto system tries to
-  // process the video as a JPEG and throws "Error validating MP4".
+  // Instagram: 'POST' for images/carousels, 'REEL' for videos.
+  // Using 'POST' type with a video causes "Only photo or video can be accepted as media type"
+  // because IG routes it through the photo API.
+  // showReel1nFeed:true ensures the Reel also appears in the main feed — from Metricool PDF p14.
   if (networks.includes('instagram')) {
     payload.instagramData = {
-      type: 'POST',
+      type: hasVideo ? 'REEL' : 'POST',
       ...(hasVideo ? { showReel1nFeed: true } : {}),
       ...(instagramDataIn ?? {}),
     }
