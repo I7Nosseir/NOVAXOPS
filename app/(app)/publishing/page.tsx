@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw, Pencil, Film } from 'lucide-react'
+import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw, Pencil } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
@@ -479,7 +479,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0) // 0-100
   const [dragOver, setDragOver] = useState(false)
-  const [reelOverride, setReelOverride] = useState<boolean | null>(null)
+  const [isVideoUpload, setIsVideoUpload] = useState(false)
   const [carouselUploading, setCarouselUploading] = useState<Record<number, boolean>>({})
   const [thumbnailUrl, setThumbnailUrl] = useState('')
   const [driveImporting, setDriveImporting] = useState(false)
@@ -493,8 +493,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
 
   const mediaDims = useMediaDimensions(singleUrl)
   const urlIsVideoDetected = /\.(mp4|mov|webm|avi|m4v|mkv|wmv|flv)(\?|$)/i.test(singleUrl)
-  // isReel: explicit override takes priority; falls back to URL extension detection
-  const isReel = reelOverride !== null ? reelOverride : urlIsVideoDetected
+  const isReel = isVideoUpload || urlIsVideoDetected
   const showThumbnailField = singleUrl.trim() !== '' && (isReel || driveConverted)
 
   async function humanizeCaption(targetLang: 'en' | 'ar') {
@@ -576,7 +575,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     if (!file) return
     setUploading(true)
     setUploadProgress(0)
-    setReelOverride(file.type.startsWith('video/'))
+    setIsVideoUpload(file.type.startsWith('video/'))
     try {
       const ext = file.name.split('.').pop() ?? 'bin'
       const path = `posts/${selectedClient || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
@@ -677,8 +676,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
       media_url: overrides ? (overrides.media_url ?? undefined) : baseMediaUrl,
       media_urls: overrides ? undefined : baseMediaUrls,
       thumbnail_url: thumbnailUrl.trim() || undefined,
-      // isReel covers: explicit user toggle + file-upload detection; effectiveUrlIsVideo covers per-platform URL overrides
-      is_video: isReel || effectiveUrlIsVideo || undefined,
+      is_video: isVideoUpload || effectiveUrlIsVideo || undefined,
       scheduled_at: scheduleDate ? new Date(scheduleDate).toISOString() : '',
     }
   }
@@ -851,7 +849,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                       className="w-full pl-8 pr-8 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
                     />
                     {singleUrl && (
-                      <button onClick={() => { setSingleUrl(''); setDriveConverted(false); setCustomPerPlatform(false); setReelOverride(null) }}
+                      <button onClick={() => { setSingleUrl(''); setDriveConverted(false); setCustomPerPlatform(false); setIsVideoUpload(false) }}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
                         <X className="w-3.5 h-3.5"/>
                       </button>
@@ -942,27 +940,6 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                         className="h-full bg-novax transition-all duration-200 rounded-full"
                         style={{ width: `${uploadProgress}%` }}
                       />
-                    </div>
-                  )}
-
-                  {/* Reel / Video toggle — shown whenever single media is set */}
-                  {singleUrl && (
-                    <div className="pt-1 border-t border-slate-100">
-                      <button
-                        onClick={() => setReelOverride(v => v !== null ? !v : !isReel)}
-                        className="flex items-center gap-2.5 w-full py-1 group"
-                      >
-                        <div className={cn('w-8 h-4 rounded-full transition-colors relative shrink-0', isReel ? 'bg-novax' : 'bg-slate-200 group-hover:bg-slate-300')}>
-                          <div className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform', isReel ? 'translate-x-4' : 'translate-x-0.5')}/>
-                        </div>
-                        <Film className="w-3 h-3 text-slate-400 shrink-0"/>
-                        <span className="text-[11px] font-medium text-slate-500 group-hover:text-slate-700 transition-colors">
-                          Post as Reel / Video
-                        </span>
-                        {reelOverride === null && urlIsVideoDetected && (
-                          <span className="ml-auto text-[10px] text-novax-muted font-medium">auto-detected</span>
-                        )}
-                      </button>
                     </div>
                   )}
 

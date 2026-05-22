@@ -216,7 +216,6 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     ...rest,
   }
 
-  const isCarousel = (imageUrls?.length ?? 0) > 1
   // isVideoOverride takes priority — URL extension is unreliable for Drive/signed/non-extension URLs.
   const hasVideo = isVideoOverride ?? imageUrls?.some(isVideoUrl) ?? false
 
@@ -243,12 +242,12 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.facebookData = { type: hasVideo ? 'REEL' : 'POST', ...(facebookDataIn ?? {}) }
   }
 
-  // Instagram: 'POST' for images; 'REEL' + showReelInFeed for videos.
-  // showReelInFeed confirmed from live Metricool scheduler payload capture (PDF page 13).
+  // Instagram: 'POST' for images; 'REEL' + showReelOnFeed for videos.
+  // showReelOnFeed confirmed by Metricool API error response listing known fields.
   if (networks.includes('instagram')) {
     payload.instagramData = {
       type: hasVideo ? 'REEL' : 'POST',
-      ...(hasVideo ? { showReelInFeed: true } : {}),
+      ...(hasVideo ? { showReelOnFeed: true } : {}),
       ...(instagramDataIn ?? {}),
     }
   }
