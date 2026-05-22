@@ -225,10 +225,14 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.tiktokData = { privacyOption: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
-  // Facebook: type:'POST' is required for Metricool to attach images/carousels.
-  // Without it Metricool creates a text-only status update and silently drops media.
+  // Facebook: single image → type:'POST'. Carousel (2+ images) → type:'ALBUM'.
+  // Metricool maps 'ALBUM' to a Facebook multi-photo post (Graph API attached_media flow).
+  // Using 'POST' for carousel causes Metricool to create a text-only status and drop the media array.
   if (networks.includes('facebook')) {
-    payload.facebookData = { type: 'POST', ...(facebookDataIn ?? {}) }
+    payload.facebookData = {
+      type: isCarousel ? 'ALBUM' : 'POST',
+      ...(facebookDataIn ?? {}),
+    }
   }
 
   // Instagram: single image/video → type:'POST', carousel (2+ images) → type:'CAROUSEL_ALBUM'.
