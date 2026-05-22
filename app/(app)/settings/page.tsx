@@ -178,7 +178,7 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <div>
             <h3 className="font-semibold text-slate-900">Platform Integrations</h3>
-            <p className="text-sm text-slate-500">Connect external platforms. All credentials are stored encrypted in Supabase Vault.</p>
+            <p className="text-sm text-slate-500">Connect external platforms. All credentials are stored encrypted at rest.</p>
           </div>
           <div className="space-y-3">
             {INTEGRATIONS_REAL.map(i => <IntegrationCard key={i.id} integration={i} showReal={canSeeVendorNames} />)}
@@ -208,7 +208,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-slate-900">Team Members</h3>
-              <p className="text-sm text-slate-500">{users.length} members · Role-based access via Supabase RLS</p>
+              <p className="text-sm text-slate-500">{users.length} members · Role-based access control</p>
             </div>
             {isAdmin && (
               <button onClick={() => setShowInvite(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
@@ -293,8 +293,8 @@ export default function SettingsPage() {
           <h3 className="font-semibold text-slate-900">Security & Permissions</h3>
           <div className="space-y-3">
             {[
-              { label: 'Supabase RLS',    status: 'Active',    desc: 'Row-level security enforced on all tables', ok: true },
-              { label: 'Credential Vault', status: 'Encrypted', desc: 'API keys stored in Supabase Vault (AES-256)', ok: true },
+              { label: 'Row-Level Security', status: 'Active',    desc: 'Data access enforced per user role on all tables', ok: true },
+              { label: 'Credential Vault',  status: 'Encrypted', desc: 'API keys stored encrypted (AES-256)', ok: true },
               { label: 'Rate Limiting',   status: 'Active',    desc: '10 AI requests per user per minute', ok: true },
               { label: 'Audit Logging',   status: 'Active',    desc: 'All task changes, AI usage, and file access logged', ok: true },
               { label: '2FA',             status: 'Optional',  desc: 'Two-factor authentication for team members', ok: false },

@@ -160,7 +160,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
       }
       const d = await res.json()
       if (d.metricool_warning) {
-        toast.warning('Deleted from app — remove it manually in Metricool (could not reach API)')
+        toast.warning('Deleted from app — remove it manually from the scheduling platform (could not reach API)')
       } else {
         toast.success('Post deleted')
       }
@@ -603,7 +603,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
       setSingleUrl(publicUrl)
       setDriveConverted(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Upload failed. Run sql/006_storage_assets_bucket.sql in Supabase to create the assets bucket.')
+      toast.error(err instanceof Error ? err.message : 'Upload failed. Contact your administrator to configure file storage.')
     } finally {
       setUploading(false)
       setUploadProgress(0)
@@ -724,7 +724,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
       } else {
         const result = await schedulePost.mutateAsync(buildInput())
         if (result.saved_as_draft) {
-          toast.warning(result.error ? `Saved as draft — ${result.error}` : 'Saved as draft (no Metricool blog ID for this client).')
+          toast.warning(result.error ? `Saved as draft — ${result.error}` : 'Saved as draft — this client is not connected to the scheduling platform.')
           onClose()
           return
         }
@@ -1479,7 +1479,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
       ['Time', 'HH:MM (24-hour)', 'e.g. 09:00 or 14:30', 'Yes'],
       ['Platforms', 'Comma-separated', 'instagram · facebook · tiktok · linkedin · twitter', 'Yes'],
       ['Caption', 'Plain text', 'Your post caption (max 2 200 chars)', 'Yes'],
-      ['Media URL', 'URL', 'Google Drive share link, Supabase URL, or any public image/video URL', 'No'],
+      ['Media URL', 'URL', 'Google Drive share link or any public image/video URL', 'No'],
       ['Carousel URLs', 'URLs separated by |', 'Additional slides — up to 9 extra URLs separated by a pipe |', 'No'],
       ['Language', 'Code', 'en / ar / both', 'No (default: en)'],
       [''],

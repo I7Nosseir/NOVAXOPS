@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { X, ChevronRight, ChevronLeft, Check, Loader2, Building2, Mic2, Send } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, vendorName } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
 import { useCreateClient } from '@/lib/hooks/use-clients'
 import type { CreateClientInput } from '@/lib/hooks/use-clients'
 import type { Client } from '@/lib/types'
@@ -87,6 +88,8 @@ export function NewClientWizard({
   const [form, setForm] = useState<FormState>(INIT)
   const [error, setError] = useState<string | null>(null)
   const createClient = useCreateClient()
+  const { realUser } = useAuth()
+  const schedPlatform = vendorName(realUser?.role, 'Metricool')
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm(f => ({ ...f, [key]: val }))
@@ -291,9 +294,9 @@ export function NewClientWizard({
           {step === 3 && (
             <>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Metricool Blog ID</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{schedPlatform} Account ID</label>
                 <p className="text-[11px] text-slate-400 mb-1.5">
-                  Found in your Metricool URL: <span className="font-mono">?blogId=<span className="text-novax-muted">6276264</span></span>
+                  The account identifier for this client on the scheduling platform.
                 </p>
                 <input value={form.metricool_blog_id}
                   onChange={e => set('metricool_blog_id', e.target.value)}

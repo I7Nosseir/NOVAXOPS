@@ -41,7 +41,7 @@ const TABS: { id: ReportTab; label: string; icon: (p: IconProps) => React.ReactE
   { id: 'platform',   label: 'Platform Deep Dive',   icon: (p: IconProps) => <Globe      {...p}/>, description: 'Instagram-focused: follower growth, format performance, best posting days and hashtags.' },
   { id: 'quarterly',  label: 'Quarterly Report',     icon: (p: IconProps) => <Calendar   {...p}/>, description: 'Quarter OKR scorecard, monthly trend, campaign highlights and next-quarter priorities.' },
   { id: 'executive',  label: 'Executive Summary',    icon: (p: IconProps) => <Star       {...p}/>, description: 'CEO-ready one-page: top KPIs, wins, opportunities and single priority action.' },
-  { id: 'ai',         label: 'AI Report Builder',    icon: (p: IconProps) => <Sparkles   {...p}/>, description: 'Upload analytics screenshots or paste data — Gemini extracts and formats a branded report.' },
+  { id: 'ai',         label: 'AI Report Builder',    icon: (p: IconProps) => <Sparkles   {...p}/>, description: 'Upload analytics screenshots or paste data — AI extracts and formats a branded report.' },
 ]
 
 // ─── Demo data ──────────────────────────────────────────────────────────────────

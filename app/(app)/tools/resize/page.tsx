@@ -203,7 +203,7 @@ export default function ResizePage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { n: '1', title: 'Upload', desc: 'Any JPEG, PNG, or WebP — landscape, portrait, or square' },
-            { n: '2', title: 'AI Analyzes', desc: 'Gemini Vision maps focal point, text, logos, and subject regions' },
+            { n: '2', title: 'AI Analyzes', desc: 'AI maps focal point, text, logos, and subject regions' },
             { n: '3', title: 'Smart Adapt', desc: 'Sharp repositions content into 9:16 and 1:1 with a blurred backdrop — never crops' },
           ].map(s => (
             <div key={s.n} className="bg-white rounded-xl border border-slate-200 p-4 flex gap-3">
@@ -308,7 +308,7 @@ export default function ResizePage() {
               className="w-full flex items-center justify-center gap-2 py-3 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
             >
               <Sparkles className="w-4 h-4"/>
-              Analyze with Gemini Vision
+              Analyze with AI
             </button>
           )}
 

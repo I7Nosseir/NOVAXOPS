@@ -587,7 +587,7 @@ export default function AIImagePage() {
                     <X className="w-3 h-3" />
                   </button>
                   <p className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-2 py-1">
-                    Reference active — Gemini will incorporate your image
+                    Reference active — AI will incorporate your image
                   </p>
                 </div>
               ) : (
@@ -664,7 +664,7 @@ export default function AIImagePage() {
                 ))}
               </div>
               {!nativeAR && (
-                <p className="text-[10px] text-slate-400 mt-1.5">Aspect ratio is baked into the prompt for Gemini models</p>
+                <p className="text-[10px] text-slate-400 mt-1.5">Aspect ratio is included in the generation prompt</p>
               )}
             </div>
 
