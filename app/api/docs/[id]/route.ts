@@ -31,7 +31,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  let body: { title?: string; content?: object; is_public?: boolean; is_template?: boolean; template_category?: string }
+  let body: { title?: string; content?: object; is_public?: boolean; is_template?: boolean; template_category?: string; doc_type?: string }
   try {
     body = await req.json()
   } catch {
@@ -44,6 +44,7 @@ export async function PATCH(
   if (body.is_public !== undefined) updates.is_public = body.is_public
   if (body.is_template !== undefined) updates.is_template = body.is_template
   if (body.template_category !== undefined) updates.template_category = body.template_category
+  if (body.doc_type !== undefined) updates.doc_type = body.doc_type
 
   const db = adminSupabase()
   const { data, error } = await db

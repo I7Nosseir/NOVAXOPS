@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/docs — create a new document, optionally from a template
 export async function POST(req: NextRequest) {
-  let body: { title?: string; client_id?: string; content?: object; is_template?: boolean; template_category?: string; from_template_id?: string }
+  let body: { title?: string; client_id?: string; content?: object; is_template?: boolean; template_category?: string; from_template_id?: string; doc_type?: string }
   try {
     body = await req.json()
   } catch {
@@ -44,17 +44,17 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await db
       .from('documents')
-      .insert({ title: tmpl.title as string, content: tmpl.content as object, client_id: body.client_id ?? null, is_template: false })
+      .insert({ title: tmpl.title as string, content: tmpl.content as object, doc_type: (tmpl as Record<string, unknown>).doc_type ?? 'doc', client_id: body.client_id ?? null, is_template: false })
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data, { status: 201 })
   }
 
-  const { title = 'Untitled Document', client_id, content = {}, is_template = false, template_category } = body
+  const { title = 'Untitled Document', client_id, content = {}, is_template = false, template_category, doc_type = 'doc' } = body
   const { data, error } = await db
     .from('documents')
-    .insert({ title, client_id: client_id ?? null, content, is_template, template_category: template_category ?? null })
+    .insert({ title, client_id: client_id ?? null, content, is_template, template_category: template_category ?? null, doc_type })
     .select()
     .single()
 

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star } from 'lucide-react'
+import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
@@ -19,6 +19,7 @@ interface Document {
   is_public: boolean
   is_template: boolean
   template_category: string | null
+  doc_type: string
   created_by: string | null
   created_at: string
   updated_at: string
@@ -43,7 +44,7 @@ export default function DocsPage() {
   const regularDocs = docs.filter(d => !d.is_template)
 
   const createDoc = useMutation({
-    mutationFn: (body: { from_template_id?: string; title?: string } = {}) =>
+    mutationFn: (body: { from_template_id?: string; title?: string; doc_type?: string } = {}) =>
       fetch('/api/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,14 +101,24 @@ export default function DocsPage() {
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Documents</h1>
           <p className="text-sm text-slate-500 mt-0.5">Collaborative docs linked to clients and projects</p>
         </div>
-        <button
-          onClick={() => createDoc.mutate({})}
-          disabled={createDoc.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
-        >
-          {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          New Document
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => createDoc.mutate({ title: 'Untitled Spreadsheet', doc_type: 'sheet' })}
+            disabled={createDoc.isPending}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+          >
+            <Sheet className="w-4 h-4" />
+            New Spreadsheet
+          </button>
+          <button
+            onClick={() => createDoc.mutate({})}
+            disabled={createDoc.isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+          >
+            {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            New Document
+          </button>
+        </div>
       </div>
 
       {/* Templates section */}
@@ -235,11 +246,18 @@ export default function DocsPage() {
                 onClick={() => router.push(`/docs/${doc.id}`)}
               >
                 <div className="w-9 h-9 rounded-lg bg-novax-light flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 text-novax-muted" />
+                  {doc.doc_type === 'sheet'
+                    ? <Sheet className="w-4 h-4 text-novax-muted" />
+                    : <FileText className="w-4 h-4 text-novax-muted" />}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{doc.title}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{doc.title}</p>
+                    {doc.doc_type === 'sheet' && (
+                      <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">XLSX</span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {client && (
                       <div className="flex items-center gap-1">

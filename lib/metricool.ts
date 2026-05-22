@@ -113,17 +113,20 @@ export interface MetricoolStats {
 
 // ─── Media normalization ──────────────────────────────────────────────────────
 
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|avi|webm|mkv|m4v|wmv|flv)(\?.*)?$/i.test(url)
+}
+
 /**
- * Normalizes a public media URL to a Metricool-hosted mediaId.
+ * Normalizes a public media URL to a Metricool CDN URL.
  *
- * Metricool validates dimensions/duration/MIME type from its own servers, not
- * from raw external URLs. Skipping this step causes the vague "cannot determine
- * media type" errors on carousel and video posts.
- *
- * GET /api/actions/normalize/image/url?url=<encoded_url>
+ * Uses /normalize/image/url for images and /normalize/video/url for videos.
+ * Mixing them causes the "Error validating MP4" / Telephoto JPEG-conversion error
+ * on Instagram and Facebook when a video URL is sent to the image endpoint.
  */
 async function normalizeMediaUrl(url: string): Promise<string> {
-  const endpoint = `${BASE_ROOT}/api/actions/normalize/image/url?url=${encodeURIComponent(url)}`
+  const type = isVideoUrl(url) ? 'video' : 'image'
+  const endpoint = `${BASE_ROOT}/api/actions/normalize/${type}/url?url=${encodeURIComponent(url)}`
   const res = await fetch(endpoint, {
     // No Accept header — the normalize endpoint returns an opaque type (not necessarily JSON).
     // Sending Accept: application/json causes Apache Tomcat to return 406 Not Acceptable.
@@ -205,17 +208,17 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
   }
 
   const isCarousel = (imageUrls?.length ?? 0) > 1
+  const hasVideo = imageUrls?.some(isVideoUrl) ?? false
 
   if (imageUrls?.length) {
-    // Normalize sequentially — parallel calls can hit Metricool's undocumented rate limit
-    // on the normalize endpoint and silently return bad CDN URLs for later items.
+    // Normalize sequentially — parallel calls can hit Metricool's undocumented rate limit.
+    // Each URL is routed to /normalize/image/url or /normalize/video/url as appropriate.
+    // Using the image endpoint for a video causes "Error validating MP4" on Instagram/Facebook.
     const mediaIds: string[] = []
     for (const url of imageUrls) {
       mediaIds.push(await normalizeMediaUrl(url))
     }
-    // media is a flat array of CDN URL strings — confirmed from Metricool's own
-    // browser-intercepted payload. NOT objects ({ url } or { mediaId }), just strings.
-    // Single image → ["cdn_url"], carousel → ["cdn_url1", "cdn_url2", ...]
+    // media is a flat array of CDN URL strings — confirmed from Metricool official docs.
     payload.media = mediaIds
   }
 
@@ -226,18 +229,21 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.tiktokData = { privacyOption: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
-  // Facebook: type:'POST' is required for Metricool to attach images/carousels.
-  // Without it Metricool creates a text-only status update and silently drops media.
-  // 'POST' covers both single images and carousels — Metricool infers multi-photo from array length.
+  // Facebook: type:'POST' covers images, carousels, and videos.
   if (networks.includes('facebook')) {
     payload.facebookData = { type: 'POST', ...(facebookDataIn ?? {}) }
   }
 
-  // Instagram: valid types are POST | REEL | TRIAL_REEL | STORY.
-  // 'POST' covers single images AND carousels — Metricool infers carousel from media array length.
-  // Do NOT use 'CAROUSEL_ALBUM' — Metricool rejects it with 400 Invalid value.
+  // Instagram: type:'POST' covers images and carousels.
+  // For video posts, showReel1nFeed:true is required — confirmed from Metricool browser
+  // inspector capture (PDF page 14). Without it Instagram's Telephoto system tries to
+  // process the video as a JPEG and throws "Error validating MP4".
   if (networks.includes('instagram')) {
-    payload.instagramData = { type: 'POST', ...(instagramDataIn ?? {}) }
+    payload.instagramData = {
+      type: 'POST',
+      ...(hasVideo ? { showReel1nFeed: true } : {}),
+      ...(instagramDataIn ?? {}),
+    }
   }
 
   console.log('[Metricool] schedulePost payload:', JSON.stringify(payload, null, 2))

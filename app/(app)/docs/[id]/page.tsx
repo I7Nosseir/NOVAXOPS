@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Share2, Loader2, CheckCircle, LayoutTemplate } from 'lucide-react'
+import { ArrowLeft, Share2, Loader2, CheckCircle, LayoutTemplate, Download } from 'lucide-react'
 import { DocEditor } from '@/components/docs/doc-editor'
+import { SheetEditor } from '@/components/docs/sheet-editor'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
@@ -20,6 +21,7 @@ interface Document {
   is_public: boolean
   is_template: boolean
   template_category: string | null
+  doc_type: string
   created_by: string | null
   created_at: string
   updated_at: string
@@ -175,7 +177,7 @@ export default function DocEditorPage() {
           </div>
         </div>
 
-        {isAdmin && (
+        {isAdmin && doc.doc_type !== 'sheet' && (
           <button
             onClick={() => patchDoc.mutate({ is_template: !doc.is_template })}
             title={doc.is_template ? 'Remove from templates' : 'Save as template'}
@@ -188,6 +190,15 @@ export default function DocEditorPage() {
           >
             <LayoutTemplate className="w-3.5 h-3.5" />
             {doc.is_template ? 'Template' : 'Make Template'}
+          </button>
+        )}
+        {doc.doc_type !== 'sheet' && (
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download PDF
           </button>
         )}
         <button
@@ -204,17 +215,25 @@ export default function DocEditorPage() {
         </button>
       </div>
 
-      {/* Title */}
-      <input
-        type="text"
-        value={title}
-        onChange={e => handleTitleChange(e.target.value)}
-        placeholder="Untitled Document"
-        className="w-full text-2xl font-bold text-slate-900 dark:text-slate-100 bg-transparent border-none outline-none placeholder:text-slate-300"
-      />
+      {/* Title + editor — wrapped for print */}
+      <div id={doc.doc_type !== 'sheet' ? 'printable-doc' : undefined} className="space-y-4">
+        <input
+          type="text"
+          value={title}
+          onChange={e => handleTitleChange(e.target.value)}
+          placeholder={doc.doc_type === 'sheet' ? 'Untitled Spreadsheet' : 'Untitled Document'}
+          className="w-full text-2xl font-bold text-slate-900 dark:text-slate-100 bg-transparent border-none outline-none placeholder:text-slate-300"
+        />
 
-      {/* Editor */}
-      <DocEditor content={content} onChange={handleContentChange} editable />
+        {/* Editor — doc or sheet */}
+        {doc.doc_type === 'sheet' ? (
+          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white" style={{ height: '70vh' }}>
+            <SheetEditor content={content} onChange={handleContentChange} editable title={title} />
+          </div>
+        ) : (
+          <DocEditor content={content} onChange={handleContentChange} editable />
+        )}
+      </div>
 
       {/* Share dialog */}
       {showShare && (

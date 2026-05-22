@@ -687,4 +687,26 @@ html.dark .search-glass:focus {
   #printable-report .lg\:flex    { display: flex !important; }
   #printable-report .hidden      { display: none !important; }
   /* But items intentionally hidden in the report (sm:hidden) stay hidden */
+
+  /* ── Document PDF print ──────────────────────────────────────────────── */
+  #printable-doc {
+    visibility: visible !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    padding: 24px 32px !important;
+    margin: 0 !important;
+  }
+  #printable-doc * {
+    visibility: visible !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  html.dark :where(#printable-doc) { background-color: #ffffff !important; color: #0f172a !important; }
+  html.dark :where(#printable-doc .text-slate-900) { color: #0f172a !important; }
+  html.dark :where(#printable-doc .text-slate-800) { color: #1e293b !important; }
+  html.dark :where(#printable-doc .text-slate-700) { color: #334155 !important; }
+  html.dark :where(#printable-doc .bg-white) { background-color: #ffffff !important; }
+  html.dark :where(#printable-doc .border-slate-200) { border-color: #e2e8f0 !important; }
 }
