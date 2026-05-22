@@ -9,6 +9,7 @@ export interface TaskFilters {
   priorities?: Priority[]
   stages?: PipelineStage[]
   statuses?: TaskStatus[]
+  subTypes?: string[]
   dueDatePreset?: 'overdue' | 'today' | 'this_week' | ''
 }
 
@@ -22,6 +23,7 @@ export type CreateTaskPayload = {
   pipeline_stage: PipelineStage
   priority: Priority
   status: TaskStatus
+  sub_type?: string | null
   due_date: string | null
   tags: string[]
 }
@@ -38,6 +40,7 @@ function mapTask(row: Record<string, unknown>): Task {
     pipeline_stage: row.pipeline_stage as PipelineStage,
     priority: row.priority as Task['priority'],
     status: row.status as Task['status'],
+    sub_type: (row.sub_type as string) ?? null,
     due_date: (row.due_date as string) ?? '',
     tags: (row.tags as string[]) ?? [],
     created_at: row.created_at as string,
@@ -60,6 +63,7 @@ export function useTasks(filters?: TaskFilters) {
       if (filters?.priorities?.length) query = query.in('priority', filters.priorities)
       if (filters?.stages?.length) query = query.in('pipeline_stage', filters.stages)
       if (filters?.statuses?.length) query = query.in('status', filters.statuses)
+      if (filters?.subTypes?.length) query = query.in('sub_type', filters.subTypes)
       if (filters?.dueDatePreset === 'overdue') {
         query = query.lt('due_date', new Date().toISOString().split('T')[0])
       } else if (filters?.dueDatePreset === 'today') {
@@ -119,7 +123,18 @@ export function useCreateTask() {
         .select()
         .single()
       if (error) throw error
-      return mapTask(data as Record<string, unknown>)
+      const task = mapTask(data as Record<string, unknown>)
+
+      // Fire-and-forget assignment notification — does not block task creation
+      if (payload.assigned_to) {
+        fetch('/api/tasks/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: task.id, assignedTo: payload.assigned_to }),
+        }).catch(() => {})
+      }
+
+      return task
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })

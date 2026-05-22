@@ -1,6 +1,6 @@
 # NOVAX Ops — Master Status & Roadmap
 
-**Last updated:** 2026-05-20  
+**Last updated:** 2026-05-21  
 **Platform state:** Production-ready MVP. Core content pipeline works end-to-end.
 
 ---
@@ -104,7 +104,9 @@ Every step of this loop is live:
 
 ---
 
-## Planned New Features (this session)
+## Planned New Features
+
+### Round 1 (previous sessions)
 
 | Feature | Plan doc | Status |
 |---|---|---|
@@ -112,13 +114,38 @@ Every step of this loop is live:
 | Raw Text to Report (formatted export) | [PLAN_text_to_report.md](./PLAN_text_to_report.md) | Planned |
 | Metricool full integration | [PLAN_metricool_full_integration.md](./PLAN_metricool_full_integration.md) | Planned |
 
+### Round 2 (2026-05-21 — team meeting + designer workflow feedback)
+
+| Priority | Feature | Plan doc | Status |
+|---|---|---|---|
+| P0 | Approval page media upload (captions-only is broken) | [PLAN_new_features_round2.md](./PLAN_new_features_round2.md#feature-1) | Planned |
+| P0 | Tasks page `/tasks` + My Tasks floating button | [PLAN_new_features_round2.md](./PLAN_new_features_round2.md#feature-2) | Planned |
+| P1 | Task sub-types & filtering (Motion Graphics vs Social Graphic etc.) | [PLAN_new_features_round2.md](./PLAN_new_features_round2.md#feature-3) | Planned |
+| P1 | Resend email notifications (team + client) | [PLAN_new_features_round2.md](./PLAN_new_features_round2.md#feature-4) | Planned |
+| P2 | Client design brief forms (sizing, AI video needs, style refs) | [PLAN_new_features_round2.md](./PLAN_new_features_round2.md#feature-5) | Planned |
+| P2 | In-app collaborative documents (replaces emailed Excel sheets) | [PLAN_new_features_round2.md](./PLAN_new_features_round2.md#feature-6) | Planned |
+| P3 | AI Smart Image Resize Engine (Type 2: layout adaptation, not crop) | [PLAN_new_features_round2.md](./PLAN_new_features_round2.md#feature-7) | Planned |
+
 ---
 
 ## Suggested Build Order (next sessions)
 
-1. **Metricool post sync + per-post stats pull** — enables everything else; core data source
-2. **Performance Library Tab 1 + 3** — content performance grid + pattern intelligence (Claude analysis)
-3. **Report export PDF** — print CSS approach (fast, 1 session)
-4. **Respond.io webhook + reply** — closes the moderation loop
-5. **Client SWOT from real data** — replace MOCK_INTEL with real Claude analysis from wizard data
-6. **Role-based access control** — Integrations tab + vendor masking
+### Immediate (highest daily impact — do first)
+1. **Approval page media upload** — 2h — critical workflow blocker, captions-only breaks client approval
+2. **Task sub-types** — 3h — DB migration + badge + filter, low effort high clarity gain for designers
+3. **Tasks page `/tasks`** — 4h — proper task tracking for all users, currently tasks disappear into pipeline
+4. **My Tasks floating button** — 3h — quick access from any page
+
+### Next
+5. **Resend email notifications** — 4h — install + task-assigned + approval emails wired to existing routes
+6. **Client design brief forms** — 6h — client modal tab + task panel reference section
+7. **Metricool post sync + per-post stats pull** — enables performance features; core data source
+8. **Performance Library Tab 1 + 3** — content performance grid + pattern intelligence
+9. **Report export PDF** — print CSS approach (fast, 1 session)
+10. **Respond.io webhook + reply** — closes the moderation loop
+
+### Later
+11. **In-app collaborative documents** — 10h — Tiptap editor, full feature
+12. **AI Smart Resize Engine** — 8h — Claude Vision + Sharp composition
+13. **Client SWOT from real data** — replace MOCK_INTEL with real Claude analysis
+14. **Role-based access control** — Integrations tab + vendor masking

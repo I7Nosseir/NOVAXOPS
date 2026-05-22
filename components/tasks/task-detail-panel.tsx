@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import {
   X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle,
   Clock, Zap, Copy, MoreHorizontal, Trash2, Eye, BookOpen as ReadIcon,
+  ChevronDown, ChevronRight, Monitor,
 } from 'lucide-react'
 import type { Task, AgentType, PipelineStage, Priority } from '@/lib/types'
-import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, timeAgo, cn } from '@/lib/utils'
+import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, timeAgo, getSubtypesForStage, getSubtypeStyle, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
@@ -70,6 +71,9 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Design brief collapsible
+  const [briefExpanded, setBriefExpanded] = useState(false)
 
   const { clients } = useClients()
   const { projects } = useProjects()
@@ -231,6 +235,54 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   {priority.label}
                 </button>
               )}
+
+              {/* Sub-type — click to edit */}
+              {(() => {
+                const subtypes = getSubtypesForStage(task.pipeline_stage)
+                if (subtypes.length === 0) return null
+                const currentStyle = task.sub_type ? getSubtypeStyle(task.sub_type) : null
+                if (editingField === 'sub_type') {
+                  return (
+                    <div className="flex gap-1 flex-wrap">
+                      <button
+                        onClick={() => { save('sub_type', null) }}
+                        className="text-[10px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-400 hover:border-slate-300"
+                      >
+                        None
+                      </button>
+                      {subtypes.map(st => (
+                        <button
+                          key={st.label}
+                          onClick={() => save('sub_type', st.label)}
+                          className={cn(
+                            'text-[10px] font-medium px-2 py-0.5 rounded-full border transition-all',
+                            task.sub_type === st.label ? `${st.bg} ${st.color} border-transparent` : 'border-slate-200 text-slate-500 hover:border-slate-300',
+                          )}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                      <button onClick={() => setEditingField(null)} className="text-[10px] text-slate-400 hover:text-slate-600 px-1">✕</button>
+                    </div>
+                  )
+                }
+                return task.sub_type && currentStyle ? (
+                  <button
+                    onClick={() => setEditingField('sub_type')}
+                    className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full transition-all hover:opacity-80', currentStyle.bg, currentStyle.color)}
+                    title="Click to change sub-type"
+                  >
+                    {task.sub_type}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setEditingField('sub_type')}
+                    className="text-[10px] px-2 py-0.5 rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-novax-border transition-colors"
+                  >
+                    + Type
+                  </button>
+                )
+              })()}
 
               {/* Status toggle */}
               <div className="flex items-center gap-1 ml-auto">
@@ -689,6 +741,59 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{output}</pre>
                 </div>
               ) : null}
+            </div>
+          )}
+
+          {/* Design Brief (read-only summary) */}
+          {client?.design_brief_json && (
+            <div className="border-b border-slate-100">
+              <button
+                onClick={() => setBriefExpanded(v => !v)}
+                className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Monitor className="w-3.5 h-3.5 text-slate-400" />
+                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Design Brief</p>
+                </div>
+                {briefExpanded
+                  ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                  : <ChevronRight className="w-4 h-4 text-slate-400" />
+                }
+              </button>
+              {briefExpanded && (
+                <div className="px-5 pb-5 space-y-4">
+                  {/* Canvas sizes */}
+                  {client.design_brief_json.canvas_sizes.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Canvas Sizes</p>
+                      <div className="space-y-1">
+                        {client.design_brief_json.canvas_sizes.map((s, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                            <span className="font-medium">{s.name}</span>
+                            <span className="text-slate-400">{s.width} × {s.height}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono">{s.format}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Visual style */}
+                  {client.design_brief_json.visual_style_notes && (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Visual Style</p>
+                      <p className="text-xs text-slate-600 leading-relaxed">{client.design_brief_json.visual_style_notes}</p>
+                    </div>
+                  )}
+                  {/* General notes */}
+                  {client.design_brief_json.general_notes && (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Notes</p>
+                      <p className="text-xs text-slate-600 leading-relaxed">{client.design_brief_json.general_notes}</p>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-400 italic">Edit the full brief in the Clients page.</p>
+                </div>
+              )}
             </div>
           )}
 

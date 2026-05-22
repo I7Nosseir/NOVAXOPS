@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { Client, BrandIdentity, PerformanceIntel } from '@/lib/types'
+import type { Client, BrandIdentity, PerformanceIntel, DesignBrief } from '@/lib/types'
 
 function mapClient(row: Record<string, unknown>): Client {
   return {
@@ -18,6 +18,7 @@ function mapClient(row: Record<string, unknown>): Client {
     is_in_crisis: (row.is_in_crisis as boolean | undefined) ?? false,
     performance_intel: (row.performance_intel as PerformanceIntel | undefined) ?? undefined,
     performance_analyzed_at: row.performance_analyzed_at as string | undefined,
+    design_brief_json: (row.design_brief_json as DesignBrief | null | undefined) ?? null,
     created_at: row.created_at as string,
   }
 }

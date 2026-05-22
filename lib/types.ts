@@ -51,7 +51,27 @@ export interface Client {
   is_in_crisis?: boolean
   performance_intel?: PerformanceIntel
   performance_analyzed_at?: string
+  design_brief_json?: DesignBrief | null
   created_at: string
+}
+
+export interface DesignBrief {
+  // Canvas specs
+  canvas_sizes: { name: string; width: number; height: number; format: string }[]
+  // Brand
+  primary_font: string
+  secondary_font: string
+  brand_colors_extra: string[]  // hex values beyond the main brand color
+  // Style
+  visual_style_notes: string   // e.g. "Minimal, airy, white space heavy"
+  mood_references: string[]    // URLs or text descriptions
+  // Motion / Video
+  motion_style: string         // e.g. "Smooth transitions, no bounce, max 15s"
+  ai_video_notes: string       // e.g. "Cinematic, product focus, no people"
+  // Delivery
+  file_formats: string[]       // e.g. ["mp4", "png", "pdf"]
+  // Notes
+  general_notes: string
 }
 
 export interface Project {
@@ -80,6 +100,7 @@ export interface Task {
   pipeline_stage: PipelineStage
   priority: Priority
   status: TaskStatus
+  sub_type?: string | null
   due_date: string
   created_at: string
   updated_at: string

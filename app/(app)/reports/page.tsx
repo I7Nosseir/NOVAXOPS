@@ -13,7 +13,7 @@ import {
   FileText, TrendingUp, Users, Eye, Download, Upload,
   BarChart2, Target, Layers, Globe, Zap, ArrowUpRight, ArrowDownRight,
   Check, AlertCircle, ChevronRight, X, DollarSign, Activity,
-  Calendar, Star, RefreshCw, Sparkles,
+  Calendar, Star, RefreshCw, Sparkles, Printer,
 } from 'lucide-react'
 
 // ─── Brand palette ─────────────────────────────────────────────────────────────
@@ -1970,6 +1970,7 @@ export default function ReportsPage() {
   const [generated, setGenerated]     = useState(false)
   const [liveStats, setLiveStats]     = useState<Record<string, number> | null>(null)
   const [liveError, setLiveError]     = useState<string | null>(null)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const clientName = selectedClient === 'all'
     ? 'All Clients'
@@ -2001,6 +2002,38 @@ export default function ReportsPage() {
   const handleTabChange = (tab: ReportTab) => {
     setActiveTab(tab)
     setGenerated(false)
+  }
+
+  const handleExportPDF = async () => {
+    setExportingPdf(true)
+    try {
+      const res = await fetch('/api/reports/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tab: activeTab,
+          clientName,
+          period,
+          data: {
+            kpis: [
+              { metric: 'Reach',           value: '284,500' },
+              { metric: 'Impressions',     value: '412,000' },
+              { metric: 'Engagement Rate', value: '5.8%' },
+              { metric: 'New Followers',   value: '2,840' },
+            ],
+          },
+        }),
+      })
+      const html = await res.text()
+      const blob = new Blob([html], { type: 'text/html' })
+      const url  = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   return (
@@ -2075,25 +2108,12 @@ export default function ReportsPage() {
               )}
               {generated && (
                 <button
-                  onClick={() => {
-                    // Force the report container to at least 740 px wide so
-                    // Recharts ResponsiveContainers re-measure at print width
-                    // before the browser captures the page for the PDF.
-                    const el = document.getElementById('printable-report')
-                    if (el) {
-                      el.style.minWidth = '740px'
-                      window.dispatchEvent(new Event('resize'))
-                      setTimeout(() => {
-                        window.print()
-                        setTimeout(() => { el.style.minWidth = '' }, 800)
-                      }, 350)
-                    } else {
-                      window.print()
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                  onClick={handleExportPDF}
+                  disabled={exportingPdf}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                 >
-                  <Download className="w-3.5 h-3.5"/> Export PDF
+                  <Printer className="w-3.5 h-3.5"/>
+                  {exportingPdf ? 'Preparing…' : 'Export PDF'}
                 </button>
               )}
             </div>

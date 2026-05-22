@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, MessageSquare, Send, Clock, Loader2 } from 'lucide-react'
+import { CheckCircle, XCircle, MessageSquare, Send, Clock, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatDate, cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import type { ScheduledPost, SocialPlatform } from '@/lib/types'
@@ -28,6 +28,62 @@ interface ApprovalData {
 }
 
 type PostDecision = { status: 'approved' | 'changes_requested'; note: string }
+
+function CarouselMedia({ urls }: { urls: string[] }) {
+  const [idx, setIdx] = useState(0)
+  const isVideo = (url: string) => /\.(mp4|mov|webm)(\?|$)/i.test(url)
+  const url = urls[idx]
+
+  return (
+    <div className="mb-4 relative">
+      {/* Main media */}
+      <div className="rounded-xl overflow-hidden bg-slate-100 aspect-square">
+        {isVideo(url)
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          ? <video src={url} controls className="w-full h-full object-cover"/>
+          // eslint-disable-next-line @next/next/no-img-element
+          : <img src={url} alt={`Slide ${idx + 1}`} className="w-full h-full object-cover"/>
+        }
+      </div>
+
+      {/* Navigation arrows */}
+      {urls.length > 1 && (
+        <>
+          <button
+            onClick={() => setIdx(i => Math.max(0, i - 1))}
+            disabled={idx === 0}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-slate-200 flex items-center justify-center shadow-sm disabled:opacity-30 transition-opacity hover:bg-white"
+          >
+            <ChevronLeft className="w-4 h-4 text-slate-700"/>
+          </button>
+          <button
+            onClick={() => setIdx(i => Math.min(urls.length - 1, i + 1))}
+            disabled={idx === urls.length - 1}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-slate-200 flex items-center justify-center shadow-sm disabled:opacity-30 transition-opacity hover:bg-white"
+          >
+            <ChevronRight className="w-4 h-4 text-slate-700"/>
+          </button>
+        </>
+      )}
+
+      {/* Dot indicators */}
+      {urls.length > 1 && (
+        <div className="flex justify-center gap-1.5 mt-2">
+          {urls.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setIdx(i)}
+              className={cn(
+                'w-1.5 h-1.5 rounded-full transition-all',
+                i === idx ? 'bg-novax w-4' : 'bg-slate-300',
+              )}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function NovaxLogoSmall() {
   return (
@@ -222,21 +278,8 @@ export default function ApprovalPortalPage() {
                     )
                   }
 
-                  // Carousel — horizontal scroll strip
-                  return (
-                    <div className="mb-4 flex gap-2 overflow-x-auto pb-1 -mx-5 px-5">
-                      {allUrls.map((url, i) => (
-                        <div key={i} className="shrink-0 w-44 h-44 rounded-xl overflow-hidden bg-slate-100">
-                          {isVideo(url)
-                            // eslint-disable-next-line jsx-a11y/media-has-caption
-                            ? <video src={url} className="w-full h-full object-cover"/>
-                            // eslint-disable-next-line @next/next/no-img-element
-                            : <img src={url} alt={`Slide ${i + 1}`} className="w-full h-full object-cover"/>
-                          }
-                        </div>
-                      ))}
-                    </div>
-                  )
+                  // Carousel — one image at a time with prev/next navigation
+                  return <CarouselMedia urls={allUrls}/>
                 })()}
 
                 {/* Caption */}

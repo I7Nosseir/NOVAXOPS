@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { randomBytes } from 'crypto'
+import { sendApprovalRequest } from '@/lib/email'
 
 function adminSupabase() {
   return createClient(
@@ -65,14 +66,14 @@ export async function POST(req: NextRequest) {
     .eq('auth_id', user.id)
     .single()
 
-  let body: { client_id: string; title: string; post_ids: string[]; expiry_days?: number }
+  let body: { client_id: string; title: string; post_ids: string[]; expiry_days?: number; client_email?: string; client_name?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const { client_id, title, post_ids, expiry_days = 7 } = body
+  const { client_id, title, post_ids, expiry_days = 7, client_email, client_name } = body
   if (!client_id || !title || !Array.isArray(post_ids) || post_ids.length === 0) {
     return NextResponse.json({ error: 'client_id, title, and post_ids are required' }, { status: 400 })
   }
@@ -109,6 +110,20 @@ export async function POST(req: NextRequest) {
 
   if (statusErr) {
     return NextResponse.json({ error: statusErr.message }, { status: 500 })
+  }
+
+  // Fire-and-forget approval email if client_email was supplied
+  if (client_email) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://novaxops.com'
+    sendApprovalRequest({
+      clientEmail: client_email,
+      clientName: client_name ?? client_email,
+      requestTitle: title,
+      approvalLink: `${appUrl}/approval/${token}`,
+      expiresAt: expires_at.toISOString(),
+    }).catch(() => {
+      // Best-effort — do not fail the request if email sending fails
+    })
   }
 
   return NextResponse.json({ id: request.id, token })

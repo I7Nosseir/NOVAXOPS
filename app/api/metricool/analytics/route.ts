@@ -10,9 +10,9 @@ const supabase = createClient(
 /**
  * GET /api/metricool/analytics?client_id=...&startDate=2026-05-01&endDate=2026-05-31
  *
- * Pulls real performance data from Metricool for a specific client.
- * Note: the analytics endpoint path may need adjustment once the correct Metricool
- * analytics URL is confirmed (current attempt: /analytics/summary).
+ * Pulls aggregate performance data from Metricool for a specific client.
+ * Uses /analytics/summary — confirmed as correct path.
+ * Response shape varies by platform; getStats() normalises to a flat MetricoolStats.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)

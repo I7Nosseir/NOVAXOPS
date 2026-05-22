@@ -10,7 +10,9 @@ import { formatDate, cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import type { Client, UserRole } from '@/lib/types'
 import { NewClientWizard } from '@/components/clients/new-client-wizard'
+import { DesignBriefForm } from '@/components/clients/design-brief-form'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
+import type { DesignBrief } from '@/lib/types'
 
 function ClientCard({ client, onSelect, isCrisis, onToggleCrisis, userRole }: {
   client: Client
@@ -145,7 +147,8 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const { tasks: allTasks } = useTasks()
   const { posts: allPosts } = usePosts()
   const updateClient = useUpdateClient()
-  const [tab, setTab] = useState<'overview' | 'intelligence' | 'tasks'>('overview')
+  const [tab, setTab] = useState<'overview' | 'intelligence' | 'tasks' | 'brief'>('overview')
+  const [briefSaving, setBriefSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [localIntel, setLocalIntel] = useState(client.performance_intel ?? null)
   const tasks = allTasks.filter(t => t.client_id === client.id)
@@ -187,11 +190,16 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
 
         {/* Tabs */}
         <div className="flex items-center gap-1 px-6 py-2 border-b border-slate-100 shrink-0">
-          {(['overview', 'intelligence', 'tasks'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={cn('px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors',
-                tab === t ? 'bg-novax-light text-novax' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-              {t}
+          {([
+            { key: 'overview', label: 'Overview' },
+            { key: 'intelligence', label: 'Intelligence' },
+            { key: 'tasks', label: 'Tasks' },
+            { key: 'brief', label: 'Design Brief' },
+          ] as const).map(({ key, label }) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                tab === key ? 'bg-novax-light text-novax' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
+              {label}
             </button>
           ))}
         </div>
@@ -351,6 +359,22 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             )}
             </>}
           </>}
+
+          {tab === 'brief' && (
+            <DesignBriefForm
+              brief={client.design_brief_json ?? null}
+              clientColor={client.color}
+              onSave={async (brief: DesignBrief) => {
+                setBriefSaving(true)
+                try {
+                  await updateClient.mutateAsync({ id: client.id, design_brief_json: brief } as Parameters<typeof updateClient.mutateAsync>[0])
+                } finally {
+                  setBriefSaving(false)
+                }
+              }}
+              saving={briefSaving}
+            />
+          )}
 
           {tab === 'tasks' && <>
             <div>

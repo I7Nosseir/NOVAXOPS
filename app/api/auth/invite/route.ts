@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { UserRole } from '@/lib/types'
+import { sendTeamInvite } from '@/lib/email'
 
 const DEPT_BY_ROLE: Record<UserRole, string> = {
   admin:            'strategy',
@@ -60,5 +61,24 @@ export async function POST(req: Request) {
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  // Look up inviter's display name for the email
+  const { data: inviterProfile } = await adminClient
+    .from('users')
+    .select('name')
+    .eq('auth_id', authUser.id)
+    .single()
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://novaxops.com'
+
+  // Fire-and-forget — do not fail the invite if email sending fails
+  sendTeamInvite({
+    toEmail: email,
+    toName: name,
+    role,
+    inviterName: (inviterProfile?.name as string | undefined) ?? 'The NOVAX Team',
+    appUrl,
+  }).catch(() => {})
+
   return NextResponse.json({ ok: true })
 }

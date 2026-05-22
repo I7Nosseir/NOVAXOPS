@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Calendar, AlertCircle } from 'lucide-react'
 import type { Task } from '@/lib/types'
-import { PRIORITY_CONFIG, formatDate, isOverdue, daysUntil, cn } from '@/lib/utils'
+import { PRIORITY_CONFIG, formatDate, isOverdue, daysUntil, getSubtypeStyle, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
 
@@ -66,9 +66,17 @@ export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
         {task.title}
       </p>
 
-      {/* Tags */}
-      {task.tags.length > 0 && (
+      {/* Sub-type + Tags */}
+      {(task.sub_type || task.tags.length > 0) && (
         <div className="flex flex-wrap gap-1 mb-3">
+          {task.sub_type && (() => {
+            const s = getSubtypeStyle(task.sub_type)
+            return (
+              <span className={cn('text-[10px] px-1.5 py-0.5 rounded-md font-medium', s.bg, s.color)}>
+                {task.sub_type}
+              </span>
+            )
+          })()}
           {task.tags.slice(0, 2).map(tag => (
             <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500">
               #{tag}

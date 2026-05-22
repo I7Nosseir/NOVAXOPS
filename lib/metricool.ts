@@ -77,7 +77,7 @@ export interface MetricoolScheduleInput {
   text: string
   providers: MetricoolProvider[]
   publicationDate: DateTimeInfo
-  // Public URLs — normalized to Metricool mediaIds before the API call
+  // Public URLs — each is normalized to a Metricool CDN URL before the API call
   imageUrls?: string[]
   autoPublish?: boolean
   tiktokPrivacy?: TikTokPrivacyLevel
@@ -91,14 +91,24 @@ export function splitMediaUrls(urls: string[] | undefined): { imageUrls?: string
   return { imageUrls: urls }
 }
 
+// All fields optional — Metricool returns different subsets per platform and account.
 export interface MetricoolStats {
-  reach: number
-  impressions: number
-  engagement_rate: number
-  likes: number
-  comments: number
-  shares: number
-  saves: number
+  reach?: number
+  impressions?: number
+  engagement_rate?: number
+  engagement?: number   // some accounts return "engagement" not "engagement_rate"
+  likes?: number
+  comments?: number
+  shares?: number
+  saves?: number
+  followers?: number
+  clicks?: number
+  // per-platform sub-objects (Metricool sometimes nests stats by network)
+  instagram?: Partial<MetricoolStats>
+  facebook?: Partial<MetricoolStats>
+  linkedin?: Partial<MetricoolStats>
+  tiktok?: Partial<MetricoolStats>
+  twitter?: Partial<MetricoolStats>
 }
 
 // ─── Media normalization ──────────────────────────────────────────────────────
@@ -121,28 +131,40 @@ async function normalizeMediaUrl(url: string): Promise<string> {
       'X-Mc-Auth': requireToken(),
     },
   })
+
+  let rawText = ''
+  try { rawText = await res.text() } catch { /* ignore */ }
+
   if (!res.ok) {
-    let body = ''
-    try { body = await res.text() } catch { /* ignore */ }
-    throw new Error(`Metricool media normalize failed (${res.status}): ${body}. URL was: ${url}`)
+    throw new Error(
+      `Metricool normalize failed (HTTP ${res.status}) for URL: ${url}\n` +
+      `Response body: ${rawText.slice(0, 300)}`
+    )
   }
 
   const contentType = res.headers.get('content-type') ?? ''
-  const rawText = await res.text()
 
-  // Response may be JSON object, a JSON string, or plain text depending on API version
+  // Response is usually plain text (the normalized URL itself).
+  // JSON variant uses "url" or "mediaUrl" — NOT "mediaId".
   if (contentType.includes('application/json')) {
     try {
       const data = JSON.parse(rawText) as Record<string, unknown>
-      const mediaId = (data.mediaId ?? data.id ?? data.url) as string | undefined
-      if (mediaId) return mediaId
+      const mediaUrl = (data.url ?? data.mediaUrl ?? data.mediaId ?? data.id) as string | undefined
+      if (mediaUrl) return String(mediaUrl)
     } catch { /* fall through to plain-text path */ }
   }
 
-  // Plain-text response — the value itself is the mediaId/URL
+  // Plain-text path — the trimmed response IS the mediaId/normalized URL.
+  // Guard against HTML error pages (e.g. redirect to login) being mistaken for a valid ID.
   const trimmed = rawText.trim()
   if (!trimmed) {
     throw new Error(`Metricool normalize returned empty response for URL: ${url}`)
+  }
+  if (trimmed.startsWith('<')) {
+    throw new Error(
+      `Metricool normalize returned HTML instead of a mediaId for URL: ${url}\n` +
+      `Check that the API token (METRICOOL_API_TOKEN) is valid and not expired.`
+    )
   }
   return trimmed
 }
@@ -164,11 +186,17 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
  * Schedule a post to one or more networks.
  * POST /api/v2/scheduler/posts?blogId=&userId=
  *
- * Pass imageUrls[] — each URL is normalized to a Metricool mediaId before the
- * payload is sent. Single image → media: { mediaId }; carousel → media: [{ mediaId }].
+ * Pass imageUrls[] — each URL is normalized to a Metricool CDN URL, then sent as
+ * media: [{ url }, ...]. Always array format, even for single image.
+ *
+ * Platform-specific data is auto-injected:
+ *   Facebook  → facebookData: { type: 'POST' }   (required or Metricool drops media)
+ *   Instagram → instagramData: { type: 'POST' }  (required or carousel fails entirely)
+ *   TikTok    → tiktokData: { privacyOption }
+ * Callers can override by passing instagramData/facebookData in the input.
  */
 export async function schedulePost(input: MetricoolScheduleInput): Promise<MetricoolScheduledPost> {
-  const { blogId, imageUrls, tiktokPrivacy, ...rest } = input
+  const { blogId, imageUrls, tiktokPrivacy, instagramData: instagramDataIn, facebookData: facebookDataIn, ...rest } = input
 
   const payload: Record<string, unknown> = {
     autoPublish: true,
@@ -176,19 +204,30 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
   }
 
   if (imageUrls?.length) {
-    // Normalize all URLs in parallel — Metricool requires mediaIds, not raw URLs.
-    // Raw URLs cause "cannot determine media type/dimensions" errors on carousels.
-    const mediaIds = await Promise.all(imageUrls.map(normalizeMediaUrl))
-    // Single image → object; carousel (2+) → array of objects
-    payload.media = mediaIds.length === 1
-      ? { mediaId: mediaIds[0] }
-      : mediaIds.map(id => ({ mediaId: id }))
+    // Normalize all URLs in parallel — Metricool hosts the file and returns a cdn URL.
+    // Always use array of { url } objects — even for a single image.
+    // { mediaId } is wrong; Metricool resolves by URL not by an upload ID.
+    const normalizedUrls = await Promise.all(imageUrls.map(normalizeMediaUrl))
+    payload.media = normalizedUrls.map(url => ({ url }))
   }
 
+  const networks = (rest.providers as MetricoolProvider[]).map(p => p.network)
+
   // TikTok requires privacy inside tiktokData — field name confirmed by Metricool's ScheduledPostTikTokData class
-  const hasTikTok = (rest.providers as MetricoolProvider[]).some(p => p.network === 'tiktok')
-  if (hasTikTok) {
+  if (networks.includes('tiktok')) {
     payload.tiktokData = { privacyOption: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
+  }
+
+  // Facebook: type:'POST' is required for Metricool to attach images/carousels.
+  // Without it Metricool creates a text-only status update and silently drops media.
+  if (networks.includes('facebook')) {
+    payload.facebookData = { type: 'POST', ...(facebookDataIn ?? {}) }
+  }
+
+  // Instagram: type:'POST' is required for image and carousel posts.
+  // Without it Metricool cannot build the carousel container and the post fails.
+  if (networks.includes('instagram')) {
+    payload.instagramData = { type: 'POST', ...(instagramDataIn ?? {}) }
   }
 
   return mFetch<MetricoolScheduledPost>(`/scheduler/posts?${qs(blogId)}`, {
@@ -221,15 +260,46 @@ export async function deleteScheduledPost(postId: string, blogId: string | numbe
 }
 
 /**
- * Fetch analytics stats for a blog in a date range.
+ * Fetch aggregate analytics stats for a blog in a date range.
+ *
+ * Metricool may return either:
+ *   { data: { reach, impressions, ... } }        — flat aggregate
+ *   { instagram: { reach, ... }, facebook: { ... } } — per-platform object
+ *
+ * We normalise to a flat MetricoolStats by summing numeric fields across platforms.
  */
 export async function getStats(
   blogId: string | number,
   startDate: string,
   endDate: string
 ): Promise<MetricoolStats> {
-  const data = await mFetch<{ data: MetricoolStats }>(
+  const raw = await mFetch<Record<string, unknown>>(
     `/analytics/summary?${qs(blogId, { startDate, endDate })}`
   )
-  return data.data
+
+  // Flat response: { data: { reach, ... } }
+  const flat = raw.data as MetricoolStats | undefined
+  if (flat && (flat.reach != null || flat.impressions != null)) return flat
+
+  // Per-platform response: { instagram: { reach, ... }, facebook: { ... }, ... }
+  const PLATFORMS = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube']
+  const aggregated: MetricoolStats = {}
+  const numericKeys: (keyof MetricoolStats)[] = ['reach', 'impressions', 'likes', 'comments', 'shares', 'saves', 'clicks', 'followers']
+
+  for (const platform of PLATFORMS) {
+    const p = raw[platform] as Partial<MetricoolStats> | undefined
+    if (!p) continue
+    for (const key of numericKeys) {
+      const val = p[key] as number | undefined
+      if (val != null) {
+        (aggregated[key] as number) = ((aggregated[key] as number) ?? 0) + val
+      }
+    }
+    // engagement is usually a rate — average instead of sum
+    if (p.engagement != null || p.engagement_rate != null) {
+      aggregated.engagement_rate = p.engagement_rate ?? p.engagement
+    }
+  }
+
+  return aggregated
 }

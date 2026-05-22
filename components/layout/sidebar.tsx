@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
-  ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2,
+  ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2, ListTodo, ScanSearch, FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -14,14 +14,17 @@ import { useSidebar } from '@/lib/sidebar-context'
 const NAV_ITEMS = [
   { href: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/pipeline',    icon: Kanban,           label: 'Pipeline' },
+  { href: '/tasks',      icon: ListTodo,         label: 'Tasks' },
   { href: '/clients',     icon: Building2,        label: 'Clients' },
   { href: '/projects',    icon: FolderKanban,     label: 'Projects' },
   { href: '/publishing',  icon: Send,             label: 'Publishing' },
   { href: '/approval',    icon: CheckSquare,      label: 'Approval', badge: 4 },
   { href: '/moderation',  icon: MessageSquare,    label: 'Moderation', badge: 3 },
   { href: '/assets',      icon: Image,            label: 'Assets' },
-  { href: '/ai-image',    icon: Wand2,            label: 'AI Image' },
-  { href: '/creative-eval', icon: Sparkles,       label: 'Creative Eval' },
+  { href: '/ai-image',      icon: Wand2,       label: 'AI Image' },
+  { href: '/tools/resize',  icon: ScanSearch,  label: 'Smart Resize' },
+  { href: '/creative-eval', icon: Sparkles,    label: 'Creative Eval' },
+  { href: '/docs',         icon: FileText,         label: 'Documents' },
   { href: '/workload',    icon: Users,            label: 'Workload' },
   { href: '/library',     icon: BookMarked,       label: 'Content Library' },
   { href: '/performance', icon: TrendingUp,       label: 'Performance' },

@@ -19,6 +19,7 @@ function parseFilters(params: URLSearchParams): FilterState {
     priorities:    (params.get('priority')?.split(',').filter(Boolean) ?? []) as Priority[],
     stages:        (params.get('stage')?.split(',').filter(Boolean) ?? []) as PipelineStage[],
     statuses:      (params.get('status')?.split(',').filter(Boolean) ?? []) as TaskStatus[],
+    subTypes:      params.get('subtype')?.split(',').filter(Boolean) ?? [],
     dueDatePreset: (params.get('due') ?? '') as FilterState['dueDatePreset'],
   }
 }
@@ -30,6 +31,7 @@ function filtersToParams(f: FilterState): URLSearchParams {
   if (f.priorities.length)    p.set('priority', f.priorities.join(','))
   if (f.stages.length)        p.set('stage',    f.stages.join(','))
   if (f.statuses.length)      p.set('status',   f.statuses.join(','))
+  if (f.subTypes.length)      p.set('subtype',  f.subTypes.join(','))
   if (f.dueDatePreset)        p.set('due',      f.dueDatePreset)
   return p
 }
@@ -37,7 +39,7 @@ function filtersToParams(f: FilterState): URLSearchParams {
 function hasActiveFilters(f: FilterState) {
   return f.clientIds.length > 0 || f.assignedTo.length > 0 ||
     f.priorities.length > 0 || f.stages.length > 0 ||
-    f.statuses.length > 0 || !!f.dueDatePreset
+    f.statuses.length > 0 || f.subTypes.length > 0 || !!f.dueDatePreset
 }
 
 function PipelineContent() {
@@ -84,7 +86,7 @@ function PipelineContent() {
               Filter
               {active && (
                 <span className="ml-0.5 text-[10px] font-bold bg-novax text-white rounded-full w-4 h-4 flex items-center justify-center">
-                  {[filters.clientIds, filters.assignedTo, filters.priorities, filters.stages, filters.statuses].reduce((n, a) => n + a.length, 0) + (filters.dueDatePreset ? 1 : 0)}
+                  {[filters.clientIds, filters.assignedTo, filters.priorities, filters.stages, filters.statuses, filters.subTypes].reduce((n, a) => n + a.length, 0) + (filters.dueDatePreset ? 1 : 0)}
                 </span>
               )}
             </button>

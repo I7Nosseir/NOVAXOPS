@@ -20,7 +20,7 @@ function requireUserId() {
 }
 
 interface MetricoolPostStats {
-  id: string
+  id?: string
   reach?: number
   impressions?: number
   likes?: number
@@ -28,7 +28,9 @@ interface MetricoolPostStats {
   shares?: number
   saves?: number
   linkClicks?: number
+  clicks?: number
   engagementRate?: number
+  engagement?: number
   network?: string
 }
 
@@ -92,6 +94,9 @@ export async function GET() {
       const platforms = (post.platforms as string[]) ?? []
       const platform = stats.network ?? platforms[0] ?? 'unknown'
 
+      const er = stats.engagementRate ?? stats.engagement ?? 0
+      const lc = stats.linkClicks ?? stats.clicks ?? 0
+
       await supabase.from('post_performance_snapshots').upsert({
         post_id: post.id,
         platform,
@@ -101,8 +106,8 @@ export async function GET() {
         comments: stats.comments ?? 0,
         shares: stats.shares ?? 0,
         saves: stats.saves ?? 0,
-        link_clicks: stats.linkClicks ?? 0,
-        engagement_rate: stats.engagementRate ?? 0,
+        link_clicks: lc,
+        engagement_rate: er,
         captured_at: new Date().toISOString(),
       }, { onConflict: 'post_id,platform' })
 

@@ -3,7 +3,7 @@
 import { useRef, useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { PipelineStage, Priority, TaskStatus } from '@/lib/types'
-import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, cn } from '@/lib/utils'
+import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, TASK_SUBTYPES, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
 
@@ -13,11 +13,12 @@ export interface FilterState {
   priorities: Priority[]
   stages: PipelineStage[]
   statuses: TaskStatus[]
+  subTypes: string[]
   dueDatePreset: '' | 'overdue' | 'today' | 'this_week'
 }
 
 export const EMPTY_FILTERS: FilterState = {
-  clientIds: [], assignedTo: [], priorities: [], stages: [], statuses: [], dueDatePreset: '',
+  clientIds: [], assignedTo: [], priorities: [], stages: [], statuses: [], subTypes: [], dueDatePreset: '',
 }
 
 interface Props {
@@ -112,6 +113,28 @@ export function FilterPanel({ filters, onUpdate, onClose }: Props) {
                 )}
               >
                 {pc.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Sub-type */}
+      <div>
+        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Sub-type</p>
+        <div className="flex flex-wrap gap-1.5">
+          {Object.values(TASK_SUBTYPES).flat().map(({ label, color, bg }) => {
+            const active = filters.subTypes.includes(label)
+            return (
+              <button
+                key={label}
+                onClick={() => onUpdate({ ...filters, subTypes: toggle(filters.subTypes, label) })}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all',
+                  active ? 'bg-novax text-white border-novax' : cn(bg, color, 'border-transparent hover:border-slate-300'),
+                )}
+              >
+                {label}
               </button>
             )
           })}

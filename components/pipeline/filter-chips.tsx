@@ -42,6 +42,10 @@ export function FilterChips({ filters, onRemove, onClear }: Props) {
       label: `Due: ${filters.dueDatePreset === 'overdue' ? 'Overdue' : filters.dueDatePreset === 'today' ? 'Today' : 'This week'}`,
       remove: () => onRemove({ ...filters, dueDatePreset: '' }),
     }] : []),
+    ...filters.subTypes.map(s => ({
+      label: `Type: ${s}`,
+      remove: () => onRemove({ ...filters, subTypes: filters.subTypes.filter(x => x !== s) }),
+    })),
   ]
 
   if (chips.length === 0) return null

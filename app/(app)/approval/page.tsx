@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2 } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useApprovalRequests, useCreateApproval } from '@/lib/hooks/use-approvals'
 import { formatDate, cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
+import { supabase } from '@/lib/supabase'
 
 const STATUS_CONFIG = {
   pending:           { label: 'Awaiting Review', color: 'text-amber-600',   bg: 'bg-amber-50',   icon: Clock },
@@ -24,11 +25,30 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   const [expiry, setExpiry] = useState('7')
   const [createdToken, setCreatedToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  // Per-post media upload state: postId → { uploading, url }
+  const [postMedia, setPostMedia] = useState<Record<string, { uploading: boolean; url: string | null }>>({})
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const clientPosts = posts.filter(p => p.client_id === clientId && p.status !== 'published')
 
   const toggle = (id: string) =>
     setSelectedPosts(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const handleMediaUpload = async (postId: string, file: File) => {
+    setPostMedia(prev => ({ ...prev, [postId]: { uploading: true, url: null } }))
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `approval-media/${Date.now()}-${postId}.${ext}`
+      const { data, error } = await supabase.storage.from('assets').upload(path, file, { upsert: true })
+      if (error || !data) throw error ?? new Error('Upload failed')
+      const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(data.path)
+      // Update the scheduled_post media_urls in DB
+      await supabase.from('scheduled_posts').update({ media_urls: [publicUrl] }).eq('id', postId)
+      setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, url: publicUrl } }))
+    } catch {
+      setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, url: null } }))
+    }
+  }
 
   const handleCreate = () => {
     createApproval.mutate(
@@ -104,29 +124,82 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                 {clientPosts.length === 0 && (
                   <p className="text-xs text-slate-400 text-center py-4">No scheduled posts for this client</p>
                 )}
-                {clientPosts.map(post => (
-                  <label
-                    key={post.id}
-                    className={cn(
-                      'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-                      selectedPosts.includes(post.id) ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-slate-300',
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedPosts.includes(post.id)}
-                      onChange={() => toggle(post.id)}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
-                        <span className="text-[10px] text-slate-400">{formatDate(post.scheduled_at)}</span>
-                      </div>
-                      <p className="text-xs text-slate-700 line-clamp-2">{post.caption}</p>
+                {clientPosts.map(post => {
+                  const media = postMedia[post.id]
+                  const existingUrl = (post as { media_url?: string }).media_url
+                  const previewUrl = media?.url ?? existingUrl ?? null
+                  const isSelected = selectedPosts.includes(post.id)
+                  return (
+                    <div
+                      key={post.id}
+                      className={cn(
+                        'rounded-lg border transition-colors',
+                        isSelected ? 'border-novax bg-novax-light' : 'border-slate-200',
+                      )}
+                    >
+                      <label className="flex items-start gap-3 p-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggle(post.id)}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
+                            <span className="text-[10px] text-slate-400">{formatDate(post.scheduled_at)}</span>
+                          </div>
+                          <p className="text-xs text-slate-700 line-clamp-2">{post.caption}</p>
+                        </div>
+                      </label>
+
+                      {/* Media upload section — shown when post is selected */}
+                      {isSelected && (
+                        <div className="px-3 pb-3">
+                          <input
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            ref={el => { fileInputRefs.current[post.id] = el }}
+                            onChange={e => {
+                              const file = e.target.files?.[0]
+                              if (file) handleMediaUpload(post.id, file)
+                              e.target.value = ''
+                            }}
+                          />
+                          {previewUrl ? (
+                            <div className="flex items-center gap-2">
+                              {/\.(mp4|mov|webm)/i.test(previewUrl)
+                                ? <video src={previewUrl} className="w-14 h-14 rounded-lg object-cover bg-slate-100"/>
+                                // eslint-disable-next-line @next/next/no-img-element
+                                : <img src={previewUrl} alt="" className="w-14 h-14 rounded-lg object-cover"/>
+                              }
+                              <button
+                                type="button"
+                                onClick={() => fileInputRefs.current[post.id]?.click()}
+                                className="text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
+                              >
+                                Replace media
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => fileInputRefs.current[post.id]?.click()}
+                              disabled={media?.uploading}
+                              className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-novax px-2 py-1.5 border border-dashed border-slate-300 hover:border-novax-border rounded-lg transition-colors w-full justify-center"
+                            >
+                              {media?.uploading
+                                ? <><Loader2 className="w-3 h-3 animate-spin"/> Uploading…</>
+                                : <><Upload className="w-3 h-3"/><ImageIcon className="w-3 h-3"/> Add media for client preview</>
+                              }
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </label>
-                ))}
+                  )
+                })}
               </div>
             </div>
             <div>

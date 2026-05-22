@@ -80,6 +80,73 @@ export function timeAgo(dateStr: string): string {
   return formatDate(dateStr)
 }
 
+// Sub-types available per pipeline stage grouping
+export const TASK_SUBTYPES: Record<string, { label: string; color: string; bg: string }[]> = {
+  design: [
+    { label: 'Social Graphic',    color: 'text-purple-700', bg: 'bg-purple-50' },
+    { label: 'Motion Graphics',   color: 'text-purple-700', bg: 'bg-purple-50' },
+    { label: 'Logo / Brand Asset', color: 'text-purple-700', bg: 'bg-purple-50' },
+    { label: 'Story / Reel Frame', color: 'text-purple-700', bg: 'bg-purple-50' },
+    { label: 'Banner / Ad',       color: 'text-purple-700', bg: 'bg-purple-50' },
+    { label: 'Presentation Slide', color: 'text-purple-700', bg: 'bg-purple-50' },
+    { label: 'Print Asset',       color: 'text-purple-700', bg: 'bg-purple-50' },
+  ],
+  copy: [
+    { label: 'Caption',           color: 'text-blue-700', bg: 'bg-blue-50' },
+    { label: 'Script',            color: 'text-blue-700', bg: 'bg-blue-50' },
+    { label: 'Blog Post',         color: 'text-blue-700', bg: 'bg-blue-50' },
+    { label: 'Email',             color: 'text-blue-700', bg: 'bg-blue-50' },
+    { label: 'Ad Copy',           color: 'text-blue-700', bg: 'bg-blue-50' },
+    { label: 'Bio / Profile',     color: 'text-blue-700', bg: 'bg-blue-50' },
+    { label: 'Hashtag Set',       color: 'text-blue-700', bg: 'bg-blue-50' },
+  ],
+  video: [
+    { label: 'Shoot & Edit',      color: 'text-orange-700', bg: 'bg-orange-50' },
+    { label: 'Reels Edit',        color: 'text-orange-700', bg: 'bg-orange-50' },
+    { label: 'Motion Graphic Video', color: 'text-orange-700', bg: 'bg-orange-50' },
+    { label: 'AI Video',          color: 'text-orange-700', bg: 'bg-orange-50' },
+    { label: 'Slideshow',         color: 'text-orange-700', bg: 'bg-orange-50' },
+  ],
+  strategy: [
+    { label: 'Quarterly Plan',    color: 'text-novax-muted', bg: 'bg-novax-light' },
+    { label: 'Monthly Calendar',  color: 'text-novax-muted', bg: 'bg-novax-light' },
+    { label: 'Campaign Brief',    color: 'text-novax-muted', bg: 'bg-novax-light' },
+    { label: 'Competitor Report', color: 'text-novax-muted', bg: 'bg-novax-light' },
+  ],
+  research: [
+    { label: 'Trend Report',      color: 'text-cyan-700', bg: 'bg-cyan-50' },
+    { label: 'Audience Study',    color: 'text-cyan-700', bg: 'bg-cyan-50' },
+    { label: 'Competitor Analysis', color: 'text-cyan-700', bg: 'bg-cyan-50' },
+  ],
+}
+
+// Maps pipeline stages to sub-type category
+export const STAGE_SUBTYPE_CATEGORY: Partial<Record<string, string>> = {
+  design: 'design',
+  copy: 'copy',
+  review: 'design',
+  strategy: 'strategy',
+  ideas: 'strategy',
+  calendar: 'copy',
+  scheduled: 'video',
+}
+
+// Get a flat list of all sub-types for a given stage
+export function getSubtypesForStage(stage: string): { label: string; color: string; bg: string }[] {
+  const category = STAGE_SUBTYPE_CATEGORY[stage]
+  if (!category) return []
+  return TASK_SUBTYPES[category] ?? []
+}
+
+// Get the color/bg for a given sub-type label (searches all categories)
+export function getSubtypeStyle(label: string): { color: string; bg: string } {
+  for (const items of Object.values(TASK_SUBTYPES)) {
+    const found = items.find(i => i.label === label)
+    if (found) return { color: found.color, bg: found.bg }
+  }
+  return { color: 'text-slate-600', bg: 'bg-slate-100' }
+}
+
 export function hasRole(user: User | null, roles: UserRole[]): boolean {
   if (!user) return false
   return roles.includes(user.role)
