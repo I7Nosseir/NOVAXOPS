@@ -72,11 +72,11 @@ Rules:
     body: JSON.stringify({
       contents: [{
         parts: [
-          { inline_data: { mime_type: mimeType, data: imageBase64 } },
+          { inlineData: { mimeType, data: imageBase64 } },
           { text: prompt },
         ],
       }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: 'application/json' },
     }),
   })
 
@@ -88,8 +88,10 @@ Rules:
   const data = await res.json()
   const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
-  // Strip markdown fences if Gemini wraps it anyway
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+  // Strip markdown fences, extract JSON object
+  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+  const jsonMatch = stripped.match(/\{[\s\S]*\}/)
+  const cleaned = jsonMatch ? jsonMatch[0] : stripped
 
   let schema: LayoutSchema
   try {

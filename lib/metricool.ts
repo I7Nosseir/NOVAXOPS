@@ -225,25 +225,18 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.tiktokData = { privacyOption: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
-  // Facebook: single image → type:'POST'. Carousel (2+ images) → type:'ALBUM'.
-  // Metricool maps 'ALBUM' to a Facebook multi-photo post (Graph API attached_media flow).
-  // Using 'POST' for carousel causes Metricool to create a text-only status and drop the media array.
+  // Facebook: type:'POST' is required for Metricool to attach images/carousels.
+  // Without it Metricool creates a text-only status update and silently drops media.
+  // 'POST' covers both single images and carousels — Metricool infers multi-photo from array length.
   if (networks.includes('facebook')) {
-    payload.facebookData = {
-      type: isCarousel ? 'ALBUM' : 'POST',
-      ...(facebookDataIn ?? {}),
-    }
+    payload.facebookData = { type: 'POST', ...(facebookDataIn ?? {}) }
   }
 
-  // Instagram: single image/video → type:'POST', carousel (2+ images) → type:'CAROUSEL_ALBUM'.
-  // Instagram's Graph API uses 'CAROUSEL_ALBUM' as the container type for multi-image posts.
-  // Metricool passes this through; using 'POST' for carousels causes the carousel container
-  // creation step to fail silently, resulting in the "image urls are not read and passed" error.
+  // Instagram: valid types are POST | REEL | TRIAL_REEL | STORY.
+  // 'POST' covers single images AND carousels — Metricool infers carousel from media array length.
+  // Do NOT use 'CAROUSEL_ALBUM' — Metricool rejects it with 400 Invalid value.
   if (networks.includes('instagram')) {
-    payload.instagramData = {
-      type: isCarousel ? 'CAROUSEL_ALBUM' : 'POST',
-      ...(instagramDataIn ?? {}),
-    }
+    payload.instagramData = { type: 'POST', ...(instagramDataIn ?? {}) }
   }
 
   console.log('[Metricool] schedulePost payload:', JSON.stringify(payload, null, 2))
