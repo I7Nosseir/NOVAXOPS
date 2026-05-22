@@ -145,21 +145,15 @@ export default function ResizePage() {
 
   // ── Download helper ────────────────────────────────────────────────────────
   const download = (formatKey: '9x16' | '1x1') => {
-    const url   = formatKey === '9x16' ? result?.url9x16  : result?.url1x1
     const b64   = formatKey === '9x16' ? result?.base64_9x16 : result?.base64_1x1
-    const fname = `novax-resize-${formatKey}-${Date.now()}.jpg`
-
-    if (url) {
-      const a = document.createElement('a')
-      a.href = url
-      a.download = fname
-      a.click()
-    } else if (b64) {
-      const a = document.createElement('a')
-      a.href = `data:image/jpeg;base64,${b64}`
-      a.download = fname
-      a.click()
-    }
+    const fname = `novax-${formatKey}-${Date.now()}.jpg`
+    if (!b64) return
+    const a = document.createElement('a')
+    a.href = `data:image/jpeg;base64,${b64}`
+    a.download = fname
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   const reset = () => {
@@ -203,8 +197,8 @@ export default function ResizePage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { n: '1', title: 'Upload', desc: 'Any JPEG, PNG, or WebP — landscape, portrait, or square' },
-            { n: '2', title: 'AI Analyzes', desc: 'AI maps focal point, text, logos, and subject regions' },
-            { n: '3', title: 'Smart Adapt', desc: 'Sharp repositions content into 9:16 and 1:1 with a blurred backdrop — never crops' },
+            { n: '2', title: 'AI Analyzes', desc: 'AI maps focal point, background color, text, logos, and subject' },
+            { n: '3', title: 'Smart Adapt', desc: 'Solid backgrounds are extended with matched color. Photo backgrounds are cropped on the focal point. Full quality — no blur.' },
           ].map(s => (
             <div key={s.n} className="bg-white rounded-xl border border-slate-200 p-4 flex gap-3">
               <div className="w-7 h-7 rounded-full bg-novax text-white text-xs font-bold flex items-center justify-center shrink-0">
@@ -484,9 +478,9 @@ export default function ResizePage() {
               <div className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 rounded-xl p-3">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400"/>
                 <span>
-                  Blurred backdrop is generated from the original image so colors always match.
-                  The full original (no crop) sits centered on the focal point within each platform&apos;s safe zone.
-                  Best results from images generated in the AI Image Studio where elements are cleanly separated.
+                  Solid backgrounds are extended with the exact matched color — seamless, no blur.
+                  Photo and gradient backgrounds are smart-cropped centered on the detected focal point.
+                  All content (logo, text, subject) is preserved at full resolution.
                 </span>
               </div>
             </div>

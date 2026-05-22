@@ -1,121 +1,152 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
-import { createClient } from '@supabase/supabase-js'
 import type { LayoutSchema } from '../analyze/route'
 
-// Node.js runtime — required for Sharp
 export const runtime = 'nodejs'
 
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
-}
-
 // ─── Smart resize core ────────────────────────────────────────────────────────
-// Strategy: never crop the content.
-//   1. Create a blurred version of the original scaled to fill the target canvas
-//      (background layer — colors always match, transitions feel intentional)
-//   2. Scale the sharp original to fit inside the canvas while keeping its full
-//      aspect ratio (no cropping, all content visible)
-//   3. Composite the sharp original onto the blurred background, using the
-//      detected focal point to decide vertical/horizontal positioning within
-//      the safe zone of each platform format
+//
+// Strategy — no blurring, no letterboxing, no scaling-down content:
+//
+// 1. Determine scale: match the dimension that fits tightest to the canvas edge
+//    (fill width for portrait targets, fill height for landscape/square targets)
+//
+// 2. If scaled image fits inside the canvas with space left over:
+//    - Solid background → extend canvas with the exact matched background color
+//      so the extension is seamless (teeth ad teal becomes teal above/below)
+//    - Photo/gradient background → use scale-to-fill + smart focal-point crop instead
+//
+// 3. If scaled image is larger than the canvas → smart crop centered on focal point
+//
+// Result: content is always full quality, background is always color-matched or cropped.
 
 async function smartResize(
   inputBuffer: Buffer,
   targetW: number,
   targetH: number,
   schema: LayoutSchema,
-  safeZone: { top: number; bottom: number; left: number; right: number }, // percent
 ): Promise<Buffer> {
   const { focal_point, background_type, dominant_color } = schema
-  const fx = focal_point.x   // 0-100
-  const fy = focal_point.y   // 0-100
+  const fx = focal_point.x / 100   // 0–1
+  const fy = focal_point.y / 100   // 0–1
 
-  // ── Step 1: Background layer ─────────────────────────────────────────────
-  // Cover the full canvas with a blurred version of the original.
-  // Use the focal point as the anchor so the dominant color region is preserved.
-  let bgBuffer: Buffer
+  const meta = await sharp(inputBuffer).metadata()
+  const origW = meta.width!
+  const origH = meta.height!
 
-  if (background_type === 'solid_color') {
-    // For solid backgrounds, fill with the dominant color (sharper result)
-    const hex = dominant_color?.replace('#', '') ?? '1a1a1a'
-    const r = parseInt(hex.slice(0, 2), 16) || 0
-    const g = parseInt(hex.slice(2, 4), 16) || 0
-    const b = parseInt(hex.slice(4, 6), 16) || 0
-    bgBuffer = await sharp({
-      create: { width: targetW, height: targetH, channels: 3, background: { r, g, b } },
-    })
-      .jpeg({ quality: 95 })
-      .toBuffer()
+  const targetRatio = targetW / targetH
+  const origRatio = origW / origH
+  const isSolid = background_type === 'solid_color'
+
+  // Parse background color for canvas fill
+  const hex = (dominant_color ?? '#1a1a1a').replace('#', '')
+  const bgR = parseInt(hex.slice(0, 2), 16) || 26
+  const bgG = parseInt(hex.slice(2, 4), 16) || 26
+  const bgB = parseInt(hex.slice(4, 6), 16) || 26
+
+  // ── Scale: touch the nearest canvas edge without cropping content ──────────
+  // Portrait target (9:16) → scale to fill target width exactly
+  // Landscape/square target (1:1) → scale to fill target height exactly
+  let scaledW: number
+  let scaledH: number
+
+  if (targetRatio <= origRatio) {
+    // Target is more portrait than source → scale to fill width
+    scaledW = targetW
+    scaledH = Math.round(origH * (targetW / origW))
   } else {
-    // For photos and gradients: scale to cover, blur heavily
-    // Use gravity anchored to focal point so the blur reflects the right region
-    const gravityX = fx < 33 ? 'left' : fx > 66 ? 'right' : 'center'
-    const gravityY = fy < 33 ? 'north' : fy > 66 ? 'south' : 'center'
-    const gravity = `${gravityY}${gravityX === 'center' ? '' : gravityX}` as sharp.Gravity
-
-    bgBuffer = await sharp(inputBuffer)
-      .resize(targetW, targetH, { fit: 'cover', position: gravity })
-      .blur(50)                     // heavy blur — purely decorative backdrop
-      .modulate({ brightness: 0.8 }) // slightly dim so foreground pops
-      .jpeg({ quality: 85 })
-      .toBuffer()
+    // Target is more landscape/square than source → scale to fill height
+    scaledH = targetH
+    scaledW = Math.round(origW * (targetH / origH))
   }
 
-  // ── Step 2: Foreground — scale original to fit inside canvas ─────────────
-  // `fit: 'inside'` guarantees the full image is visible, never cropped.
-  // We cap at 95% of the canvas to always leave some blurred bg visible
-  // (avoids a hard edge when the image exactly matches the canvas ratio).
-  const maxFgW = Math.round(targetW * 0.97)
-  const maxFgH = Math.round(targetH * 0.97)
-
-  const fgBuffer = await sharp(inputBuffer)
-    .resize(maxFgW, maxFgH, { fit: 'inside', withoutEnlargement: false })
-    .sharpen({ sigma: 0.6, m1: 0.5, m2: 3 })  // mild sharpening after downscale
-    .jpeg({ quality: 92 })
+  // Flatten alpha (PNG transparency → background color) so compositing is clean
+  const flatBuffer = await sharp(inputBuffer)
+    .flatten({ background: { r: bgR, g: bgG, b: bgB } })
     .toBuffer()
 
-  const fgMeta = await sharp(fgBuffer).metadata()
-  const fgW = fgMeta.width!
-  const fgH = fgMeta.height!
+  // Resize to computed scale
+  const resized = scaledW !== origW || scaledH !== origH
+    ? await sharp(flatBuffer).resize(scaledW, scaledH, { fit: 'fill' }).jpeg({ quality: 95 }).toBuffer()
+    : await sharp(flatBuffer).jpeg({ quality: 95 }).toBuffer()
 
-  // ── Step 3: Position the foreground using focal point + safe zones ────────
-  // Safe zone defines the region where important content should live.
-  // We position the image so the detected focal point lands inside this zone.
-  const safeLeft   = Math.round(targetW * safeZone.left / 100)
-  const safeRight  = Math.round(targetW * (1 - safeZone.right / 100))
-  const safeTop    = Math.round(targetH * safeZone.top / 100)
-  const safeBottom = Math.round(targetH * (1 - safeZone.bottom / 100))
+  const fitsInCanvas = scaledW <= targetW && scaledH <= targetH
 
-  const safeW = safeRight - safeLeft
-  const safeH = safeBottom - safeTop
+  // ── Path A: image fits inside canvas — extend the empty space ─────────────
+  if (fitsInCanvas) {
+    if (isSolid) {
+      // Extend with exact background color — seamless, professional
+      const canvasFX = targetW * fx
+      const canvasFY = targetH * fy
+      const imgFX = scaledW * fx
+      const imgFY = scaledH * fy
 
-  // Where we want the focal point to land on the output canvas (within safe zone)
-  const targetFocalX = safeLeft + safeW * (fx / 100)
-  const targetFocalY = safeTop  + safeH * (fy / 100)
+      let left = Math.round(canvasFX - imgFX)
+      let top = Math.round(canvasFY - imgFY)
+      left = Math.max(0, Math.min(left, targetW - scaledW))
+      top = Math.max(0, Math.min(top, targetH - scaledH))
 
-  // Where the focal point is within the foreground image
-  const focalInFgX = fgW * (fx / 100)
-  const focalInFgY = fgH * (fy / 100)
+      const canvas = await sharp({
+        create: { width: targetW, height: targetH, channels: 3, background: { r: bgR, g: bgG, b: bgB } },
+      }).jpeg({ quality: 95 }).toBuffer()
 
-  // Offset so focal points align, then clamp to keep fg inside canvas
-  let left = Math.round(targetFocalX - focalInFgX)
-  let top  = Math.round(targetFocalY - focalInFgY)
+      return sharp(canvas)
+        .composite([{ input: resized, left, top }])
+        .jpeg({ quality: 93 })
+        .toBuffer()
+    } else {
+      // Photo/gradient — can't extend seamlessly; use scale-to-fill + smart crop
+      const scaleToFill = Math.max(targetW / origW, targetH / origH)
+      const fillW = Math.round(origW * scaleToFill)
+      const fillH = Math.round(origH * scaleToFill)
 
-  // Hard clamp: foreground must always be fully within the canvas
-  left = Math.max(0, Math.min(left, targetW - fgW))
-  top  = Math.max(0, Math.min(top,  targetH - fgH))
+      const filled = await sharp(flatBuffer)
+        .resize(fillW, fillH, { fit: 'fill' })
+        .jpeg({ quality: 95 })
+        .toBuffer()
 
-  // ── Step 4: Composite ────────────────────────────────────────────────────
-  const output = await sharp(bgBuffer)
-    .composite([{ input: fgBuffer, left, top }])
-    .jpeg({ quality: 92, mozjpeg: false })
+      let cx = Math.round(fillW * fx - targetW / 2)
+      let cy = Math.round(fillH * fy - targetH / 2)
+      cx = Math.max(0, Math.min(cx, fillW - targetW))
+      cy = Math.max(0, Math.min(cy, fillH - targetH))
+
+      return sharp(filled)
+        .extract({ left: cx, top: cy, width: targetW, height: targetH })
+        .jpeg({ quality: 93 })
+        .toBuffer()
+    }
+  }
+
+  // ── Path B: image is larger than canvas — smart crop on focal point ────────
+  let cx = Math.round(scaledW * fx - targetW / 2)
+  let cy = Math.round(scaledH * fy - targetH / 2)
+  cx = Math.max(0, Math.min(cx, Math.max(0, scaledW - targetW)))
+  cy = Math.max(0, Math.min(cy, Math.max(0, scaledH - targetH)))
+
+  const cropW = Math.min(targetW, scaledW)
+  const cropH = Math.min(targetH, scaledH)
+
+  const cropped = await sharp(resized)
+    .extract({ left: cx, top: cy, width: cropW, height: cropH })
     .toBuffer()
 
-  return output
+  if (cropW === targetW && cropH === targetH) {
+    return sharp(cropped).jpeg({ quality: 93 }).toBuffer()
+  }
+
+  // Edge case: crop was smaller than target → embed in background canvas
+  const canvas = await sharp({
+    create: { width: targetW, height: targetH, channels: 3, background: { r: bgR, g: bgG, b: bgB } },
+  }).jpeg({ quality: 95 }).toBuffer()
+
+  return sharp(canvas)
+    .composite([{
+      input: cropped,
+      left: Math.round((targetW - cropW) / 2),
+      top: Math.round((targetH - cropH) / 2),
+    }])
+    .jpeg({ quality: 93 })
+    .toBuffer()
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
@@ -127,14 +158,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const { imageBase64, mimeType, schema } = body
+  const { imageBase64, mimeType: _mimeType, schema } = body
   if (!imageBase64 || !schema) {
     return NextResponse.json({ error: 'imageBase64 and schema required' }, { status: 400 })
   }
 
   const inputBuffer = Buffer.from(imageBase64, 'base64')
 
-  // Validate input can be decoded by Sharp
   let origMeta: sharp.Metadata
   try {
     origMeta = await sharp(inputBuffer).metadata()
@@ -148,50 +178,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Image has invalid dimensions.' }, { status: 400 })
   }
 
-  // ── Generate both outputs in parallel ────────────────────────────────────
   const [buf9x16, buf1x1] = await Promise.all([
-    // 9:16 — Stories & Reels (1080×1920)
-    // Safe zone: top 12% (Instagram UI notch area) + bottom 20% (caption/button area)
-    // Left/right: 5% margin so text elements near edges are never obscured
-    smartResize(inputBuffer, 1080, 1920, schema, { top: 12, bottom: 20, left: 5, right: 5 }),
-
-    // 1:1 — Square Feed (1080×1080)
-    // Safe zone: 8% on all sides — generous margin for cropping thumbnails
-    smartResize(inputBuffer, 1080, 1080, schema, { top: 8, bottom: 8, left: 8, right: 8 }),
+    smartResize(inputBuffer, 1080, 1920, schema),
+    smartResize(inputBuffer, 1080, 1080, schema),
   ])
 
-  // ── Upload to Supabase Storage ─────────────────────────────────────────────
-  const db = adminSupabase()
-  const ts = Date.now()
-
-  const upload9 = db.storage.from('assets').upload(
-    `resize/${ts}-9x16.jpg`, buf9x16,
-    { contentType: 'image/jpeg', upsert: true },
-  )
-  const upload1 = db.storage.from('assets').upload(
-    `resize/${ts}-1x1.jpg`, buf1x1,
-    { contentType: 'image/jpeg', upsert: true },
-  )
-
-  const [res9, res1] = await Promise.all([upload9, upload1])
-
-  if (res9.error || res1.error) {
-    // Fallback: return base64 so the user can still download even if storage fails
-    return NextResponse.json({
-      url9x16: null,
-      url1x1: null,
-      base64_9x16: buf9x16.toString('base64'),
-      base64_1x1: buf1x1.toString('base64'),
-      warning: 'Storage upload failed — use base64 fallback.',
-    })
-  }
-
-  const url9x16 = db.storage.from('assets').getPublicUrl(res9.data!.path).data.publicUrl
-  const url1x1  = db.storage.from('assets').getPublicUrl(res1.data!.path).data.publicUrl
-
+  // Return base64 directly — no Supabase storage needed for ephemeral resize outputs.
+  // This also guarantees the download button always works (no cross-origin issues).
   return NextResponse.json({
-    url9x16,
-    url1x1,
+    base64_9x16: buf9x16.toString('base64'),
+    base64_1x1:  buf1x1.toString('base64'),
     orig_dimensions: { w: origW, h: origH },
   })
 }
