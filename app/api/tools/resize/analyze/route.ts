@@ -72,11 +72,10 @@ Rules:
     body: JSON.stringify({
       contents: [{
         parts: [
-          { inlineData: { mimeType, data: imageBase64 } },
+          { inline_data: { mime_type: mimeType, data: imageBase64 } },
           { text: prompt },
         ],
       }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: 'application/json' },
     }),
   })
 
@@ -85,10 +84,22 @@ Rules:
     return NextResponse.json({ error: `Gemini error: ${err}` }, { status: 502 })
   }
 
-  const data = await res.json()
-  const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  const data = await res.json() as {
+    candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]
+    promptFeedback?: { blockReason?: string }
+  }
 
-  // Strip markdown fences, extract JSON object
+  if (data.promptFeedback?.blockReason) {
+    return NextResponse.json({ error: `Gemini blocked: ${data.promptFeedback.blockReason}` }, { status: 502 })
+  }
+
+  const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  if (!raw) {
+    const reason = data.candidates?.[0]?.finishReason ?? 'empty response'
+    return NextResponse.json({ error: `Gemini returned no text (${reason})` }, { status: 502 })
+  }
+
+  // Strip markdown fences then extract the first { ... } block
   const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
   const jsonMatch = stripped.match(/\{[\s\S]*\}/)
   const cleaned = jsonMatch ? jsonMatch[0] : stripped
