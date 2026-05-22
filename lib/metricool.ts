@@ -77,7 +77,7 @@ export interface MetricoolScheduleInput {
   text: string
   providers: MetricoolProvider[]
   publicationDate: DateTimeInfo
-  // Public URLs — each is normalized to a Metricool CDN URL before the API call
+  // Public URLs — each normalized to a Metricool CDN URL used as the mediaId
   imageUrls?: string[]
   autoPublish?: boolean
   tiktokPrivacy?: TikTokPrivacyLevel
@@ -186,8 +186,8 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
  * Schedule a post to one or more networks.
  * POST /api/v2/scheduler/posts?blogId=&userId=
  *
- * Pass imageUrls[] — each URL is normalized to a Metricool CDN URL, then sent as
- * media: [{ url }, ...]. Always array format, even for single image.
+ * Pass imageUrls[] — each URL is normalized to a Metricool CDN URL (the mediaId).
+ * Single image → media: { mediaId }; carousel → media: [{ mediaId }, ...].
  *
  * Platform-specific data is auto-injected:
  *   Facebook  → facebookData: { type: 'POST' }   (required or Metricool drops media)
@@ -204,11 +204,12 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
   }
 
   if (imageUrls?.length) {
-    // Normalize all URLs in parallel — Metricool hosts the file and returns a cdn URL.
-    // Always use array of { url } objects — even for a single image.
-    // { mediaId } is wrong; Metricool resolves by URL not by an upload ID.
-    const normalizedUrls = await Promise.all(imageUrls.map(normalizeMediaUrl))
-    payload.media = normalizedUrls.map(url => ({ url }))
+    // Normalize all URLs in parallel — Metricool hosts the file and returns a CDN URL.
+    // That CDN URL is the mediaId value. Single image → object; carousel → array of objects.
+    const mediaIds = await Promise.all(imageUrls.map(normalizeMediaUrl))
+    payload.media = mediaIds.length === 1
+      ? { mediaId: mediaIds[0] }
+      : mediaIds.map(id => ({ mediaId: id }))
   }
 
   const networks = (rest.providers as MetricoolProvider[]).map(p => p.network)
