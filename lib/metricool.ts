@@ -214,8 +214,8 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
       mediaIds.push(await normalizeMediaUrl(url))
     }
     payload.media = mediaIds.length === 1
-      ? { mediaId: mediaIds[0] }
-      : mediaIds.map(id => ({ mediaId: id }))
+      ? { url: mediaIds[0] }
+      : mediaIds.map(id => ({ url: id }))
   }
 
   const networks = (rest.providers as MetricoolProvider[]).map(p => p.network)
