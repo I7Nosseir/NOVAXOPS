@@ -216,8 +216,8 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     ...rest,
   }
 
-  // isVideoOverride takes priority — URL extension is unreliable for Drive/signed/non-extension URLs.
-  const hasVideo = isVideoOverride ?? imageUrls?.some(isVideoUrl) ?? false
+  // isVideoOverride takes priority; pre-normalization URL extension is the fallback.
+  let hasVideo = isVideoOverride ?? imageUrls?.some(isVideoUrl) ?? false
 
   if (imageUrls?.length) {
     // Normalize sequentially — parallel calls can hit Metricool's undocumented rate limit.
@@ -228,6 +228,9 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     }
     // media is a flat array of CDN URL strings — confirmed from Metricool official docs.
     payload.media = mediaIds
+    // Re-check after normalization: Metricool CDN uses /video/ in the path for video files,
+    // reliably catching Drive/signed/extension-less URLs missed by pre-normalization detection.
+    if (!hasVideo) hasVideo = mediaIds.some(isVideoUrl)
   }
 
   const networks = (rest.providers as MetricoolProvider[]).map(p => p.network)
