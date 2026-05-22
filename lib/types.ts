@@ -109,6 +109,7 @@ export interface Task {
   seen_by?: string | null
   read_at?: string | null
   read_by?: string | null
+  linked_doc_ids?: string[]
 }
 
 export interface AIResponse {

@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2 } from 'lucide-react'
+import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
+import { useAuth } from '@/lib/auth-context'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
@@ -16,6 +17,8 @@ interface Document {
   content: object
   share_token: string
   is_public: boolean
+  is_template: boolean
+  template_category: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -25,6 +28,8 @@ export default function DocsPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { clients } = useClients()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [shareDoc, setShareDoc] = useState<Document | null>(null)
@@ -34,12 +39,15 @@ export default function DocsPage() {
     queryFn: () => fetch('/api/docs').then(r => r.json()),
   })
 
+  const templates = docs.filter(d => d.is_template)
+  const regularDocs = docs.filter(d => !d.is_template)
+
   const createDoc = useMutation({
-    mutationFn: () =>
+    mutationFn: (body: { from_template_id?: string; title?: string } = {}) =>
       fetch('/api/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Untitled Document' }),
+        body: JSON.stringify(body ?? { title: 'Untitled Document' }),
       }).then(r => r.json()),
     onSuccess: (doc: Document) => {
       queryClient.invalidateQueries({ queryKey: ['docs'] })
@@ -50,9 +58,7 @@ export default function DocsPage() {
   const deleteDoc = useMutation({
     mutationFn: (id: string) =>
       fetch(`/api/docs/${id}`, { method: 'DELETE' }).then(r => r.json()),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['docs'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['docs'] }),
   })
 
   const togglePublic = useMutation({
@@ -68,7 +74,17 @@ export default function DocsPage() {
     },
   })
 
-  const filtered = docs.filter(doc => {
+  const removeTemplate = useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/docs/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_template: false }),
+      }).then(r => r.json()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['docs'] }),
+  })
+
+  const filtered = regularDocs.filter(doc => {
     const matchSearch = doc.title.toLowerCase().includes(search.toLowerCase())
     const matchClient = clientFilter ? doc.client_id === clientFilter : true
     return matchSearch && matchClient
@@ -77,28 +93,92 @@ export default function DocsPage() {
   const getClient = (id: string | null) => clients.find(c => c.id === id) ?? null
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Documents</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Collaborative docs linked to clients and projects
-          </p>
+          <p className="text-sm text-slate-500 mt-0.5">Collaborative docs linked to clients and projects</p>
         </div>
         <button
-          onClick={() => createDoc.mutate()}
+          onClick={() => createDoc.mutate({})}
           disabled={createDoc.isPending}
           className="flex items-center gap-2 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
         >
-          {createDoc.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Plus className="w-4 h-4" />
-          )}
+          {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           New Document
         </button>
       </div>
+
+      {/* Templates section */}
+      {(templates.length > 0 || isAdmin) && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <LayoutTemplate className="w-4 h-4 text-novax-muted" />
+            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Templates</h2>
+            <span className="text-[11px] text-slate-400">· Click to start a doc from a template</span>
+          </div>
+
+          {templates.length === 0 && isAdmin && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-novax-light border border-novax-border rounded-xl">
+              <Star className="w-4 h-4 text-novax-muted shrink-0" />
+              <p className="text-xs text-novax-muted">
+                Open any document and click <strong>Make Template</strong> in the editor to save it as a reusable template.
+              </p>
+            </div>
+          )}
+
+          {templates.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {templates.map(tmpl => (
+                <div
+                  key={tmpl.id}
+                  className="group relative flex flex-col gap-2 p-4 bg-novax-light border border-novax-border rounded-xl hover:border-novax-border-active hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <LayoutTemplate className="w-3.5 h-3.5 text-novax-muted shrink-0" />
+                      <p className="text-sm font-semibold text-slate-800 truncate">{tmpl.title}</p>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        onClick={e => { e.stopPropagation(); removeTemplate.mutate(tmpl.id) }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+                        title="Remove template"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  {tmpl.template_category && (
+                    <span className="text-[10px] font-semibold text-novax-muted uppercase tracking-wider">{tmpl.template_category}</span>
+                  )}
+                  <div className="flex items-center gap-2 mt-auto pt-2">
+                    <button
+                      onClick={() => createDoc.mutate({ from_template_id: tmpl.id })}
+                      disabled={createDoc.isPending}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-novax hover:bg-novax-hover text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-60"
+                    >
+                      <Plus className="w-3 h-3" /> Use Template
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => router.push(`/docs/${tmpl.id}`)}
+                        className="px-2.5 py-1.5 border border-novax-border text-xs text-novax-muted rounded-lg hover:bg-novax-light-hover transition-colors"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Divider */}
+      {templates.length > 0 && <div className="border-t border-slate-100 dark:border-slate-800" />}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -120,9 +200,7 @@ export default function DocsPage() {
           >
             <option value="">All clients</option>
             {clients.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -140,10 +218,10 @@ export default function DocsPage() {
             <FileText className="w-5 h-5 text-novax-muted" />
           </div>
           <p className="text-sm font-medium text-slate-700">
-            {docs.length === 0 ? 'No documents yet' : 'No documents match your filters'}
+            {regularDocs.length === 0 ? 'No documents yet' : 'No documents match your filters'}
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            {docs.length === 0 ? 'Create your first document to get started' : 'Try adjusting your search or filter'}
+            {regularDocs.length === 0 ? 'Create your first document to get started' : 'Try adjusting your search or filter'}
           </p>
         </div>
       ) : (
@@ -161,16 +239,11 @@ export default function DocsPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                    {doc.title}
-                  </p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{doc.title}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     {client && (
                       <div className="flex items-center gap-1">
-                        <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ background: client.color }}
-                        />
+                        <div className="w-2 h-2 rounded-full" style={{ background: client.color }} />
                         <span className="text-[11px] text-slate-500">{client.name}</span>
                       </div>
                     )}
@@ -180,7 +253,6 @@ export default function DocsPage() {
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div
                   className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={e => e.stopPropagation()}
@@ -189,18 +261,14 @@ export default function DocsPage() {
                     onClick={() => setShareDoc(doc)}
                     className={cn(
                       'p-1.5 rounded-lg transition-colors',
-                      doc.is_public
-                        ? 'text-novax-muted bg-novax-light'
-                        : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100',
+                      doc.is_public ? 'text-novax-muted bg-novax-light' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100',
                     )}
                     title="Share"
                   >
                     <Share2 className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm('Delete this document?')) deleteDoc.mutate(doc.id)
-                    }}
+                    onClick={() => { if (confirm('Delete this document?')) deleteDoc.mutate(doc.id) }}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                     title="Delete"
                   >
@@ -213,7 +281,6 @@ export default function DocsPage() {
         </div>
       )}
 
-      {/* Share dialog */}
       {shareDoc && (
         <DocShareDialog
           docId={shareDoc.id}

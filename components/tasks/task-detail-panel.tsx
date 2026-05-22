@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import {
   X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle,
   Clock, Zap, Copy, MoreHorizontal, Trash2, Eye, BookOpen as ReadIcon,
-  ChevronDown, ChevronRight, Monitor,
+  ChevronDown, ChevronRight, Monitor, FileText, Plus, ExternalLink,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import type { Task, AgentType, PipelineStage, Priority } from '@/lib/types'
 import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, timeAgo, getSubtypesForStage, getSubtypeStyle, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -75,12 +76,23 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   // Design brief collapsible
   const [briefExpanded, setBriefExpanded] = useState(false)
 
+  // Linked documents
+  const [docsExpanded, setDocsExpanded] = useState(false)
+  const [docSearch, setDocSearch] = useState('')
+  const [showDocSearch, setShowDocSearch] = useState(false)
+
   const { clients } = useClients()
   const { projects } = useProjects()
   const { users } = useUsers()
   const { user: authUser } = useAuth()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
+
+  const { data: allDocs = [] } = useQuery<{ id: string; title: string; is_template: boolean }[]>({
+    queryKey: ['docs'],
+    queryFn: () => fetch('/api/docs').then(r => r.json()),
+    staleTime: 60_000,
+  })
 
   // Sync drafts when task changes (e.g. after a save re-fetches)
   useEffect(() => {
@@ -796,6 +808,107 @@ export function TaskDetailPanel({ task, onClose }: Props) {
               )}
             </div>
           )}
+
+          {/* Linked Documents */}
+          {(() => {
+            const linkedIds = task.linked_doc_ids ?? []
+            const linkedDocs = allDocs.filter(d => linkedIds.includes(d.id))
+            const searchResults = docSearch.trim()
+              ? allDocs.filter(d => !linkedIds.includes(d.id) && d.title.toLowerCase().includes(docSearch.toLowerCase())).slice(0, 6)
+              : []
+
+            const linkDoc = (docId: string) => {
+              updateTask.mutate({ id: task.id, linked_doc_ids: [...linkedIds, docId] })
+              setDocSearch('')
+              setShowDocSearch(false)
+            }
+
+            const unlinkDoc = (docId: string) => {
+              updateTask.mutate({ id: task.id, linked_doc_ids: linkedIds.filter(id => id !== docId) })
+            }
+
+            return (
+              <div className="border-b border-slate-100">
+                <button
+                  onClick={() => setDocsExpanded(v => !v)}
+                  className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Documents</p>
+                    {linkedDocs.length > 0 && (
+                      <span className="flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded-full bg-novax text-white">{linkedDocs.length}</span>
+                    )}
+                  </div>
+                  {docsExpanded
+                    ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                    : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                </button>
+
+                {docsExpanded && (
+                  <div className="px-5 pb-4 space-y-2">
+                    {linkedDocs.map(doc => (
+                      <div key={doc.id} className="flex items-center gap-2 p-2 bg-novax-light rounded-lg border border-novax-border">
+                        <FileText className="w-3.5 h-3.5 text-novax-muted shrink-0" />
+                        <p className="text-xs text-slate-700 flex-1 min-w-0 truncate">{doc.title}</p>
+                        <button
+                          onClick={() => window.open(`/docs/${doc.id}`, '_blank')}
+                          className="text-slate-400 hover:text-novax transition-colors shrink-0"
+                          title="Open document"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => unlinkDoc(doc.id)}
+                          className="text-slate-300 hover:text-red-400 transition-colors shrink-0"
+                          title="Unlink"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {!showDocSearch ? (
+                      <button
+                        onClick={() => setShowDocSearch(true)}
+                        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-novax transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Link a document
+                      </button>
+                    ) : (
+                      <div className="space-y-1">
+                        <input
+                          autoFocus
+                          value={docSearch}
+                          onChange={e => setDocSearch(e.target.value)}
+                          placeholder="Search documents…"
+                          className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-novax-muted bg-white text-slate-700 placeholder:text-slate-400"
+                          onBlur={() => { if (!docSearch) setShowDocSearch(false) }}
+                        />
+                        {searchResults.length > 0 && (
+                          <div className="border border-slate-200 rounded-lg overflow-hidden">
+                            {searchResults.map(doc => (
+                              <button
+                                key={doc.id}
+                                onMouseDown={e => { e.preventDefault(); linkDoc(doc.id) }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-slate-700 hover:bg-novax-light transition-colors border-b border-slate-100 last:border-0"
+                              >
+                                <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                                {doc.title}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {docSearch && searchResults.length === 0 && (
+                          <p className="text-[11px] text-slate-400 px-1">No matching documents</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Comments */}
           <TaskComments taskId={task.id} />

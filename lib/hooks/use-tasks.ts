@@ -49,6 +49,7 @@ function mapTask(row: Record<string, unknown>): Task {
     seen_by: (row.seen_by as string) ?? null,
     read_at: (row.read_at as string) ?? null,
     read_by: (row.read_by as string) ?? null,
+    linked_doc_ids: (row.linked_doc_ids as string[]) ?? [],
   }
 }
 

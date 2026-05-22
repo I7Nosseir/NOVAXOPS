@@ -12,4 +12,5 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE INDEX IF NOT EXISTS idx_documents_client_id ON documents(client_id);
 CREATE INDEX IF NOT EXISTS idx_documents_share_token ON documents(share_token);
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage documents" ON documents;
 CREATE POLICY "Users can manage documents" ON documents FOR ALL USING (true);

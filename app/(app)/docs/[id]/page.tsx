@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Share2, Loader2, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Share2, Loader2, CheckCircle, LayoutTemplate } from 'lucide-react'
 import { DocEditor } from '@/components/docs/doc-editor'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
 import { useClients } from '@/lib/hooks/use-clients'
+import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -17,6 +18,8 @@ interface Document {
   content: object
   share_token: string
   is_public: boolean
+  is_template: boolean
+  template_category: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -28,6 +31,8 @@ export default function DocEditorPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { clients } = useClients()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
 
   const [title, setTitle] = useState('')
   const [content, setContent] = useState<object>({})
@@ -53,7 +58,7 @@ export default function DocEditorPage() {
   }, [doc])
 
   const patchDoc = useMutation({
-    mutationFn: (updates: { title?: string; content?: object; is_public?: boolean }) =>
+    mutationFn: (updates: { title?: string; content?: object; is_public?: boolean; is_template?: boolean }) =>
       fetch(`/api/docs/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -170,6 +175,21 @@ export default function DocEditorPage() {
           </div>
         </div>
 
+        {isAdmin && (
+          <button
+            onClick={() => patchDoc.mutate({ is_template: !doc.is_template })}
+            title={doc.is_template ? 'Remove from templates' : 'Save as template'}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+              doc.is_template
+                ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                : 'text-slate-600 border border-slate-200 hover:bg-slate-50',
+            )}
+          >
+            <LayoutTemplate className="w-3.5 h-3.5" />
+            {doc.is_template ? 'Template' : 'Make Template'}
+          </button>
+        )}
         <button
           onClick={() => setShowShare(true)}
           className={cn(
