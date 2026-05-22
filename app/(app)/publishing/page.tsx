@@ -728,7 +728,9 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
         }
         if (!anyDraft) { toast.success('Post scheduled'); onClose() }
       } else {
-        const result = await schedulePost.mutateAsync(buildInput())
+        const result = await schedulePost.mutateAsync(
+          mediaMode === 'single' ? buildInput({ media_url: resolvedSingleUrl || undefined }) : buildInput()
+        )
         if (result.saved_as_draft) {
           toast.warning(result.error ? `Saved as draft — ${result.error}` : 'Saved as draft — this client is not connected to the scheduling platform.')
           onClose()
@@ -745,8 +747,25 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   async function handleDraft() {
     if (!selectedClient) return toast.error('Select a client first.')
     if (!caption.trim() && !captionAr.trim()) return toast.error('Caption cannot be empty.')
+
+    let draftSingleUrl = singleUrl
+    if (mediaMode === 'single' && isProxyDriveUrl(singleUrl)) {
+      setDriveImporting(true)
+      try {
+        draftSingleUrl = await resolveUrl(singleUrl)
+        setSingleUrl(draftSingleUrl)
+        setDriveConverted(false)
+      } catch (err) {
+        setDriveImporting(false)
+        return toast.error(err instanceof Error ? err.message : 'Drive import failed.')
+      }
+      setDriveImporting(false)
+    }
+
     try {
-      await saveDraft.mutateAsync(buildInput())
+      await saveDraft.mutateAsync(
+        mediaMode === 'single' ? buildInput({ media_url: draftSingleUrl || undefined }) : buildInput()
+      )
       toast.success('Draft saved')
       onClose()
     } catch (err) {
