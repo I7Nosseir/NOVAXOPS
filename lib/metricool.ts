@@ -120,13 +120,12 @@ function isVideoUrl(url: string): boolean {
 /**
  * Normalizes a public media URL to a Metricool CDN URL.
  *
- * Uses /normalize/image/url for images and /normalize/video/url for videos.
- * Mixing them causes the "Error validating MP4" / Telephoto JPEG-conversion error
- * on Instagram and Facebook when a video URL is sent to the image endpoint.
+ * /normalize/image/url handles BOTH images and videos — confirmed in official Metricool PDF:
+ * "that will return the URL of the copy of your image/video on our servers".
+ * There is no separate /normalize/video/url endpoint.
  */
 async function normalizeMediaUrl(url: string): Promise<string> {
-  const type = isVideoUrl(url) ? 'video' : 'image'
-  const endpoint = `${BASE_ROOT}/api/actions/normalize/${type}/url?url=${encodeURIComponent(url)}`
+  const endpoint = `${BASE_ROOT}/api/actions/normalize/image/url?url=${encodeURIComponent(url)}`
   const res = await fetch(endpoint, {
     // No Accept header — the normalize endpoint returns an opaque type (not necessarily JSON).
     // Sending Accept: application/json causes Apache Tomcat to return 406 Not Acceptable.
@@ -167,6 +166,12 @@ async function normalizeMediaUrl(url: string): Promise<string> {
     throw new Error(
       `Metricool normalize returned HTML instead of a mediaId for URL: ${url}\n` +
       `Check that the API token (METRICOOL_API_TOKEN) is valid and not expired.`
+    )
+  }
+  if (!trimmed.startsWith('http')) {
+    throw new Error(
+      `Metricool normalize returned an invalid URL for: ${url}\n` +
+      `Got: "${trimmed.slice(0, 200)}"`
     )
   }
   console.log(`[Metricool] normalize "${url}" → "${trimmed}"`)
