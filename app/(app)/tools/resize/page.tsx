@@ -23,7 +23,7 @@ const FORMAT_INFO = [
     label: '9:16 — Stories & Reels',
     dims: '1080 × 1920 px',
     note: 'Instagram Stories, Reels cover, TikTok',
-    safeNote: 'Safe zones applied: top 12% + bottom 20% (Instagram UI)',
+    safeNote: 'Full image preserved — background extended above & below',
     aspect: 'aspect-[9/16]',
     width: 'w-28',
   },
@@ -32,7 +32,7 @@ const FORMAT_INFO = [
     label: '1:1 — Square Feed',
     dims: '1080 × 1080 px',
     note: 'Instagram feed, Facebook post',
-    safeNote: '8% margin all sides',
+    safeNote: 'Full image preserved — background extended on sides',
     aspect: 'aspect-square',
     width: 'w-36',
   },
@@ -144,16 +144,24 @@ export default function ResizePage() {
   }
 
   // ── Download helper ────────────────────────────────────────────────────────
+  // Uses Blob URL — reliable for large files, no cross-origin issues, works in
+  // all modern browsers without the size limits of data: URLs.
   const download = (formatKey: '9x16' | '1x1') => {
-    const b64   = formatKey === '9x16' ? result?.base64_9x16 : result?.base64_1x1
-    const fname = `novax-${formatKey}-${Date.now()}.jpg`
+    const b64 = formatKey === '9x16' ? result?.base64_9x16 : result?.base64_1x1
     if (!b64) return
+    const fname = `novax-${formatKey}-${Date.now()}.jpg`
+    const byteStr = atob(b64)
+    const bytes = new Uint8Array(byteStr.length)
+    for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i)
+    const blob = new Blob([bytes], { type: 'image/jpeg' })
+    const blobUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = `data:image/jpeg;base64,${b64}`
+    a.href = blobUrl
     a.download = fname
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
   }
 
   const reset = () => {
@@ -446,7 +454,7 @@ export default function ResizePage() {
                       <div className={cn('relative overflow-hidden rounded-xl shadow-lg', fmt.width, fmt.aspect)}>
                         {src ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={src} alt={fmt.label} className="w-full h-full object-cover"/>
+                          <img src={src} alt={fmt.label} className="w-full h-full object-contain bg-slate-800"/>
                         ) : (
                           <div className="w-full h-full bg-slate-800 flex items-center justify-center">
                             <AlertCircle className="w-5 h-5 text-slate-500"/>
