@@ -114,7 +114,9 @@ export interface MetricoolStats {
 // ─── Media normalization ──────────────────────────────────────────────────────
 
 function isVideoUrl(url: string): boolean {
+  // Match by file extension OR by Metricool's /video/ CDN path
   return /\.(mp4|mov|avi|webm|mkv|m4v|wmv|flv)(\?.*)?$/i.test(url)
+    || /static\.metricool\.com\/video\//i.test(url)
 }
 
 /**
@@ -233,21 +235,17 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.tiktokData = { privacyOption: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
-  // Facebook: 'POST' for images/carousels, 'REEL' for videos.
-  // Using 'POST' type with a video URL causes Facebook Graph API #100
-  // ("url should represent a valid URL") because FB routes it through the image upload API.
+  // Facebook: 'POST' for images/carousels, 'REEL' for videos (confirmed from live payload capture).
   if (networks.includes('facebook')) {
     payload.facebookData = { type: hasVideo ? 'REEL' : 'POST', ...(facebookDataIn ?? {}) }
   }
 
-  // Instagram: 'POST' for images/carousels, 'REEL' for videos.
-  // Using 'POST' type with a video causes "Only photo or video can be accepted as media type"
-  // because IG routes it through the photo API.
-  // showReel1nFeed:true ensures the Reel also appears in the main feed — from Metricool PDF p14.
+  // Instagram: 'POST' for images; 'REEL' + showReelOnFeed for videos.
+  // showReelOnFeed (NOT showReel1nFeed) confirmed from live Metricool scheduler payload capture.
   if (networks.includes('instagram')) {
     payload.instagramData = {
       type: hasVideo ? 'REEL' : 'POST',
-      ...(hasVideo ? { showReel1nFeed: true } : {}),
+      ...(hasVideo ? { showReelOnFeed: true } : {}),
       ...(instagramDataIn ?? {}),
     }
   }
