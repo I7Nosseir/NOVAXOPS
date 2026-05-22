@@ -10,7 +10,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <SidebarProvider>
         <AuthGuard>
-          <div className="min-h-screen bg-slate-50 dark:bg-[#0c0f14]">
+          <div className="min-h-screen bg-slate-50 dark:bg-transparent">
             <Sidebar />
             <Header />
             <main className="lg:ml-64 pt-14 min-h-screen">

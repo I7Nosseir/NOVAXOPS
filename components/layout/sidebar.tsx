@@ -77,10 +77,20 @@ export function Sidebar() {
           // Desktop: always visible
           'lg:translate-x-0',
         )}
-        style={{ background: 'var(--sidebar-bg)' }}
+        style={{
+          background: 'linear-gradient(180deg, #090c13 0%, #070a10 55%, #060910 100%)',
+          borderRight: '1px solid rgba(255,255,255,0.042)',
+        }}
       >
+        {/* Top ambient teal glow — visible in dark UIs */}
+        <div
+          className="absolute top-0 left-0 right-0 h-40 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(91,180,174,0.09) 0%, transparent 70%)' }}
+          aria-hidden
+        />
+
         {/* Logo + mobile close */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/8">
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/5 relative">
           <NovaxMark className="w-8 h-8 shrink-0" />
           <div className="flex-1">
             <p className="text-white font-semibold text-sm leading-tight tracking-wide">NOVAX</p>
@@ -96,7 +106,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-          <p className="text-slate-600 text-[10px] font-semibold uppercase tracking-widest px-2 mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-2" style={{ color: 'rgba(91,180,174,0.5)' }}>
             Workspace
           </p>
           {NAV_ITEMS.map(({ href, icon: Icon, label, badge }) => {
@@ -107,11 +117,15 @@ export function Sidebar() {
                 href={href}
                 onClick={handleNavClick}
                 className={cn(
-                  'flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
-                  active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                  'flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group',
+                  active ? 'text-white sidebar-item-active' : 'text-slate-400 hover:text-slate-200'
                 )}
-                style={active ? { background: 'var(--sidebar-active-bg)', color: 'var(--sidebar-text-active)' } : {}}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--sidebar-hover)' }}
+                style={active ? {
+                  background: 'linear-gradient(135deg, rgba(91,180,174,0.11) 0%, rgba(27,61,56,0.18) 100%)',
+                  color: 'var(--sidebar-text-active)',
+                  boxShadow: 'inset 0 1px 0 rgba(91,180,174,0.08)',
+                } : {}}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.048)' }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = '' }}
               >
                 <div className="flex items-center gap-3">
@@ -131,8 +145,15 @@ export function Sidebar() {
         </nav>
 
         {/* User profile */}
-        <div className="px-3 py-4 border-t border-white/8">
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: 'var(--sidebar-hover)' }}>
+        <div className="px-3 py-4 border-t border-white/5">
+          <div
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+            style={{
+              background: 'rgba(255,255,255,0.042)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+            }}
+          >
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
               style={{ background: user?.color ?? '#1B3D38' }}

@@ -37,7 +37,7 @@ export function Header() {
 
   return (
     <>
-      <header className="h-14 fixed top-0 left-0 lg:left-64 right-0 z-40 flex items-center justify-between px-4 lg:px-6 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-700/60">
+      <header className="h-14 fixed top-0 left-0 lg:left-64 right-0 z-40 flex items-center justify-between px-4 lg:px-6 header-glass">
         <div className="flex items-center gap-3">
           {/* Mobile hamburger */}
           <button
@@ -55,14 +55,14 @@ export function Header() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
             <input
               placeholder="Search tasks, clients…"
-              className="w-56 pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all"
+              className="w-56 pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:search-glass border border-slate-200 dark:border-white/10 rounded-lg text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all"
             />
           </div>
 
           {/* New Task — icon-only on mobile */}
           <button
             onClick={() => setShowCreateTask(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 btn-novax-glow text-white text-sm font-medium rounded-lg transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">New Task</span>

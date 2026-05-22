@@ -222,6 +222,279 @@ html.dark :where(.shadow-2xl) { box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.7); 
    Isolates #printable-report and hides everything else.
    Recharts renders SVG so charts print crisply at any resolution.
 ──────────────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   NOVAX PREMIUM DESIGN SYSTEM v2
+   Glassmorphism · Glow effects · Animated canvas · Premium motion
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Animated dark canvas background ──────────────────────────────────────
+   Applied to html.dark body — the layout wrapper must be dark:bg-transparent
+   so this gradient shows through the entire app surface.
+────────────────────────────────────────────────────────────────────────────*/
+html.dark body {
+  background:
+    radial-gradient(ellipse 80% 55% at -5% -5%, rgba(27,61,56,0.5) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 60% at 105% 105%, rgba(42,107,98,0.3) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 45% at 50% 35%, rgba(91,180,174,0.045) 0%, transparent 60%),
+    #07090e;
+  background-attachment: fixed;
+}
+
+/* ─── Keyframe animations ───────────────────────────────────────────────────*/
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes glow-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1; }
+}
+
+@keyframes shimmer-slide {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ─── Animation utility classes ─────────────────────────────────────────────*/
+
+.animate-fade-in-up  { animation: fade-in-up 0.35s ease both; }
+.animate-scale-in    { animation: scale-in 0.25s ease both; }
+.animate-glow-breathe { animation: glow-breathe 2.5s ease-in-out infinite; }
+
+/* Staggered grid animations */
+.anim-stagger > * { animation: fade-in-up 0.38s ease both; }
+.anim-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.anim-stagger > *:nth-child(2) { animation-delay: 55ms; }
+.anim-stagger > *:nth-child(3) { animation-delay: 110ms; }
+.anim-stagger > *:nth-child(4) { animation-delay: 165ms; }
+.anim-stagger > *:nth-child(5) { animation-delay: 220ms; }
+.anim-stagger > *:nth-child(6) { animation-delay: 275ms; }
+.anim-stagger > *:nth-child(7) { animation-delay: 330ms; }
+.anim-stagger > *:nth-child(8) { animation-delay: 385ms; }
+
+/* ─── Glassmorphism card ────────────────────────────────────────────────────*/
+
+.glass-card {
+  background: rgba(255,255,255,0.038);
+  backdrop-filter: blur(22px) saturate(155%);
+  -webkit-backdrop-filter: blur(22px) saturate(155%);
+  border: 1px solid rgba(255,255,255,0.075);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.22),
+    0 4px 18px rgba(0,0,0,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.065);
+  transition: background 0.25s ease, border-color 0.25s ease,
+              box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.glass-card:hover {
+  background: rgba(255,255,255,0.062);
+  border-color: rgba(255,255,255,0.12);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.22),
+    0 10px 32px rgba(0,0,0,0.24),
+    0 0 0 1px rgba(91,180,174,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.09);
+  transform: translateY(-1.5px);
+}
+
+/* ─── Glow utilities ────────────────────────────────────────────────────────*/
+
+.glow-xs  { box-shadow: 0 0 10px rgba(91,180,174,0.2); }
+.glow-sm  { box-shadow: 0 0 16px rgba(91,180,174,0.28); }
+.glow-md  { box-shadow: 0 0 24px rgba(91,180,174,0.38), 0 0 48px rgba(91,180,174,0.12); }
+.glow-lg  { box-shadow: 0 0 36px rgba(91,180,174,0.48), 0 0 72px rgba(91,180,174,0.18); }
+
+/* ─── Sidebar premium: glowing active indicator ─────────────────────────────*/
+
+.sidebar-item-active {
+  position: relative;
+}
+
+.sidebar-item-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 58%;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(to bottom, #5BB4AE 0%, #2A6B62 100%);
+  box-shadow: 0 0 10px rgba(91,180,174,0.75), 0 0 22px rgba(91,180,174,0.3);
+}
+
+/* ─── Header glass ───────────────────────────────────────────────────────────*/
+
+.header-glass {
+  position: relative;
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid rgba(226,232,240,0.75);
+}
+
+html.dark .header-glass {
+  background: rgba(7,9,14,0.78);
+  border-bottom: 1px solid rgba(255,255,255,0.055);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.5), 0 4px 24px rgba(0,0,0,0.2);
+}
+
+/* Teal gradient bottom line — dark mode only */
+html.dark .header-glass::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(91,180,174,0.25) 15%,
+    rgba(91,180,174,0.55) 40%,
+    rgba(91,180,174,0.7) 50%,
+    rgba(91,180,174,0.55) 60%,
+    rgba(91,180,174,0.25) 85%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* ─── Stat cards (dashboard KPI grid) ──────────────────────────────────────*/
+
+.stat-card {
+  border-radius: 0.8rem;
+  padding: 1rem;
+  transition: all 0.25s ease;
+  cursor: default;
+  /* Light mode */
+  background: white;
+  border: 1px solid #e2e8f0;
+}
+
+html.dark .stat-card {
+  background: rgba(255,255,255,0.036);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid rgba(255,255,255,0.07);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.22),
+    0 4px 18px rgba(0,0,0,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.055);
+}
+
+html.dark .stat-card:hover {
+  background: rgba(255,255,255,0.062);
+  border-color: rgba(91,180,174,0.22);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.22),
+    0 10px 32px rgba(0,0,0,0.26),
+    0 0 0 1px rgba(91,180,174,0.13),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateY(-2px);
+}
+
+/* ─── Dashboard content cards (charts, tables) ──────────────────────────────*/
+
+.dash-card {
+  border-radius: 0.8rem;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+  /* Light mode */
+  background: white;
+  border: 1px solid #e2e8f0;
+}
+
+html.dark .dash-card {
+  background: rgba(255,255,255,0.032);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  border: 1px solid rgba(255,255,255,0.065);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.2),
+    0 4px 20px rgba(0,0,0,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.045);
+}
+
+/* ─── Text gradient utility ─────────────────────────────────────────────────*/
+
+.text-gradient-teal {
+  background: linear-gradient(135deg, #5BB4AE 0%, #2A6B62 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Teal shimmer button variant ───────────────────────────────────────────*/
+
+.btn-novax-glow {
+  background: #1B3D38;
+  box-shadow: 0 0 0 1px rgba(91,180,174,0.2), 0 2px 8px rgba(0,0,0,0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-novax-glow:hover {
+  background: #163330;
+  box-shadow: 0 0 0 1px rgba(91,180,174,0.4), 0 4px 16px rgba(27,61,56,0.5), 0 0 20px rgba(91,180,174,0.15);
+  transform: translateY(-1px);
+}
+
+/* ─── Enhanced dark mode scrollbar ─────────────────────────────────────────*/
+
+html.dark ::-webkit-scrollbar       { width: 5px; height: 5px; }
+html.dark ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(91,180,174,0.22);
+  border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(91,180,174,0.42);
+}
+
+/* ─── Pipeline column glass ─────────────────────────────────────────────────*/
+
+html.dark .pipeline-col {
+  background: rgba(255,255,255,0.025);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.055);
+}
+
+/* ─── Input focus glow ───────────────────────────────────────────────────────*/
+
+html.dark input:focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  outline: none;
+  border-color: rgba(91,180,174,0.5) !important;
+  box-shadow: 0 0 0 3px rgba(91,180,174,0.1), 0 0 12px rgba(91,180,174,0.12) !important;
+}
+
+/* ─── Search input glass ─────────────────────────────────────────────────────*/
+
+html.dark .search-glass {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html.dark .search-glass::placeholder {
+  color: rgba(148,163,184,0.6);
+}
+
+html.dark .search-glass:focus {
+  background: rgba(255,255,255,0.09) !important;
+}
+
 @media print {
   /* Force accurate colour rendering — required for NOVAX brand backgrounds */
   * {

@@ -75,17 +75,17 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Stat grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 anim-stagger">
         {statCards.map(({ label, value, icon: Icon, color, delta }) => (
-          <div key={label} className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow">
+          <div key={label} className="stat-card">
             <div className="flex items-start justify-between mb-3">
               <div className={`p-2 rounded-lg ${color}`}>
                 <Icon className="w-4 h-4" />
               </div>
-              <span className="text-[11px] text-slate-400">{delta}</span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">{delta}</span>
             </div>
-            <p className="text-2xl font-bold text-slate-900">{value}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
@@ -93,11 +93,11 @@ export default function DashboardPage() {
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Weekly activity — real data */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+        <div className="lg:col-span-2 dash-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-slate-900">Weekly Activity</h3>
-              <p className="text-xs text-slate-500">Tasks completed &amp; posts published</p>
+              <h3 className="font-semibold text-slate-900 dark:text-white">Weekly Activity</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tasks completed &amp; posts published</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={180}>
@@ -122,9 +122,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Pipeline distribution — real data */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="font-semibold text-slate-900 mb-1">Pipeline Distribution</h3>
-          <p className="text-xs text-slate-500 mb-4">Tasks per stage</p>
+        <div className="dash-card">
+          <h3 className="font-semibold text-slate-900 dark:text-white mb-1">Pipeline Distribution</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Tasks per stage</p>
           <ResponsiveContainer width="100%" height={140}>
             <PieChart>
               <Pie
@@ -153,9 +153,9 @@ export default function DashboardPage() {
       {/* Bottom row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Recent tasks — sorted by updated_at */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+        <div className="lg:col-span-2 dash-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-900">Recent Tasks</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-white">Recent Tasks</h3>
             <a href="/pipeline" className="text-xs text-novax hover:text-novax-hover font-medium">View pipeline →</a>
           </div>
           <div className="space-y-2">
@@ -165,7 +165,7 @@ export default function DashboardPage() {
               const client   = clients.find(c => c.id === task.client_id)
               const user     = users.find(u => u.id === task.assigned_to)
               return (
-                <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer group">
+                <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-white/[0.035] transition-colors cursor-pointer group">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate group-hover:text-novax transition-colors">{task.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
@@ -193,9 +193,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Top posts */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="dash-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-900">Top Performing Posts</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-white">Top Performing Posts</h3>
             <a href="/reports" className="text-xs text-novax hover:text-novax-hover font-medium">Reports →</a>
           </div>
           <div className="space-y-3">
@@ -203,7 +203,7 @@ export default function DashboardPage() {
               const client = clients.find(c => c.id === post.client_id)
               const isUp = post.performance!.engagement_rate > 5
               return (
-                <div key={post.id} className="p-3 rounded-lg bg-slate-50">
+                <div key={post.id} className="p-3 rounded-lg bg-slate-50 dark:bg-white/5 dark:border dark:border-white/6">
                   <div className="flex items-start justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ background: client?.color }}>
@@ -233,9 +233,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Client health */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="dash-card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-900">Client Health</h3>
+          <h3 className="font-semibold text-slate-900 dark:text-white">Client Health</h3>
           <a href="/clients" className="text-xs text-novax hover:text-novax-hover font-medium">All clients →</a>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -246,7 +246,7 @@ export default function DashboardPage() {
             const health      = Math.min(100, Math.round((completed / Math.max(clientTasks.length, 1)) * 100) + 40)
             const scheduled   = posts.filter(p => p.client_id === client.id && p.status === 'scheduled').length
             return (
-              <div key={client.id} className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all cursor-pointer">
+              <div key={client.id} className="p-4 rounded-xl border border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-novax-border/40 hover:shadow-sm dark:bg-white/[0.02] transition-all cursor-pointer">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: client.color }}>
                     {client.initials}
