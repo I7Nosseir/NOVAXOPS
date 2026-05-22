@@ -259,3 +259,223 @@ export async function sendTeamInvite(params: TeamInviteParams): Promise<SendResu
     return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }
+
+// ---------------------------------------------------------------------------
+// sendMentionNotification
+// ---------------------------------------------------------------------------
+
+export interface MentionNotificationParams {
+  mentionedEmail: string
+  mentionedName: string
+  mentionerName: string
+  taskTitle: string
+  taskId: string
+  clientName: string
+  commentPreview: string  // first 200 chars of the comment
+}
+
+export async function sendMentionNotification(params: MentionNotificationParams): Promise<SendResult> {
+  const { mentionedEmail, mentionedName, mentionerName, taskTitle, taskId, clientName, commentPreview } = params
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://novaxops.com'
+
+  const blockquote = `<blockquote style="margin:12px 0;padding:10px 14px;border-left:3px solid #5BB4AE;background:#EBF4F3;border-radius:0 6px 6px 0;font-size:13px;color:#475569;font-style:italic;">${commentPreview}</blockquote>`
+
+  const html = htmlWrapper(`
+    ${h2(`${mentionerName} mentioned you in a task`)}
+    ${p(`Hi ${mentionedName}, <strong style="color:#1e293b;">${mentionerName}</strong> mentioned you in a comment on task <strong style="color:#1e293b;">${taskTitle}</strong>.`)}
+    ${blockquote}
+    ${metaTable([
+      ['Client', clientName],
+      ['Task', taskTitle],
+    ])}
+    ${ctaButton('View Task', `${appUrl}/pipeline?task=${taskId}`)}
+  `)
+
+  try {
+    const resend = client()
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to: mentionedEmail,
+      subject: `${mentionerName} mentioned you in "${taskTitle}"`,
+      html,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sendTaskReminder
+// ---------------------------------------------------------------------------
+
+export interface TaskReminderParams {
+  userEmail: string
+  userName: string
+  taskTitle: string
+  taskId: string
+  clientName: string
+  dueDate: string        // formatted date string
+  priority: string
+  hoursUntilDue: number  // e.g. 24 or 48
+}
+
+export async function sendTaskReminder(params: TaskReminderParams): Promise<SendResult> {
+  const { userEmail, userName, taskTitle, taskId, clientName, dueDate, priority, hoursUntilDue } = params
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://novaxops.com'
+
+  const urgencyBadge = hoursUntilDue <= 24
+    ? `<span style="display:inline-block;background:#FEF2F2;color:#DC2626;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:12px;">Due in ${hoursUntilDue} hours</span>`
+    : ''
+
+  const html = htmlWrapper(`
+    ${h2('Task Due Soon')}
+    ${urgencyBadge}
+    ${p(`Hi ${userName}, this is a reminder that your task <strong style="color:#1e293b;">${taskTitle}</strong> is due soon. Please submit your final work before the deadline.`)}
+    ${metaTable([
+      ['Client', clientName],
+      ['Priority', priority],
+      ['Due Date', dueDate],
+    ])}
+    ${ctaButton('View Task', `${appUrl}/pipeline?task=${taskId}`)}
+  `)
+
+  try {
+    const resend = client()
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to: userEmail,
+      subject: `Reminder: "${taskTitle}" is due in ${hoursUntilDue}h`,
+      html,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sendDailyDigest
+// ---------------------------------------------------------------------------
+
+export interface DailyDigestStats {
+  date: string
+  totalActiveTasks: number
+  tasksCreatedToday: number
+  overdueTasks: number
+  tasksByStage: { stage: string; count: number }[]
+  postsScheduledToday: number
+  postsPublishedToday: number
+  pendingModeration: number
+  clientsInCrisis: string[]
+  topAssignees: { name: string; tasks: number }[]
+}
+
+export interface DailyDigestParams {
+  ceoEmail: string
+  ceoName: string
+  stats: DailyDigestStats
+}
+
+const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
+  strategy:  { bg: '#EBF4F3', text: '#2A6B62' },
+  ideas:     { bg: '#F0FDF4', text: '#15803D' },
+  calendar:  { bg: '#EFF6FF', text: '#1D4ED8' },
+  copy:      { bg: '#FEF3C7', text: '#92400E' },
+  design:    { bg: '#F3E8FF', text: '#7E22CE' },
+  review:    { bg: '#FFF7ED', text: '#C2410C' },
+  approval:  { bg: '#FEF2F2', text: '#B91C1C' },
+  scheduled: { bg: '#EBF4F3', text: '#1B3D38' },
+  published: { bg: '#F0FDF4', text: '#15803D' },
+  reporting: { bg: '#F8FAFC', text: '#475569' },
+}
+
+function kpiMini(value: number | string, label: string): string {
+  return `<div style="flex:1;background:#EBF4F3;border:1px solid #9DCCC8;border-radius:8px;padding:12px 14px;text-align:center;"><div style="font-size:22px;font-weight:800;color:#1B3D38;">${value}</div><div style="font-size:10px;color:#2A6B62;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">${label}</div></div>`
+}
+
+export async function sendDailyDigest(params: DailyDigestParams): Promise<SendResult> {
+  const { ceoEmail, ceoName, stats } = params
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://novaxops.com'
+
+  // KPI row
+  const kpiRow = `<div style="display:flex;gap:10px;margin:16px 0;">
+    ${kpiMini(stats.totalActiveTasks, 'Active Tasks')}
+    ${kpiMini(stats.postsScheduledToday + stats.postsPublishedToday, 'Posts Today')}
+    ${kpiMini(stats.pendingModeration, 'Pending Moderation')}
+  </div>`
+
+  // Pipeline snapshot table
+  const stageActive = stats.tasksByStage.filter(s => s.count > 0)
+  const pipelineTable = stageActive.length > 0
+    ? `<table style="width:100%;border-collapse:separate;border-spacing:3px;margin:12px 0;">
+        <tr>
+          ${stageActive.map(({ stage, count }) => {
+            const colors = STAGE_COLORS[stage] ?? { bg: '#F8FAFC', text: '#475569' }
+            return `<td style="padding:8px 6px;text-align:center;background:${colors.bg};border-radius:4px;">
+              <div style="font-size:13px;font-weight:700;color:${colors.text};">${count}</div>
+              <div style="font-size:9px;font-weight:600;color:${colors.text};opacity:0.8;text-transform:capitalize;">${stage}</div>
+            </td>`
+          }).join('\n          ')}
+        </tr>
+      </table>`
+    : ''
+
+  // Flags section
+  const flagRows: string[] = []
+  if (stats.overdueTasks > 0) {
+    flagRows.push(`<tr><td style="padding:10px 14px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:6px;font-size:13px;font-weight:600;color:#DC2626;">&#9888; ${stats.overdueTasks} task(s) are overdue</td></tr>`)
+  }
+  if (stats.clientsInCrisis.length > 0) {
+    flagRows.push(`<tr><td style="padding:10px 14px;background:#FFF7ED;border:1px solid #FDBA74;border-radius:6px;font-size:13px;font-weight:600;color:#C2410C;margin-top:6px;">&#9650; ${stats.clientsInCrisis.join(', ')} in Crisis Mode</td></tr>`)
+  }
+  const flagsSection = flagRows.length > 0
+    ? `<table cellpadding="0" cellspacing="4" style="width:100%;margin:16px 0;">${flagRows.join('\n')}</table>`
+    : ''
+
+  // Top contributors
+  const contributorsSection = stats.topAssignees.length > 0
+    ? `<div style="margin:16px 0;">
+        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Top Contributors Today</div>
+        ${stats.topAssignees.map((a, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 12px;background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'};border-radius:4px;font-size:13px;">
+          <span style="color:#1e293b;font-weight:500;">${a.name}</span>
+          <span style="color:#2A6B62;font-weight:700;">${a.tasks} tasks</span>
+        </div>`).join('\n        ')}
+      </div>`
+    : ''
+
+  // Today's activity summary line
+  const activityLine = `<div style="margin:10px 0 4px;font-size:13px;color:#475569;">
+    <span style="color:#1B3D38;font-weight:600;">${stats.tasksCreatedToday}</span> task(s) created today &nbsp;|&nbsp;
+    <span style="color:#15803D;font-weight:600;">${stats.postsPublishedToday}</span> post(s) published &nbsp;|&nbsp;
+    <span style="color:#1D4ED8;font-weight:600;">${stats.postsScheduledToday}</span> post(s) scheduled
+  </div>`
+
+  const html = htmlWrapper(`
+    <p style="margin:0 0 4px;font-size:20px;font-weight:700;color:#1B3D38;">Good morning, ${ceoName}.</p>
+    <p style="margin:0 0 20px;font-size:13px;color:#2A6B62;font-weight:500;">${stats.date}</p>
+    ${kpiRow}
+    ${activityLine}
+    ${stageActive.length > 0 ? `<div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 4px;">Pipeline Snapshot</div>${pipelineTable}` : ''}
+    ${flagsSection}
+    ${contributorsSection}
+    ${ctaButton('Open NOVAX Ops', appUrl)}
+    <p style="margin:20px 0 0;font-size:11px;color:#94a3b8;">This digest is sent daily at 8:00 AM. Replies to this email are not monitored.</p>
+  `)
+
+  try {
+    const resend = client()
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to: ceoEmail,
+      subject: `NOVAX Ops Daily Brief — ${stats.date}`,
+      html,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}

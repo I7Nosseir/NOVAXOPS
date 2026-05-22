@@ -1,8 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/cron/sync-performance",
+      "path": "/api/cron/daily-digest",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/task-reminders",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/sync-performance",
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/sync-status",

@@ -21,6 +21,12 @@ export function TaskComments({ taskId }: Props) {
   const handleSend = async () => {
     if (!text.trim() || !user) return
     await createComment.mutateAsync({ task_id: taskId, user_id: user.id, body: text.trim() })
+    // Fire-and-forget mention notifications
+    fetch('/api/notifications/mention', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId, commentBody: text.trim(), commenterId: user.id }),
+    }).catch(() => {})
     setText('')
   }
 
