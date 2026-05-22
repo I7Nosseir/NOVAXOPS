@@ -479,6 +479,7 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0) // 0-100
   const [dragOver, setDragOver] = useState(false)
+  const [carouselUploading, setCarouselUploading] = useState<Record<number, boolean>>({})
   const [thumbnailUrl, setThumbnailUrl] = useState('')
   const [driveImporting, setDriveImporting] = useState(false)
 
@@ -614,6 +615,32 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
     setDragOver(false)
     const file = e.dataTransfer.files[0]
     if (file) handleFileUpload(file)
+  }
+
+  async function handleCarouselSlideUpload(index: number, file: File) {
+    setCarouselUploading(prev => ({ ...prev, [index]: true }))
+    try {
+      const ext = file.name.split('.').pop() ?? 'bin'
+      const path = `posts/${selectedClient || 'unknown'}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { data: signedData, error: signedErr } = await supabase.storage
+        .from('assets')
+        .createSignedUploadUrl(path)
+      if (signedErr || !signedData) throw new Error(signedErr?.message ?? 'Could not get upload URL')
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('PUT', signedData.signedUrl)
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`))
+        xhr.onerror = () => reject(new Error('Network error during upload'))
+        xhr.send(file)
+      })
+      const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
+      setCarouselUrls(prev => { const next = [...prev]; next[index] = publicUrl; return next })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Slide upload failed')
+    } finally {
+      setCarouselUploading(prev => ({ ...prev, [index]: false }))
+    }
   }
 
   // Sync selectedClient once clients finish loading (useState initial value runs before data arrives)
@@ -960,9 +987,22 @@ function ComposeDialog({ onClose }: { onClose: () => void }) {
                           next[i] = e.target.value
                           setCarouselUrls(next)
                         }}
-                        placeholder={`Slide ${i + 1} — paste image URL`}
+                        placeholder={`Slide ${i + 1} — paste URL or upload`}
                         className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"
                       />
+                      <label className="shrink-0 cursor-pointer text-slate-400 hover:text-novax-muted transition-colors">
+                        {carouselUploading[i]
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin"/>
+                          : <Upload className="w-3.5 h-3.5"/>
+                        }
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,video/mp4"
+                          className="hidden"
+                          disabled={carouselUploading[i]}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleCarouselSlideUpload(i, f) }}
+                        />
+                      </label>
                       {carouselUrls.length > 2 && (
                         <button
                           onClick={() => setCarouselUrls(prev => prev.filter((_, idx) => idx !== i))}

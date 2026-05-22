@@ -166,6 +166,7 @@ async function normalizeMediaUrl(url: string): Promise<string> {
       `Check that the API token (METRICOOL_API_TOKEN) is valid and not expired.`
     )
   }
+  console.log(`[Metricool] normalize "${url}" → "${trimmed}"`)
   return trimmed
 }
 
@@ -203,10 +204,15 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     ...rest,
   }
 
+  const isCarousel = (imageUrls?.length ?? 0) > 1
+
   if (imageUrls?.length) {
-    // Normalize all URLs in parallel — Metricool hosts the file and returns a CDN URL.
-    // That CDN URL is the mediaId value. Single image → object; carousel → array of objects.
-    const mediaIds = await Promise.all(imageUrls.map(normalizeMediaUrl))
+    // Normalize sequentially — parallel calls can hit Metricool's undocumented rate limit
+    // on the normalize endpoint and silently return bad CDN URLs for later items.
+    const mediaIds: string[] = []
+    for (const url of imageUrls) {
+      mediaIds.push(await normalizeMediaUrl(url))
+    }
     payload.media = mediaIds.length === 1
       ? { mediaId: mediaIds[0] }
       : mediaIds.map(id => ({ mediaId: id }))
@@ -225,16 +231,42 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.facebookData = { type: 'POST', ...(facebookDataIn ?? {}) }
   }
 
-  // Instagram: type:'POST' is required for image and carousel posts.
-  // Without it Metricool cannot build the carousel container and the post fails.
+  // Instagram: single image/video → type:'POST', carousel (2+ images) → type:'CAROUSEL_ALBUM'.
+  // Instagram's Graph API uses 'CAROUSEL_ALBUM' as the container type for multi-image posts.
+  // Metricool passes this through; using 'POST' for carousels causes the carousel container
+  // creation step to fail silently, resulting in the "image urls are not read and passed" error.
   if (networks.includes('instagram')) {
-    payload.instagramData = { type: 'POST', ...(instagramDataIn ?? {}) }
+    payload.instagramData = {
+      type: isCarousel ? 'CAROUSEL_ALBUM' : 'POST',
+      ...(instagramDataIn ?? {}),
+    }
   }
 
-  return mFetch<MetricoolScheduledPost>(`/scheduler/posts?${qs(blogId)}`, {
+  console.log('[Metricool] schedulePost payload:', JSON.stringify(payload, null, 2))
+
+  const res = await fetch(`${BASE}/scheduler/posts?${qs(blogId)}`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Mc-Auth': requireToken(),
+    },
     body: JSON.stringify(payload),
   })
+
+  let rawBody = ''
+  try { rawBody = await res.text() } catch { /* ignore */ }
+  console.log(`[Metricool] schedulePost response (${res.status}):`, rawBody)
+
+  if (!res.ok) {
+    throw new Error(`Metricool ${res.status} on /scheduler/posts: ${rawBody}`)
+  }
+
+  try {
+    return JSON.parse(rawBody) as MetricoolScheduledPost
+  } catch {
+    throw new Error(`Metricool returned non-JSON (${res.status}): ${rawBody.slice(0, 300)}`)
+  }
 }
 
 /**
