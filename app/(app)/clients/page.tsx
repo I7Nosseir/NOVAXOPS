@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import Link from 'next/link'
 import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, RefreshCw } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useTasks } from '@/lib/hooks/use-tasks'
@@ -315,10 +316,14 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
               <h3 className="font-semibold text-slate-900 mb-3">Content Gaps</h3>
               <div className="flex flex-wrap gap-2">
                 {intel.content_gap.map(g => (
-                  <span key={g} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700">
+                  <Link
+                    key={g}
+                    href={`/studio/content?brief=${encodeURIComponent(g)}&client=${client.id}`}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
+                  >
                     <Zap className="w-2.5 h-2.5"/>
                     {g}
-                  </span>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -351,7 +356,14 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
                     <div className="w-5 h-5 rounded-full bg-novax flex items-center justify-center shrink-0 mt-0.5">
                       <span className="text-white text-[9px] font-bold">{i + 1}</span>
                     </div>
-                    <p className="text-sm text-slate-700">{action}</p>
+                    <p className="text-sm text-slate-700 flex-1">{action}</p>
+                    <Link
+                      href={`/studio/strategy?client=${client.id}`}
+                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-novax-muted bg-white border border-novax-border rounded-md hover:bg-novax hover:text-white transition-colors shrink-0"
+                    >
+                      <Zap className="w-2.5 h-2.5"/>
+                      Strategy
+                    </Link>
                   </div>
                 ))}
               </div>

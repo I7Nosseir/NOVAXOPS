@@ -6,30 +6,72 @@ import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
   ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2, ListTodo, ScanSearch, FileText,
+  Zap, Brain,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useSidebar } from '@/lib/sidebar-context'
 
-const NAV_ITEMS = [
-  { href: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/pipeline',    icon: Kanban,           label: 'Pipeline' },
-  { href: '/tasks',      icon: ListTodo,         label: 'Tasks' },
-  { href: '/clients',     icon: Building2,        label: 'Clients' },
-  { href: '/projects',    icon: FolderKanban,     label: 'Projects' },
-  { href: '/publishing',  icon: Send,             label: 'Publishing' },
-  { href: '/approval',    icon: CheckSquare,      label: 'Approval', badge: 4 },
-  { href: '/moderation',  icon: MessageSquare,    label: 'Moderation', badge: 3 },
-  { href: '/assets',      icon: Image,            label: 'Assets' },
-  { href: '/ai-image',      icon: Wand2,       label: 'AI Image' },
-  { href: '/tools/resize',  icon: ScanSearch,  label: 'Smart Resize' },
-  { href: '/creative-eval', icon: Sparkles,    label: 'Creative Eval' },
-  { href: '/docs',         icon: FileText,         label: 'Documents' },
-  { href: '/workload',    icon: Users,            label: 'Workload' },
-  { href: '/library',     icon: BookMarked,       label: 'Content Library' },
-  { href: '/performance', icon: TrendingUp,       label: 'Performance' },
-  { href: '/reports',     icon: BarChart2,        label: 'Reports' },
-  { href: '/settings',    icon: Settings,         label: 'Settings' },
+interface NavItem {
+  href: string
+  icon: React.ElementType
+  label: string
+  badge?: number
+}
+
+interface NavSection {
+  label: string
+  items: NavItem[]
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Workspace',
+    items: [
+      { href: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/pipeline',    icon: Kanban,           label: 'Pipeline' },
+      { href: '/tasks',       icon: ListTodo,         label: 'Tasks' },
+      { href: '/clients',     icon: Building2,        label: 'Clients' },
+      { href: '/projects',    icon: FolderKanban,     label: 'Projects' },
+      { href: '/publishing',  icon: Send,             label: 'Publishing' },
+      { href: '/approval',    icon: CheckSquare,      label: 'Approval', badge: 4 },
+      { href: '/moderation',  icon: MessageSquare,    label: 'Moderation', badge: 3 },
+    ],
+  },
+  {
+    label: 'Studio',
+    items: [
+      { href: '/studio',         icon: Zap,       label: 'Studio' },
+      { href: '/studio/content', icon: Sparkles,  label: 'Content Studio' },
+      { href: '/studio/hooks',   icon: Wand2,     label: 'Hook Lab' },
+      { href: '/studio/strategy',icon: Brain,     label: 'Strategy' },
+    ],
+  },
+  {
+    label: 'Creative',
+    items: [
+      { href: '/assets',         icon: Image,      label: 'Assets' },
+      { href: '/ai-image',       icon: Wand2,      label: 'AI Image' },
+      { href: '/tools/resize',   icon: ScanSearch, label: 'Smart Resize' },
+      { href: '/creative-eval',  icon: Sparkles,   label: 'Creative Eval' },
+      { href: '/docs',           icon: FileText,   label: 'Documents' },
+    ],
+  },
+  {
+    label: 'Intelligence',
+    items: [
+      { href: '/performance', icon: TrendingUp, label: 'Performance' },
+      { href: '/workload',    icon: Users,      label: 'Workload' },
+      { href: '/library',     icon: BookMarked, label: 'Content Library' },
+      { href: '/reports',     icon: BarChart2,  label: 'Reports' },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { href: '/settings', icon: Settings, label: 'Settings' },
+    ],
+  },
 ]
 
 function NovaxMark({ className }: { className?: string }) {
@@ -105,43 +147,50 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-2" style={{ color: 'rgba(91,180,174,0.5)' }}>
-            Workspace
-          </p>
-          {NAV_ITEMS.map(({ href, icon: Icon, label, badge }) => {
-            const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={handleNavClick}
-                className={cn(
-                  'flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group',
-                  active ? 'text-white sidebar-item-active' : 'text-slate-400 hover:text-slate-200'
-                )}
-                style={active ? {
-                  background: 'linear-gradient(135deg, rgba(91,180,174,0.11) 0%, rgba(27,61,56,0.18) 100%)',
-                  color: 'var(--sidebar-text-active)',
-                  boxShadow: 'inset 0 1px 0 rgba(91,180,174,0.08)',
-                } : {}}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.048)' }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.background = '' }}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className={cn('w-4 h-4 shrink-0', active ? 'text-novax-accent' : 'text-slate-500 group-hover:text-slate-300')} />
-                  <span>{label}</span>
-                </div>
-                {badge ? (
-                  <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-novax text-white text-[10px] font-bold">
-                    {badge}
-                  </span>
-                ) : active ? (
-                  <ChevronRight className="w-3.5 h-3.5 text-novax-accent opacity-60" />
-                ) : null}
-              </Link>
-            )
-          })}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {NAV_SECTIONS.map((section, si) => (
+            <div key={section.label} className={si > 0 ? 'mt-4' : ''}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-1.5" style={{ color: 'rgba(91,180,174,0.5)' }}>
+                {section.label}
+              </p>
+              <div className="space-y-0.5">
+                {section.items.map(({ href, icon: Icon, label, badge }) => {
+                  const active = pathname === href || (href !== '/dashboard' && href !== '/studio' && pathname.startsWith(href))
+                    || (href === '/studio' && pathname === '/studio')
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={handleNavClick}
+                      className={cn(
+                        'flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group',
+                        active ? 'text-white sidebar-item-active' : 'text-slate-400 hover:text-slate-200'
+                      )}
+                      style={active ? {
+                        background: 'linear-gradient(135deg, rgba(91,180,174,0.11) 0%, rgba(27,61,56,0.18) 100%)',
+                        color: 'var(--sidebar-text-active)',
+                        boxShadow: 'inset 0 1px 0 rgba(91,180,174,0.08)',
+                      } : {}}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.048)' }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.background = '' }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className={cn('w-4 h-4 shrink-0', active ? 'text-novax-accent' : 'text-slate-500 group-hover:text-slate-300')} />
+                        <span>{label}</span>
+                      </div>
+                      {badge ? (
+                        <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-novax text-white text-[10px] font-bold">
+                          {badge}
+                        </span>
+                      ) : active ? (
+                        <ChevronRight className="w-3.5 h-3.5 text-novax-accent opacity-60" />
+                      ) : null}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* User profile */}

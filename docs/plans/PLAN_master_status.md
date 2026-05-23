@@ -1,6 +1,6 @@
 # NOVAX Ops — Master Status & Roadmap
 
-**Last updated:** 2026-05-21  
+**Last updated:** 2026-05-23  
 **Platform state:** Production-ready MVP. Core content pipeline works end-to-end.
 
 ---
@@ -51,38 +51,40 @@ Every step of this loop is live:
 
 | Feature | Plan doc | Blocker |
 |---|---|---|
-| Per-post performance data sync from Metricool | [PLAN_metricool_full_integration.md](./PLAN_metricool_full_integration.md) | Not built |
-| Scheduled post sync (catch Metricool-native posts) | [PLAN_metricool_full_integration.md](./PLAN_metricool_full_integration.md) | Not built |
-| Performance Library (content + competitor analytics + recommendations) | [PLAN_performance_library.md](./PLAN_performance_library.md) | Not built |
-| Report export to PDF + PowerPoint | [PLAN_text_to_report.md](./PLAN_text_to_report.md) | Not built |
-| Respond.io webhook + reply sender | No plan doc yet | Not built |
-| Client SWOT / Intelligence (real AI, not mock) | [project_client_wizard_plan.md in memory] | MOCK_INTEL only |
+| Per-post performance data sync from Metricool | [PLAN_metricool_full_integration.md](./PLAN_metricool_full_integration.md) | Routes exist, needs cron wired |
+| Scheduled post sync (catch Metricool-native posts) | [PLAN_metricool_full_integration.md](./PLAN_metricool_full_integration.md) | Route exists `/api/metricool/sync` |
 
 ### Medium priority — operational gaps
 
 | Feature | Notes |
 |---|---|
-| Role-based vendor name masking | All roles see "Metricool" — should be masked to non-admin/ceo |
-| Integrations tab hidden from non-admin | Currently visible to all roles |
-| Approval Portal email to client | Link is generated + copyable but no email sent |
-| Crisis Mode persistence to Supabase | Local state only — resets on refresh |
-| Google Drive OAuth file browser | Routes exist at `/api/drive/*` but not wired to Assets UI |
+| Bulk "Schedule All" for calendar output | Small UX improvement |
+| Reference document upload per client | Feeds into report generation context |
 
 ### Low priority — polish & power features
 
 | Feature | Notes |
 |---|---|
-| AI Image Creation page (Flux 2 / Ideogram) | Full page not built |
-| AI Video Creation page (Higgsfield) | Mock UI exists; real API route not built |
-| Presentation Builder (text → pptxgenjs → .pptx) | pptxgenjs installed, route not built |
-| Per-client pipeline view | Filter pipeline board by client |
-| Reference document upload per client | Feeds into report generation context |
-| Google Drive file browser in Assets | OAuth routes built, browser UI now wired |
-| Report template upload + matching | Not built |
-| Best time to post recommendation | Dependent on performance data accumulation |
-| Vercel cron for daily performance sync | Needs post-performance pull built first |
-| Bulk "Schedule All" for calendar output | Small UX improvement |
-| Metricool blog ID config UI in Settings | Currently set manually in Supabase |
+| AI Video Creation page (Higgsfield) | Excluded — API not available |
+| Report template upload + matching | Nice-to-have |
+| Vercel cron for daily performance sync | `/api/cron/sync-performance` exists; wire in vercel.json |
+
+### Studio Power Tools (Sprint roadmap — all use Claude API)
+
+| Feature | Status |
+|---|---|
+| Studio landing page `/studio` | **BUILT** |
+| Hook Lab `/studio/hooks` + API | **BUILT** (One Peak 3C, 20 hooks, save to library) |
+| Content Creation Studio `/studio/content` | **BUILT** (Define → Research → Hooks → Script → Schedule) |
+| Strategy Command Center `/studio/strategy` | **BUILT** (5 meta-phases, all using Claude Opus) |
+| Hook Library DB table + API | **BUILT** (sql/012_studio.sql) |
+| Studio sessions DB table | **BUILT** (sql/012_studio.sql) |
+| Action bridges: Performance → Studio | **BUILT** ("Create This" on each recommendation) |
+| Action bridges: Client Intelligence → Studio | **BUILT** (Content Gaps → Studio, Strategy → Strategy Center) |
+| Sidebar sectioned (Workspace/Studio/Creative/Intelligence) | **BUILT** |
+| Viral Pattern Library `/studio/patterns` | Planned — Sprint 5 |
+| Brand Voice Trainer | Planned — Sprint 6 |
+| Admin Intelligence Panel | Planned — Sprint 6 |
 
 ---
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -12,7 +13,7 @@ import { PlatformIcon } from '@/components/ui/platform-icon'
 import type { SocialPlatform } from '@/lib/types'
 import {
   TrendingUp, RefreshCw, Zap, Plus, Trash2, BarChart2,
-  Users, Clock, ChevronRight, AlertTriangle,
+  Users, Clock, ChevronRight, AlertTriangle, Activity,
 } from 'lucide-react'
 
 const B = {
@@ -84,6 +85,12 @@ function erTierClass(er: number, posts: PerformancePost[]) {
   return 'border-slate-200'
 }
 
+type MetricoolAggregate = {
+  reach: number; impressions: number; engagement_rate: number
+  likes: number; comments: number; shares: number; saves: number
+  _mock?: boolean
+}
+
 // ─── Tab 1: Content Performance ──────────────────────────────────────────────
 function ContentPerformanceTab({ clientId }: { clientId: string }) {
   const { user } = useAuth()
@@ -92,12 +99,26 @@ function ContentPerformanceTab({ clientId }: { clientId: string }) {
   const [syncing, setSyncing] = useState(false)
   const [dateRange, setDateRange] = useState('30d')
   const [selected, setSelected] = useState<PerformancePost | null>(null)
+  const [liveStats, setLiveStats] = useState<MetricoolAggregate | null>(null)
+  const [syncResult, setSyncResult] = useState<{ synced: number; _mock?: boolean } | null>(null)
+
+  const days = dateRange === '7d' ? 7 : dateRange === '90d' ? 90 : 30
+
+  const fetchLiveStats = async () => {
+    const end = new Date().toISOString().split('T')[0]
+    const start = new Date(Date.now() - days * 86400000).toISOString().split('T')[0]
+    try {
+      const res = await fetch(`/api/metricool/analytics?client_id=${clientId}&startDate=${start}&endDate=${end}`)
+      if (!res.ok) return
+      const data = await res.json() as { stats?: MetricoolAggregate; _mock?: boolean }
+      if (data.stats) setLiveStats({ ...data.stats, _mock: data._mock })
+    } catch { /* silent — posts fallback is shown instead */ }
+  }
 
   const fetchPosts = async () => {
     if (!clientId) return
     setLoading(true)
     const end = new Date().toISOString()
-    const days = dateRange === '7d' ? 7 : dateRange === '90d' ? 90 : 30
     const start = new Date(Date.now() - days * 86400000).toISOString()
     try {
       const res = await fetch(`/api/performance/posts?client_id=${clientId}&start=${start}&end=${end}`)
@@ -111,20 +132,37 @@ function ContentPerformanceTab({ clientId }: { clientId: string }) {
   const syncNow = async () => {
     if (!clientId) return
     setSyncing(true)
-    await fetch('/api/metricool/sync', { method: 'POST' })
-    await fetchPosts()
+    setSyncResult(null)
+    try {
+      const res = await fetch('/api/performance/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      })
+      const data = await res.json() as { synced?: number; _mock?: boolean }
+      setSyncResult({ synced: data.synced ?? 0, _mock: data._mock })
+    } catch { /* ignore */ }
+    await Promise.all([fetchPosts(), fetchLiveStats()])
     setSyncing(false)
   }
 
-  useEffect(() => { void fetchPosts() }, [clientId, dateRange])
+  useEffect(() => {
+    void fetchPosts()
+    void fetchLiveStats()
+  }, [clientId, dateRange])
 
-  const avgER = posts.length ? (posts.reduce((s, p) => s + p.engagement_rate, 0) / posts.length).toFixed(2) : '—'
-  const totalReach = posts.reduce((s, p) => s + p.reach, 0)
+  // Prefer live Metricool aggregate; fall back to computing from posts array
+  const totalReach      = liveStats?.reach      ?? posts.reduce((s, p) => s + p.reach, 0)
+  const totalImpressions = liveStats?.impressions ?? posts.reduce((s, p) => s + p.impressions, 0)
+  const avgERNum = liveStats?.engagement_rate
+    ?? (posts.length ? posts.reduce((s, p) => s + p.engagement_rate, 0) / posts.length : 0)
+  const avgER = avgERNum ? avgERNum.toFixed(2) : '—'
   const topPost = posts[0]
+  const isLive = liveStats && !liveStats._mock
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           {(['7d', '30d', '90d'] as const).map(r => (
             <button key={r} onClick={() => setDateRange(r)} className={cn(
@@ -133,23 +171,37 @@ function ContentPerformanceTab({ clientId }: { clientId: string }) {
             )} style={dateRange === r ? { background: B.primary } : {}}>Last {r}</button>
           ))}
         </div>
-        <button onClick={syncNow} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
-          <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')}/>
-          {syncing ? 'Syncing…' : `Sync ${vendorName(user?.role, 'Metricool')}`}
-        </button>
+        <div className="flex items-center gap-2">
+          {syncResult && !syncResult._mock && (
+            <span className="text-[11px] text-emerald-600 font-medium">{syncResult.synced} posts synced</span>
+          )}
+          <button onClick={syncNow} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors bg-white">
+            <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')}/>
+            {syncing ? 'Syncing…' : `Sync ${vendorName(user?.role, 'Metricool')}`}
+          </button>
+        </div>
       </div>
 
-      {/* Summary KPIs */}
+      {/* Summary KPIs — sourced from Metricool analytics endpoint */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Reach', value: formatNumber(totalReach) },
-          { label: 'Avg ER', value: `${avgER}%` },
-          { label: 'Posts Analyzed', value: posts.length.toString() },
-          { label: 'Top ER', value: topPost ? `${topPost.engagement_rate}%` : '—' },
-        ].map(({ label, value }) => (
+          { label: 'Total Reach',      value: formatNumber(totalReach),      sub: liveStats ? formatNumber(totalImpressions) + ' impr.' : null },
+          { label: 'Avg ER',           value: `${avgER}%`,                   sub: null },
+          { label: 'Posts Analyzed',   value: posts.length.toString(),       sub: null },
+          { label: 'Top ER',           value: topPost ? `${topPost.engagement_rate}%` : '—', sub: null },
+        ].map(({ label, value, sub }) => (
           <div key={label} className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-xl font-bold text-slate-900">{value}</p>
+            <div className="flex items-start justify-between">
+              <p className="text-xl font-bold text-slate-900">{value}</p>
+              {label === 'Total Reach' && (
+                <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0',
+                  isLive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400')}>
+                  {isLive ? 'LIVE' : 'EST'}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+            {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
           </div>
         ))}
       </div>
@@ -610,10 +662,19 @@ function PatternIntelTab({ clientId }: { clientId: string }) {
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white border border-novax-border text-slate-600 capitalize">{rec.format}</span>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-600 mb-1.5">{rec.caption_angle}</p>
-                  <div className="flex items-center gap-4 text-[10px] text-slate-400">
-                    <span><Clock className="w-3 h-3 inline mr-1"/>{rec.timing}</span>
-                    <span><TrendingUp className="w-3 h-3 inline mr-1"/>Expected ER: {rec.expected_er}</span>
+                  <p className="text-xs text-slate-600 mb-2">{rec.caption_angle}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-4 text-[10px] text-slate-400">
+                      <span><Clock className="w-3 h-3 inline mr-1"/>{rec.timing}</span>
+                      <span><TrendingUp className="w-3 h-3 inline mr-1"/>Expected ER: {rec.expected_er}</span>
+                    </div>
+                    <Link
+                      href={`/studio/content?platform=${encodeURIComponent(rec.platform)}&brief=${encodeURIComponent(rec.caption_angle)}&client=${clientId}`}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-novax hover:bg-novax-hover text-white text-[10px] font-semibold rounded-lg transition-colors shrink-0"
+                    >
+                      <Zap className="w-3 h-3"/>
+                      Create This
+                    </Link>
                   </div>
                 </div>
               ))}

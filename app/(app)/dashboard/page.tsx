@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect, useCallback } from 'react'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
@@ -11,6 +12,7 @@ import { hasRole, STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, formatDate, fo
 import {
   CheckSquare, Clock, AlertCircle, MessageSquare,
   DollarSign, Calendar, Globe, TrendingUp, ArrowUpRight, ArrowDownRight,
+  Eye, Activity, RefreshCw, Heart,
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -18,6 +20,111 @@ import {
 } from 'recharts'
 
 const PIE_COLORS = ['#7c3aed','#3b82f6','#06b6d4','#f59e0b','#f97316','#f43f5e','#ec4899','#6366f1','#10b981','#64748b']
+
+type OverviewClient = { client_id: string; name: string; reach: number; impressions: number; er: number }
+type MetricoolOverview = {
+  total_reach: number; total_impressions: number; avg_er: number
+  total_likes: number; total_comments: number; total_shares: number
+  clients: OverviewClient[]; _mock?: boolean
+}
+
+function SocialPerformanceSection() {
+  const [overview, setOverview] = useState<MetricoolOverview | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const now = new Date()
+  const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  const endDate = now.toISOString().split('T')[0]
+
+  const fetchOverview = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    try {
+      const res = await fetch(`/api/metricool/overview?startDate=${startDate}&endDate=${endDate}`)
+      if (!res.ok) return
+      const data = await res.json() as MetricoolOverview
+      setOverview(data)
+    } catch { /* silent */ } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [startDate, endDate])
+
+  useEffect(() => { void fetchOverview() }, [fetchOverview])
+
+  if (loading) return (
+    <div className="dash-card flex items-center justify-center h-28">
+      <RefreshCw className="w-5 h-5 animate-spin text-slate-300"/>
+    </div>
+  )
+  if (!overview) return null
+
+  const isLive = !overview._mock
+
+  return (
+    <div className="dash-card">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-slate-900 dark:text-white">Social Performance</h3>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isLive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+              {isLive ? 'LIVE' : 'DEMO'}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Month-to-date across all clients · via Metricool</p>
+        </div>
+        <button
+          onClick={() => fetchOverview(true)}
+          disabled={refreshing}
+          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400"
+          title="Refresh from Metricool"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}/>
+        </button>
+      </div>
+
+      {/* Aggregate KPIs */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {[
+          { label: 'Total Reach',   value: formatNumber(overview.total_reach),       icon: Eye,      color: 'bg-blue-50 text-blue-600' },
+          { label: 'Avg ER',        value: `${overview.avg_er}%`,                    icon: Activity, color: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Impressions',   value: formatNumber(overview.total_impressions),  icon: Globe,    color: 'bg-purple-50 text-purple-600' },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="p-3 rounded-xl bg-slate-50 dark:bg-white/5">
+            <div className={`inline-flex p-1.5 rounded-lg mb-2 ${color}`}>
+              <Icon className="w-3.5 h-3.5"/>
+            </div>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{value}</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Per-client breakdown */}
+      {overview.clients.length > 0 && (
+        <div className="space-y-2">
+          {overview.clients.map(client => (
+            <div key={client.client_id} className="flex items-center gap-3">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300 w-32 truncate shrink-0">{client.name}</span>
+              <div className="flex-1 h-1.5 bg-slate-100 dark:bg-white/8 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, overview.total_reach > 0 ? (client.reach / overview.total_reach) * 100 : 0)}%`,
+                    background: '#1B3D38',
+                  }}
+                />
+              </div>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 w-24 text-right shrink-0">
+                {formatNumber(client.reach)} · {client.er}% ER
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -89,6 +196,9 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Social Performance — Metricool month-to-date */}
+      <SocialPerformanceSection />
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
