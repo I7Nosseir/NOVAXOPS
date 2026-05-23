@@ -12,6 +12,8 @@ interface AuthContextValue {
   realUser: User | null
   session: Session | null
   loading: boolean
+  /** True when the signed-in user has not yet completed first-login onboarding */
+  needsOnboarding: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   /** Admin-only: the role currently being previewed, or null */
@@ -27,6 +29,7 @@ const AuthContext = createContext<AuthContextValue>({
   realUser: null,
   session: null,
   loading: true,
+  needsOnboarding: false,
   signIn: async () => ({ error: null }),
   signOut: async () => {},
   previewRole: null,
@@ -37,7 +40,7 @@ const AuthContext = createContext<AuthContextValue>({
 async function fetchProfile(authUser: SupabaseUser): Promise<User | null> {
   const { data, error } = await supabase
     .from('users')
-    .select('id, name, email, role, department, initials, color')
+    .select('id, name, email, role, department, initials, color, phone_number, needs_onboarding')
     .eq('auth_id', authUser.id)
     .single()
   if (error || !data) return null
@@ -49,6 +52,8 @@ async function fetchProfile(authUser: SupabaseUser): Promise<User | null> {
     department: data.department,
     initials: data.initials,
     color: data.color,
+    phone_number: data.phone_number ?? null,
+    needs_onboarding: data.needs_onboarding ?? false,
   }
 }
 
@@ -119,12 +124,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ? { ...realUser, role: previewRole! }
     : realUser
 
+  // Check both the DB profile flag and the Supabase auth metadata (set at invite time,
+  // before the users table row exists)
+  const needsOnboarding =
+    realUser?.needs_onboarding === true ||
+    session?.user?.user_metadata?.needs_onboarding === true
+
   return (
     <AuthContext.Provider value={{
       user,
       realUser,
       session,
       loading,
+      needsOnboarding,
       signIn,
       signOut,
       previewRole,

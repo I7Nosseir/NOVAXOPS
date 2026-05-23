@@ -49,7 +49,7 @@ export function InviteUserModal({ onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 className="font-semibold text-slate-900 text-base">Invite Team Member</h2>
-            <p className="text-xs text-slate-500 mt-0.5">They will receive an email with a magic link to join.</p>
+            <p className="text-xs text-slate-500 mt-0.5">They will receive an email with their login credentials and a prompt to complete their profile.</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <X className="w-4 h-4 text-slate-500" />
@@ -61,9 +61,9 @@ export function InviteUserModal({ onClose }: Props) {
             <div className="w-12 h-12 rounded-full bg-novax-light flex items-center justify-center mx-auto mb-4">
               <Send className="w-5 h-5 text-novax" />
             </div>
-            <p className="font-semibold text-slate-900">Invite sent</p>
+            <p className="font-semibold text-slate-900">Credentials sent</p>
             <p className="text-sm text-slate-500 mt-1">
-              An invitation was sent to <span className="font-medium text-slate-700">{email}</span>
+              Login credentials were sent to <span className="font-medium text-slate-700">{email}</span>. They will be prompted to set a new password on first login.
             </p>
             <button onClick={onClose} className="mt-6 px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
               Done

@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import type { UserRole } from '@/lib/types'
 import { sendTeamInvite } from '@/lib/email'
 
@@ -14,6 +15,11 @@ const DEPT_BY_ROLE: Record<UserRole, string> = {
   account_manager:  'accounts',
   strategist:       'strategy',
   social_manager:   'social',
+}
+
+function generateTempPassword(): string {
+  // 16-char URL-safe base64 — readable, no ambiguous chars, satisfies most password policies
+  return randomBytes(12).toString('base64url')
 }
 
 export async function POST(req: Request) {
@@ -56,8 +62,18 @@ export async function POST(req: Request) {
     sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY),
   )
 
-  const { error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { name, role, department: DEPT_BY_ROLE[role] ?? 'creative' },
+  const tempPassword = generateTempPassword()
+
+  const { error } = await adminClient.auth.admin.createUser({
+    email,
+    password: tempPassword,
+    email_confirm: true,
+    user_metadata: {
+      name,
+      role,
+      department: DEPT_BY_ROLE[role] ?? 'creative',
+      needs_onboarding: true,
+    },
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -78,6 +94,7 @@ export async function POST(req: Request) {
     role,
     inviterName: (inviterProfile?.name as string | undefined) ?? 'The NOVAX Team',
     appUrl,
+    tempPassword,
   }).catch(() => {})
 
   return NextResponse.json({ ok: true })

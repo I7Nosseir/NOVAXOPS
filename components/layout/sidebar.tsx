@@ -90,6 +90,7 @@ export function Sidebar() {
   const router = useRouter()
   const { user, signOut } = useAuth()
   const { open, setOpen } = useSidebar()
+  const isAdmin = user?.role === 'admin'
 
   const handleSignOut = async () => {
     await signOut()
@@ -148,7 +149,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
-          {NAV_SECTIONS.map((section, si) => (
+          {NAV_SECTIONS.filter(s => s.label !== 'Studio' || isAdmin).map((section, si) => (
             <div key={section.label} className={si > 0 ? 'mt-4' : ''}>
               <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-1.5" style={{ color: 'rgba(91,180,174,0.5)' }}>
                 {section.label}

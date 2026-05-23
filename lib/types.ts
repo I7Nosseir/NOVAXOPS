@@ -25,6 +25,8 @@ export interface User {
   department: Department
   initials: string
   color: string
+  phone_number?: string | null
+  needs_onboarding?: boolean
 }
 
 export interface BrandIdentity {

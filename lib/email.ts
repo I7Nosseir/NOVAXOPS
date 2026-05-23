@@ -225,10 +225,28 @@ export interface TeamInviteParams {
   role: string
   inviterName: string
   appUrl: string
+  tempPassword: string
+}
+
+function credentialsBox(email: string, password: string): string {
+  return `<div style="background:#EBF4F3;border:2px solid #9DCCC8;border-radius:8px;padding:20px 24px;margin:20px 0;">
+    <p style="margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#2A6B62;">Your Login Credentials</p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;">
+      <tr>
+        <td style="font-size:13px;font-weight:600;color:#64748b;padding:6px 16px 6px 0;white-space:nowrap;vertical-align:top;">Email</td>
+        <td style="font-size:14px;color:#1e293b;padding:6px 0;font-family:monospace;">${email}</td>
+      </tr>
+      <tr>
+        <td style="font-size:13px;font-weight:600;color:#64748b;padding:6px 16px 6px 0;white-space:nowrap;vertical-align:top;">Temporary Password</td>
+        <td style="font-size:15px;color:#1B3D38;padding:6px 0;font-family:monospace;font-weight:700;letter-spacing:0.5px;">${password}</td>
+      </tr>
+    </table>
+    <p style="margin:14px 0 0;font-size:12px;color:#64748b;border-top:1px solid #9DCCC8;padding-top:12px;">You will be prompted to set a new password and complete your profile on first login. Keep these credentials safe.</p>
+  </div>`
 }
 
 export async function sendTeamInvite(params: TeamInviteParams): Promise<SendResult> {
-  const { toEmail, toName, role, inviterName, appUrl } = params
+  const { toEmail, toName, role, inviterName, appUrl, tempPassword } = params
 
   const roleLabel = role
     .replace(/_/g, ' ')
@@ -236,13 +254,11 @@ export async function sendTeamInvite(params: TeamInviteParams): Promise<SendResu
 
   const html = htmlWrapper(`
     ${h2('You Have Been Invited to NOVAX Ops')}
-    ${p(`Hi ${toName}, ${inviterName} has invited you to join the NOVAX Ops platform.`)}
-    ${metaTable([
-      ['Role', roleLabel],
-      ['Platform', 'NOVAX Ops'],
-    ])}
-    ${p('Click the button below to accept the invitation and set up your account.')}
-    ${ctaButton('Accept Invitation', appUrl)}
+    ${p(`Hi ${toName}, <strong style="color:#1e293b;">${inviterName}</strong> has added you to the NOVAX Ops platform as <strong style="color:#1B3D38;">${roleLabel}</strong>.`)}
+    ${credentialsBox(toEmail, tempPassword)}
+    ${p('Click the button below to log in. You will be asked to set a new password and complete your profile before accessing the platform.')}
+    ${ctaButton('Log In to NOVAX Ops', `${appUrl}/login`)}
+    ${p(`<span style="font-size:12px;color:#94a3b8;">If you were not expecting this invitation, you can safely ignore this email.</span>`)}
   `)
 
   try {
@@ -250,7 +266,7 @@ export async function sendTeamInvite(params: TeamInviteParams): Promise<SendResu
     const { error } = await resend.emails.send({
       from: FROM,
       to: toEmail,
-      subject: `${inviterName} invited you to NOVAX Ops`,
+      subject: `You have been invited to NOVAX Ops`,
       html,
     })
     if (error) return { ok: false, error: error.message }

@@ -1,10 +1,19 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { loading } = useAuth()
+  const { loading, needsOnboarding } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!loading && needsOnboarding) {
+      router.replace('/onboarding')
+    }
+  }, [loading, needsOnboarding, router])
 
   if (loading) {
     return (
@@ -13,6 +22,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       </div>
     )
   }
+
+  if (needsOnboarding) return null
 
   return <>{children}</>
 }
