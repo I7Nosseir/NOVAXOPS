@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { LayoutSchema } from '@/app/api/tools/resize/analyze/route'
+import { Star } from 'lucide-react'
 
 type Step = 'upload' | 'analyzing' | 'ready' | 'generating' | 'done'
 
@@ -39,12 +40,15 @@ const FORMAT_INFO = [
 ]
 
 const ELEMENT_TYPE_COLORS: Record<string, string> = {
-  headline:       'bg-blue-500',
-  secondary_text: 'bg-blue-300',
-  cta:            'bg-emerald-500',
-  logo:           'bg-purple-500',
-  subject:        'bg-orange-500',
-  product:        'bg-amber-500',
+  headline:    'bg-blue-500',
+  subheadline: 'bg-blue-300',
+  cta:         'bg-emerald-500',
+  logo:        'bg-purple-500',
+  subject:     'bg-orange-500',
+  product:     'bg-amber-500',
+  pricing:     'bg-rose-500',
+  offer:       'bg-pink-400',
+  disclaimer:  'bg-slate-400',
 }
 
 export default function ResizePage() {
@@ -205,8 +209,8 @@ export default function ResizePage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { n: '1', title: 'Upload', desc: 'Any JPEG, PNG, or WebP — landscape, portrait, or square' },
-            { n: '2', title: 'AI Analyzes', desc: 'AI maps focal point, background color, text, logos, and subject' },
-            { n: '3', title: 'Smart Adapt', desc: 'Solid backgrounds are extended with matched color. Photo backgrounds are cropped on the focal point. Full quality — no blur.' },
+            { n: '2', title: 'AI Analyzes', desc: 'Claude maps every element: logo, headline, subject, CTA — with bounding boxes, reading order, design style, and safe zones' },
+            { n: '3', title: 'AI Adapts', desc: 'Gemini rebuilds the layout natively for each format. Background extended, elements repositioned. Looks designed, not resized.' },
           ].map(s => (
             <div key={s.n} className="bg-white rounded-xl border border-slate-200 p-4 flex gap-3">
               <div className="w-7 h-7 rounded-full bg-novax text-white text-xs font-bold flex items-center justify-center shrink-0">
@@ -331,26 +335,50 @@ export default function ResizePage() {
 
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div className="bg-slate-50 rounded-lg p-2">
-                  <p className="text-slate-400 mb-0.5">Focal point</p>
-                  <p className="text-slate-700 font-semibold">{Math.round(schema.focal_point.x)}% · {Math.round(schema.focal_point.y)}%</p>
+                  <p className="text-slate-400 mb-0.5">Style</p>
+                  <p className="text-slate-700 font-semibold capitalize">{schema.design_style ?? 'modern'}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg p-2">
                   <p className="text-slate-400 mb-0.5">Background</p>
-                  <p className="text-slate-700 font-semibold capitalize">{schema.background_type.replace('_', ' ')}</p>
+                  <p className="text-slate-700 font-semibold capitalize">{schema.background_type.replace(/_/g, ' ')}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg p-2">
                   <p className="text-slate-400 mb-0.5">Visual weight</p>
-                  <p className="text-slate-700 font-semibold capitalize">{schema.visual_weight.replace('_', ' ')}</p>
+                  <p className="text-slate-700 font-semibold capitalize">{schema.visual_weight.replace(/_/g, ' ')}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg p-2 flex items-center gap-2">
-                  <p className="text-slate-400">Dominant color</p>
+                  <p className="text-slate-400">Fill color</p>
                   <div
                     className="w-4 h-4 rounded border border-slate-200 shrink-0"
-                    style={{ background: schema.dominant_color }}
-                    title={schema.dominant_color}
+                    style={{ background: schema.background_extension?.fill_color ?? schema.dominant_color }}
+                    title={schema.background_extension?.fill_color ?? schema.dominant_color}
                   />
+                  <span className="text-slate-500 font-mono">{schema.background_extension?.fill_color ?? schema.dominant_color}</span>
                 </div>
               </div>
+
+              {/* Scores */}
+              {(schema.readability_score || schema.composition_score) && (
+                <div className="flex gap-2">
+                  {[
+                    { label: 'Readability', score: schema.readability_score },
+                    { label: 'Composition', score: schema.composition_score },
+                  ].map(({ label, score }) => (
+                    <div key={label} className="flex-1 bg-slate-50 rounded-lg p-2">
+                      <p className="text-slate-400 text-[10px] mb-1">{label}</p>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-novax"
+                            style={{ width: `${score}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-semibold text-slate-600">{score}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Detected elements */}
               {schema.elements.length > 0 && (
@@ -359,19 +387,19 @@ export default function ResizePage() {
                   <div className="flex flex-wrap gap-1.5">
                     {schema.elements.map((el, i) => (
                       <div key={i} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-600">
-                        <div className={cn('w-2 h-2 rounded-full', ELEMENT_TYPE_COLORS[el.type] ?? 'bg-slate-400')}/>
-                        <span className="capitalize">{el.type.replace('_', ' ')}</span>
-                        {el.importance === 'primary' && <span className="text-novax-muted font-semibold">★</span>}
+                        <div className={cn('w-2 h-2 rounded-full shrink-0', ELEMENT_TYPE_COLORS[el.type] ?? 'bg-slate-400')}/>
+                        <span className="capitalize">{el.type.replace(/_/g, ' ')}</span>
+                        {el.importance === 'primary' && <Star className="w-2.5 h-2.5 text-novax-muted fill-novax-muted shrink-0"/>}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {!schema.safe_to_extend_edges && (
+              {schema.background_type === 'complex_photo' && (
                 <div className="flex items-start gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2.5">
                   <Info className="w-3.5 h-3.5 shrink-0 mt-0.5"/>
-                  Content detected near edges — blurred background may be visible at margins.
+                  Complex photo background — AI will recompose the design for each format.
                 </div>
               )}
             </div>
@@ -391,7 +419,7 @@ export default function ResizePage() {
           {step === 'generating' && (
             <div className="w-full flex items-center justify-center gap-2 py-3 bg-novax/80 text-white text-sm font-semibold rounded-xl">
               <Loader2 className="w-4 h-4 animate-spin"/>
-              Adapting layout with Sharp…
+              AI adapting layout for each format…
             </div>
           )}
 

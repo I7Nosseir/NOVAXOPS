@@ -4,96 +4,198 @@ import type { LayoutSchema } from '../analyze/route'
 
 export const runtime = 'nodejs'
 
-// ─── Core strategy ────────────────────────────────────────────────────────────
-//
-// Rule: NEVER crop any content. ALWAYS fit the full original inside the canvas.
-//
-// 1. Scale the image to fit INSIDE the target dimensions (preserve all content).
-// 2. Place it on a solid canvas using the detected background color, positioned
-//    so the focal point lands as close to the canvas center as possible.
-// 3. The gap areas (above, below, or sides) are filled with the matched color.
-//
-// For solid color backgrounds this is seamless — identical to extending the
-// original design space. For photos the fill is a flat color but content is
-// always 100% intact.
+// ─── Gemini image-to-image adaptation ────────────────────────────────────────
+// Primary engine: sends the original image + rich art direction to Gemini's
+// image generation model, which natively understands composition and can
+// recompose the design for the target format.
 
-async function smartResize(
+const GEMINI_IMAGE_MODELS = [
+  'gemini-2.5-flash-preview-05-20',
+  'gemini-2.0-flash-preview-image-generation',
+]
+
+function buildAdaptationPrompt(
+  schema: LayoutSchema,
+  targetW: number,
+  targetH: number,
+  platform: string,
+  formatKey: '9x16' | '1x1',
+): string {
+  const isPortrait = targetH > targetW
+  const adaptation = formatKey === '9x16' ? schema.adaptation.story_9x16 : schema.adaptation.square_1x1
+
+  const elementList = [...schema.elements]
+    .sort((a, b) => a.reading_order - b.reading_order)
+    .map(e => `  • ${e.type} — "${e.label}" (${e.importance} importance, read order ${e.reading_order})`)
+    .join('\n')
+
+  const bgDesc =
+    schema.background_type === 'solid_color'
+      ? `solid color ${schema.background_extension.fill_color}`
+      : schema.background_type === 'gradient'
+      ? `gradient background (dominant: ${schema.dominant_color})`
+      : `photo/complex background (dominant color: ${schema.dominant_color})`
+
+  return `You are an expert creative designer and art director. Adapt this marketing creative to ${targetW}×${targetH}px for ${platform}.
+
+DESIGN BRIEF:
+- Style: ${schema.design_style}
+- Background: ${bgDesc}
+- Visual weight: ${schema.visual_weight}
+- Adaptation strategy: ${adaptation.strategy}
+- Art direction: ${adaptation.notes || 'Maintain original visual identity'}
+
+CONTENT ELEMENTS TO PRESERVE (ALL must be fully visible, nothing cropped):
+${elementList}
+
+ADAPTATION RULES:
+1. Keep ALL elements 100% intact — no cropping, no cutting, no removing
+2. ${isPortrait ? `Extend the ${bgDesc} above and below to fill the taller canvas` : `Extend the ${bgDesc} on the sides to fill the wider canvas`}
+3. Rebalance spacing so the design looks ${isPortrait ? 'vertical-native' : 'square-native'}
+4. Maintain the ${schema.design_style} design style throughout
+5. Keep text readable and properly spaced
+6. Focal point should land at approximately ${adaptation.strategy === 'extend_vertical' ? `${schema.adaptation.story_9x16.focal_y_target}% from top` : 'visual center'}
+7. Output must be exactly ${targetW}×${targetH}px
+8. The result must look like it was originally designed for this format — not a resized image
+
+PLATFORM SAFE ZONES for ${platform}:
+${isPortrait ? '- Top 12%: UI zone (keep clear of important content)\n- Bottom 20%: CTA/caption zone (keep clear or place CTA here)\n- Sides: 5% minimum margin' : '- All sides: 8% minimum margin'}
+
+Generate the adapted creative now.`
+}
+
+async function geminiAdapt(
+  imageBase64: string,
+  mimeType: string,
+  targetW: number,
+  targetH: number,
+  schema: LayoutSchema,
+  platform: string,
+  formatKey: '9x16' | '1x1',
+): Promise<Buffer | null> {
+  const geminiKey = process.env.GEMINI_API_KEY
+  if (!geminiKey) return null
+
+  const prompt = buildAdaptationPrompt(schema, targetW, targetH, platform, formatKey)
+
+  for (const model of GEMINI_IMAGE_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mimeType, data: imageBase64 } },
+            ],
+          }],
+          generationConfig: {
+            responseModalities: ['IMAGE', 'TEXT'],
+          },
+        }),
+      })
+
+      if (!res.ok) continue
+
+      const data = await res.json() as {
+        candidates?: {
+          content?: {
+            parts?: { inline_data?: { mime_type: string; data: string }; text?: string }[]
+          }
+        }[]
+      }
+
+      const imgPart = data?.candidates?.[0]?.content?.parts?.find(
+        p => p.inline_data?.mime_type?.startsWith('image/'),
+      )
+
+      if (!imgPart?.inline_data?.data) continue
+
+      const imgBuffer = Buffer.from(imgPart.inline_data.data, 'base64')
+
+      // Scale to exact target dimensions preserving all content
+      return sharp(imgBuffer)
+        .resize(targetW, targetH, { fit: 'contain', background: { r: 0, g: 0, b: 0 } })
+        .jpeg({ quality: 93 })
+        .toBuffer()
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
+// ─── Sharp fallback — fit-inside + background color extension ─────────────────
+// Used when Gemini is unavailable or fails. Preserves ALL content by fitting
+// the full image inside the canvas and extending with the matched background color.
+
+async function sharpFallback(
   inputBuffer: Buffer,
   targetW: number,
   targetH: number,
   schema: LayoutSchema,
 ): Promise<Buffer> {
-  const { focal_point, dominant_color } = schema
-  const fx = focal_point.x / 100   // 0–1
-  const fy = focal_point.y / 100   // 0–1
+  const { focal_point, background_extension } = schema
+  const fx = focal_point.x / 100
+  const fy = focal_point.y / 100
 
   const meta = await sharp(inputBuffer).metadata()
   const origW = meta.width!
   const origH = meta.height!
 
-  // ── Parse background color for the canvas fill ────────────────────────────
-  const hex = (dominant_color ?? '#1a1a1a').replace('#', '').padEnd(6, '0')
+  // Parse fill color from schema (AI-matched background color)
+  const hex = (background_extension?.fill_color ?? schema.dominant_color ?? '#1a1a1a')
+    .replace('#', '').padEnd(6, '0')
   const bgR = parseInt(hex.slice(0, 2), 16) || 26
   const bgG = parseInt(hex.slice(2, 4), 16) || 26
   const bgB = parseInt(hex.slice(4, 6), 16) || 26
 
-  // ── Scale: FIT INSIDE target — never crop, never upscale beyond 1x ────────
+  // Scale to fit fully inside canvas (no cropping ever)
   const scaleFit = Math.min(targetW / origW, targetH / origH)
   const scaledW = Math.round(origW * scaleFit)
   const scaledH = Math.round(origH * scaleFit)
 
-  // Flatten alpha to background color (handles PNG transparency cleanly)
   const prepared = await sharp(inputBuffer)
     .flatten({ background: { r: bgR, g: bgG, b: bgB } })
     .resize(scaledW, scaledH, { fit: 'fill', kernel: 'lanczos3' })
     .toBuffer()
 
-  // ── Create solid-color canvas ─────────────────────────────────────────────
+  // PNG canvas avoids JPEG block artifacts at composite seams
   const canvas = await sharp({
-    create: {
-      width: targetW,
-      height: targetH,
-      channels: 3,
-      background: { r: bgR, g: bgG, b: bgB },
-    },
-  })
-    .png()   // PNG canvas avoids JPEG block artifacts at composite edges
-    .toBuffer()
+    create: { width: targetW, height: targetH, channels: 3, background: { r: bgR, g: bgG, b: bgB } },
+  }).png().toBuffer()
 
-  // ── Position: align focal point to canvas focal point, then clamp ─────────
-  // Where the focal point should land on the canvas
+  // Align focal points between image and canvas
   const canvasFX = targetW * fx
   const canvasFY = targetH * fy
-
-  // Where the focal point currently is in the resized image
   const imgFX = scaledW * fx
   const imgFY = scaledH * fy
 
-  // Offset so focal points align
   let left = Math.round(canvasFX - imgFX)
-  let top  = Math.round(canvasFY - imgFY)
-
-  // Clamp: the image must sit fully within the canvas bounds
+  let top = Math.round(canvasFY - imgFY)
   left = Math.max(0, Math.min(left, targetW - scaledW))
-  top  = Math.max(0, Math.min(top,  targetH - scaledH))
+  top = Math.max(0, Math.min(top, targetH - scaledH))
 
-  // ── Composite and output ──────────────────────────────────────────────────
   return sharp(canvas)
     .composite([{ input: prepared, left, top, blend: 'over' }])
-    .jpeg({ quality: 93, mozjpeg: false })
+    .jpeg({ quality: 93 })
     .toBuffer()
 }
 
-// ─── Route ───────────────────────────────────────────────────────────────────
+// ─── Route ────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  let body: { imageBase64: string; mimeType?: string; schema: LayoutSchema }
+  let body: { imageBase64: string; mimeType: string; schema: LayoutSchema }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { imageBase64, schema } = body
+  const { imageBase64, mimeType, schema } = body
   if (!imageBase64 || !schema) {
     return NextResponse.json({ error: 'imageBase64 and schema are required' }, { status: 400 })
   }
@@ -104,7 +206,10 @@ export async function POST(req: NextRequest) {
   try {
     origMeta = await sharp(inputBuffer).metadata()
   } catch {
-    return NextResponse.json({ error: 'Could not decode image. Upload a valid JPEG, PNG, or WebP.' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'Could not decode image. Upload a valid JPEG, PNG, or WebP.' },
+      { status: 400 },
+    )
   }
 
   const origW = origMeta.width ?? 0
@@ -113,16 +218,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Image has zero dimensions.' }, { status: 400 })
   }
 
-  const [buf9x16, buf1x1] = await Promise.all([
-    smartResize(inputBuffer, 1080, 1920, schema),   // Stories & Reels
-    smartResize(inputBuffer, 1080, 1080, schema),   // Square feed
+  // Run both formats — try Gemini first, fall back to Sharp independently
+  const [result9x16, result1x1] = await Promise.all([
+    geminiAdapt(imageBase64, mimeType, 1080, 1920, schema, 'Instagram Stories & Reels', '9x16')
+      .then(buf => buf ?? sharpFallback(inputBuffer, 1080, 1920, schema))
+      .catch(() => sharpFallback(inputBuffer, 1080, 1920, schema)),
+
+    geminiAdapt(imageBase64, mimeType, 1080, 1080, schema, 'Instagram Square Feed', '1x1')
+      .then(buf => buf ?? sharpFallback(inputBuffer, 1080, 1080, schema))
+      .catch(() => sharpFallback(inputBuffer, 1080, 1080, schema)),
   ])
 
-  // Return base64 — no Supabase needed for temporary outputs, and it avoids
-  // cross-origin download restrictions entirely.
   return NextResponse.json({
-    base64_9x16: buf9x16.toString('base64'),
-    base64_1x1:  buf1x1.toString('base64'),
+    base64_9x16: result9x16.toString('base64'),
+    base64_1x1:  result1x1.toString('base64'),
     orig_dimensions: { w: origW, h: origH },
   })
 }
