@@ -26,6 +26,7 @@ export type CreateTaskPayload = {
   sub_type?: string | null
   due_date: string | null
   tags: string[]
+  linked_doc_ids?: string[]
 }
 
 function mapTask(row: Record<string, unknown>): Task {

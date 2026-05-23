@@ -227,8 +227,9 @@ function ContentPerformanceTab({ clientId }: { clientId: string }) {
 }
 
 // ─── Tab 2: Competitor Insights ──────────────────────────────────────────────
-function CompetitorTab({ clientId, clientAvgER }: { clientId: string; clientAvgER: number }) {
+function CompetitorTab({ clientId }: { clientId: string }) {
   const [competitors, setCompetitors] = useState<CompetitorSnapshot[]>([])
+  const [clientAvgER, setClientAvgER] = useState(0)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ handle: '', platform: 'instagram', followers: '', avg_er: '', posting_frequency: '', notes: '' })
   const [saving, setSaving] = useState(false)
@@ -239,7 +240,23 @@ function CompetitorTab({ clientId, clientAvgER }: { clientId: string; clientAvgE
     setCompetitors(data.competitors ?? [])
   }
 
-  useEffect(() => { if (clientId) void fetchCompetitors() }, [clientId])
+  const fetchClientAvgER = async () => {
+    const end = new Date().toISOString()
+    const start = new Date(Date.now() - 90 * 86400000).toISOString()
+    const res = await fetch(`/api/performance/posts?client_id=${clientId}&start=${start}&end=${end}`)
+    const data = await res.json() as { posts?: PerformancePost[] }
+    const posts = data.posts ?? []
+    if (posts.length > 0) {
+      setClientAvgER(posts.reduce((s, p) => s + p.engagement_rate, 0) / posts.length)
+    }
+  }
+
+  useEffect(() => {
+    if (clientId) {
+      void fetchCompetitors()
+      void fetchClientAvgER()
+    }
+  }, [clientId])
 
   const handleSave = async () => {
     if (!form.handle.trim()) return
@@ -754,7 +771,7 @@ export default function PerformancePage() {
         </div>
 
         {activeTab === 'content' && <ContentPerformanceTab clientId={selectedClient}/>}
-        {activeTab === 'competitors' && <CompetitorTab clientId={selectedClient} clientAvgER={0}/>}
+        {activeTab === 'competitors' && <CompetitorTab clientId={selectedClient}/>}
         {activeTab === 'intelligence' && <PatternIntelTab clientId={selectedClient}/>}
         {activeTab === 'benchmarks' && <BenchmarksTab clientId={selectedClient}/>}
       </>}

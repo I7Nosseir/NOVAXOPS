@@ -59,7 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [previewRole, setPreviewRoleState] = useState<UserRole | null>(null)
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return }
+    if (!supabase) {
+      // Dev mode: no Supabase configured — use a mock admin so role preview works
+      setRealUser({
+        id: 'dev-admin',
+        name: 'NOVAX Admin',
+        email: 'admin@novax.agency',
+        role: 'admin',
+        department: 'creative',
+        initials: 'NA',
+        color: '#1B3D38',
+      })
+      setLoading(false)
+      return
+    }
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session)

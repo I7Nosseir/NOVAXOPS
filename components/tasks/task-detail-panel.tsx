@@ -911,7 +911,16 @@ export function TaskDetailPanel({ task, onClose }: Props) {
           })()}
 
           {/* Comments */}
-          <TaskComments taskId={task.id} />
+          <TaskComments
+            taskId={task.id}
+            taskLinkedDocIds={task.linked_doc_ids ?? []}
+            onLinkDoc={(docId) => {
+              const current = task.linked_doc_ids ?? []
+              if (!current.includes(docId)) {
+                updateTask.mutate({ id: task.id, linked_doc_ids: [...current, docId] })
+              }
+            }}
+          />
         </div>
 
         {/* Footer */}

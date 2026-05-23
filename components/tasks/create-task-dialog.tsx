@@ -1,13 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { X, FileText, Paperclip, Sheet } from 'lucide-react'
 import { cn, STAGE_CONFIG, PIPELINE_STAGES } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useCreateTask } from '@/lib/hooks/use-tasks'
 import type { PipelineStage, Priority } from '@/lib/types'
+
+interface DocOption {
+  id: string
+  title: string
+  is_template: boolean
+  doc_type: string
+}
 
 interface Props {
   open: boolean
@@ -32,6 +40,23 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const [dueDate, setDueDate] = useState('')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
+  const [linkedDocIds, setLinkedDocIds] = useState<string[]>([])
+  const [docSearch, setDocSearch] = useState('')
+  const [showDocPicker, setShowDocPicker] = useState(false)
+
+  const { data: allDocs = [] } = useQuery<DocOption[]>({
+    queryKey: ['docs'],
+    queryFn: () => fetch('/api/docs').then(r => r.json()),
+    staleTime: 60_000,
+    enabled: open,
+  })
+
+  const nonTemplateDocs = allDocs.filter(d => !d.is_template)
+  const availableDocs = nonTemplateDocs.filter(d => !linkedDocIds.includes(d.id))
+  const searchResults = docSearch.trim()
+    ? availableDocs.filter(d => d.title.toLowerCase().includes(docSearch.toLowerCase())).slice(0, 6)
+    : availableDocs.slice(0, 5)
+  const linkedDocs = allDocs.filter(d => linkedDocIds.includes(d.id))
 
   const filteredProjects = projects.filter(p => !clientId || p.client_id === clientId)
 
@@ -39,6 +64,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
     setTitle(''); setDescription(''); setFinalSubmission(''); setClientId(''); setProjectId('')
     setAssignedTo(''); setStage(defaultStage ?? 'strategy'); setPriority('medium')
     setDueDate(''); setTagInput(''); setTags([])
+    setLinkedDocIds([]); setDocSearch(''); setShowDocPicker(false)
   }
 
   const handleClose = () => { reset(); onClose() }
@@ -47,6 +73,12 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
     const tag = value.trim().replace(/^#/, '')
     if (tag && !tags.includes(tag)) setTags(prev => [...prev, tag])
     setTagInput('')
+  }
+
+  const attachDoc = (docId: string) => {
+    setLinkedDocIds(prev => [...prev, docId])
+    setDocSearch('')
+    setShowDocPicker(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,6 +96,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
       status: 'active',
       due_date: dueDate || null,
       tags,
+      linked_doc_ids: linkedDocIds.length > 0 ? linkedDocIds : undefined,
     })
     handleClose()
   }
@@ -248,6 +281,75 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
                   placeholder={tags.length === 0 ? 'Add tags, press Enter…' : ''}
                   className="flex-1 min-w-[80px] text-xs text-slate-700 placeholder:text-slate-400 outline-none bg-transparent"
                 />
+              </div>
+            </div>
+
+            {/* Documents */}
+            <div>
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                Documents
+              </label>
+              <div className="space-y-1.5">
+                {linkedDocs.map(doc => (
+                  <div key={doc.id} className="flex items-center gap-2 p-2 bg-novax-light rounded-lg border border-novax-border">
+                    {doc.doc_type === 'sheet'
+                      ? <Sheet className="w-3 h-3 text-novax-muted shrink-0" />
+                      : <FileText className="w-3 h-3 text-novax-muted shrink-0" />}
+                    <span className="text-xs text-slate-700 flex-1 truncate">{doc.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => setLinkedDocIds(prev => prev.filter(id => id !== doc.id))}
+                      className="text-slate-300 hover:text-red-400 transition-colors shrink-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {!showDocPicker ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowDocPicker(true)}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-novax transition-colors px-1 py-0.5"
+                  >
+                    <Paperclip className="w-3 h-3" />
+                    Attach a document
+                  </button>
+                ) : (
+                  <div className="space-y-1">
+                    <input
+                      autoFocus
+                      value={docSearch}
+                      onChange={e => setDocSearch(e.target.value)}
+                      onBlur={() => { if (!docSearch) setShowDocPicker(false) }}
+                      placeholder="Search documents…"
+                      className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-novax-muted text-slate-700 placeholder:text-slate-400"
+                    />
+                    {searchResults.length > 0 && (
+                      <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        {searchResults.map(doc => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onMouseDown={e => { e.preventDefault(); attachDoc(doc.id) }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-slate-700 hover:bg-novax-light transition-colors border-b border-slate-100 last:border-0"
+                          >
+                            {doc.doc_type === 'sheet'
+                              ? <Sheet className="w-3 h-3 text-slate-400 shrink-0" />
+                              : <FileText className="w-3 h-3 text-slate-400 shrink-0" />}
+                            {doc.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {docSearch.trim() && searchResults.length === 0 && (
+                      <p className="text-[11px] text-slate-400 px-1">No matching documents</p>
+                    )}
+                    {!docSearch.trim() && availableDocs.length === 0 && (
+                      <p className="text-[11px] text-slate-400 px-1">No documents available</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

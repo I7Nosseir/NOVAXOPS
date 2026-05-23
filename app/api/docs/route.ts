@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { randomBytes } from 'crypto'
+
+function shareToken() {
+  return randomBytes(24).toString('hex')
+}
 
 function adminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -60,6 +65,7 @@ export async function POST(req: NextRequest) {
           doc_type: (tmpl as Record<string, unknown>).doc_type ?? 'doc',
           client_id: body.client_id ?? null,
           is_template: false,
+          share_token: shareToken(),
         })
         .select()
         .single()
@@ -70,7 +76,7 @@ export async function POST(req: NextRequest) {
     const { title = 'Untitled Document', client_id, content = {}, is_template = false, template_category, doc_type = 'doc' } = body
     const { data, error } = await db
       .from('documents')
-      .insert({ title, client_id: client_id ?? null, content, is_template, template_category: template_category ?? null, doc_type })
+      .insert({ title, client_id: client_id ?? null, content, is_template, template_category: template_category ?? null, doc_type, share_token: shareToken() })
       .select()
       .single()
 
