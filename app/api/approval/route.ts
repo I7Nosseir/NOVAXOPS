@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { randomBytes } from 'crypto'
-import { sendApprovalRequest } from '@/lib/email'
+import { sendApprovalRequest, sendApprovalDecision } from '@/lib/email'
 
 function adminSupabase() {
   return createClient(
@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
       post_ids,
       status: 'pending',
       client_note: '',
+      notify_email: client_email ?? null,
       created_by: profile?.id ?? null,
       expires_at: expires_at.toISOString(),
     })
@@ -149,7 +150,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data: request, error: fetchErr } = await db
     .from('approval_requests')
-    .select('id, post_ids')
+    .select('id, post_ids, title, client_id, created_by')
     .eq('token', token)
     .single()
 
@@ -167,10 +168,31 @@ export async function PATCH(req: NextRequest) {
     client_note: client_note ?? '',
   }).eq('id', request.id)
 
-  for (const [post_id, { status }] of Object.entries(decisions)) {
+  for (const [post_id, { status, note }] of Object.entries(decisions)) {
     await db.from('approval_post_statuses')
-      .update({ status })
+      .update({ status, note: note ?? '' })
       .match({ request_id: request.id, post_id })
+  }
+
+  // Fire-and-forget: notify the team member who created the request
+  if (request.created_by) {
+    const [{ data: createdByUser }, { data: client }] = await Promise.all([
+      db.from('users').select('email').eq('id', request.created_by).single(),
+      db.from('clients').select('name').eq('id', request.client_id).single(),
+    ])
+
+    const teamEmail = createdByUser?.email ?? process.env.NOVAX_TEAM_EMAIL
+    if (teamEmail) {
+      const approvedCount = statuses.filter(s => s === 'approved').length
+      const changesCount = statuses.filter(s => s === 'changes_requested').length
+      const summary = `${approvedCount} approved, ${changesCount} changes requested`
+      sendApprovalDecision({
+        teamEmail,
+        clientName: client?.name ?? 'Client',
+        requestTitle: request.title,
+        decisionSummary: summary,
+      }).catch(() => {})
+    }
   }
 
   return NextResponse.json({ ok: true, status: overallStatus })

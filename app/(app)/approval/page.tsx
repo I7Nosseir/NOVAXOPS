@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useApprovalRequests, useCreateApproval } from '@/lib/hooks/use-approvals'
@@ -23,6 +23,7 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState('')
   const [selectedPosts, setSelectedPosts] = useState<string[]>([])
   const [expiry, setExpiry] = useState('7')
+  const [contactEmail, setContactEmail] = useState('')
   const [createdToken, setCreatedToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   // Per-post media upload state: postId → { uploading, url }
@@ -51,8 +52,15 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   }
 
   const handleCreate = () => {
+    const selectedClient = clients.find(c => c.id === clientId)
     createApproval.mutate(
-      { client_id: clientId, title, post_ids: selectedPosts, expiry_days: parseInt(expiry) },
+      {
+        client_id: clientId,
+        title,
+        post_ids: selectedPosts,
+        expiry_days: parseInt(expiry),
+        ...(contactEmail ? { client_email: contactEmail, client_name: selectedClient?.name } : {}),
+      },
       {
         onSuccess: (data) => setCreatedToken(data.token),
       }
@@ -219,6 +227,22 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Client contact email
+                <span className="font-normal text-slate-400 ml-1">(optional — sends an email with the review link)</span>
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"/>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={e => setContactEmail(e.target.value)}
+                  placeholder="client@example.com"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light"
+                />
+              </div>
+            </div>
             {createApproval.error && (
               <p className="text-xs text-red-600">{(createApproval.error as Error).message}</p>
             )}
@@ -366,25 +390,37 @@ export default function ApprovalPage() {
                     )}
                     {posts.map(post => {
                       const postStatus = req.post_statuses[post.id] ?? 'pending'
+                      const postNote = req.post_notes[post.id]
                       const dotColors: Record<string, string> = {
                         pending: 'bg-amber-400', approved: 'bg-emerald-400', changes_requested: 'bg-red-400',
                       }
                       return (
-                        <div key={post.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                          {post.media_url && (
-                            <img src={post.media_url} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0"/>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
-                              <span className="text-[10px] text-slate-400">{formatDate(post.scheduled_at)}</span>
+                        <div key={post.id} className="bg-slate-50 rounded-lg overflow-hidden">
+                          <div className="flex items-start gap-3 p-3">
+                            {post.media_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={post.media_url} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0"/>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
+                                <span className="text-[10px] text-slate-400">{formatDate(post.scheduled_at)}</span>
+                              </div>
+                              <p className="text-xs text-slate-700 line-clamp-2">{post.caption}</p>
                             </div>
-                            <p className="text-xs text-slate-700 line-clamp-2">{post.caption}</p>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <div className={cn('w-2 h-2 rounded-full', dotColors[postStatus])}/>
+                              <span className="text-[11px] text-slate-600 capitalize">{postStatus.replace('_', ' ')}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <div className={cn('w-2 h-2 rounded-full', dotColors[postStatus])}/>
-                            <span className="text-[11px] text-slate-600 capitalize">{postStatus.replace('_', ' ')}</span>
-                          </div>
+                          {postNote && (
+                            <div className="px-3 pb-3 pt-0">
+                              <div className="px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
+                                <p className="text-[11px] font-semibold text-amber-700 mb-0.5">Client note</p>
+                                <p className="text-xs text-amber-800">{postNote}</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )
                     })}

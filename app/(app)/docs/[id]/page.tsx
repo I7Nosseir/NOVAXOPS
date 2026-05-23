@@ -52,10 +52,11 @@ export default function DocEditorPage() {
 
   // Initialise local state from fetched doc
   useEffect(() => {
-    if (doc) {
+    if (doc?.id) {
       setTitle(doc.title)
       setContent(doc.content ?? {})
-      setLastSaved(new Date(doc.updated_at))
+      const d = doc.updated_at ? new Date(doc.updated_at) : null
+      setLastSaved(d && !isNaN(d.getTime()) ? d : null)
     }
   }, [doc])
 

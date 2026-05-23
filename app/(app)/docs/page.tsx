@@ -44,12 +44,16 @@ export default function DocsPage() {
   const regularDocs = docs.filter(d => !d.is_template)
 
   const createDoc = useMutation({
-    mutationFn: (body: { from_template_id?: string; title?: string; doc_type?: string } = {}) =>
-      fetch('/api/docs', {
+    mutationFn: async (body: { from_template_id?: string; title?: string; doc_type?: string } = {}) => {
+      const r = await fetch('/api/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body ?? { title: 'Untitled Document' }),
-      }).then(r => r.json()),
+      })
+      const json = await r.json()
+      if (!r.ok) throw new Error(json.error ?? 'Failed to create document')
+      return json as Document
+    },
     onSuccess: (doc: Document) => {
       queryClient.invalidateQueries({ queryKey: ['docs'] })
       router.push(`/docs/${doc.id}`)
@@ -265,9 +269,11 @@ export default function DocsPage() {
                         <span className="text-[11px] text-slate-500">{client.name}</span>
                       </div>
                     )}
-                    <span className="text-[11px] text-slate-400">
-                      Updated {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
-                    </span>
+                    {doc.updated_at && !isNaN(new Date(doc.updated_at).getTime()) && (
+                      <span className="text-[11px] text-slate-400">
+                        Updated {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
+                      </span>
+                    )}
                   </div>
                 </div>
 

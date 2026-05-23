@@ -13,6 +13,7 @@ export interface ApprovalRequest {
   created_at: string
   expires_at: string
   post_statuses: Record<string, string>
+  post_notes: Record<string, string>
 }
 
 interface RawApprovalRow {
@@ -26,13 +27,15 @@ interface RawApprovalRow {
   created_by: string
   created_at: string
   expires_at: string
-  approval_post_statuses: { post_id: string; status: string }[]
+  approval_post_statuses: { post_id: string; status: string; note?: string }[]
 }
 
 function mapRequest(row: RawApprovalRow): ApprovalRequest {
   const post_statuses: Record<string, string> = {}
+  const post_notes: Record<string, string> = {}
   for (const ps of row.approval_post_statuses ?? []) {
     post_statuses[ps.post_id] = ps.status
+    if (ps.note) post_notes[ps.post_id] = ps.note
   }
   return {
     id: row.id,
@@ -46,6 +49,7 @@ function mapRequest(row: RawApprovalRow): ApprovalRequest {
     created_at: row.created_at,
     expires_at: row.expires_at,
     post_statuses,
+    post_notes,
   }
 }
 
@@ -72,6 +76,8 @@ export function useCreateApproval() {
       title: string
       post_ids: string[]
       expiry_days: number
+      client_email?: string
+      client_name?: string
     }): Promise<{ id: string; token: string }> => {
       const res = await fetch('/api/approval', {
         method: 'POST',
