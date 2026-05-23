@@ -87,15 +87,25 @@ export async function POST(req: Request) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://novaxops.com'
 
-  // Fire-and-forget — do not fail the invite if email sending fails
-  sendTeamInvite({
+  // Await email so we can report success/failure to the UI
+  const emailResult = await sendTeamInvite({
     toEmail: email,
     toName: name,
     role,
     inviterName: (inviterProfile?.name as string | undefined) ?? 'The NOVAX Team',
     appUrl,
     tempPassword,
-  }).catch(() => {})
+  })
 
-  return NextResponse.json({ ok: true })
+  if (!emailResult.ok) {
+    // Account was created — return credentials so admin can share them manually
+    return NextResponse.json({
+      ok: true,
+      emailSent: false,
+      emailError: emailResult.error ?? 'Email delivery failed',
+      fallbackCredentials: { email, tempPassword },
+    })
+  }
+
+  return NextResponse.json({ ok: true, emailSent: true })
 }

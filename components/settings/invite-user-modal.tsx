@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Mail, Send, AlertCircle } from 'lucide-react'
+import { X, Mail, Send, AlertCircle, Copy, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/types'
-import { useInviteUser } from '@/lib/hooks/use-users'
+import { useInviteUser, type InviteResult } from '@/lib/hooks/use-users'
 
 const ROLES: { value: UserRole; label: string; desc: string }[] = [
   { value: 'admin',            label: 'Admin',            desc: 'Full access including integrations and billing' },
@@ -25,8 +25,9 @@ export function InviteUserModal({ onClose }: Props) {
   const [email, setEmail] = useState('')
   const [name, setName]   = useState('')
   const [role, setRole]   = useState<UserRole>('copywriter')
-  const [sent, setSent]   = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<InviteResult | null>(null)
+  const [error,  setError]  = useState<string | null>(null)
+  const [copiedField, setCopiedField] = useState<'email' | 'password' | null>(null)
 
   const inviteUser = useInviteUser()
 
@@ -34,11 +35,17 @@ export function InviteUserModal({ onClose }: Props) {
     if (!email.trim() || !name.trim()) return
     setError(null)
     try {
-      await inviteUser.mutateAsync({ email: email.trim(), name: name.trim(), role })
-      setSent(true)
+      const res = await inviteUser.mutateAsync({ email: email.trim(), name: name.trim(), role })
+      setResult(res)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to send invite')
+      setError(e instanceof Error ? e.message : 'Failed to create account')
     }
+  }
+
+  function copyField(value: string, field: 'email' | 'password') {
+    navigator.clipboard.writeText(value).catch(() => {})
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
   }
 
   return (
@@ -56,16 +63,51 @@ export function InviteUserModal({ onClose }: Props) {
           </button>
         </div>
 
-        {sent ? (
-          <div className="px-6 py-10 text-center">
-            <div className="w-12 h-12 rounded-full bg-novax-light flex items-center justify-center mx-auto mb-4">
-              <Send className="w-5 h-5 text-novax" />
-            </div>
-            <p className="font-semibold text-slate-900">Credentials sent</p>
-            <p className="text-sm text-slate-500 mt-1">
-              Login credentials were sent to <span className="font-medium text-slate-700">{email}</span>. They will be prompted to set a new password on first login.
-            </p>
-            <button onClick={onClose} className="mt-6 px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
+        {result ? (
+          <div className="px-6 py-8">
+            {result.emailSent ? (
+              <div className="text-center">
+                <div className="w-12 h-12 rounded-full bg-novax-light flex items-center justify-center mx-auto mb-4">
+                  <Send className="w-5 h-5 text-novax" />
+                </div>
+                <p className="font-semibold text-slate-900">Credentials sent</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  Login credentials were emailed to <span className="font-medium text-slate-700">{email}</span>. They will be prompted to set a new password on first login.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Account created — email failed to send</p>
+                    <p className="text-xs text-amber-700 mt-0.5">{result.emailError}</p>
+                    <p className="text-xs text-amber-700 mt-1">Share these credentials with <strong>{name}</strong> manually.</p>
+                  </div>
+                </div>
+                {result.fallbackCredentials && (
+                  <div className="bg-[#EBF4F3] border-2 border-[#9DCCC8] rounded-xl p-4 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#2A6B62] mb-3">Login Credentials</p>
+                    {([
+                      { label: 'Email',    value: result.fallbackCredentials.email,       field: 'email' as const },
+                      { label: 'Password', value: result.fallbackCredentials.tempPassword, field: 'password' as const },
+                    ] as const).map(({ label, value, field }) => (
+                      <div key={field} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-[#9DCCC8]">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-slate-400 font-semibold uppercase">{label}</p>
+                          <p className="text-sm font-mono text-slate-900 truncate">{value}</p>
+                        </div>
+                        <button onClick={() => copyField(value, field)} className="shrink-0 p-1 text-slate-400 hover:text-novax transition-colors">
+                          {copiedField === field ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-slate-400 pt-1">They must change this password on first login.</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <button onClick={onClose} className="mt-6 w-full py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
               Done
             </button>
           </div>

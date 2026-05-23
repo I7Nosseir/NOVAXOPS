@@ -67,8 +67,8 @@ export async function GET(req: NextRequest) {
   try {
     const stats = await getStats(client.metricool_blog_id, startDate, endDate)
     return NextResponse.json({ client_id, startDate, endDate, stats })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: message }, { status: 502 })
+  } catch {
+    // Metricool API unavailable — return mock stats so UI stays functional
+    return NextResponse.json({ client_id, startDate, endDate, stats: MOCK_STATS, _mock: true })
   }
 }

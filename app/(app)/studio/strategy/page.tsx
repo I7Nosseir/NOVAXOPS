@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Brain, ArrowLeft, ChevronDown, ChevronUp,
-  Loader2, CheckCircle, RefreshCw, Zap, ArrowRight,
+  Loader2, CheckCircle, RefreshCw, Zap, ArrowRight, Download,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
+import { exportStrategyPptx } from '@/lib/strategy-export'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type MetaPhase = 'intelligence' | 'positioning' | 'execution' | 'scale' | 'optimize'
@@ -148,8 +149,22 @@ export default function StrategyPage() {
   const [loadingMeta, setLoading]  = useState<MetaPhase | null>(null)
   const [error,      setError]     = useState<string | null>(null)
   const [metaData,   setMetaData]  = useState<Partial<Record<MetaPhase, Record<string, unknown>>>>({})
+  const [exporting,  setExporting] = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
+
+  const handleExport = async () => {
+    if (!selectedClient) return
+    setExporting(true)
+    setError(null)
+    try {
+      await exportStrategyPptx(selectedClient.name, selectedClient.color, metaData)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleGenerate = async (meta: MetaPhase) => {
     if (!selectedClient) return
@@ -269,9 +284,9 @@ export default function StrategyPage() {
             ))}
           </div>
 
-          {/* Export to docs */}
+          {/* Actions */}
           {completedCount >= 2 && (
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 flex gap-3 flex-wrap">
               <Link
                 href="/studio/content"
                 className="flex items-center gap-2 px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-semibold rounded-xl transition-colors"
@@ -279,12 +294,17 @@ export default function StrategyPage() {
                 <Zap className="w-3.5 h-3.5" />
                 Create Content from Strategy
               </Link>
-              <Link
-                href={`/docs`}
-                className="flex items-center gap-2 px-4 py-2 text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 text-sm font-medium transition-colors"
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="flex items-center gap-2 px-4 py-2 text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-novax-border disabled:opacity-50 text-sm font-medium transition-colors"
               >
-                Save as Document
-              </Link>
+                {exporting
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Download className="w-3.5 h-3.5" />
+                }
+                {exporting ? 'Exporting…' : 'Download PPTX'}
+              </button>
             </div>
           )}
         </>

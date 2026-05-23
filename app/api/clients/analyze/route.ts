@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import Anthropic from '@anthropic-ai/sdk'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+const HAS_DB     = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+const HAS_CLAUDE = !!process.env.ANTHROPIC_API_KEY
 
 interface BrandIdentityJson {
   tone_of_voice?: string
@@ -34,13 +28,65 @@ interface IntelResult {
   strategy_90_days: string[]
 }
 
+const MOCK_INTEL: IntelResult = {
+  strengths: [
+    'Strong visual brand identity with consistent color language across platforms',
+    'High audience trust score based on organic reach-to-follower ratio',
+    'Differentiated tone of voice in a category dominated by generic messaging',
+    'Active cross-platform presence enabling multi-touchpoint engagement',
+  ],
+  weaknesses: [
+    'Underutilisation of video content despite strong platform algorithm preference',
+    'Low posting cadence on LinkedIn relative to B2B opportunity size',
+    'Limited community engagement strategy beyond reply volume',
+    'No consistent editorial calendar resulting in reactive rather than strategic publishing',
+  ],
+  opportunities: [
+    'Growing creator economy partnerships in category — authenticity-led collabs outperform paid ads',
+    'Short-form video adoption curve still early — first-mover advantage remains available',
+    'SEO-optimised social content can double as discoverability layer',
+    'Comment section engagement as a brand differentiation signal — still largely ignored by competitors',
+  ],
+  threats: [
+    'Algorithm shifts on Instagram deprioritising static content in favour of Reels',
+    'Increasing ad costs reducing paid amplification ROI',
+    'Emerging competitor brands with higher video production investment',
+    'Platform policy changes affecting organic DM and comment reach',
+  ],
+  market_position: 'The brand occupies a mid-premium position with strong creative differentiation but underdeveloped content volume. Organic growth is above-category-average, supported by high-quality visual output and an engaged core audience segment. The primary opportunity is in scaling content frequency without sacrificing quality.',
+  growth_score: 72,
+  engagement_trend: '+18% projected MoM based on current audience growth trajectory and content-mix optimisation',
+  content_gap: [
+    'Educational series content (how-to, tutorials, explainers)',
+    'Behind-the-scenes and team storytelling',
+    'User-generated content repurposing strategy',
+    'Seasonal and trend-reactive content',
+    'Long-form LinkedIn thought leadership',
+  ],
+  key_insights: [
+    'Carousel posts are generating 2.1x more saves than single-image posts — indicate high educational intent',
+    'Posts published Tuesday and Thursday between 10am–12pm consistently outperform by 34% on reach',
+    'Audience skews 28–38 female — content featuring process and authenticity over polished output resonates more',
+    'Comments asking questions drive 3x more follow-up engagement than broadcast-style captions',
+    'Video content has 60% lower production volume but 2.4x higher organic reach — underinvested relative to ROI',
+  ],
+  strategy_90_days: [
+    'Launch a 4-week Reels series (1 per week) — behind-the-scenes format — to establish video habit and test audience response',
+    'Implement a Tuesday/Thursday 10am publish schedule across Instagram and LinkedIn to capture peak engagement windows',
+    'Develop a 5-piece educational carousel series addressing the top 5 audience questions — drive saves and shares',
+    'Establish a monthly competitor content audit to identify emerging content formats before they peak',
+    'Set up a UGC capture workflow — brief current customers on resharing protocols and offer incentives',
+    'Test LinkedIn thought leadership — 1 long-form post per week from a named team member voice',
+    'Introduce a monthly content performance review to identify which formats to double down on vs retire',
+  ],
+}
+
 /**
  * POST /api/clients/analyze
  * Body: { client_id: string }
  *
- * Runs Claude opus-grade analysis on the client's brand identity data
- * and generates a full intelligence report (SWOT, market position,
- * content gaps, 90-day strategy).
+ * Runs Claude analysis on the client's brand identity data and generates a full
+ * intelligence report (SWOT, market position, content gaps, 90-day strategy).
  * Saves result to clients.performance_intel.
  */
 export async function POST(req: NextRequest) {
@@ -51,6 +97,19 @@ export async function POST(req: NextRequest) {
 
   const { client_id } = body
   if (!client_id) return NextResponse.json({ error: 'client_id required' }, { status: 400 })
+
+  if (!HAS_DB || !HAS_CLAUDE) {
+    return NextResponse.json({ intel: MOCK_INTEL, _mock: true })
+  }
+
+  const { createClient } = await import('@supabase/supabase-js')
+  const Anthropic = (await import('@anthropic-ai/sdk')).default
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
   const { data: client, error } = await supabase
     .from('clients')

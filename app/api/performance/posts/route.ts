@@ -63,7 +63,16 @@ export async function GET(req: NextRequest) {
   if (end)   query = query.lte('published_at', end)
 
   const { data: posts, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // Table may not exist yet — fall back to mock posts rather than 500
+    const filtered = MOCK_POSTS.filter(p => {
+      if (platform && p.platform !== platform) return false
+      if (start && p.published_at < start) return false
+      if (end && p.published_at > end) return false
+      return true
+    }).sort((a, b) => b.engagement_rate - a.engagement_rate)
+    return NextResponse.json({ posts: filtered, total: filtered.length, _mock: true })
+  }
 
   type SnapRow = { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; link_clicks: number; engagement_rate: number; captured_at: string }
 

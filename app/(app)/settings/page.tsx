@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check } from 'lucide-react'
-import { useUsers } from '@/lib/hooks/use-users'
+import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy } from 'lucide-react'
+import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, type InviteResult } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
@@ -292,6 +292,11 @@ function RolePreviewTab() {
 export default function SettingsPage() {
   const { user: currentUser } = useAuth()
   const { users } = useUsers()
+  const { invitations, isLoading: invLoading, refetch: refetchInvitations } = usePendingInvitations()
+  const cancelInvitation  = useCancelInvitation()
+  const resendInvitation  = useResendInvitation()
+  const [resendResult, setResendResult] = useState<(InviteResult & { forId: string }) | null>(null)
+  const [copiedResend, setCopiedResend] = useState<'email' | 'password' | null>(null)
   const isAdmin = currentUser?.role === 'admin'
   const canSeeVendorNames = hasRole(currentUser, ['admin', 'ceo'])
   const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview'>(isAdmin ? 'integrations' : 'team')
@@ -355,61 +360,206 @@ export default function SettingsPage() {
       )}
 
       {activeTab === 'team' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-slate-900">Team Members</h3>
-              <p className="text-sm text-slate-500">{users.length} members · Role-based access control</p>
+        <div className="space-y-6">
+          {/* Active members */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-slate-900">Team Members</h3>
+                <p className="text-sm text-slate-500">{users.length} active member{users.length !== 1 ? 's' : ''} · Role-based access control</p>
+              </div>
+              {isAdmin && (
+                <button onClick={() => setShowInvite(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
+                  <Plus className="w-3.5 h-3.5" />Invite Member
+                </button>
+              )}
             </div>
-            {isAdmin && (
-              <button onClick={() => setShowInvite(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
-                <Plus className="w-3.5 h-3.5" />Invite Member
-              </button>
-            )}
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
-            <table className="w-full min-w-[560px]">
-              <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>
-                  {['Member', 'Role', 'Department', 'Access Level', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {users.map(user => (
-                  <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: user.color }}>
-                          {user.initials}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{user.name}</p>
-                          <p className="text-[11px] text-slate-400">{user.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">{user.role.replace(/_/g, ' ')}</td>
-                    <td className="px-4 py-3 text-xs text-slate-600">{user.department}</td>
-                    <td className="px-4 py-3">
-                      <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                        user.role === 'admin' || user.role === 'creative_director'
-                          ? 'bg-novax-light text-novax'
-                          : 'bg-slate-100 text-slate-600')}>
-                        {user.role === 'admin' || user.role === 'creative_director' ? 'Full Access' : 'Standard'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {isAdmin && (
-                        <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Edit</button>
-                      )}
-                    </td>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
+              <table className="w-full min-w-[560px]">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    {['Member', 'Role', 'Department', 'Access Level', ''].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {users.map(user => (
+                    <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: user.color }}>
+                            {user.initials}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{user.name}</p>
+                            <p className="text-[11px] text-slate-400">{user.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{user.role.replace(/_/g, ' ')}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{user.department}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                          user.role === 'admin' || user.role === 'creative_director'
+                            ? 'bg-novax-light text-novax'
+                            : 'bg-slate-100 text-slate-600')}>
+                          {user.role === 'admin' || user.role === 'creative_director' ? 'Full Access' : 'Standard'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isAdmin && (
+                          <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Edit</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {/* Pending invitations */}
+          {isAdmin && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                    Pending Invitations
+                    {invitations.length > 0 && (
+                      <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+                        {invitations.length}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-sm text-slate-500">Accounts that have not yet completed first login</p>
+                </div>
+                <button
+                  onClick={() => refetchInvitations()}
+                  disabled={invLoading}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <RefreshCw className={cn('w-3 h-3', invLoading && 'animate-spin')} />
+                  Refresh
+                </button>
+              </div>
+
+              {/* Resend fallback credentials panel */}
+              {resendResult && !resendResult.emailSent && resendResult.fallbackCredentials && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <div className="flex items-start gap-2 mb-3">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">Email failed — share credentials manually</p>
+                      <p className="text-xs text-amber-700 mt-0.5">{resendResult.emailError}</p>
+                    </div>
+                    <button onClick={() => setResendResult(null)} className="ml-auto text-amber-400 hover:text-amber-600">
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {([
+                      { label: 'Email',    value: resendResult.fallbackCredentials.email,        field: 'email' as const },
+                      { label: 'Password', value: resendResult.fallbackCredentials.tempPassword,  field: 'password' as const },
+                    ] as const).map(({ label, value, field }) => (
+                      <div key={field} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-amber-200">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-slate-400 font-semibold uppercase">{label}</p>
+                          <p className="text-sm font-mono text-slate-900">{value}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(value).catch(() => {})
+                            setCopiedResend(field)
+                            setTimeout(() => setCopiedResend(null), 2000)
+                          }}
+                          className="shrink-0 p-1 text-slate-400 hover:text-novax transition-colors"
+                        >
+                          {copiedResend === field ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {invLoading ? (
+                <div className="flex items-center gap-2 px-4 py-6 bg-white rounded-xl border border-slate-200 text-sm text-slate-400">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Loading…
+                </div>
+              ) : invitations.length === 0 ? (
+                <div className="flex items-center gap-3 px-4 py-5 bg-white rounded-xl border border-dashed border-slate-200">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  <p className="text-sm text-slate-400">No pending invitations</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-100">
+                      <tr>
+                        {['Invited Member', 'Role', 'Sent', ''].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {invitations.map(inv => (
+                        <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-slate-900">{inv.name || '—'}</p>
+                                <p className="text-[11px] text-slate-400">{inv.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs text-slate-600 capitalize">{inv.role.replace(/_/g, ' ')}</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-400">
+                            {new Date(inv.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2 justify-end">
+                              <button
+                                onClick={async () => {
+                                  setResendResult(null)
+                                  const res = await resendInvitation.mutateAsync({
+                                    id: inv.id,
+                                    inviterName: currentUser?.name,
+                                  })
+                                  if (!res.emailSent) setResendResult({ ...res, forId: inv.id })
+                                }}
+                                disabled={resendInvitation.isPending}
+                                title="Resend credentials"
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs text-novax-muted border border-novax-border rounded-lg hover:bg-novax-light transition-colors disabled:opacity-50"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                Resend
+                              </button>
+                              <button
+                                onClick={() => cancelInvitation.mutate(inv.id)}
+                                disabled={cancelInvitation.isPending}
+                                title="Cancel invitation"
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs text-red-400 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
