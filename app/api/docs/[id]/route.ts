@@ -38,8 +38,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
+  if (body.title !== undefined && !body.title.trim()) {
+    return NextResponse.json({ error: 'Document title cannot be empty' }, { status: 400 })
+  }
+
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if (body.title !== undefined) updates.title = body.title
+  if (body.title !== undefined) updates.title = body.title.trim()
   if (body.content !== undefined) updates.content = body.content
   if (body.is_public !== undefined) updates.is_public = body.is_public
   if (body.is_template !== undefined) updates.is_template = body.is_template

@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw } from 'lucide-react'
+import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check } from 'lucide-react'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
 import { cn, hasRole, vendorName } from '@/lib/utils'
 import { InviteUserModal } from '@/components/settings/invite-user-modal'
+import type { UserRole } from '@/lib/types'
 
 const INTEGRATIONS_REAL = [
   {
@@ -139,12 +140,161 @@ function MetricoolClientConfig() {
   )
 }
 
+const ROLE_CARDS: {
+  value: UserRole
+  label: string
+  description: string
+  access: string[]
+  restricted: string[]
+}[] = [
+  {
+    value: 'ceo',
+    label: 'CEO',
+    description: 'Full platform visibility. Sees vendor names. Cannot edit integration credentials.',
+    access: ['Dashboard', 'Pipeline', 'Clients', 'Projects', 'Publishing', 'Approval', 'Moderation', 'Assets', 'Reports', 'Workload'],
+    restricted: ['Integrations config'],
+  },
+  {
+    value: 'creative_director',
+    label: 'Creative Director',
+    description: 'Manages the creative team. Full task and client access.',
+    access: ['Dashboard', 'Pipeline', 'Tasks', 'Clients', 'Projects', 'Assets', 'Creative Eval', 'Workload', 'Reports'],
+    restricted: ['Integrations config', 'Vendor names'],
+  },
+  {
+    value: 'account_manager',
+    label: 'Account Manager',
+    description: 'Client-facing. Manages approvals, reporting, and client comms.',
+    access: ['Dashboard', 'Pipeline', 'Clients (edit)', 'Projects', 'Approval', 'Publishing', 'Reports'],
+    restricted: ['Integrations config', 'Vendor names', 'Workload view'],
+  },
+  {
+    value: 'strategist',
+    label: 'Strategist',
+    description: 'Creates and manages strategy-stage tasks and projects.',
+    access: ['Dashboard', 'Pipeline', 'Tasks', 'Clients (read)', 'Projects', 'Content Library'],
+    restricted: ['Integrations config', 'Vendor names', 'Publishing', 'Moderation'],
+  },
+  {
+    value: 'copywriter',
+    label: 'Copywriter',
+    description: 'Assigned copy tasks. Uses AI agents. Limited to own tasks.',
+    access: ['Pipeline (own tasks)', 'Tasks', 'Assets', 'Content Library', 'Creative Eval'],
+    restricted: ['Integrations config', 'Clients (edit)', 'Reports', 'Workload'],
+  },
+  {
+    value: 'designer',
+    label: 'Designer',
+    description: 'Assigned design tasks. Access to assets and creative tools.',
+    access: ['Pipeline (own tasks)', 'Tasks', 'Assets', 'AI Image', 'Smart Resize', 'Creative Eval'],
+    restricted: ['Integrations config', 'Clients (edit)', 'Reports', 'Publishing'],
+  },
+  {
+    value: 'social_manager',
+    label: 'Social Manager',
+    description: 'Manages publishing schedule and comment moderation.',
+    access: ['Dashboard', 'Publishing', 'Approval', 'Moderation', 'Content Library', 'Performance'],
+    restricted: ['Integrations config', 'Vendor names', 'Clients (edit)', 'Pipeline'],
+  },
+]
+
+function RolePreviewTab() {
+  const { previewRole, setPreviewRole, isPreviewMode } = useAuth()
+
+  const activate = (role: UserRole) => {
+    if (previewRole === role) {
+      setPreviewRole(null)
+    } else {
+      setPreviewRole(role)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="font-semibold text-slate-900">Role Preview</h3>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Switch the platform to any role to see exactly what that user sees. Your admin session is preserved — exit at any time.
+        </p>
+      </div>
+
+      {isPreviewMode && (
+        <div className="flex items-center justify-between p-4 rounded-xl border-2 border-novax-border bg-novax-light">
+          <div className="flex items-center gap-2.5">
+            <Eye className="w-4 h-4 text-novax-muted"/>
+            <div>
+              <p className="text-sm font-semibold text-novax">
+                Previewing as {ROLE_CARDS.find(r => r.value === previewRole)?.label ?? previewRole}
+              </p>
+              <p className="text-xs text-novax-muted">Navigate any page to see the role-restricted view</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setPreviewRole(null)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-novax border border-novax-border rounded-lg hover:bg-novax-light-hover transition-colors"
+          >
+            <EyeOff className="w-3.5 h-3.5"/> Exit Preview
+          </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {ROLE_CARDS.map(role => {
+          const active = previewRole === role.value
+          return (
+            <button
+              key={role.value}
+              onClick={() => activate(role.value)}
+              className={cn(
+                'text-left p-4 rounded-xl border-2 transition-all hover:shadow-sm',
+                active
+                  ? 'border-novax bg-novax-light'
+                  : 'border-slate-200 bg-white hover:border-novax-border'
+              )}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <p className={cn('text-sm font-semibold', active ? 'text-novax' : 'text-slate-900')}>
+                    {role.label}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-snug">{role.description}</p>
+                </div>
+                {active && (
+                  <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: '#1B3D38' }}>
+                    <Check className="w-3 h-3"/>
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Has access</p>
+                <div className="flex flex-wrap gap-1">
+                  {role.access.map(item => (
+                    <span key={item} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium">{item}</span>
+                  ))}
+                </div>
+                {role.restricted.length > 0 && <>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-red-400 mt-1">Restricted</p>
+                  <div className="flex flex-wrap gap-1">
+                    {role.restricted.map(item => (
+                      <span key={item} className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 font-medium">{item}</span>
+                    ))}
+                  </div>
+                </>}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const { user: currentUser } = useAuth()
   const { users } = useUsers()
   const isAdmin = currentUser?.role === 'admin'
   const canSeeVendorNames = hasRole(currentUser, ['admin', 'ceo'])
-  const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security'>(isAdmin ? 'integrations' : 'team')
+  const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview'>(isAdmin ? 'integrations' : 'team')
   const [showInvite, setShowInvite] = useState(false)
 
   const tabs = [
@@ -152,6 +302,7 @@ export default function SettingsPage() {
     { id: 'team' as const, label: 'Team', icon: Users },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
     { id: 'security' as const, label: 'Security', icon: Shield },
+    ...(isAdmin ? [{ id: 'preview' as const, label: 'Role Preview', icon: Eye }] : []),
   ]
 
   return (
@@ -318,6 +469,8 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {activeTab === 'preview' && <RolePreviewTab />}
     </div>
   )
 }

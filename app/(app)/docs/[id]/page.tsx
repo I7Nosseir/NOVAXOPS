@@ -92,7 +92,20 @@ export default function DocEditorPage() {
 
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle)
-    scheduleSave({ title: newTitle, content })
+    if (newTitle.trim()) {
+      scheduleSave({ title: newTitle.trim(), content })
+    } else {
+      // Cancel the pending save so a cleared title never persists
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      setIsSaving(false)
+    }
+  }
+
+  const handleTitleBlur = () => {
+    if (!title.trim()) {
+      // Revert to the last successfully saved title
+      setTitle(doc?.title || (doc?.doc_type === 'sheet' ? 'Untitled Spreadsheet' : 'Untitled Document'))
+    }
   }
 
   const handleContentChange = (newContent: object) => {
@@ -222,8 +235,13 @@ export default function DocEditorPage() {
           type="text"
           value={title}
           onChange={e => handleTitleChange(e.target.value)}
+          onBlur={handleTitleBlur}
           placeholder={doc.doc_type === 'sheet' ? 'Untitled Spreadsheet' : 'Untitled Document'}
-          className="w-full text-2xl font-bold text-slate-900 dark:text-slate-100 bg-transparent border-none outline-none placeholder:text-slate-300"
+          className={`w-full text-2xl font-bold bg-transparent border-none outline-none transition-colors ${
+            title.trim()
+              ? 'text-slate-900 dark:text-slate-100 placeholder:text-slate-300'
+              : 'text-red-400 placeholder:text-red-300'
+          }`}
         />
 
         {/* Editor — doc or sheet */}
