@@ -124,18 +124,21 @@ async function geminiAdapt(
   return null
 }
 
-// ─── Sharp fallback — fill primary dimension + mirror edge extension ──────────
-// For the 9:16 format (portrait):
-//   • Scale image to fill the full 1080px width
-//   • Extend top/bottom by mirroring the image edges → sky extends up naturally,
-//     ground extends down naturally. No solid color bands. No letterboxing.
+// ─── Sharp fallback ────────────────────────────────────────────────────────────
+// Strategy depends on background type:
 //
-// For the 1:1 format (square):
-//   • Scale image to fill the full 1080px height
-//   • Extend sides by mirroring (or solid fill for flat color backgrounds)
+// Solid / pattern: scale image to fill width (portrait) or height (landscape),
+//   extend remaining space with the exact matched fill color. Clean, seamless.
 //
-// Content is NEVER cropped in the extension path — only if the image is already
-// larger than the canvas after scaling (then focal-point-aligned crop is used).
+// Photo / gradient: industry-standard "blurred canvas" technique —
+//   1. Scale+cover the full target canvas → apply heavy gaussian blur (sigma 45)
+//      + slight brightness reduction. This becomes the background layer and
+//      perfectly matches the image's colors/tones with no seams.
+//   2. Scale the original (sharp) to fill the primary dimension, clamp to canvas.
+//   3. Composite the sharp original centered at focal_y_target on the blurred bg.
+//
+// This is how Snapseed, Adobe Express, and iOS Photos handle canvas expansion.
+// It always looks designed — no mirror artifacts, no upside-down subjects.
 
 async function sharpFallback(
   inputBuffer: Buffer,
@@ -149,7 +152,6 @@ async function sharpFallback(
   const origW = meta.width!
   const origH = meta.height!
 
-  // Background fill color for alpha flatten + solid extension
   const hex = (background_extension?.fill_color ?? dominant_color ?? '#1a1a1a')
     .replace('#', '').padEnd(6, '0')
   const bgR = parseInt(hex.slice(0, 2), 16) || 26
@@ -157,82 +159,97 @@ async function sharpFallback(
   const bgB = parseInt(hex.slice(4, 6), 16) || 26
 
   const isPortrait = targetH > targetW
-  let scaledW: number
-  let scaledH: number
-  let extendTop = 0
-  let extendBottom = 0
-  let extendLeft = 0
-  let extendRight = 0
 
-  if (isPortrait) {
-    // Fill the full target width — image spans edge to edge horizontally
-    scaledW = targetW
-    scaledH = Math.round(origH * (targetW / origW))
+  // ── Solid / pattern: extend with flat color ──────────────────────────────────
+  if (background_type === 'solid_color' || background_type === 'pattern') {
+    let scaledW: number, scaledH: number
+    let extTop = 0, extBottom = 0, extLeft = 0, extRight = 0
 
-    if (scaledH >= targetH) {
-      // Image taller than canvas after width-fill — focal-point crop, no content lost
-      const excess = scaledH - targetH
-      const cropTop = Math.max(0, Math.min(Math.round((focal_point.y / 100) * excess), excess))
-      return sharp(inputBuffer)
-        .flatten({ background: { r: bgR, g: bgG, b: bgB } })
-        .resize(scaledW, scaledH, { fit: 'fill', kernel: 'lanczos3' })
-        .extract({ left: 0, top: cropTop, width: targetW, height: targetH })
-        .jpeg({ quality: 93 })
-        .toBuffer()
+    if (isPortrait) {
+      scaledW = targetW
+      scaledH = Math.round(origH * (targetW / origW))
+      if (scaledH >= targetH) {
+        const excess = scaledH - targetH
+        const cropTop = Math.max(0, Math.min(Math.round((focal_point.y / 100) * excess), excess))
+        return sharp(inputBuffer)
+          .flatten({ background: { r: bgR, g: bgG, b: bgB } })
+          .resize(scaledW, scaledH, { fit: 'fill', kernel: 'lanczos3' })
+          .extract({ left: 0, top: cropTop, width: targetW, height: targetH })
+          .jpeg({ quality: 93 }).toBuffer()
+      }
+      const focalYTarget = (adaptation?.story_9x16?.focal_y_target ?? 50) / 100
+      const imageFocalY  = Math.round((focal_point.y / 100) * scaledH)
+      const canvasFocalY = Math.round(focalYTarget * targetH)
+      let top = canvasFocalY - imageFocalY
+      top = Math.max(0, Math.min(top, targetH - scaledH))
+      extTop    = top
+      extBottom = targetH - scaledH - extTop
+    } else {
+      scaledH = targetH
+      scaledW = Math.round(origW * (targetH / origH))
+      if (scaledW >= targetW) {
+        const excess   = scaledW - targetW
+        const cropLeft = Math.max(0, Math.min(Math.round((focal_point.x / 100) * excess), excess))
+        return sharp(inputBuffer)
+          .flatten({ background: { r: bgR, g: bgG, b: bgB } })
+          .resize(scaledW, scaledH, { fit: 'fill', kernel: 'lanczos3' })
+          .extract({ left: cropLeft, top: 0, width: targetW, height: targetH })
+          .jpeg({ quality: 93 }).toBuffer()
+      }
+      const total = targetW - scaledW
+      extLeft  = Math.floor(total / 2)
+      extRight = total - extLeft
     }
 
-    // Position focal point at focal_y_target within the canvas
-    const focalYTarget = (adaptation?.story_9x16?.focal_y_target ?? 50) / 100
-    const imageFocalY  = Math.round((focal_point.y / 100) * scaledH)
-    const canvasFocalY = Math.round(focalYTarget * targetH)
-    let top = canvasFocalY - imageFocalY
-    top = Math.max(0, Math.min(top, targetH - scaledH))
-    extendTop    = top
-    extendBottom = targetH - scaledH - extendTop
+    const scaled = await sharp(inputBuffer)
+      .flatten({ background: { r: bgR, g: bgG, b: bgB } })
+      .resize(scaledW, scaledH, { fit: 'fill', kernel: 'lanczos3' })
+      .toBuffer()
 
-  } else {
-    // Fill the full target height — image spans edge to edge vertically
-    scaledH = targetH
-    scaledW = Math.round(origW * (targetH / origH))
-
-    if (scaledW >= targetW) {
-      // Image wider than canvas after height-fill — focal-point crop
-      const excess   = scaledW - targetW
-      const cropLeft = Math.max(0, Math.min(Math.round((focal_point.x / 100) * excess), excess))
-      return sharp(inputBuffer)
-        .flatten({ background: { r: bgR, g: bgG, b: bgB } })
-        .resize(scaledW, scaledH, { fit: 'fill', kernel: 'lanczos3' })
-        .extract({ left: cropLeft, top: 0, width: targetW, height: targetH })
-        .jpeg({ quality: 93 })
-        .toBuffer()
-    }
-
-    const totalExtend = targetW - scaledW
-    extendLeft  = Math.floor(totalExtend / 2)
-    extendRight = totalExtend - extendLeft
+    return sharp(scaled)
+      .extend({ top: extTop, bottom: extBottom, left: extLeft, right: extRight,
+        background: { r: bgR, g: bgG, b: bgB }, extendWith: 'background' })
+      .resize(targetW, targetH, { fit: 'fill' })
+      .jpeg({ quality: 93 }).toBuffer()
   }
 
-  // Scale image to computed intermediate size
-  const scaled = await sharp(inputBuffer)
+  // ── Photo / gradient: blurred canvas background + sharp original on top ───────
+  //
+  // Layer 1 — blurred background: cover the full canvas with the image, blur hard.
+  //   Slight darkening prevents the bg from competing with the sharp foreground.
+  const blurredBg = await sharp(inputBuffer)
     .flatten({ background: { r: bgR, g: bgG, b: bgB } })
-    .resize(scaledW, scaledH, { fit: 'fill', kernel: 'lanczos3' })
+    .resize(targetW, targetH, { fit: 'cover', position: 'centre' })
+    .blur(45)
+    .modulate({ brightness: 0.72 })
     .toBuffer()
 
-  // Mirror extension: reflect actual image content into the new space.
-  // For photo/gradient backgrounds this looks natural (sky → sky, ground → ground).
-  // For solid or pattern backgrounds, plain color fill is cleaner.
-  const useMirror = background_type === 'complex_photo' || background_type === 'gradient'
+  // Layer 2 — sharp foreground: scale to fill the primary axis, never exceed canvas.
+  let fgW = isPortrait
+    ? targetW
+    : Math.round(origW * (targetH / origH))
+  let fgH = isPortrait
+    ? Math.round(origH * (targetW / origW))
+    : targetH
 
-  return sharp(scaled)
-    .extend({
-      top:    extendTop,
-      bottom: extendBottom,
-      left:   extendLeft,
-      right:  extendRight,
-      background: { r: bgR, g: bgG, b: bgB },
-      extendWith: useMirror ? 'mirror' : 'background',
-    })
-    .resize(targetW, targetH, { fit: 'fill' })
+  // Clamp: foreground must not exceed the canvas on either axis
+  if (fgW > targetW) { fgH = Math.round(fgH * (targetW / fgW)); fgW = targetW }
+  if (fgH > targetH) { fgW = Math.round(fgW * (targetH / fgH)); fgH = targetH }
+
+  const foreground = await sharp(inputBuffer)
+    .flatten({ background: { r: bgR, g: bgG, b: bgB } })
+    .resize(fgW, fgH, { fit: 'fill', kernel: 'lanczos3' })
+    .toBuffer()
+
+  // Position foreground: horizontal center, vertical at focal_y_target
+  const focalYTarget = isPortrait ? (adaptation?.story_9x16?.focal_y_target ?? 50) / 100 : 0.5
+  const imageFocalY  = Math.round((focal_point.y / 100) * fgH)
+  const canvasFocalY = Math.round(focalYTarget * targetH)
+  let top  = Math.max(0, Math.min(canvasFocalY - imageFocalY, targetH - fgH))
+  let left = Math.max(0, Math.round((targetW - fgW) / 2))
+
+  return sharp(blurredBg)
+    .composite([{ input: foreground, left, top, blend: 'over' }])
     .jpeg({ quality: 93 })
     .toBuffer()
 }
