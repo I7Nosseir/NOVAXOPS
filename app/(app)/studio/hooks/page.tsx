@@ -59,6 +59,7 @@ function HookCard({
   hook,
   index,
   saved,
+  language,
   onSave,
   onCopy,
   onRefine,
@@ -66,6 +67,7 @@ function HookCard({
   hook: GeneratedHook
   index: number
   saved: boolean
+  language: string
   onSave: () => void
   onCopy: () => void
   onRefine: () => void
@@ -90,7 +92,7 @@ function HookCard({
 
         <div className="flex-1 min-w-0">
           {/* Hook text */}
-          <p className="text-sm font-medium text-slate-900 leading-snug mb-2">{hook.hook_text}</p>
+          <p className="text-sm font-medium text-slate-900 leading-snug mb-2" dir={language === 'arabic' ? 'rtl' : 'ltr'}>{hook.hook_text}</p>
 
           {/* Badges */}
           <div className="flex flex-wrap items-center gap-1.5 mb-2">
@@ -170,6 +172,8 @@ export default function HookLabPage() {
   const [goal,      setGoal]      = useState('Engagement')
   const [emotion,   setEmotion]   = useState('Inspire')
   const [brief,     setBrief]     = useState(params?.get('brief') ?? '')
+  const [language,  setLanguage]  = useState<'english' | 'arabic'>('english')
+  const [dialect,   setDialect]   = useState<'saudi' | 'egyptian'>('saudi')
 
   // Result state
   const [hooks,     setHooks]     = useState<GeneratedHook[]>([])
@@ -201,6 +205,8 @@ export default function HookLabPage() {
           goal,
           emotion,
           brand_voice: selectedClient?.brand_identity?.tone_of_voice,
+          language,
+          dialect,
         }),
       })
       const data = await res.json()
@@ -264,6 +270,8 @@ export default function HookLabPage() {
           goal,
           emotion,
           brand_voice: selectedClient?.brand_identity?.tone_of_voice,
+          language,
+          dialect,
         }),
       })
       const data = await res.json()
@@ -403,6 +411,47 @@ export default function HookLabPage() {
               </div>
             </div>
 
+            {/* Language */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Hook Language</label>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  {(['english', 'arabic'] as const).map(lang => (
+                    <button
+                      key={lang}
+                      onClick={() => setLanguage(lang)}
+                      className={cn(
+                        'flex-1 py-1.5 text-xs rounded-lg font-semibold border transition-all',
+                        language === lang ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
+                      )}
+                    >
+                      {lang === 'english' ? 'English' : 'Arabic — عربي'}
+                    </button>
+                  ))}
+                </div>
+                {language === 'arabic' && (
+                  <div className="flex gap-2 pl-1">
+                    <span className="text-[10px] text-slate-400 self-center shrink-0">Dialect:</span>
+                    {([
+                      { value: 'saudi',    label: 'Saudi — سعودي' },
+                      { value: 'egyptian', label: 'Egyptian — مصري' },
+                    ] as const).map(d => (
+                      <button
+                        key={d.value}
+                        onClick={() => setDialect(d.value)}
+                        className={cn(
+                          'flex-1 py-1.5 text-xs rounded-lg font-medium border transition-all',
+                          dialect === d.value ? 'bg-novax-light border-novax-border text-novax' : 'bg-white text-slate-500 border-slate-200 hover:border-novax-border',
+                        )}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Brief */}
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">Content Brief</label>
@@ -476,6 +525,7 @@ export default function HookLabPage() {
                   hook={hook}
                   index={i}
                   saved={savedIds.has(i)}
+                  language={language}
                   onSave={() => handleSave(i)}
                   onCopy={() => handleCopy(i)}
                   onRefine={() => handleRefine(i)}

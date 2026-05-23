@@ -12,10 +12,20 @@ interface Phase1Data {
   brand_voice?: string
   industry?: string
   key_messages?: string[]
+  language?: string
+  dialect?: string
+}
+
+function languageInstruction(language: string | undefined, dialect: string | undefined): string {
+  if (language !== 'arabic') return ''
+  if (dialect === 'saudi') {
+    return '\nLANGUAGE CONTEXT: This content will be in Saudi Arabic. Tailor all insights to Saudi culture, Saudi social media behaviour, and Saudi consumer psychology.\n'
+  }
+  return '\nLANGUAGE CONTEXT: This content will be in Egyptian Arabic. Tailor all insights to Egyptian culture, Egyptian social media behaviour, and Egyptian/pan-Arab consumer psychology.\n'
 }
 
 const AUDIENCE_PROMPT = (d: Phase1Data) => `You are an expert audience psychologist. Analyse the target audience for the following content brief.
-
+${languageInstruction(d.language, d.dialect)}
 Platform: ${d.platform}
 Audience: ${d.audience}
 Brief: ${d.brief}
@@ -38,7 +48,7 @@ Return a JSON object with these exact keys:
 Return ONLY valid JSON. No markdown, no explanation.`
 
 const TREND_PROMPT = (d: Phase1Data) => `You are an elite social media trend analyst. Identify content patterns that are working RIGHT NOW for the following brief.
-
+${languageInstruction(d.language, d.dialect)}
 Platform: ${d.platform}
 Brief: ${d.brief}
 Goal: ${d.goal}

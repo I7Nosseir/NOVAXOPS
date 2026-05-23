@@ -15,9 +15,20 @@ interface ScriptRequest {
   brand_voice?: string
   key_messages?: string[]
   client_name?: string
+  language?: string
+  dialect?: string
+}
+
+function languageInstruction(language: string | undefined, dialect: string | undefined): string {
+  if (language !== 'arabic') return ''
+  if (dialect === 'saudi') {
+    return '\nLANGUAGE: Write the ENTIRE script in Saudi Arabic (اللهجة السعودية). All spoken lines must be in Saudi colloquial Arabic. Visual/direction notes (inside brackets) may stay in English for production clarity.\n'
+  }
+  return '\nLANGUAGE: Write the ENTIRE script in Egyptian Arabic (اللهجة المصرية / عامية مصرية). All spoken lines must be in Egyptian colloquial Arabic. Visual/direction notes (inside brackets) may stay in English for production clarity.\n'
 }
 
 const SCRIPT_PROMPT = (d: ScriptRequest) => `You are an elite content director writing a production-ready ${d.platform} script.
+${languageInstruction(d.language, d.dialect)}
 
 BRIEF: ${d.brief}
 PLATFORM: ${d.platform}

@@ -13,6 +13,14 @@ export interface GeneratedHook {
   format_note: string
 }
 
+function languageInstruction(language: string, dialect: string): string {
+  if (language !== 'arabic') return ''
+  if (dialect === 'saudi') {
+    return '\nLANGUAGE: Write ALL hooks in Saudi Arabic (اللهجة السعودية). Use Saudi colloquialisms, Saudi dialect vocabulary, and culturally relevant Saudi references. All hook text must be in Arabic script.\n'
+  }
+  return '\nLANGUAGE: Write ALL hooks in Egyptian Arabic (اللهجة المصرية / عامية مصرية). Use Egyptian dialect vocabulary, Egyptian colloquialisms, and culturally relevant Egyptian/pan-Arab references. All hook text must be in Arabic script.\n'
+}
+
 const HOOK_PROMPT = (
   brief: string,
   platform: string,
@@ -20,8 +28,10 @@ const HOOK_PROMPT = (
   goal: string,
   emotion: string,
   brandVoice: string,
+  language = 'english',
+  dialect = 'saudi',
 ) => `You are an elite social media hook writer using the One Peak framework. Your hooks make people stop scrolling instantly.
-
+${languageInstruction(language, dialect)}
 BRIEF: ${brief}
 PLATFORM: ${platform}
 AUDIENCE: ${audience} audience
@@ -83,6 +93,8 @@ export async function POST(req: NextRequest) {
     goal: string
     emotion: string
     brand_voice?: string
+    language?: string
+    dialect?: string
   }
 
   try {
@@ -91,7 +103,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const { brief, platform, audience, goal, emotion, brand_voice } = body
+  const { brief, platform, audience, goal, emotion, brand_voice, language, dialect } = body
   if (!brief?.trim() || !platform || !audience) {
     return NextResponse.json({ error: 'brief, platform, and audience are required' }, { status: 400 })
   }
@@ -110,6 +122,8 @@ export async function POST(req: NextRequest) {
     goal || 'Engagement',
     emotion || 'Inspire',
     brand_voice || '',
+    language || 'english',
+    dialect || 'saudi',
   )
 
   let raw = ''
