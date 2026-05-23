@@ -76,9 +76,12 @@ async function buildComposite(
 }
 
 // ─── Engine 1: Gemini outpaint ─────────────────────────────────────────────────
-// Sends the composite canvas (original in place + colored extension zones) to
-// Gemini image generation with an explicit outpainting prompt. Gemini sees the
-// spatial layout and fills the extension areas to match the scene.
+// Uses the same Gemini image models that power the AI Image Generation tab:
+// gemini-2.5-flash-image → gemini-3.1-flash-image-preview → gemini-3-pro-image-preview
+//
+// Sends the composite canvas (original placed correctly + colored extension zones)
+// and instructs Gemini to fill those zones so the scene continues seamlessly.
+// Uses camelCase inlineData format matching the working generate route.
 
 async function geminiOutpaint(
   compositeB64: string,
@@ -94,28 +97,30 @@ async function geminiOutpaint(
   const fillColorHex = schema.background_extension?.fill_color ?? schema.dominant_color ?? '#000'
 
   const extZone = isPortrait
-    ? `the ${fillColorHex} colored strips ${eTop}px above and ${eBottom}px below the original image`
-    : `the ${fillColorHex} colored strips ${eLeft}px to the left and ${eRight}px to the right of the original image`
+    ? `the ${fillColorHex} colored strips — ${eTop}px above and ${eBottom}px below the main image`
+    : `the ${fillColorHex} colored strips — ${eLeft}px left and ${eRight}px right of the main image`
 
   const bgDesc =
-    schema.background_type === 'solid_color'  ? `flat ${fillColorHex} solid color`
-    : schema.background_type === 'gradient'   ? `gradient in ${schema.dominant_color} tones`
-    : `${schema.design_style} photo background with ${schema.dominant_color} dominant tones`
+    schema.background_type === 'solid_color' ? `flat ${fillColorHex} solid background`
+    : schema.background_type === 'gradient'  ? `gradient in ${schema.dominant_color} tones`
+    : `${schema.design_style} photo scene, dominant color ${schema.dominant_color}`
 
-  const prompt = `You are performing an outpainting task. I am sending you a ${targetW}×${targetH}px composite image.
+  const prompt = `Outpainting task on this ${targetW}×${targetH}px image.
 
-The original image content is ${iW}×${iH}px and sits at position (left: ${eLeft}px, top: ${eTop}px) inside this canvas. ${extZone} are the areas that need to be filled in.
+The original content (${iW}×${iH}px) is placed at left:${eLeft}px, top:${eTop}px. ${extZone} must be filled with generated content.
 
-YOUR TASK: Replace ${extZone} with seamlessly generated content that:
-1. Naturally continues the scene from the original image — matching lighting, perspective, atmosphere, colors and style
-2. Has no visible seam or edge where the original image meets the new content
-3. Looks like it was always part of the original photograph/design
-4. Background style to match: ${bgDesc}
-5. Design style: ${schema.design_style}
+Fill those zones so they:
+- Seamlessly continue the scene — same lighting, perspective, atmosphere, colors
+- Have zero visible seam at the boundary
+- Look like the image was always this size
+- Match: ${bgDesc}, style: ${schema.design_style}
 
-Output the complete ${targetW}×${targetH}px image. Keep the original image region (position left: ${eLeft}px, top: ${eTop}px, width: ${iW}px, height: ${iH}px) exactly as-is — only fill in the extension zones.`
+Output the full ${targetW}×${targetH}px image. Preserve the original region exactly.`
 
-  for (const model of ['gemini-3.0-flash-preview', 'gemini-2.5-flash-preview-05-20']) {
+  // Same model IDs used by the AI Image Generation tab — proven to return image output
+  const MODELS = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview']
+
+  for (const model of MODELS) {
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
@@ -124,24 +129,23 @@ Output the complete ${targetW}×${targetH}px image. Keep the original image regi
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{
+              role: 'user',
               parts: [
+                { inlineData: { mimeType: 'image/jpeg', data: compositeB64 } },
                 { text: prompt },
-                { inline_data: { mime_type: 'image/jpeg', data: compositeB64 } },
               ],
             }],
-            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
           }),
         },
       )
       if (!res.ok) continue
       const data = await res.json() as {
-        candidates?: { content?: { parts?: { inline_data?: { mime_type: string; data: string } }[] } }[]
+        candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[]
       }
-      const part = data?.candidates?.[0]?.content?.parts?.find(
-        p => p.inline_data?.mime_type?.startsWith('image/'),
-      )
-      if (!part?.inline_data?.data) continue
-      return sharp(Buffer.from(part.inline_data.data, 'base64'))
+      const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.data)
+      if (!part?.inlineData?.data) continue
+      return sharp(Buffer.from(part.inlineData.data, 'base64'))
         .resize(targetW, targetH, { fit: 'fill' })
         .jpeg({ quality: 93 })
         .toBuffer()
