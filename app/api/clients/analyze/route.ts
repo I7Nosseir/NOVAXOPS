@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 const HAS_DB     = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
 const HAS_CLAUDE = !!process.env.ANTHROPIC_API_KEY
 const HAS_GEMINI = !!process.env.GEMINI_API_KEY
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
+const GEMINI_MODEL = 'gemini-3-flash-preview'
 
 interface BrandIdentityJson {
   tone_of_voice?: string
