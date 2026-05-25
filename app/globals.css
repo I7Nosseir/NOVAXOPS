@@ -125,6 +125,54 @@ body {
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
+/* ── Intro animation keyframes ───────────────────────────────────────────── */
+@keyframes intro-ring {
+  0%   { transform: scale(0.4); opacity: 0.8; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes intro-ring2 {
+  0%   { transform: scale(0.6); opacity: 0.5; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+@keyframes intro-mark {
+  0%   { transform: scale(0.2) rotate(-15deg); opacity: 0; filter: blur(12px); }
+  60%  { transform: scale(1.08) rotate(2deg); opacity: 1; filter: blur(0); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; filter: blur(0); }
+}
+@keyframes intro-letter-up {
+  0%   { transform: translateY(60px); opacity: 0; filter: blur(4px); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+@keyframes intro-letter-down {
+  0%   { transform: translateY(-60px); opacity: 0; filter: blur(4px); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+@keyframes intro-line-grow {
+  0%   { transform: scaleX(0); opacity: 0; }
+  100% { transform: scaleX(1); opacity: 1; }
+}
+@keyframes intro-tagline {
+  0%   { opacity: 0; letter-spacing: 0.5em; }
+  100% { opacity: 1; letter-spacing: 0.25em; }
+}
+@keyframes intro-exit {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-100%); }
+}
+@keyframes intro-flash {
+  0%   { opacity: 0; }
+  40%  { opacity: 0.15; }
+  100% { opacity: 0; }
+}
+@keyframes intro-scan {
+  0%   { transform: translateY(-100%); opacity: 0.6; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+@keyframes intro-dot-fade {
+  0%, 100% { opacity: 0.04; }
+  50%       { opacity: 0.12; }
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
