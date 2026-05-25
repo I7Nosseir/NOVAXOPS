@@ -7,7 +7,6 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import { useClients } from '@/lib/hooks/use-clients'
-import { CLIENTS as MOCK_CLIENTS } from '@/lib/mock-data'
 import { formatNumber, cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { PlatformIcon } from '@/components/ui/platform-icon'
@@ -771,8 +770,7 @@ function BenchmarksTab({ clientId }: { clientId: string }) {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function PerformancePage() {
-  const { clients: realClients } = useClients()
-  const clients = realClients.length > 0 ? realClients : MOCK_CLIENTS
+  const { clients } = useClients()
   const [selectedClient, setSelectedClient] = useState<string>('')
   const [activeTab, setActiveTab] = useState<'content' | 'competitors' | 'intelligence' | 'benchmarks'>('content')
 

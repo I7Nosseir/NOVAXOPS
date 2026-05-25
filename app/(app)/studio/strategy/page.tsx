@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Brain, ArrowLeft, ChevronDown, ChevronUp,
-  Loader2, CheckCircle, RefreshCw, Zap, ArrowRight, Download,
+  Loader2, CheckCircle, RefreshCw, Zap, ArrowRight, Download, PlusCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -213,6 +213,13 @@ export default function StrategyPage() {
           </h1>
           <p className="text-xs text-slate-500">17-phase marketing strategy as a living document</p>
         </div>
+        <button
+          onClick={() => { setMetaData({}); setClientId(''); setError(null) }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          New Session
+        </button>
         {completedCount > 0 && (
           <div className="text-xs text-novax-muted bg-novax-light border border-novax-border px-2.5 py-1 rounded-full font-medium">
             {completedCount}/5 phases complete

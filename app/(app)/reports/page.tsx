@@ -626,11 +626,29 @@ function CompetitorTable({ rows }: { rows: Competitor[] }) {
   )
 }
 
+const PLATFORM_COLORS: Record<string, string> = {
+  instagram: '#E1306C', facebook: '#1877F2', linkedin: '#0A66C2',
+  tiktok: '#2A2A2A', twitter: '#1DA1F2', youtube: '#FF0000',
+}
+
 // ─── Monthly Report ─────────────────────────────────────────────────────────────
 
-function MonthlyReport({ client, liveStats }: { client: string; liveStats?: Record<string, number> | null }) {
+function MonthlyReport({ client, liveStats, livePlatforms, liveTrend }: {
+  client: string
+  liveStats?: Record<string, number> | null
+  livePlatforms?: { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }[] | null
+  liveTrend?: { month: string; reach: number; impressions: number; er: number }[] | null
+}) {
   const d = MONTHLY_DEMO
-  const maxReach = Math.max(...d.platforms.map(p => p.reach))
+  const platformData = livePlatforms?.length
+    ? livePlatforms.map(p => ({
+        name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
+        reach: p.reach, posts: p.posts, er: p.engagement_rate,
+        color: PLATFORM_COLORS[p.platform] ?? '#94a3b8',
+      }))
+    : d.platforms
+  const trendData = liveTrend?.length ? liveTrend : d.trend
+  const maxReach = Math.max(...platformData.map(p => p.reach), 1)
   return (
     <div className="space-y-5">
       <CoverPage
@@ -664,9 +682,9 @@ function MonthlyReport({ client, liveStats }: { client: string; liveStats?: Reco
       {/* Trend charts */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Reach & Impressions Trend" subtitle="5-month organic trajectory"/>
+          <SectionHeader title="Reach & Impressions Trend" subtitle={liveTrend?.length ? '5-month live data from Metricool' : '5-month organic trajectory'}/>
           <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={d.trend}>
+            <ComposedChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
@@ -680,7 +698,7 @@ function MonthlyReport({ client, liveStats }: { client: string; liveStats?: Reco
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <SectionHeader title="Engagement Rate Trend" subtitle="Monthly average — benchmark 4.0%"/>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={d.trend}>
+            <AreaChart data={trendData}>
               <defs>
                 <linearGradient id="erGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor={B.accent} stopOpacity={0.3}/>
@@ -700,9 +718,9 @@ function MonthlyReport({ client, liveStats }: { client: string; liveStats?: Reco
 
       {/* Platform breakdown */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Platform Performance" subtitle="Reach, posts, and engagement rate by channel"/>
+        <SectionHeader title="Platform Performance" subtitle={livePlatforms?.length ? 'Live data from Metricool' : 'Reach, posts, and engagement rate by channel'}/>
         <div className="space-y-4">
-          {d.platforms.map(p => (
+          {platformData.map(p => (
             <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '120px 1fr 280px' }}>
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }}/>
@@ -1471,7 +1489,8 @@ function QuarterlyReport({ client }: { client: string }) {
 
 // ─── Executive Summary ──────────────────────────────────────────────────────────
 
-function ExecutiveReport({ client, liveStats }: { client: string; liveStats?: Record<string, number> | null }) {
+function ExecutiveReport({ client, liveStats, livePlatforms }: { client: string; liveStats?: Record<string, number> | null; livePlatforms?: { platform: string; reach: number; engagement_rate: number }[] | null }) {
+  void livePlatforms
   const d = EXECUTIVE_DEMO
   return (
     <div className="space-y-5">
@@ -1961,6 +1980,9 @@ function parsePeriodToRange(period: string): { startDate: string; endDate: strin
 
 // ─── Main page ──────────────────────────────────────────────────────────────────
 
+type LivePlatform = { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }
+type LiveTrendPoint = { month: string; reach: number; impressions: number; er: number }
+
 export default function ReportsPage() {
   const { clients }                   = useClients()
   const [activeTab, setActiveTab]     = useState<ReportTab>('monthly')
@@ -1969,6 +1991,8 @@ export default function ReportsPage() {
   const [generating, setGenerating]   = useState(false)
   const [generated, setGenerated]     = useState(false)
   const [liveStats, setLiveStats]     = useState<Record<string, number> | null>(null)
+  const [livePlatforms, setLivePlatforms] = useState<LivePlatform[] | null>(null)
+  const [liveTrend, setLiveTrend]     = useState<LiveTrendPoint[] | null>(null)
   const [liveError, setLiveError]     = useState<string | null>(null)
   const [exportingPdf, setExportingPdf] = useState(false)
 
@@ -1980,21 +2004,37 @@ export default function ReportsPage() {
     setGenerating(true)
     setGenerated(false)
     setLiveStats(null)
+    setLivePlatforms(null)
+    setLiveTrend(null)
     setLiveError(null)
     if (selectedClient !== 'all') {
       const range = parsePeriodToRange(period)
       if (range) {
         try {
-          const res = await fetch(`/api/metricool/analytics?client_id=${selectedClient}&startDate=${range.startDate}&endDate=${range.endDate}`)
-          const data = await res.json()
-          if (res.ok && data.stats) setLiveStats(data.stats)
-          else setLiveError(data.error ?? 'Live data unavailable')
+          const res = await fetch(
+            `/api/metricool/analytics?client_id=${selectedClient}&startDate=${range.startDate}&endDate=${range.endDate}&trend=true`
+          )
+          const data = await res.json() as {
+            stats?: Record<string, number>
+            platforms?: LivePlatform[]
+            trend?: LiveTrendPoint[]
+            error?: string
+            _mock?: boolean
+          }
+          if (res.ok && data.stats) {
+            setLiveStats(data.stats)
+            if (data.platforms?.length) setLivePlatforms(data.platforms)
+            if (data.trend?.length) setLiveTrend(data.trend)
+            if (data._mock) setLiveError('Using sample data — configure Metricool blog ID in Settings')
+          } else {
+            setLiveError(data.error ?? 'Live data unavailable')
+          }
         } catch {
           setLiveError('Could not connect to analytics API')
         }
       }
     }
-    await new Promise(r => setTimeout(r, 400))
+    await new Promise(r => setTimeout(r, 300))
     setGenerating(false)
     setGenerated(true)
   }
@@ -2015,12 +2055,18 @@ export default function ReportsPage() {
           clientName,
           period,
           data: {
-            kpis: [
-              { metric: 'Reach',           value: '284,500' },
-              { metric: 'Impressions',     value: '412,000' },
-              { metric: 'Engagement Rate', value: '5.8%' },
-              { metric: 'New Followers',   value: '2,840' },
+            kpis: liveStats ? [
+              { metric: 'Reach',           value: liveStats.reach != null ? String(Math.round(liveStats.reach)) : '—' },
+              { metric: 'Impressions',     value: liveStats.impressions != null ? String(Math.round(liveStats.impressions)) : '—' },
+              { metric: 'Engagement Rate', value: liveStats.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—' },
+              { metric: 'Posts',           value: liveStats.posts != null ? String(Math.round(liveStats.posts)) : '—' },
+            ] : [
+              { metric: 'Reach',           value: '—' },
+              { metric: 'Impressions',     value: '—' },
+              { metric: 'Engagement Rate', value: '—' },
+              { metric: 'Posts',           value: '—' },
             ],
+            platforms: livePlatforms ?? undefined,
           },
         }),
       })
@@ -2126,12 +2172,12 @@ export default function ReportsPage() {
         <AIBuilder/>
       ) : generated ? (
         <div id="printable-report" className="space-y-5">
-          {activeTab === 'monthly'   && <MonthlyReport   client={clientName} liveStats={liveStats}/>}
+          {activeTab === 'monthly'   && <MonthlyReport   client={clientName} liveStats={liveStats} livePlatforms={livePlatforms} liveTrend={liveTrend}/>}
           {activeTab === 'paid'      && <PaidReport       client={clientName}/>}
           {activeTab === 'combined'  && <CombinedReport   client={clientName}/>}
           {activeTab === 'platform'  && <PlatformReport   client={clientName}/>}
           {activeTab === 'quarterly' && <QuarterlyReport  client={clientName}/>}
-          {activeTab === 'executive' && <ExecutiveReport  client={clientName} liveStats={liveStats}/>}
+          {activeTab === 'executive' && <ExecutiveReport  client={clientName} liveStats={liveStats} livePlatforms={livePlatforms}/>}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200">

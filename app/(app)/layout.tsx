@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/lib/theme-context'
 import { AuthGuard } from '@/components/layout/auth-guard'
 import { SidebarProvider } from '@/lib/sidebar-context'
 import { MyTasksFloat } from '@/components/tasks/my-tasks-float'
+import { RoleToolsPanel } from '@/components/tools/role-tools-panel'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -20,6 +21,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <PreviewAwareMain>{children}</PreviewAwareMain>
             <MobileNav />
             <MyTasksFloat />
+            <RoleToolsPanel />
           </div>
         </AuthGuard>
       </SidebarProvider>

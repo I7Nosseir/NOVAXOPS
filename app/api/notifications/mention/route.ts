@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendMentionNotification } from '@/lib/email'
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://novaxops.com'
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
 
 function serviceClient() {
   return createClient(

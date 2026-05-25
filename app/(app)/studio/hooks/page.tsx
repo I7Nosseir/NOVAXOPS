@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Wand2, Loader2, Star, Copy, RefreshCw, ArrowLeft, ChevronDown, ChevronUp, BookMarked, CheckCircle } from 'lucide-react'
+import { Wand2, Loader2, Star, Copy, RefreshCw, ArrowLeft, ChevronDown, ChevronUp, BookMarked, CheckCircle, PlusCircle, Download } from 'lucide-react'
 import Link from 'next/link'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
@@ -306,13 +306,33 @@ export default function HookLabPage() {
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Wand2 className="w-4 h-4 text-novax-accent" />
             Hook Lab
           </h1>
           <p className="text-xs text-slate-500">One Peak 3C framework — Clarity · Context · Curiosity</p>
         </div>
+        <button
+          onClick={() => { setBrief(''); setHooks([]); setSavedIds(new Set()); setError(null) }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          New Session
+        </button>
+        {hooks.length > 0 && (
+          <button
+            onClick={() => {
+              const lines = hooks.map((h, i) => `#${i + 1} [${h.virality_tier}] ${h.hook_text}\nType: ${h.hook_type} | Score: ${h.total_score}/30`).join('\n\n')
+              const blob = new Blob([`HOOK LAB EXPORT\nBrief: ${brief}\n\n${lines}`], { type: 'text/plain' })
+              const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `novax-hooks-${Date.now()}.txt`; a.click()
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-novax-muted border border-novax-border rounded-lg hover:bg-novax-light transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">

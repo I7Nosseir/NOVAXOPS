@@ -85,7 +85,7 @@ export async function POST(req: Request) {
     .eq('auth_id', authUser.id)
     .single()
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://novaxops.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
 
   // Await email so we can report success/failure to the UI
   const emailResult = await sendTeamInvite({

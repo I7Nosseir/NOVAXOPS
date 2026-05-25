@@ -151,7 +151,14 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const [tab, setTab] = useState<'overview' | 'intelligence' | 'tasks' | 'brief'>('overview')
   const [briefSaving, setBriefSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
-  const [localIntel, setLocalIntel] = useState(client.performance_intel ?? null)
+  const [localIntel, setLocalIntel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(`client_${client.id}_intel`)
+      if (cached) { try { return JSON.parse(cached) as typeof client.performance_intel } catch { /* ignore */ } }
+    }
+    return client.performance_intel ?? null
+  })
+  const [analyzedAt, setAnalyzedAt] = useState<string | null>(client.performance_analyzed_at ?? null)
   const tasks = allTasks.filter(t => t.client_id === client.id)
   const posts = allPosts.filter(p => p.client_id === client.id && p.status === 'published')
   const intel = localIntel
@@ -162,14 +169,28 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
       const res = await fetch('/api/clients/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: client.id }),
+        body: JSON.stringify({
+          client_id: client.id,
+          client_data: {
+            name: client.name,
+            competitor_context: client.competitor_context,
+            ...client.brand_identity,
+          },
+        }),
       })
-      const data = await res.json() as { intel?: typeof localIntel; error?: string }
-      if (res.ok && data.intel) {
+      const data = await res.json() as { intel?: typeof localIntel; analyzed_at?: string; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Analysis failed')
+      if (data.intel) {
         setLocalIntel(data.intel)
+        setAnalyzedAt(data.analyzed_at ?? new Date().toISOString())
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`client_${client.id}_intel`, JSON.stringify(data.intel))
+        }
         updateClient.mutate({ id: client.id, performance_intel: data.intel } as Parameters<typeof updateClient.mutate>[0])
       }
-    } catch { /* keep existing */ } finally {
+    } catch (err) {
+      console.error('[analyze]', err)
+    } finally {
       setAnalyzing(false)
     }
   }
@@ -249,8 +270,8 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             {/* Analyze button */}
             <div className="flex items-center justify-between">
               <p className="text-xs text-slate-400">
-                {client.performance_analyzed_at
-                  ? `Last analyzed: ${new Date(client.performance_analyzed_at).toLocaleDateString()}`
+                {analyzedAt
+                  ? `Last analyzed: ${new Date(analyzedAt).toLocaleDateString()}`
                   : 'Not yet analyzed'}
               </p>
               <button

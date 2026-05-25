@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
   ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2, ListTodo, ScanSearch, FileText,
-  Zap, Brain,
+  Zap, Brain, Crown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -74,6 +74,8 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
+const CEO_NAV_ITEM: NavItem = { href: '/ceo', icon: Crown, label: 'CEO Hub' }
+
 function NovaxMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
@@ -91,6 +93,7 @@ export function Sidebar() {
   const { user, signOut } = useAuth()
   const { open, setOpen } = useSidebar()
   const isAdmin = user?.role === 'admin'
+  const isCeoOrAdmin = user?.role === 'ceo' || user?.role === 'admin'
 
   const handleSignOut = async () => {
     await signOut()
@@ -149,6 +152,39 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {isCeoOrAdmin && (() => {
+            const item = CEO_NAV_ITEM
+            const Icon = item.icon
+            const active = pathname === item.href
+            return (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-1.5" style={{ color: 'rgba(91,180,174,0.5)' }}>
+                  Executive
+                </p>
+                <Link
+                  href={item.href}
+                  onClick={handleNavClick}
+                  className={cn(
+                    'flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group',
+                    active ? 'text-white sidebar-item-active' : 'text-slate-400 hover:text-slate-200'
+                  )}
+                  style={active ? {
+                    background: 'linear-gradient(135deg, rgba(91,180,174,0.11) 0%, rgba(27,61,56,0.18) 100%)',
+                    color: 'var(--sidebar-text-active)',
+                    boxShadow: 'inset 0 1px 0 rgba(91,180,174,0.08)',
+                  } : {}}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.048)' }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = '' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={cn('w-4 h-4 shrink-0', active ? 'text-novax-accent' : 'text-slate-500 group-hover:text-slate-300')} />
+                    <span>{item.label}</span>
+                  </div>
+                  {active && <ChevronRight className="w-3.5 h-3.5 text-novax-accent opacity-60" />}
+                </Link>
+              </div>
+            )
+          })()}
           {NAV_SECTIONS.filter(s => s.label !== 'Studio' || isAdmin).map((section, si) => (
             <div key={section.label} className={si > 0 ? 'mt-4' : ''}>
               <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-1.5" style={{ color: 'rgba(91,180,174,0.5)' }}>

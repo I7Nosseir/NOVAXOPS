@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Zap, ArrowLeft, ArrowRight, Loader2, CheckCircle,
   RefreshCw, ChevronDown, ChevronUp, Wand2, FileText,
-  Sparkles, Copy, Save,
+  Sparkles, Copy, Save, Download, PlusCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -276,6 +276,50 @@ export default function ContentStudioPage() {
     setTimeout(() => setSaved(false), 2500)
   }
 
+  function handleNewSession() {
+    setPhase('define')
+    setSessionId(null)
+    setResearch(null)
+    setHooks([])
+    setSelectedHook(null)
+    setScript(null)
+    setSaved(false)
+    setError(null)
+    setP1({ client_id: '', platform: 'Instagram', audience: 'B2C', goal: 'Engagement', emotion: 'Inspire', cta: '', brief: '', language: 'english', dialect: 'saudi' })
+  }
+
+  function handleExport() {
+    if (!script) return
+    const lines: string[] = []
+    const clientName = clients.find(c => c.id === p1.client_id)?.name ?? 'Unknown Client'
+    lines.push(`CONTENT STUDIO EXPORT`)
+    lines.push(`Client: ${clientName}`)
+    lines.push(`Platform: ${p1.platform}  |  Goal: ${p1.goal}  |  Emotion: ${p1.emotion}`)
+    lines.push(`Brief: ${p1.brief}`)
+    if (selectedHook) lines.push(`\nHOOK: ${selectedHook.hook_text}`)
+    lines.push(`\nSCRIPT (${script.total_duration})`)
+    lines.push('─'.repeat(50))
+    for (const s of script.script_sections) {
+      lines.push(`\n[${s.section}] — ${s.duration_estimate}`)
+      for (const l of s.lines) lines.push(`  ${l}`)
+      if (s.visual_note) lines.push(`  Visual: ${s.visual_note}`)
+    }
+    if (script.caption_preview) {
+      lines.push('\n─'.repeat(50))
+      lines.push(`CAPTION:\n${script.caption_preview}`)
+    }
+    if (script.key_broll_list?.length) {
+      lines.push(`\nB-ROLL LIST:\n${script.key_broll_list.map(b => `  • ${b}`).join('\n')}`)
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `novax-script-${clientName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
   const phaseIdx = PHASES.findIndex(p => p.key === phase)
 
@@ -293,14 +337,31 @@ export default function ContentStudioPage() {
           </h1>
           <p className="text-xs text-slate-500">Define · Research · Hooks · Script</p>
         </div>
+        <button
+          onClick={handleNewSession}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+          title="Start a new session"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          New Session
+        </button>
         {phase === 'script' && script && (
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-          >
-            {saved ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> : <Save className="w-3.5 h-3.5" />}
-            {saved ? 'Saved' : 'Save'}
-          </button>
+          <>
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-novax-muted border border-novax-border rounded-lg hover:bg-novax-light transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              {saved ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> : <Save className="w-3.5 h-3.5" />}
+              {saved ? 'Saved' : 'Save'}
+            </button>
+          </>
         )}
       </div>
 
