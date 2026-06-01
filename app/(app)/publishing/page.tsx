@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw, Pencil } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -456,13 +457,13 @@ interface CaptionVariant {
   text: string
 }
 
-function ComposeDialog({ onClose }: { onClose: () => void }) {
+function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; initialCaption?: string }) {
   const { clients } = useClients()
   const schedulePost = useSchedulePost()
   const saveDraft = useSaveDraft()
 
   const [brief, setBrief] = useState('')
-  const [caption, setCaption] = useState('')
+  const [caption, setCaption] = useState(initialCaption)
   const [captionAr, setCaptionAr] = useState('')
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(['instagram'])
   const [selectedClient, setSelectedClient] = useState('')
@@ -2169,12 +2170,28 @@ export default function PublishingPage() {
   const { clients } = useClients()
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const searchParams = useSearchParams()
   const [compose, setCompose] = useState(false)
+  const [templateCaption, setTemplateCaption] = useState('')
   const [briefDialog, setBriefDialog] = useState(false)
   const [bulkDialog, setBulkDialog] = useState(false)
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
   const [view, setView] = useState<'grid' | 'calendar'>('grid')
   const [syncing, setSyncing] = useState(false)
+
+  // Auto-open compose when arriving from library "Use as template"
+  const templateHandled = useRef(false)
+  useEffect(() => {
+    if (templateHandled.current) return
+    const cap = searchParams.get('caption')
+    if (cap) {
+      templateHandled.current = true
+      setTemplateCaption(decodeURIComponent(cap))
+      setCompose(true)
+      // Clean URL without reload
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [searchParams])
 
   async function handleSync(silent = false) {
     setSyncing(true)
@@ -2310,7 +2327,7 @@ export default function PublishingPage() {
         <CalendarView onCompose={() => setCompose(true)}/>
       )}
 
-      {compose && <ComposeDialog onClose={() => setCompose(false)}/>}
+      {compose && <ComposeDialog onClose={() => { setCompose(false); setTemplateCaption('') }} initialCaption={templateCaption}/>}
       {briefDialog && <BriefToCalendarDialog onClose={() => setBriefDialog(false)}/>}
       {bulkDialog && <BulkScheduleDialog onClose={() => setBulkDialog(false)}/>}
     </div>

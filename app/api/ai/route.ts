@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createHash } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { getArabicDialectGuide, getClientDialect, HUMANIZATION_RULES_EN, HUMANIZATION_RULES_AR } from '@/lib/arabic-dialect'
+import type { ArabicDialect } from '@/lib/arabic-dialect'
 
 const PRIMARY_MODEL = 'claude-sonnet-4-6'
 const ADVANCED_MODEL = 'claude-opus-4-7'
@@ -40,6 +41,42 @@ function adminSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) return null
   return createClient(url, key)
+}
+
+// ── Arabic Knowledge Base cache (10-min TTL, shared across requests) ──────────
+interface KBRow { context_rules: string; banned_phrases: string[] | null; category: string }
+let kbCache: { data: KBRow[]; fetchedAt: number } | null = null
+const KB_TTL_MS = 10 * 60 * 1000
+
+async function fetchDialectRules(
+  dialect: ArabicDialect,
+  db: ReturnType<typeof adminSupabase>
+): Promise<string> {
+  if (!db) return getArabicDialectGuide(dialect) // fallback to hardcoded module
+
+  const now = Date.now()
+  if (!kbCache || now - kbCache.fetchedAt > KB_TTL_MS) {
+    const { data } = await db
+      .from('arabic_knowledge_base')
+      .select('context_rules, banned_phrases, category')
+      .eq('is_active', true)
+    kbCache = { data: (data ?? []) as KBRow[], fetchedAt: now }
+  }
+
+  const rows = kbCache.data.filter(
+    r => true // all rows fetched; filter by dialect below if needed
+  )
+
+  const allBanned = rows
+    .flatMap(r => r.banned_phrases ?? [])
+    .filter(Boolean)
+
+  const dbLayer = rows.length > 0
+    ? `\nBANNED ARABIC PHRASES (critical — never use in any output):\n${allBanned.map(p => `• "${p}"`).join('\n')}`
+    : ''
+
+  // Combine the hardcoded dialect guide (rich vocabulary + culture) with DB banned phrases
+  return getArabicDialectGuide(dialect) + dbLayer
 }
 
 interface GeminiImage { base64: string; mimeType: string }
@@ -109,6 +146,12 @@ export async function POST(req: NextRequest) {
   const keyMessages = client?.brand_identity?.key_messages?.join(', ') ?? ''
   const competitors = client?.competitor_context?.join(', ') ?? 'not specified'
   const industry = client?.brand_identity?.industry ?? 'unspecified'
+
+  // Arabic dialect context — used by copywriter, moderation_reply, and caption agents
+  const clientDialect = getClientDialect((client?.brand_identity ?? {}) as Record<string, unknown>)
+  const clientLang = (client?.brand_identity as Record<string, unknown> | undefined)?.language as string | undefined
+  const isArabicClient = clientLang === 'ar' || clientLang === 'both'
+  const requestLang = body.language ?? (isArabicClient ? 'ar' : 'en')
 
   // Cache check for task-scoped agents
   const db = adminSupabase()
@@ -180,7 +223,14 @@ No hashtags. No emojis. Be direct and specific.`
       break
 
     // ─────────────────────────────────────────────────────────────────────────
-    case 'copywriter':
+    case 'copywriter': {
+      const isArCopy = requestLang === 'ar'
+      const copyDialectGuide = isArCopy ? await fetchDialectRules(clientDialect, db) : ''
+      const copyHumanRules = isArCopy ? HUMANIZATION_RULES_AR : HUMANIZATION_RULES_EN
+      const copyLangNote = isArCopy
+        ? 'LANGUAGE: Generate ALL THREE VARIANTS in Arabic using the dialect specified above. The "text" and "hook" fields must be in Arabic. The "label", "tone", and "framework" fields stay in English for UI display.'
+        : 'LANGUAGE: Generate all variants in English.'
+
       prompt = `You are a behavioural copywriter at NOVAX agency. You apply neuroscience and persuasion science to write social media copy that maximises scroll-stop rate, emotional engagement, and conversion.
 
 TASK CONTEXT
@@ -191,6 +241,7 @@ Client: ${clientName}
 Brand Voice: ${brandVoice}
 Target Audience: ${audience}
 Key Messages: ${keyMessages}
+${copyDialectGuide}
 
 SCIENTIFIC COPY FRAMEWORKS — generate one variant per framework:
 
@@ -221,6 +272,10 @@ RULES FOR ALL VARIANTS:
 - Each variant must use a different emotional lever — not just tone variation
 - Match ${clientName}'s brand voice throughout
 
+${copyHumanRules}
+
+${copyLangNote}
+
 Return ONLY a valid JSON array, no markdown, no code fences, no explanation:
 [
   {"id":"v1","label":"AIDA — Aspirational","tone":"Elegant & story-driven","framework":"AIDA","hook":"<first line only, max 125 chars>","text":"<full copy>"},
@@ -228,6 +283,7 @@ Return ONLY a valid JSON array, no markdown, no code fences, no explanation:
   {"id":"v3","label":"Social Currency","tone":"Peer-to-peer","framework":"STEPPS","hook":"<first line only, max 125 chars>","text":"<full copy>"}
 ]`
       break
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'researcher':
@@ -346,7 +402,13 @@ End the response with exactly this line:
       break
 
     // ─────────────────────────────────────────────────────────────────────────
-    case 'moderation_reply':
+    case 'moderation_reply': {
+      const isArMod = requestLang === 'ar' || isArabicClient
+      const modDialectGuide = isArMod ? await fetchDialectRules(clientDialect, db) : ''
+      const modLangNote = isArMod
+        ? `\nLANGUAGE: Reply in Arabic using the dialect specified above. Sound like a human community manager, not a corporate account.`
+        : ''
+
       prompt = `You are a community manager for ${clientName}. Apply the Service Recovery Paradox: a well-handled complaint generates MORE brand loyalty than a complaint-free experience (McCollough & Bharadwaj, 1992). This reply is an opportunity, not a problem.
 
 CONTEXT
@@ -356,6 +418,7 @@ Their comment: "${body.commentText}"
 Post they commented on: "${(body.postCaption ?? '').slice(0, 150)}"
 Brand voice: ${brandVoice}
 Target audience: ${audience}
+${modDialectGuide}${modLangNote}
 
 SENTIMENT CLASSIFICATION
 Classify the comment internally: Positive / Question / Complaint / Criticism / Neutral
@@ -378,6 +441,7 @@ RESPONSE RULES:
 
 Return ONLY the reply text. No quotes, no labels, no explanation.`
       break
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'content_calendar': {

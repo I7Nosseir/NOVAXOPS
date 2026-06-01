@@ -639,6 +639,7 @@ function MonthlyReport({ client, liveStats, livePlatforms, liveTrend }: {
   livePlatforms?: { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }[] | null
   liveTrend?: { month: string; reach: number; impressions: number; er: number }[] | null
 }) {
+  const { user } = useAuth()
   const d = MONTHLY_DEMO
   const platformData = livePlatforms?.length
     ? livePlatforms.map(p => ({
@@ -682,7 +683,7 @@ function MonthlyReport({ client, liveStats, livePlatforms, liveTrend }: {
       {/* Trend charts */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Reach & Impressions Trend" subtitle={liveTrend?.length ? '5-month live data from Metricool' : '5-month organic trajectory'}/>
+          <SectionHeader title="Reach & Impressions Trend" subtitle={liveTrend?.length ? `5-month live data from ${vendorName(user?.role, 'Metricool')}` : '5-month organic trajectory'}/>
           <ResponsiveContainer width="100%" height={200}>
             <ComposedChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
@@ -718,7 +719,7 @@ function MonthlyReport({ client, liveStats, livePlatforms, liveTrend }: {
 
       {/* Platform breakdown */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Platform Performance" subtitle={livePlatforms?.length ? 'Live data from Metricool' : 'Reach, posts, and engagement rate by channel'}/>
+        <SectionHeader title="Platform Performance" subtitle={livePlatforms?.length ? `Live data from ${vendorName(user?.role, 'Metricool')}` : 'Reach, posts, and engagement rate by channel'}/>
         <div className="space-y-4">
           {platformData.map(p => (
             <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '120px 1fr 280px' }}>

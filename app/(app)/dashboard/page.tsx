@@ -8,7 +8,7 @@ import { usePosts } from '@/lib/hooks/use-posts'
 import { useModerationItems } from '@/lib/hooks/use-moderation'
 import { useWeeklyActivity, useAiCostMonth } from '@/lib/hooks/use-dashboard'
 import { useAuth } from '@/lib/auth-context'
-import { hasRole, STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, formatDate, formatNumber, formatCurrency } from '@/lib/utils'
+import { hasRole, vendorName, STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, formatDate, formatNumber, formatCurrency } from '@/lib/utils'
 import {
   CheckSquare, Clock, AlertCircle, MessageSquare,
   DollarSign, Calendar, Globe, TrendingUp, ArrowUpRight, ArrowDownRight,
@@ -29,6 +29,7 @@ type MetricoolOverview = {
 }
 
 function SocialPerformanceSection() {
+  const { user } = useAuth()
   const [overview, setOverview] = useState<MetricoolOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -71,13 +72,13 @@ function SocialPerformanceSection() {
               {isLive ? 'LIVE' : 'DEMO'}
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Month-to-date across all clients · via Metricool</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Month-to-date across all clients · via {vendorName(user?.role, 'Metricool')}</p>
         </div>
         <button
           onClick={() => fetchOverview(true)}
           disabled={refreshing}
           className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400"
-          title="Refresh from Metricool"
+          title={`Refresh from ${vendorName(user?.role, 'Metricool')}`}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}/>
         </button>

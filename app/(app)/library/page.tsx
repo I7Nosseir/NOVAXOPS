@@ -1,45 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Copy, Star, Filter, X, HardDrive, FolderOpen, FileText, Image, Film, File, ChevronRight, RefreshCw, Loader2, Unlink, ExternalLink, AlertCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Search, Copy, Star, Filter, X, HardDrive, FolderOpen, FileText, Image, Film, File, ChevronRight, RefreshCw, Loader2, Unlink, ExternalLink, AlertCircle, Layers } from 'lucide-react'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useClients } from '@/lib/hooks/use-clients'
+import { useAuth } from '@/lib/auth-context'
 import { formatDate, formatNumber, cn } from '@/lib/utils'
 import type { SocialPlatform } from '@/lib/types'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 
 const TEMPLATE_TAGS = ['Product Launch', 'Engagement', 'Educational', 'Behind the Scenes', 'Social Proof', 'Seasonal', 'Promotional']
-
-const EXTRA_TEMPLATES = [
-  {
-    id: 'tpl1',
-    task_id: 'tpl-task1',
-    client_id: 'c1',
-    template_name: 'Luxe — Product reveal with benefit hook',
-    caption: 'Meet [PRODUCT NAME]. [KEY BENEFIT #1]. [KEY BENEFIT #2]. No [PAIN POINT].\n\n[PROOF POINT — e.g. "Dermatologist-tested" or "18 months in the making"]\n\nAvailable now. Shop via link in bio.',
-    platforms: ['instagram'] as SocialPlatform[],
-    performance: { reach: 44000, impressions: 65000, engagement_rate: 5.8, likes: 2400, comments: 180, shares: 120, saves: 480 },
-    scheduled_at: '2026-03-10T10:00:00',
-    status: 'published' as const,
-    published_at: '2026-03-10T10:00:00',
-    saved: true,
-    tags: ['Product Launch', 'Top Performer'],
-  },
-  {
-    id: 'tpl2',
-    task_id: 'tpl-task2',
-    client_id: 'c4',
-    template_name: 'FitForge — Challenge announcement',
-    caption: 'THE [CHALLENGE NAME] STARTS [DATE].\n\nYour mission: [CHALLENGE TASK]. Post your progress with [HASHTAG].\n\nTop [N] [reward] win [PRIZE]. Who\'s in?',
-    platforms: ['instagram', 'tiktok', 'facebook'] as SocialPlatform[],
-    performance: { reach: 88000, impressions: 132000, engagement_rate: 8.1, likes: 7100, comments: 980, shares: 1900, saves: 700 },
-    scheduled_at: '2026-02-01T07:00:00',
-    status: 'published' as const,
-    published_at: '2026-02-01T07:00:00',
-    saved: true,
-    tags: ['Engagement', 'Top Performer', 'Seasonal'],
-  },
-]
 
 type LibraryItem = {
   id: string; task_id: string; client_id: string; template_name: string
@@ -318,28 +289,42 @@ function DrivePanel() {
 
 type ActiveTab = 'templates' | 'drive'
 
+const LS_KEY = (userId: string) => `novax_library_saves_${userId}`
+
 export default function LibraryPage() {
   const { posts } = usePosts()
   const { clients } = useClients()
+  const { user } = useAuth()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<ActiveTab>('templates')
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState<string>('all')
-  const [saved, setSaved] = useState<Set<string>>(new Set(['tpl1', 'tpl2']))
+  const [saved, setSaved] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState<string | null>(null)
+  const [usingTemplate, setUsingTemplate] = useState<string | null>(null)
 
-  const mockLibrary = posts.filter(p => p.status === 'published' && p.performance).map(post => ({
+  // Load saved IDs from localStorage on mount (keyed by user)
+  useEffect(() => {
+    if (!user?.id) return
+    try {
+      const raw = localStorage.getItem(LS_KEY(user.id))
+      if (raw) setSaved(new Set(JSON.parse(raw) as string[]))
+    } catch { /* ignore */ }
+  }, [user?.id])
+
+  const libraryItems = posts.filter(p => p.status === 'published' && p.performance).map(post => ({
     ...post,
-    saved: false,
+    saved: saved.has(post.id),
     tags: post.performance!.engagement_rate > 7
       ? ['Top Performer', 'Engagement']
-      : post.performance!.likes > 1000
+      : (post.performance!.likes ?? 0) > 1000
       ? ['High Reach', 'Product Launch']
       : ['Social Proof'],
     template_name: `${clients.find(c => c.id === post.client_id)?.name ?? ''} — ${post.caption.slice(0, 35)}…`,
   }))
 
-  const allItems: LibraryItem[] = [...mockLibrary, ...EXTRA_TEMPLATES]
+  const allItems: LibraryItem[] = libraryItems
 
   const filtered = allItems.filter(item => {
     const matchSearch = search === '' || item.caption.toLowerCase().includes(search.toLowerCase()) || item.template_name.toLowerCase().includes(search.toLowerCase())
@@ -359,6 +344,9 @@ export default function LibraryPage() {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
+      if (user?.id) {
+        try { localStorage.setItem(LS_KEY(user.id), JSON.stringify([...next])) } catch {}
+      }
       return next
     })
   }
@@ -437,12 +425,23 @@ export default function LibraryPage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button onClick={() => toggleSave(item.id)}
-                        className={cn('p-1.5 rounded-lg transition-colors', isSaved ? 'text-amber-400 bg-amber-50' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100')}>
+                        className={cn('p-1.5 rounded-lg transition-colors', isSaved ? 'text-amber-400 bg-amber-50' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100')}
+                        title={isSaved ? 'Remove from saved' : 'Save template'}>
                         <Star className={cn('w-3.5 h-3.5', isSaved && 'fill-current')}/>
                       </button>
                       <button onClick={() => handleCopy(item.id, item.caption)}
-                        className={cn('p-1.5 rounded-lg transition-colors', isCopied ? 'text-novax bg-novax-light' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100')}>
+                        className={cn('p-1.5 rounded-lg transition-colors', isCopied ? 'text-novax bg-novax-light' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100')}
+                        title="Copy caption">
                         <Copy className="w-3.5 h-3.5"/>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setUsingTemplate(item.id)
+                          router.push(`/publishing?caption=${encodeURIComponent(item.caption)}`)
+                        }}
+                        className={cn('p-1.5 rounded-lg transition-colors', usingTemplate === item.id ? 'text-novax bg-novax-light' : 'text-slate-400 hover:text-novax hover:bg-novax-light')}
+                        title="Use as template">
+                        <Layers className="w-3.5 h-3.5"/>
                       </button>
                     </div>
                   </div>

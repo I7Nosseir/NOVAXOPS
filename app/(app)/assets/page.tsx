@@ -244,31 +244,169 @@ function GDriveBrowser() {
   )
 }
 
+// ── Freepik Search Tab ────────────────────────────────────────────────────────
+
+interface FreepikResult {
+  id: string; title: string; thumbnailUrl: string
+  previewUrl: string; sourceUrl: string; type: string; isPremium: boolean
+}
+
+function FreepikSearch() {
+  const [query, setQuery]       = useState('')
+  const [input, setInput]       = useState('')
+  const [results, setResults]   = useState<FreepikResult[]>([])
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [saved, setSaved]       = useState<Set<string>>(new Set())
+  const [saving, setSaving]     = useState<string | null>(null)
+
+  const search = useCallback(async (q: string) => {
+    if (!q.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/assets/freepik?q=${encodeURIComponent(q)}`)
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Search failed'); return }
+      setResults(data.results ?? [])
+    } catch {
+      setError('Failed to reach Freepik. Check your API key configuration.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setQuery(input)
+    void search(input)
+  }
+
+  const saveToLibrary = async (r: FreepikResult) => {
+    setSaving(r.id)
+    try {
+      const res = await fetch('/api/assets/import-from-drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_url: r.previewUrl,
+          title: r.title || `Freepik — ${r.type}`,
+          type: r.type === 'photo' ? 'image' : r.type,
+          source: 'freepik',
+          thumbnail_url: r.thumbnailUrl,
+        }),
+      })
+      if (res.ok) setSaved(prev => new Set([...prev, r.id]))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder="Search Freepik — products, lifestyle, backgrounds…"
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading || !input.trim()}
+          className="px-4 py-2.5 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-1.5"
+        >
+          {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Search className="w-3.5 h-3.5"/>}
+          Search
+        </button>
+      </form>
+
+      {error && (
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {!query && !loading && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <ImageIcon className="w-10 h-10 text-slate-200 mb-3"/>
+          <p className="text-sm text-slate-500">Search for free, high-quality images from Freepik</p>
+          <p className="text-xs text-slate-400 mt-1">Enter a keyword above to get started</p>
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <>
+          <p className="text-xs text-slate-400">{results.length} results for "{query}"</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {results.map(r => {
+              const isSaved   = saved.has(r.id)
+              const isSaving  = saving === r.id
+              return (
+                <div key={r.id} className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-square">
+                  <img
+                    src={r.thumbnailUrl}
+                    alt={r.title}
+                    className="w-full h-full object-cover"
+                  />
+                  {r.isPremium && (
+                    <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">
+                      PRO
+                    </span>
+                  )}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100">
+                    <button
+                      onClick={() => void saveToLibrary(r)}
+                      disabled={isSaved || isSaving || r.isPremium}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 shadow disabled:opacity-60 transition-all hover:bg-novax hover:text-white"
+                    >
+                      {isSaved
+                        ? <><CheckCircle className="w-3 h-3 text-emerald-500"/> Saved</>
+                        : isSaving
+                          ? <><RefreshCw className="w-3 h-3 animate-spin"/> Saving…</>
+                          : <><Download className="w-3 h-3"/> Save to Library</>
+                      }
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function AssetsPage() {
   const { assets } = useAssets()
-  const [tab, setTab] = useState<'library' | 'drive'>('library')
+  const [tab, setTab] = useState<'library' | 'drive' | 'freepik'>('library')
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    if (searchParams.get('drive') === 'connected') {
-      setTab('drive')
-    }
+    if (searchParams.get('drive') === 'connected') setTab('drive')
   }, [searchParams])
 
   return (
     <div className="space-y-5">
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/5 rounded-xl p-1 w-fit">
         {([
           { id: 'library', label: 'Asset Library' },
-          { id: 'drive',   label: 'Google Drive' },
+          { id: 'drive',   label: 'Google Drive'  },
+          { id: 'freepik', label: 'Freepik Search' },
         ] as const).map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={cn(
               'px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
-              tab === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              tab === t.id
+                ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             )}
           >
             {t.label}
@@ -279,16 +417,16 @@ export default function AssetsPage() {
       {tab === 'library' && (
         <>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-500">{assets.length} assets in library</p>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+            <p className="text-sm text-slate-500 dark:text-slate-400">{assets.length} assets in library</p>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-white/10 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
               <Filter className="w-3.5 h-3.5"/>
               Filter by type
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {assets.map(asset => (
-              <div key={asset.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group">
-                <div className="relative aspect-video bg-slate-100">
+              <div key={asset.id} className="bg-white dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden hover:shadow-md transition-shadow group">
+                <div className="relative aspect-video bg-slate-100 dark:bg-white/5">
                   <img src={asset.thumbnail_url} alt={asset.title} className="w-full h-full object-cover"/>
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                     <button className="opacity-0 group-hover:opacity-100 px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-slate-700 shadow transition-all">
@@ -300,7 +438,7 @@ export default function AssetsPage() {
                   </span>
                 </div>
                 <div className="p-3">
-                  <p className="text-xs font-medium text-slate-800 truncate">{asset.title}</p>
+                  <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{asset.title}</p>
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-[10px] text-slate-400">{asset.type} · {asset.source}</span>
                   </div>
@@ -312,6 +450,8 @@ export default function AssetsPage() {
       )}
 
       {tab === 'drive' && <GDriveBrowser/>}
+
+      {tab === 'freepik' && <FreepikSearch/>}
     </div>
   )
 }
