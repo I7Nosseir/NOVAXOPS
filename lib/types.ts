@@ -15,6 +15,8 @@ export type TaskStatus = 'active' | 'blocked' | 'completed'
 export type UserRole = 'admin' | 'ceo' | 'creative_director' | 'copywriter' | 'designer' | 'social_manager' | 'account_manager' | 'strategist'
 export type Department = 'creative' | 'strategy' | 'accounts' | 'social'
 export type SocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'twitter' | 'youtube' | 'pinterest'
+export type InstagramPostType = 'POST' | 'REEL' | 'STORY'
+export type FacebookPostType  = 'POST' | 'REEL' | 'STORY'
 export type AgentType = 'task_analyzer' | 'copywriter' | 'researcher' | 'asset_finder' | 'presentation_builder'
 
 export interface User {

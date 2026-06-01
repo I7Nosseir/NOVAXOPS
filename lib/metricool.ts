@@ -85,6 +85,9 @@ export interface MetricoolScheduleInput {
   facebookData?: Record<string, unknown>
   // Explicit override — use when URL extension alone can't determine media type (Drive, signed URLs, etc.)
   isVideo?: boolean
+  // Explicit post type per platform — overrides auto-detection
+  instagramPostType?: 'POST' | 'REEL' | 'STORY'
+  facebookPostType?:  'POST' | 'REEL' | 'STORY'
 }
 
 /** Pass-through helper — keeps call sites uniform across all schedule routes. */
@@ -209,7 +212,7 @@ export async function getScheduledPosts(blogId: string | number): Promise<Metric
  * Callers can override by passing instagramData/facebookData in the input.
  */
 export async function schedulePost(input: MetricoolScheduleInput): Promise<MetricoolScheduledPost> {
-  const { blogId, imageUrls, tiktokPrivacy, instagramData: instagramDataIn, facebookData: facebookDataIn, isVideo: isVideoOverride, ...rest } = input
+  const { blogId, imageUrls, tiktokPrivacy, instagramData: instagramDataIn, facebookData: facebookDataIn, isVideo: isVideoOverride, instagramPostType, facebookPostType, ...rest } = input
 
   const payload: Record<string, unknown> = {
     autoPublish: true,
@@ -240,17 +243,20 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     payload.tiktokData = { privacyOption: tiktokPrivacy ?? 'PUBLIC_TO_EVERYONE' }
   }
 
-  // Facebook: 'POST' for images/carousels, 'REEL' for videos (confirmed from live payload capture).
+  // Facebook: explicit type takes priority; auto-detects REEL for video, POST otherwise.
   if (networks.includes('facebook')) {
-    payload.facebookData = { type: hasVideo ? 'REEL' : 'POST', ...(facebookDataIn ?? {}) }
+    const fbType = facebookPostType ?? (hasVideo ? 'REEL' : 'POST')
+    payload.facebookData = { type: fbType, ...(facebookDataIn ?? {}) }
   }
 
-  // Instagram: 'POST' for images; 'REEL' + showReelOnFeed for videos.
-  // showReelOnFeed confirmed by Metricool API error response listing known fields.
+  // Instagram: explicit type takes priority; auto-detects REEL for video, POST otherwise.
+  // STORY: no showReelOnFeed. REEL: showReelOnFeed=true (confirmed from Metricool live payload).
   if (networks.includes('instagram')) {
+    const igType = instagramPostType ?? (hasVideo ? 'REEL' : 'POST')
+    const showOnFeed = igType === 'REEL'
     payload.instagramData = {
-      type: hasVideo ? 'REEL' : 'POST',
-      ...(hasVideo ? { showReelOnFeed: true } : {}),
+      type: igType,
+      ...(showOnFeed ? { showReelOnFeed: true } : {}),
       ...(instagramDataIn ?? {}),
     }
   }

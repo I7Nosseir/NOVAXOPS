@@ -11,7 +11,7 @@ import { formatNumber, cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import {
   FileText, TrendingUp, Users, Eye, Download, Upload,
-  BarChart2, Target, Layers, Globe, Zap, ArrowUpRight, ArrowDownRight,
+  BarChart2, Target, Layers, Globe, ArrowUpRight, ArrowDownRight,
   Check, AlertCircle, ChevronRight, X, DollarSign, Activity,
   Calendar, Star, RefreshCw, Sparkles, Printer,
 } from 'lucide-react'
@@ -452,21 +452,6 @@ function ReportHeader({ title, subtitle, client, period }: { title: string; subt
   )
 }
 
-function RecommendationsList({ items }: { items: string[] }) {
-  return (
-    <div className="space-y-3">
-      {items.map((rec, i) => (
-        <div key={i} className="flex items-start gap-3 p-4 rounded-xl" style={{ background: B.light }}>
-          <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[11px] font-bold text-white" style={{ background: B.primary }}>
-            {i + 1}
-          </div>
-          <p className="text-sm text-slate-700 leading-relaxed">{rec}</p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // ─── Deep report shared components ────────────────────────────────────────────
 
 function CoverPage({ title, subtitle, client, period, tag }: { title: string; subtitle: string; client: string; period: string; tag: string }) {
@@ -537,35 +522,7 @@ function KPIComparisonTable({ rows }: { rows: KPIRow[] }) {
   )
 }
 
-const PRIORITY_BADGE: Record<string, string> = { high: 'bg-red-50 text-red-700', medium: 'bg-amber-50 text-amber-700', low: 'bg-slate-100 text-slate-500' }
-const SIGNAL_BADGE:   Record<string, string> = { good: 'bg-emerald-50 text-emerald-700', warning: 'bg-amber-50 text-amber-700', poor: 'bg-red-50 text-red-700' }
-
-function ActionPlanTable({ items }: { items: ActionRow[] }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-slate-100">
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ background: B.light }}>
-            {['Action', 'Owner', 'Deadline', 'Expected Impact', 'Priority'].map((h, i) => (
-              <th key={h} className={cn('p-3 text-xs font-semibold', i === 4 ? 'text-center' : 'text-left')} style={{ color: B.primary }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((r, i) => (
-            <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-              <td className="p-3 font-medium text-slate-800">{r.action}</td>
-              <td className="p-3 text-slate-600 whitespace-nowrap">{r.owner}</td>
-              <td className="p-3 text-slate-600 whitespace-nowrap">{r.deadline}</td>
-              <td className="p-3 text-slate-600 text-xs">{r.impact}</td>
-              <td className="p-3 text-center"><span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full capitalize', PRIORITY_BADGE[r.priority])}>{r.priority}</span></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
+const SIGNAL_BADGE: Record<string, string> = { good: 'bg-emerald-50 text-emerald-700', warning: 'bg-amber-50 text-amber-700', poor: 'bg-red-50 text-red-700' }
 
 function AudienceSignalsTable({ signals }: { signals: AudienceRow[] }) {
   return (
@@ -633,11 +590,12 @@ const PLATFORM_COLORS: Record<string, string> = {
 
 // ─── Monthly Report ─────────────────────────────────────────────────────────────
 
-function MonthlyReport({ client, liveStats, livePlatforms, liveTrend }: {
+function MonthlyReport({ client, liveStats, livePlatforms, liveTrend, aiReport }: {
   client: string
   liveStats?: Record<string, number> | null
   livePlatforms?: { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }[] | null
   liveTrend?: { month: string; reach: number; impressions: number; er: number }[] | null
+  aiReport?: AIReport | null
 }) {
   const { user } = useAuth()
   const d = MONTHLY_DEMO
@@ -780,12 +738,14 @@ function MonthlyReport({ client, liveStats, livePlatforms, liveTrend }: {
 
       {/* Performance narrative */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of May 2026 results"/>
+        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of results"/>
         <div className="space-y-4">
-          <Paragraph>{d.narrative.executive}</Paragraph>
-          <Paragraph>{d.narrative.reach}</Paragraph>
-          <Paragraph>{d.narrative.engagement}</Paragraph>
-          <Paragraph>{d.narrative.platform}</Paragraph>
+          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
+          {(aiReport?.narrative?.reach ?? d.narrative.reach) && <Paragraph>{aiReport?.narrative?.reach ?? d.narrative.reach}</Paragraph>}
+          {(aiReport?.narrative?.engagement ?? d.narrative.engagement) && <Paragraph>{aiReport?.narrative?.engagement ?? d.narrative.engagement}</Paragraph>}
+          {(aiReport?.narrative?.platform ?? d.narrative.platform) && <Paragraph>{aiReport?.narrative?.platform ?? d.narrative.platform}</Paragraph>}
+          {aiReport?.narrative?.trend && <Paragraph>{aiReport.narrative.trend}</Paragraph>}
+          {aiReport?.narrative?.audience && <Paragraph>{aiReport.narrative.audience}</Paragraph>}
         </div>
       </div>
 
@@ -862,23 +822,13 @@ function MonthlyReport({ client, liveStats, livePlatforms, liveTrend }: {
         <p className="text-xs text-slate-400 mt-3 leading-relaxed">Note: Luxe Cosmetics ER of 6.8% exceeds all benchmarked competitors despite a smaller follower base — a pattern consistent with high content relevance and strong community fit. At current growth rate, the account will reach 100K followers by Q1 2027.</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Strategic Recommendations" subtitle="Evidence-based actions for next month"/>
-        <RecommendationsList items={d.recommendations}/>
-      </div>
-
-      {/* Action plan */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Action Plan — June 2026" subtitle="Prioritised actions with owners, deadlines, and expected outcomes"/>
-        <ActionPlanTable items={d.actionPlan}/>
-      </div>
     </div>
   )
 }
 
 // ─── Paid Ads Report ────────────────────────────────────────────────────────────
 
-function PaidReport({ client }: { client: string }) {
+function PaidReport({ client, aiReport }: { client: string; aiReport?: AIReport | null }) {
   const d = PAID_DEMO
   const budgetPct = Math.round((d.spend / d.budget) * 100)
   return (
@@ -1018,11 +968,13 @@ function PaidReport({ client }: { client: string }) {
 
       {/* Narrative */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of May 2026 paid results"/>
+        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of paid results"/>
         <div className="space-y-4">
-          <Paragraph>{d.narrative.executive}</Paragraph>
-          <Paragraph>{d.narrative.efficiency}</Paragraph>
-          <Paragraph>{d.narrative.creative}</Paragraph>
+          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
+          {(aiReport?.narrative?.efficiency ?? d.narrative.efficiency) && <Paragraph>{aiReport?.narrative?.efficiency ?? d.narrative.efficiency}</Paragraph>}
+          {(aiReport?.narrative?.creative ?? d.narrative.creative) && <Paragraph>{aiReport?.narrative?.creative ?? d.narrative.creative}</Paragraph>}
+          {aiReport?.narrative?.reach && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
+          {aiReport?.narrative?.platform && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
         </div>
       </div>
 
@@ -1031,23 +983,13 @@ function PaidReport({ client }: { client: string }) {
         <SectionHeader title="Full KPI Comparison" subtitle="Current period vs prior period vs industry benchmark — 12 paid metrics"/>
         <KPIComparisonTable rows={d.kpiComparison}/>
       </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Strategic Recommendations" subtitle="Priority optimisations for next month"/>
-        <RecommendationsList items={d.recommendations}/>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Action Plan — June 2026" subtitle="Prioritised paid media actions with owners, deadlines, and expected outcomes"/>
-        <ActionPlanTable items={d.actionPlan}/>
-      </div>
     </div>
   )
 }
 
 // ─── Combined Report ────────────────────────────────────────────────────────────
 
-function CombinedReport({ client }: { client: string }) {
+function CombinedReport({ client, aiReport }: { client: string; aiReport?: AIReport | null }) {
   const d = COMBINED_DEMO
   const totalReach = d.organic.reach + d.paid.reach
   const organicPct = Math.round((d.organic.reach / totalReach) * 100)
@@ -1160,11 +1102,12 @@ function CombinedReport({ client }: { client: string }) {
 
       {/* Narrative */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of May 2026 blended results"/>
+        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of blended results"/>
         <div className="space-y-4">
-          <Paragraph>{d.narrative.executive}</Paragraph>
-          <Paragraph>{d.narrative.synergy}</Paragraph>
-          <Paragraph>{d.narrative.channel}</Paragraph>
+          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
+          {(aiReport?.narrative?.synergy ?? d.narrative.synergy) && <Paragraph>{aiReport?.narrative?.synergy ?? d.narrative.synergy}</Paragraph>}
+          {(aiReport?.narrative?.channel ?? d.narrative.channel) && <Paragraph>{aiReport?.narrative?.channel ?? d.narrative.channel}</Paragraph>}
+          {aiReport?.narrative?.reach && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
         </div>
       </div>
 
@@ -1172,23 +1115,13 @@ function CombinedReport({ client }: { client: string }) {
         <SectionHeader title="Full KPI Comparison" subtitle="Blended metrics — current vs prior vs benchmark"/>
         <KPIComparisonTable rows={d.kpiComparison}/>
       </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Strategic Recommendations" subtitle="Organic + paid optimisation priorities"/>
-        <RecommendationsList items={d.recommendations}/>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Action Plan — June 2026" subtitle="Cross-channel actions with owners, deadlines, and expected outcomes"/>
-        <ActionPlanTable items={d.actionPlan}/>
-      </div>
     </div>
   )
 }
 
 // ─── Platform Deep Dive ─────────────────────────────────────────────────────────
 
-function PlatformReport({ client }: { client: string }) {
+function PlatformReport({ client, aiReport }: { client: string; aiReport?: AIReport | null }) {
   const d = PLATFORM_DEMO
   const maxFormatReach = Math.max(...d.formats.map(f => f.reach))
   const maxHashReach   = Math.max(...d.topHashtags.map(h => h.reach))
@@ -1321,22 +1254,20 @@ function PlatformReport({ client }: { client: string }) {
 
       {/* Narrative */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Performance Analysis" subtitle="Account health, format insights, and hashtag strategy"/>
-        <Paragraph>{d.narrative.executive}</Paragraph>
-        <Paragraph>{d.narrative.formats}</Paragraph>
-        <Paragraph>{d.narrative.hashtags}</Paragraph>
+        <SectionHeader title="Performance Analysis" subtitle="Account health, format insights, and engagement quality"/>
+        <div className="space-y-4">
+          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
+          {(aiReport?.narrative?.follower ?? aiReport?.narrative?.reach) && <Paragraph>{aiReport?.narrative?.follower ?? aiReport?.narrative?.reach}</Paragraph>}
+          {(aiReport?.narrative?.formats ?? d.narrative.formats) && <Paragraph>{aiReport?.narrative?.formats ?? d.narrative.formats}</Paragraph>}
+          {(aiReport?.narrative?.hashtags ?? d.narrative.hashtags) && <Paragraph>{aiReport?.narrative?.hashtags ?? d.narrative.hashtags}</Paragraph>}
+          {aiReport?.narrative?.engagement && <Paragraph>{aiReport.narrative.engagement}</Paragraph>}
+        </div>
       </div>
 
       {/* Audience Quality */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Audience Quality Signals" subtitle="Instagram-specific health indicators"/>
+        <SectionHeader title="Audience Quality Signals" subtitle="Platform-specific health indicators"/>
         <AudienceSignalsTable signals={d.audienceSignals}/>
-      </div>
-
-      {/* Action Plan */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="30-Day Instagram Action Plan" subtitle="Prioritised actions with owners and expected impact"/>
-        <ActionPlanTable items={d.actionPlan}/>
       </div>
     </div>
   )
@@ -1344,8 +1275,16 @@ function PlatformReport({ client }: { client: string }) {
 
 // ─── Quarterly Report ───────────────────────────────────────────────────────────
 
-function QuarterlyReport({ client }: { client: string }) {
+function QuarterlyReport({ client, liveTrend, aiReport }: {
+  client: string
+  liveTrend?: { month: string; reach: number; impressions: number; er: number }[] | null
+  aiReport?: AIReport | null
+}) {
   const d = QUARTERLY_DEMO
+  const quarterlyTrend: { month: string; reach: number; er: number }[] =
+    liveTrend?.length
+      ? liveTrend.slice(-3).map(t => ({ month: t.month, reach: t.reach, er: t.er }))
+      : d.trend.map(t => ({ month: t.month, reach: t.reach, er: t.er }))
   return (
     <div className="space-y-5">
       <CoverPage
@@ -1395,7 +1334,8 @@ function QuarterlyReport({ client }: { client: string }) {
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <SectionHeader title="Quarter Trend" subtitle="Reach and engagement across the quarter"/>
         <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={d.trend}>
+          <ComposedChart data={quarterlyTrend as object[]}>
+
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
             <YAxis yAxisId="left"  tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
@@ -1431,58 +1371,20 @@ function QuarterlyReport({ client }: { client: string }) {
 
       {/* Narrative */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Quarterly Analysis" subtitle="Strategic interpretation of Q1 2026 results and Q2 outlook"/>
+        <SectionHeader title="Quarterly Analysis" subtitle="Performance interpretation and momentum assessment"/>
         <div className="space-y-4">
-          <Paragraph>{d.narrative.executive}</Paragraph>
-          <Paragraph>{d.narrative.trend}</Paragraph>
-          <Paragraph>{d.narrative.priorities}</Paragraph>
+          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
+          {(aiReport?.narrative?.quarterly_overview ?? aiReport?.narrative?.trend ?? d.narrative.trend) && (
+            <Paragraph>{aiReport?.narrative?.quarterly_overview ?? aiReport?.narrative?.trend ?? d.narrative.trend}</Paragraph>
+          )}
+          {aiReport?.narrative?.monthly_breakdown && <Paragraph>{aiReport.narrative.monthly_breakdown}</Paragraph>}
+          {(aiReport?.narrative?.platform) && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
         </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Full KPI Comparison" subtitle="Q1 2026 vs Q4 2025 vs annual benchmark"/>
+        <SectionHeader title="Full KPI Comparison" subtitle="Current quarter vs prior quarter vs annual benchmark"/>
         <KPIComparisonTable rows={d.kpiComparison}/>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Q2 2026 Action Plan" subtitle="Strategic priorities with owners, deadlines, and expected outcomes"/>
-        <ActionPlanTable items={d.actionPlan}/>
-      </div>
-
-      {/* KPI Comparison Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Full KPI Comparison" subtitle="Q1 2026 vs Q4 2025 and annual benchmark"/>
-        <KPIComparisonTable rows={d.kpiComparison}/>
-      </div>
-
-      {/* Narrative */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Quarter Performance Analysis" subtitle="Executive commentary, momentum assessment, and campaign learnings"/>
-        <Paragraph>{d.narrative.executive}</Paragraph>
-        <Paragraph>{d.narrative.trend}</Paragraph>
-        <Paragraph>{d.narrative.priorities}</Paragraph>
-      </div>
-
-      {/* Q2 Priorities */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Q2 Strategic Priorities" subtitle="Three focus areas for April–June 2026"/>
-        <div className="space-y-3">
-          {d.q2Priorities.map((p, i) => (
-            <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-slate-100">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: B.primary }}>{i + 1}</div>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">{p.priority}</p>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{p.rationale}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Action Plan */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Q2 Action Plan" subtitle="Key milestones with owners and expected impact"/>
-        <ActionPlanTable items={d.actionPlan}/>
       </div>
     </div>
   )
@@ -1490,7 +1392,12 @@ function QuarterlyReport({ client }: { client: string }) {
 
 // ─── Executive Summary ──────────────────────────────────────────────────────────
 
-function ExecutiveReport({ client, liveStats, livePlatforms }: { client: string; liveStats?: Record<string, number> | null; livePlatforms?: { platform: string; reach: number; engagement_rate: number }[] | null }) {
+function ExecutiveReport({ client, liveStats, livePlatforms, aiReport }: {
+  client: string
+  liveStats?: Record<string, number> | null
+  livePlatforms?: { platform: string; reach: number; engagement_rate: number }[] | null
+  aiReport?: AIReport | null
+}) {
   void livePlatforms
   const d = EXECUTIVE_DEMO
   return (
@@ -1601,20 +1508,14 @@ function ExecutiveReport({ client, liveStats, livePlatforms }: { client: string;
 
       {/* Portfolio narrative */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Portfolio Analysis" subtitle="Month-in-review commentary"/>
-        <Paragraph>{d.narrative.portfolio}</Paragraph>
-        <Paragraph>{d.narrative.highlights}</Paragraph>
-      </div>
-
-      <div className="rounded-2xl p-6" style={{ background: B.primary }}>
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
-            <Zap className="w-4 h-4 text-white"/>
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: B.accent }}>Priority Action — Next 30 Days</p>
-            <p className="text-white text-sm leading-relaxed">{d.action}</p>
-          </div>
+        <SectionHeader title="Portfolio Analysis" subtitle="Period-in-review commentary"/>
+        <div className="space-y-4">
+          <Paragraph>{aiReport?.narrative?.portfolio ?? d.narrative.portfolio}</Paragraph>
+          {(aiReport?.narrative?.highlights ?? d.narrative.highlights) && (
+            <Paragraph>{aiReport?.narrative?.highlights ?? d.narrative.highlights}</Paragraph>
+          )}
+          {aiReport?.narrative?.platform && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
+          {aiReport?.narrative?.audience && <Paragraph>{aiReport.narrative.audience}</Paragraph>}
         </div>
       </div>
     </div>
@@ -1984,6 +1885,31 @@ function parsePeriodToRange(period: string): { startDate: string; endDate: strin
 type LivePlatform = { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }
 type LiveTrendPoint = { month: string; reach: number; impressions: number; er: number }
 
+type AIReportNarrative = {
+  executive?: string
+  reach?: string
+  engagement?: string
+  platform?: string
+  trend?: string
+  audience?: string
+  follower?: string
+  formats?: string
+  hashtags?: string
+  synergy?: string
+  channel?: string
+  efficiency?: string
+  creative?: string
+  quarterly_overview?: string
+  monthly_breakdown?: string
+  highlights?: string
+  portfolio?: string
+  clients?: string
+}
+type AIReport = {
+  narrative: AIReportNarrative
+  meta: { period: string; clientName: string; reportType: string; generatedAt: string; isMock: boolean }
+}
+
 export default function ReportsPage() {
   const { clients }                   = useClients()
   const [activeTab, setActiveTab]     = useState<ReportTab>('monthly')
@@ -1995,6 +1921,7 @@ export default function ReportsPage() {
   const [livePlatforms, setLivePlatforms] = useState<LivePlatform[] | null>(null)
   const [liveTrend, setLiveTrend]     = useState<LiveTrendPoint[] | null>(null)
   const [liveError, setLiveError]     = useState<string | null>(null)
+  const [aiReport, setAiReport]       = useState<AIReport | null>(null)
   const [exportingPdf, setExportingPdf] = useState(false)
 
   const clientName = selectedClient === 'all'
@@ -2008,34 +1935,49 @@ export default function ReportsPage() {
     setLivePlatforms(null)
     setLiveTrend(null)
     setLiveError(null)
+    setAiReport(null)
+
     if (selectedClient !== 'all') {
       const range = parsePeriodToRange(period)
       if (range) {
         try {
-          const res = await fetch(
-            `/api/metricool/analytics?client_id=${selectedClient}&startDate=${range.startDate}&endDate=${range.endDate}&trend=true`
-          )
+          const res = await fetch('/api/reports/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clientId:   selectedClient,
+              reportType: activeTab,
+              startDate:  range.startDate,
+              endDate:    range.endDate,
+            }),
+          })
           const data = await res.json() as {
+            narrative?: AIReportNarrative
             stats?: Record<string, number>
             platforms?: LivePlatform[]
             trend?: LiveTrendPoint[]
-            error?: string
+            meta?: AIReport['meta']
             _mock?: boolean
+            _geminiError?: string
+            error?: string
           }
-          if (res.ok && data.stats) {
-            setLiveStats(data.stats)
+          if (res.ok) {
+            if (data.stats)             setLiveStats(data.stats)
             if (data.platforms?.length) setLivePlatforms(data.platforms)
-            if (data.trend?.length) setLiveTrend(data.trend)
-            if (data._mock) setLiveError('Using sample data — configure Metricool blog ID in Settings')
+            if (data.trend?.length)     setLiveTrend(data.trend)
+            if (data._mock)             setLiveError('Using sample data — configure Metricool blog ID in Settings')
+            if (data.narrative && data.meta) {
+              setAiReport({ narrative: data.narrative, meta: data.meta })
+            }
           } else {
-            setLiveError(data.error ?? 'Live data unavailable')
+            setLiveError(data.error ?? 'Report generation failed')
           }
         } catch {
-          setLiveError('Could not connect to analytics API')
+          setLiveError('Could not connect to report generation API')
         }
       }
     }
-    await new Promise(r => setTimeout(r, 300))
+
     setGenerating(false)
     setGenerated(true)
   }
@@ -2043,6 +1985,7 @@ export default function ReportsPage() {
   const handleTabChange = (tab: ReportTab) => {
     setActiveTab(tab)
     setGenerated(false)
+    setAiReport(null)
   }
 
   const handleExportPDF = async () => {
@@ -2118,7 +2061,7 @@ export default function ReportsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={selectedClient}
-                onChange={e => { setSelectedClient(e.target.value); setGenerated(false) }}
+                onChange={e => { setSelectedClient(e.target.value); setGenerated(false); setAiReport(null) }}
                 className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
               >
                 <option value="all">All Clients</option>
@@ -2126,7 +2069,7 @@ export default function ReportsPage() {
               </select>
               <select
                 value={period}
-                onChange={e => { setPeriod(e.target.value); setGenerated(false) }}
+                onChange={e => { setPeriod(e.target.value); setGenerated(false); setAiReport(null) }}
                 className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
               >
                 {['May 2026', 'April 2026', 'March 2026', 'Q1 2026', 'Q4 2025'].map(p => (
@@ -2143,14 +2086,19 @@ export default function ReportsPage() {
                   ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Generating…</>
                   : <><FileText className="w-3.5 h-3.5"/> {selectedClient !== 'all' ? 'Generate Report' : 'Generate Demo Report'}</>}
               </button>
-              {generated && liveStats && (
+              {generated && liveStats && !liveError && (
                 <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
                   <Activity className="w-3 h-3"/> Live Data
                 </span>
               )}
+              {generated && aiReport && (
+                <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg" style={{ background: B.light, color: B.primary }}>
+                  <Sparkles className="w-3 h-3"/> AI Narrative
+                </span>
+              )}
               {generated && liveError && selectedClient !== 'all' && (
                 <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={liveError}>
-                  <AlertCircle className="w-3 h-3"/> Demo Data
+                  <AlertCircle className="w-3 h-3"/> Sample Data
                 </span>
               )}
               {generated && (
@@ -2173,12 +2121,12 @@ export default function ReportsPage() {
         <AIBuilder/>
       ) : generated ? (
         <div id="printable-report" className="space-y-5">
-          {activeTab === 'monthly'   && <MonthlyReport   client={clientName} liveStats={liveStats} livePlatforms={livePlatforms} liveTrend={liveTrend}/>}
-          {activeTab === 'paid'      && <PaidReport       client={clientName}/>}
-          {activeTab === 'combined'  && <CombinedReport   client={clientName}/>}
-          {activeTab === 'platform'  && <PlatformReport   client={clientName}/>}
-          {activeTab === 'quarterly' && <QuarterlyReport  client={clientName}/>}
-          {activeTab === 'executive' && <ExecutiveReport  client={clientName} liveStats={liveStats} livePlatforms={livePlatforms}/>}
+          {activeTab === 'monthly'   && <MonthlyReport   client={clientName} liveStats={liveStats} livePlatforms={livePlatforms} liveTrend={liveTrend} aiReport={aiReport}/>}
+          {activeTab === 'paid'      && <PaidReport       client={clientName} aiReport={aiReport}/>}
+          {activeTab === 'combined'  && <CombinedReport   client={clientName} aiReport={aiReport}/>}
+          {activeTab === 'platform'  && <PlatformReport   client={clientName} aiReport={aiReport}/>}
+          {activeTab === 'quarterly' && <QuarterlyReport  client={clientName} liveTrend={liveTrend} aiReport={aiReport}/>}
+          {activeTab === 'executive' && <ExecutiveReport  client={clientName} liveStats={liveStats} livePlatforms={livePlatforms} aiReport={aiReport}/>}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200">

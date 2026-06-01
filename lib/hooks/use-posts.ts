@@ -55,12 +55,14 @@ export interface SchedulePostInput {
   platforms: SocialPlatform[]
   caption: string
   caption_ar?: string
-  media_url?: string    // single image or video
-  media_urls?: string[] // carousel (2-10 slides) — takes precedence over media_url
-  thumbnail_url?: string // custom cover image for video/reel posts
-  is_video?: boolean    // explicit override — set when URL extension alone can't determine media type
+  media_url?: string
+  media_urls?: string[]
+  thumbnail_url?: string
+  is_video?: boolean
   scheduled_at: string
   task_id?: string
+  instagram_post_type?: 'POST' | 'REEL' | 'STORY'
+  facebook_post_type?:  'POST' | 'REEL' | 'STORY'
 }
 
 /** Sends a post to Metricool for scheduling. Saves to DB first; falls back to draft if Metricool fails. */

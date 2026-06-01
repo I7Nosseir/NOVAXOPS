@@ -484,6 +484,8 @@ function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; 
   const [carouselUploading, setCarouselUploading] = useState<Record<number, boolean>>({})
   const [thumbnailUrl, setThumbnailUrl] = useState('')
   const [driveImporting, setDriveImporting] = useState(false)
+  const [instagramPostType, setInstagramPostType] = useState<'POST' | 'REEL' | 'STORY'>('POST')
+  const [facebookPostType, setFacebookPostType] = useState<'POST' | 'REEL' | 'STORY'>('POST')
 
   const [aiLoading, setAiLoading] = useState(false)
   const [aiVariants, setAiVariants] = useState<CaptionVariant[] | null>(null)
@@ -496,6 +498,8 @@ function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; 
   const urlIsVideoDetected = /\.(mp4|mov|webm|avi|m4v|mkv|wmv|flv)(\?|$)/i.test(singleUrl)
   const isReel = isVideoUpload || urlIsVideoDetected
   const showThumbnailField = singleUrl.trim() !== '' && (isReel || driveConverted)
+  const storySelected = (selectedPlatforms.includes('instagram') && instagramPostType === 'STORY')
+    || (selectedPlatforms.includes('facebook') && facebookPostType === 'STORY')
 
   async function humanizeCaption(targetLang: 'en' | 'ar') {
     const isAr = targetLang === 'ar'
@@ -669,9 +673,10 @@ function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; 
     const baseMediaUrls = mediaMode === 'carousel' ? carouselUrls.filter(Boolean) : undefined
     const effectiveUrl = overrides?.media_url ?? baseMediaUrl
     const effectiveUrlIsVideo = /\.(mp4|mov|webm|avi|m4v|mkv|wmv|flv)(\?|$)/i.test(effectiveUrl ?? '')
+    const effectivePlatforms = overrides?.platforms ?? selectedPlatforms
     return {
       client_id: selectedClient,
-      platforms: overrides?.platforms ?? selectedPlatforms,
+      platforms: effectivePlatforms,
       caption,
       caption_ar: captionAr || undefined,
       media_url: overrides ? (overrides.media_url ?? undefined) : baseMediaUrl,
@@ -679,6 +684,8 @@ function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; 
       thumbnail_url: thumbnailUrl.trim() || undefined,
       is_video: isVideoUpload || effectiveUrlIsVideo || undefined,
       scheduled_at: scheduleDate ? new Date(scheduleDate).toISOString() : '',
+      instagram_post_type: effectivePlatforms.includes('instagram') ? instagramPostType : undefined,
+      facebook_post_type:  effectivePlatforms.includes('facebook')  ? facebookPostType  : undefined,
     }
   }
 
@@ -830,6 +837,61 @@ function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; 
             </div>
           </div>
 
+          {/* ── Post Type (Instagram + Facebook only) ──────────────── */}
+          {(selectedPlatforms.includes('instagram') || selectedPlatforms.includes('facebook')) && (
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-700">Post Type</label>
+              {selectedPlatforms.includes('instagram') && (
+                <div>
+                  <p className="text-[11px] text-slate-500 mb-1 flex items-center gap-1">
+                    <PlatformIcon platform="instagram" size="xs"/> Instagram
+                  </p>
+                  <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
+                    {(['POST', 'REEL', 'STORY'] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setInstagramPostType(t)}
+                        className={cn(
+                          'px-3 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                          instagramPostType === t ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                        )}
+                      >
+                        {t === 'POST' ? 'Post' : t === 'REEL' ? 'Reel' : 'Story'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {selectedPlatforms.includes('facebook') && (
+                <div>
+                  <p className="text-[11px] text-slate-500 mb-1 flex items-center gap-1">
+                    <PlatformIcon platform="facebook" size="xs"/> Facebook
+                  </p>
+                  <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
+                    {(['POST', 'REEL', 'STORY'] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setFacebookPostType(t)}
+                        className={cn(
+                          'px-3 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                          facebookPostType === t ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                        )}
+                      >
+                        {t === 'POST' ? 'Post' : t === 'REEL' ? 'Reel' : 'Story'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {storySelected && (
+                <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                  <TriangleAlert className="w-3 h-3 shrink-0"/>
+                  Stories require 9:16 vertical media. Carousel is disabled for story posts.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* ── Media ─────────────────────────────────────────────── */}
           <div className="rounded-xl border border-slate-200 overflow-hidden">
             {/* Mode tabs */}
@@ -842,8 +904,10 @@ function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; 
                 ] as const).map(({ id, label, Icon }) => (
                   <button key={id}
                     onClick={() => { setMediaMode(id); setCustomPerPlatform(false) }}
+                    disabled={id === 'carousel' && storySelected}
+                    title={id === 'carousel' && storySelected ? 'Carousel not supported for Stories' : undefined}
                     className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                      'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
                       mediaMode === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     )}>
                     <Icon className="w-3 h-3"/>{label}
@@ -1405,14 +1469,25 @@ interface BulkRow {
   scheduled_at: string
   platforms: SocialPlatform[]
   caption: string
-  media_url: string        // single image/video
-  media_urls_extra: string // pipe-separated additional slides for carousel
+  media_url: string
+  media_urls_extra: string
+  instagram_post_type: 'POST' | 'REEL' | 'STORY'
+  facebook_post_type: 'POST' | 'REEL' | 'STORY'
+  platform_media: Partial<Record<SocialPlatform, string>>
+  expanded: boolean
   status: 'pending' | 'scheduling' | 'scheduled' | 'draft' | 'failed'
   error?: string
 }
 
 function newRow(): BulkRow {
-  return { id: Math.random().toString(36).slice(2), scheduled_at: '', platforms: ['instagram'], caption: '', media_url: '', media_urls_extra: '', status: 'pending' }
+  return {
+    id: Math.random().toString(36).slice(2),
+    scheduled_at: '', platforms: ['instagram'], caption: '',
+    media_url: '', media_urls_extra: '',
+    instagram_post_type: 'POST', facebook_post_type: 'POST',
+    platform_media: {}, expanded: false,
+    status: 'pending',
+  }
 }
 
 function resolveMediaUrls(row: BulkRow): string[] | undefined {
@@ -1462,29 +1537,48 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
       if (!row.caption.trim() || !row.scheduled_at || !row.platforms.length) continue
       updateRow(row.id, { status: 'scheduling' })
       try {
-        // Import any Drive proxy URLs to Supabase Storage before scheduling
-        let mediaUrls = resolveMediaUrls(row)
-        if (mediaUrls?.length) {
-          const resolved = await Promise.all(
-            mediaUrls.map(u => isProxyDriveUrl(u) ? importDriveFileToStorage(u) : Promise.resolve(u))
-          )
-          mediaUrls = resolved
+        // Group platforms by their effective media URL (per-platform override or row default)
+        const urlGroups = new Map<string, SocialPlatform[]>()
+        for (const p of row.platforms) {
+          const url = row.platform_media[p] || row.media_url
+          if (!urlGroups.has(url)) urlGroups.set(url, [])
+          urlGroups.get(url)!.push(p)
         }
 
-        const res = await fetch('/api/metricool/schedule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client_id: selectedClient,
-            platforms: row.platforms,
-            caption: row.caption,
-            media_urls: mediaUrls,
-            scheduled_at: new Date(row.scheduled_at).toISOString(),
-          }),
-        })
-        const data = await res.json()
-        if (!res.ok && !data.saved_as_draft) throw new Error(data.error ?? 'Failed')
-        updateRow(row.id, { status: data.saved_as_draft ? 'draft' : 'scheduled', error: data.saved_as_draft ? data.error : undefined })
+        let anyDraft = false
+        for (const [groupUrl, plats] of urlGroups) {
+          const extra = row.media_urls_extra.split('|').map(u => u.trim()).filter(Boolean)
+          let mediaUrls: string[] | undefined = groupUrl
+            ? [groupUrl, ...extra]
+            : extra.length ? extra : undefined
+
+          // Resolve Drive proxy URLs sequentially to preserve order
+          if (mediaUrls?.length) {
+            const resolved: string[] = []
+            for (const u of mediaUrls) {
+              resolved.push(isProxyDriveUrl(u) ? await importDriveFileToStorage(u) : u)
+            }
+            mediaUrls = resolved
+          }
+
+          const res = await fetch('/api/metricool/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              client_id: selectedClient,
+              platforms: plats,
+              caption: row.caption,
+              media_urls: mediaUrls,
+              scheduled_at: new Date(row.scheduled_at).toISOString(),
+              instagram_post_type: plats.includes('instagram') ? row.instagram_post_type : undefined,
+              facebook_post_type:  plats.includes('facebook')  ? row.facebook_post_type  : undefined,
+            }),
+          })
+          const data = await res.json()
+          if (!res.ok && !data.saved_as_draft) throw new Error(data.error ?? 'Failed')
+          if (data.saved_as_draft) anyDraft = true
+        }
+        updateRow(row.id, { status: anyDraft ? 'draft' : 'scheduled' })
       } catch (err) {
         updateRow(row.id, { status: 'failed', error: err instanceof Error ? err.message : 'Unknown error' })
       }
@@ -1508,6 +1602,13 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
       ['Media URL', 'URL', 'Google Drive share link or any public image/video URL', 'No'],
       ['Carousel URLs', 'URLs separated by |', 'Additional slides — up to 9 extra URLs separated by a pipe |', 'No'],
       ['Language', 'Code', 'en / ar / both', 'No (default: en)'],
+      ['IG Post Type', 'Code', 'POST · REEL · STORY', 'No (default: POST)'],
+      ['FB Post Type', 'Code', 'POST · REEL · STORY', 'No (default: POST)'],
+      ['Instagram Media', 'URL', 'Override Media URL for Instagram only — leave blank to use default', 'No'],
+      ['Facebook Media', 'URL', 'Override Media URL for Facebook only — leave blank to use default', 'No'],
+      ['TikTok Media', 'URL', 'Override Media URL for TikTok only — leave blank to use default', 'No'],
+      ['LinkedIn Media', 'URL', 'Override Media URL for LinkedIn only — leave blank to use default', 'No'],
+      ['Twitter Media', 'URL', 'Override Media URL for Twitter only — leave blank to use default', 'No'],
       [''],
       ['Tips'],
       ['• Google Drive links are auto-converted — just paste the share URL.'],
@@ -1515,13 +1616,15 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
       ['• Platforms: separate multiple with a comma — e.g.  instagram,facebook'],
       ['• Date + Time are separate columns so Excel date-pickers work correctly.'],
       ['• Carousel: put the first image in "Media URL", then extra slides in "Carousel URLs" separated by |'],
+      ['• Per-platform media: if Instagram and Facebook need different images, fill columns J–N; blank = use default.'],
+      ['• Story posts: use 9:16 vertical media. Carousel not supported for stories.'],
     ]
     const wsInfo = XLSX.utils.aoa_to_sheet(info)
     wsInfo['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 58 }, { wch: 10 }]
     XLSX.utils.book_append_sheet(wb, wsInfo, 'Instructions')
 
     // ── Schedule sheet ────────────────────────────────────────────────────────
-    const headers = ['Date', 'Time', 'Platforms', 'Caption', 'Media URL', 'Carousel URLs', 'Language']
+    const headers = ['Date', 'Time', 'Platforms', 'Caption', 'Media URL', 'Carousel URLs', 'Language', 'IG Post Type', 'FB Post Type', 'Instagram Media', 'Facebook Media', 'TikTok Media', 'LinkedIn Media', 'Twitter Media']
     const example = [
       '2026-06-01',
       '09:00',
@@ -1530,9 +1633,21 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
       'https://drive.google.com/file/d/SLIDE1_ID/view',
       'https://drive.google.com/file/d/SLIDE2_ID/view|https://drive.google.com/file/d/SLIDE3_ID/view',
       'en',
+      'POST',
+      'POST',
+      '',
+      '',
+      '',
+      '',
+      '',
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers, example])
-    ws['!cols'] = [{ wch: 14 }, { wch: 8 }, { wch: 32 }, { wch: 52 }, { wch: 52 }, { wch: 72 }, { wch: 10 }]
+    ws['!cols'] = [
+      { wch: 14 }, { wch: 8 }, { wch: 32 }, { wch: 52 },
+      { wch: 52 }, { wch: 72 }, { wch: 10 },
+      { wch: 14 }, { wch: 12 },
+      { wch: 48 }, { wch: 48 }, { wch: 48 }, { wch: 48 }, { wch: 48 },
+    ]
 
     // Freeze the header row
     ws['!freeze'] = { xSplit: 0, ySplit: 1 }
@@ -1559,6 +1674,26 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
         allowBlank: false,
         showErrorMessage: false,
       },
+      {
+        sqref: 'H2:H10000',
+        type: 'list',
+        formula1: '"POST,REEL,STORY"',
+        showDropDown: false,
+        allowBlank: true,
+        showErrorMessage: true,
+        errorTitle: 'Invalid IG type',
+        error: 'Enter: POST / REEL / STORY',
+      },
+      {
+        sqref: 'I2:I10000',
+        type: 'list',
+        formula1: '"POST,REEL,STORY"',
+        showDropDown: false,
+        allowBlank: true,
+        showErrorMessage: true,
+        errorTitle: 'Invalid FB type',
+        error: 'Enter: POST / REEL / STORY',
+      },
     ]
 
     XLSX.utils.book_append_sheet(wb, ws, 'Schedule')
@@ -1584,13 +1719,24 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
 
       const headers = rows2d[headerIdx].map(h => String(h).toLowerCase().trim())
       const col = (name: string) => headers.findIndex(h => h.includes(name))
+      const PLAT_NAMES = ['instagram', 'facebook', 'tiktok', 'linkedin', 'twitter']
       const iDate     = col('date')
       const iTime     = col('time')
       const iPlat     = col('platform')
       const iCapt     = col('caption')
-      const iUrl      = headers.findIndex(h => h.includes('media') && !h.includes('carousel'))
+      // Main media URL — must not match per-platform override columns or carousel
+      const iUrl      = headers.findIndex(h =>
+        h.includes('media') && !h.includes('carousel') && !PLAT_NAMES.some(p => h.includes(p))
+      )
       const iCarousel = col('carousel')
       const iLang     = col('lang')
+      const iIgType   = headers.findIndex(h => (h.includes('ig') || h.includes('instagram')) && h.includes('type'))
+      const iFbType   = headers.findIndex(h => (h.includes('fb') || h.includes('facebook')) && h.includes('type'))
+      const iIgMedia  = headers.findIndex(h => h.includes('instagram') && h.includes('media'))
+      const iFbMedia  = headers.findIndex(h => h.includes('facebook') && h.includes('media'))
+      const iTkMedia  = headers.findIndex(h => h.includes('tiktok') && h.includes('media'))
+      const iLiMedia  = headers.findIndex(h => h.includes('linkedin') && h.includes('media'))
+      const iTwMedia  = headers.findIndex(h => h.includes('twitter') && h.includes('media'))
 
       const importedRows: BulkRow[] = []
 
@@ -1621,6 +1767,29 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
           ? `${window.location.origin}${convertedUrl}`
           : convertedUrl
 
+        // Post types — uppercase + validate; default to POST
+        const VALID_TYPES = ['POST', 'REEL', 'STORY'] as const
+        const igTypeRaw = iIgType >= 0 ? String(r[iIgType] ?? '').toUpperCase().trim() : ''
+        const fbTypeRaw = iFbType >= 0 ? String(r[iFbType] ?? '').toUpperCase().trim() : ''
+        const instagram_post_type: 'POST' | 'REEL' | 'STORY' = (VALID_TYPES as readonly string[]).includes(igTypeRaw) ? igTypeRaw as 'POST' | 'REEL' | 'STORY' : 'POST'
+        const facebook_post_type: 'POST' | 'REEL' | 'STORY' = (VALID_TYPES as readonly string[]).includes(fbTypeRaw) ? fbTypeRaw as 'POST' | 'REEL' | 'STORY' : 'POST'
+
+        // Per-platform media URL overrides
+        const platform_media: Partial<Record<SocialPlatform, string>> = {}
+        const pmMap: [number, SocialPlatform][] = [
+          [iIgMedia, 'instagram'], [iFbMedia, 'facebook'],
+          [iTkMedia, 'tiktok'], [iLiMedia, 'linkedin'], [iTwMedia, 'twitter'],
+        ]
+        for (const [pCol, plat] of pmMap) {
+          if (pCol >= 0) {
+            const rawPm = String(r[pCol] ?? '').trim()
+            if (rawPm) {
+              const { url: convPm, wasDrive: wasDrivePm } = convertGoogleDriveUrl(rawPm)
+              platform_media[plat] = wasDrivePm && convPm.startsWith('/') ? `${window.location.origin}${convPm}` : convPm
+            }
+          }
+        }
+
         importedRows.push({
           id: Math.random().toString(36).slice(2),
           scheduled_at: scheduledAt,
@@ -1628,6 +1797,10 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
           caption,
           media_url: mediaUrl,
           media_urls_extra: iCarousel >= 0 ? String(r[iCarousel] ?? '').trim() : '',
+          instagram_post_type,
+          facebook_post_type,
+          platform_media,
+          expanded: Object.values(platform_media).some(Boolean),
           status: 'pending',
         })
       }
@@ -1697,9 +1870,10 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
                 <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-44">Date & Time</th>
-                <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-48">Platforms</th>
+                <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-44">Platforms</th>
+                <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-32">Post Type</th>
                 <th className="text-left px-3 py-2.5 font-semibold text-slate-500">Caption</th>
-                <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-52">Media URL</th>
+                <th className="text-left px-3 py-2.5 font-semibold text-slate-500 w-56">Media</th>
                 <th className="px-3 py-2.5 w-10"></th>
                 <th className="px-3 py-2.5 w-8"></th>
               </tr>
@@ -1734,6 +1908,53 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
                       ))}
                     </div>
                   </td>
+                  {/* Post Type — IG + FB independent selectors */}
+                  <td className="px-3 py-2 align-top">
+                    {row.platforms.includes('instagram') && (
+                      <div className="mb-1.5">
+                        <p className="text-[9px] font-semibold text-slate-400 mb-1 flex items-center gap-0.5">
+                          <PlatformIcon platform="instagram" size="xs"/> IG
+                        </p>
+                        <div className="flex flex-wrap gap-0.5">
+                          {(['POST', 'REEL', 'STORY'] as const).map(t => (
+                            <button
+                              key={t}
+                              onClick={() => updateRow(row.id, { instagram_post_type: t })}
+                              disabled={scheduling || row.status === 'scheduled'}
+                              className={cn(
+                                'px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors disabled:opacity-50',
+                                row.instagram_post_type === t
+                                  ? 'bg-novax-light border-novax-border text-novax'
+                                  : 'border-slate-200 text-slate-400 hover:border-slate-300'
+                              )}
+                            >{t[0] + t.slice(1).toLowerCase()}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {row.platforms.includes('facebook') && (
+                      <div>
+                        <p className="text-[9px] font-semibold text-slate-400 mb-1 flex items-center gap-0.5">
+                          <PlatformIcon platform="facebook" size="xs"/> FB
+                        </p>
+                        <div className="flex flex-wrap gap-0.5">
+                          {(['POST', 'REEL', 'STORY'] as const).map(t => (
+                            <button
+                              key={t}
+                              onClick={() => updateRow(row.id, { facebook_post_type: t })}
+                              disabled={scheduling || row.status === 'scheduled'}
+                              className={cn(
+                                'px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors disabled:opacity-50',
+                                row.facebook_post_type === t
+                                  ? 'bg-novax-light border-novax-border text-novax'
+                                  : 'border-slate-200 text-slate-400 hover:border-slate-300'
+                              )}
+                            >{t[0] + t.slice(1).toLowerCase()}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     <textarea
                       value={row.caption}
@@ -1761,6 +1982,33 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
                       placeholder="Slides 2–10 separated by |  (carousel)"
                       className="w-full mt-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-300 outline-none focus:border-novax-muted bg-white disabled:opacity-50"
                     />
+                    {row.platforms.length > 1 && (
+                      <button
+                        onClick={() => updateRow(row.id, { expanded: !row.expanded })}
+                        disabled={scheduling || row.status === 'scheduled'}
+                        className="mt-1.5 text-[10px] text-novax-muted hover:text-novax font-medium flex items-center gap-1 disabled:opacity-40"
+                      >
+                        <Layers className="w-3 h-3"/>
+                        {row.expanded ? 'Hide per-platform' : 'Per-platform media'}
+                      </button>
+                    )}
+                    {row.expanded && (
+                      <div className="mt-1.5 space-y-1 pl-2 border-l-2 border-novax-light">
+                        {BULK_PLATFORMS.filter(p => row.platforms.includes(p)).map(p => (
+                          <div key={p} className="flex items-center gap-1.5">
+                            <PlatformIcon platform={p} size="xs"/>
+                            <input
+                              type="url"
+                              value={row.platform_media[p] ?? ''}
+                              onChange={e => updateRow(row.id, { platform_media: { ...row.platform_media, [p]: e.target.value } })}
+                              disabled={scheduling || row.status === 'scheduled'}
+                              placeholder={`${PLATFORM_CONFIG[p].label} — uses default`}
+                              className="flex-1 min-w-0 px-2 py-1 border border-slate-200 rounded text-[10px] text-slate-700 placeholder:text-slate-300 outline-none focus:border-novax-muted bg-white disabled:opacity-50"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {row.error && <p className="text-[10px] text-red-500 mt-1 leading-tight">{row.error}</p>}
                   </td>
                   <td className="px-3 py-2 text-center">
