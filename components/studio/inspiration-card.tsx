@@ -88,12 +88,20 @@ export function InspirationCard({
             src={item.thumbnail_url}
             alt={item.title}
             className="w-full h-full object-cover"
+            onError={e => {
+              const img = e.currentTarget
+              img.style.display = 'none'
+              const fallback = img.nextElementSibling as HTMLElement | null
+              if (fallback) fallback.style.display = 'flex'
+            }}
           />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-[#1B3D38] to-[#2A6B62] flex items-center justify-center">
-            <PlatformPlaceholderIcon platform={item.platform} />
-          </div>
-        )}
+        ) : null}
+        <div
+          className="w-full h-full bg-gradient-to-br from-[#1B3D38] to-[#2A6B62] items-center justify-center"
+          style={{ display: item.thumbnail_url ? 'none' : 'flex' }}
+        >
+          <PlatformPlaceholderIcon platform={item.platform} />
+        </div>
 
         {/* Platform badge */}
         <span className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-medium rounded-md px-2 py-0.5">

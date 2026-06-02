@@ -10,8 +10,7 @@ import { fetchTikTokTrends }  from '@/lib/data-providers/tiktok-creative-center'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
 import { createHash } from 'crypto'
 
-// No cache in dev so new API keys are picked up immediately
-export const revalidate = process.env.NODE_ENV === 'production' ? 3600 : 0
+export const revalidate = 0 // always fresh — no stale CDN cache
 
 export interface TrendingContentItem {
   id: string
@@ -107,12 +106,13 @@ async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]>
       viewMap.set(v.id, parseInt(v.statistics?.viewCount ?? '0', 10))
     }
 
-    return items.map((item) => {
+    return items.filter(item => !!item.id?.videoId).map((item) => {
       const videoId   = item.id.videoId
       const thumbnail =
         item.snippet.thumbnails.high?.url ??
         item.snippet.thumbnails.medium?.url ??
-        item.snippet.thumbnails.default?.url
+        item.snippet.thumbnails.default?.url ??
+        `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
       const url       = `https://www.youtube.com/watch?v=${videoId}`
       const views     = viewMap.get(videoId) ?? 0
       const format    = classifyTitle(item.snippet.title)
@@ -179,7 +179,7 @@ async function getTrendsMcpItems(industry: string): Promise<TrendingContentItem[
 
   const now = new Date().toISOString()
   return data.topics.slice(0, 6).map((t) => {
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(t.topic)}&tbm=vid`
+    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(t.topic)}`
     const growthNum = parseFloat(String(t.growth).replace('%', ''))
     const velocity: TrendingContentItem['velocity'] =
       growthNum > 100  ? 'rising_fast'
@@ -240,7 +240,7 @@ export async function GET(req: NextRequest) {
       { items, generated_at: new Date().toISOString() },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=600',
+          'Cache-Control': 'no-store',
         },
       },
     )
