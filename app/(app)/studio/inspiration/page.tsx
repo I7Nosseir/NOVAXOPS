@@ -82,6 +82,7 @@ export default function InspirationLibraryPage() {
   const [aiFilter,          setAiFilter]          = useState(false)
   const nicheInputRef = useRef<HTMLInputElement>(null)
   const [items,             setItems]             = useState<TrendingContentItem[]>([])
+  const [removedCount,      setRemovedCount]      = useState(0)
   const [savedItems,        setSavedItems]        = useState<InspirationBoardItem[]>([])
   const [selectedClientId,  setSelectedClientId]  = useState<string | null>(null)
   const [isLoading,         setIsLoading]         = useState(false)
@@ -100,8 +101,9 @@ export default function InspirationLibraryPage() {
         ...(aiFilter ? { ai_filter: 'true' } : {}),
       })
       const res  = await fetch(`/api/studio/trending-content?${params}`)
-      const data = await res.json() as { items: TrendingContentItem[] }
+      const data = await res.json() as { items: TrendingContentItem[]; removed_count?: number }
       setItems(data.items ?? [])
+      setRemovedCount(data.removed_count ?? 0)
     } catch {
       setItems([])
     } finally {
@@ -330,6 +332,11 @@ export default function InspirationLibraryPage() {
           >
             <Sparkles className="w-3.5 h-3.5" />
             AI Filter
+            {aiFilter && removedCount > 0 && (
+              <span className="ml-0.5 bg-white/20 text-white rounded-full px-1.5 text-[10px] font-bold">
+                -{removedCount}
+              </span>
+            )}
           </button>
 
           <button

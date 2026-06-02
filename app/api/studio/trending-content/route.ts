@@ -35,6 +35,8 @@ export interface TrendingContentItem {
 
 // ── Maps ──────────────────────────────────────────────────────
 
+const ARABIC_REGIONS = new Set(['AE', 'SA', 'EG', 'JO', 'KW', 'QA'])
+
 // YouTube regionCode + relevanceLanguage per region
 const REGION_YT: Record<string, { regionCode: string; relevanceLanguage?: string }> = {
   global: { regionCode: 'US'                              },
@@ -50,6 +52,19 @@ const REGION_YT: Record<string, { regionCode: string; relevanceLanguage?: string
   QA:     { regionCode: 'QA', relevanceLanguage: 'ar'    },
   FR:     { regionCode: 'FR', relevanceLanguage: 'fr'    },
   DE:     { regionCode: 'DE', relevanceLanguage: 'de'    },
+}
+
+// Arabic search terms per niche — used instead of English for MENA regions
+const ARABIC_NICHE: Record<string, string> = {
+  beauty:      'جمال سكن كير مكياج',
+  tech:        'تقنية تكنولوجيا ذكاء اصطناعي',
+  food:        'طبخ وصفات اكل',
+  fitness:     'لياقة رياضة تمارين',
+  finance:     'استثمار مال اقتصاد',
+  fashion:     'موضة ازياء',
+  travel:      'سفر سياحة',
+  education:   'تعليم دراسة',
+  real_estate: 'عقارات شقق',
 }
 
 // Google Trends geo code per region
@@ -94,13 +109,15 @@ async function getYouTubeItems(industry: string, region: string): Promise<Trendi
   const year   = new Date().getFullYear()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
 
-  // Exclude Indian-language content for non-Indian, non-global regions
-  const INDIAN_EXCLUSIONS = '-hindi -telugu -tamil -kannada -marathi -bollywood -india'
-  const ARABIC_REGIONS    = new Set(['AE', 'SA', 'EG', 'JO', 'KW', 'QA'])
-  const needsExclusion    = region !== 'global' && region !== 'IN'
-  const query = needsExclusion
-    ? `${industry} ${year} ${ARABIC_REGIONS.has(region) ? '' : INDIAN_EXCLUSIONS}`.trim()
-    : `${industry} ${year}`
+  // For MENA regions: search in Arabic so results are actually from Arabic creators
+  // For other non-global regions: exclude Indian-language content
+  const INDIAN_EXCLUSIONS = '-hindi -telugu -tamil -kannada -marathi -bollywood'
+  const arabicTerm = ARABIC_NICHE[industry.toLowerCase()]
+  const query = ARABIC_REGIONS.has(region)
+    ? `${arabicTerm ?? industry} ${year}`                                        // Arabic search
+    : region !== 'global'
+    ? `${industry} ${year} ${INDIAN_EXCLUSIONS}`                                 // English + exclusions
+    : `${industry} ${year}`                                                      // global
 
   try {
     const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search')
@@ -246,41 +263,50 @@ async function aiFilter(
   items: TrendingContentItem[],
   industry: string,
   region: string,
-  language: string,
-): Promise<TrendingContentItem[]> {
-  if (!items.length || !process.env.GEMINI_API_KEY) return items
+): Promise<{ filtered: TrendingContentItem[]; removedCount: number }> {
+  if (!items.length || !process.env.GEMINI_API_KEY) {
+    return { filtered: items, removedCount: 0 }
+  }
 
-  const langLabel =
-    language === 'ar' ? 'Arabic' :
-    language === 'en' ? 'English' :
-    region === 'global' || region === 'US' || region === 'GB' || region === 'AU' ? 'English' :
-    (region === 'AE' || region === 'SA' || region === 'EG' || region === 'JO' || region === 'KW' || region === 'QA') ? 'Arabic or English' :
-    'English'
+  const isArabic  = ARABIC_REGIONS.has(region)
+  const isGlobal  = region === 'global'
+  const threshold = isGlobal ? 5 : 6   // stricter for specific regions
 
-  const prompt = `You are a content quality filter for a social media agency.
+  const regionLabel = isArabic
+    ? `${region} (Arabic-speaking market — content must be in Arabic OR be specifically made for Arab audiences)`
+    : isGlobal
+    ? 'Global'
+    : region
+
+  const langRule = isArabic
+    ? 'Content in Arabic = 7-10. Content in English but made for Arab audiences = 6-8. Generic global English content not targeted at Arabs = 0-4.'
+    : `Content in the dominant language of ${region} or relevant to that market = 7-10. Off-topic, wrong language, or irrelevant content = 0-4.`
+
+  const prompt = `You are a strict content relevance filter for a social media agency.
+
 Niche: ${industry}
-Target region: ${region === 'global' ? 'Global (prefer English)' : region}
-Preferred language: ${langLabel}
+Target market: ${regionLabel}
 
-Score each item 0–10 for relevance and quality:
-${items.map((item, i) => `${i}. "${item.title}" [${item.platform}${item.channel ? `, ${item.channel}` : ''}]`).join('\n')}
+Scoring rule: ${langRule}
+Also score 0-2 for: spam, unrelated topics, very low quality.
 
-Rules:
-- 0–3: Wrong language for region, unrelated to niche, very low quality, spam
-- 4–6: Partially relevant or mixed language
-- 7–10: Highly relevant to niche, correct language/region, quality content
+Score each item 0–10:
+${items.map((item, i) => `${i}. "${item.title}" [${item.platform}${item.channel ? `, ch: ${item.channel}` : ''}]`).join('\n')}
 
-Return ONLY a JSON array of integers with one score per item, same order. Example: [8,3,9,2,7,5,8,1]`
+Return ONLY a JSON array of integers, one per item. Example: [8,2,9,1,7]`
 
   try {
     const scores = await geminiJson<number[]>(prompt, undefined, {
       temperature: 0,
-      maxOutputTokens: 200,
+      maxOutputTokens: 150,
     })
-    if (!Array.isArray(scores) || scores.length !== items.length) return items
-    return items.filter((_, i) => (scores[i] ?? 0) >= 5)
+    if (!Array.isArray(scores) || scores.length !== items.length) {
+      return { filtered: items, removedCount: 0 }
+    }
+    const filtered = items.filter((_, i) => (scores[i] ?? 0) >= threshold)
+    return { filtered, removedCount: items.length - filtered.length }
   } catch {
-    return items
+    return { filtered: items, removedCount: 0 }
   }
 }
 
@@ -300,7 +326,6 @@ export async function GET(req: NextRequest) {
   const industry  = searchParams.get('industry')  ?? 'beauty'
   const platform  = searchParams.get('platform')  ?? 'all'
   const region    = searchParams.get('region')    ?? 'global'
-  const language  = searchParams.get('language')  ?? 'any'
   const aiFilter_ = searchParams.get('ai_filter') === 'true'
   const limit     = Math.min(parseInt(searchParams.get('limit') ?? '20', 10), 50)
 
@@ -320,14 +345,17 @@ export async function GET(req: NextRequest) {
       })
       .sort((a, b) => VELOCITY_ORDER[a.velocity] - VELOCITY_ORDER[b.velocity])
 
+    let removedCount = 0
     if (aiFilter_) {
-      items = await aiFilter(items, industry, region, language)
+      const result = await aiFilter(items, industry, region)
+      items        = result.filtered
+      removedCount = result.removedCount
     }
 
     items = items.slice(0, limit)
 
     return NextResponse.json(
-      { items, generated_at: new Date().toISOString(), region, ai_filtered: aiFilter_ },
+      { items, generated_at: new Date().toISOString(), region, ai_filtered: aiFilter_, removed_count: removedCount },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (err) {
