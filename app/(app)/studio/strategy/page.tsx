@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { StudioLoading } from '@/components/studio/studio-loading'
 import { StudioDocument } from '@/components/studio/studio-document'
 import { StudioChatbot } from '@/components/studio/studio-chatbot'
+import { StudioSessionList } from '@/components/studio/studio-session-list'
 import type {
   StrategyDocument,
   BossBrief,
@@ -79,6 +80,10 @@ export default function StrategyPage() {
   const [loadingSteps,   setLoadingSteps]   = useState<LoadingStep[]>(LOADING_STEPS_INITIAL)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
+  // Sessions list
+  const [sessions,        setSessions]        = useState<StudioSession[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(true)
+
   // Session
   const [sessionId, setSessionId] = useState<string | null>(null)
 
@@ -89,6 +94,20 @@ export default function StrategyPage() {
   const [chatOpen,    setChatOpen]    = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
+
+  // ── Fetch session history ───────────────────────────────────────────────────
+  useEffect(() => {
+    async function loadSessions() {
+      try {
+        const res = await fetch(`/api/studio/session?tool=strategy&created_by=${user?.id ?? ''}&limit=10`)
+        const data = await res.json() as { sessions: StudioSession[] }
+        setSessions(data.sessions ?? [])
+      } catch { /* silent */ } finally {
+        setSessionsLoading(false)
+      }
+    }
+    loadSessions()
+  }, [user?.id])
 
   // ── Resume from session_id ───────────────────────────────────────────────────
   useEffect(() => {
@@ -114,6 +133,20 @@ export default function StrategyPage() {
     const t = setInterval(() => setElapsedSeconds(s => s + 1), 1000)
     return () => clearInterval(t)
   }, [pageState])
+
+  // ── Session click: load a previous session's document ──────────────────────
+  function handleSessionClick(session: StudioSession) {
+    if (session.status === 'complete' && session.outputs) {
+      const doc = (session.outputs as { strategy?: StrategyDocument }).strategy ?? null
+      if (doc) {
+        setStrategyDoc(doc)
+        setBossBrief(session.boss_brief ?? null)
+        setChatHistory(session.chat_history ?? [])
+        setSessionId(session.id)
+        setPageState('document')
+      }
+    }
+  }
 
   // ── Step 1: Submit brief, get question ──────────────────────────────────────
   async function handleBriefSubmit() {
@@ -282,13 +315,36 @@ export default function StrategyPage() {
       }
       setStrategyDoc(doc)
 
-      // Save completed session
+      // Save completed session + prepend to session list
       if (sessionId) {
         fetch(`/api/studio/session/${sessionId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'complete', outputs: { strategy: doc }, boss_brief: bb }),
         }).catch(() => {})
+        const newSession: StudioSession = {
+          id: sessionId,
+          name: `${selectedClient?.name ?? 'Strategy'} — Strategy`,
+          tool: 'strategy',
+          status: 'complete',
+          outputs: { strategy: doc },
+          boss_brief: bb,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          client_id: clientId || null,
+          created_by: user?.id ?? null,
+          brief,
+          inputs: { clientId, platforms },
+          chat_history: [],
+          edit_history: [],
+          structured_answers: {},
+          executive_summary: doc.executive_summary ?? null,
+          signal_report_used: null,
+          metricool_snapshot: null,
+          performance: null,
+          performance_verdict: null,
+        }
+        setSessions(prev => [newSession, ...prev])
       }
 
       setPageState('document')
@@ -356,6 +412,16 @@ export default function StrategyPage() {
       {/* ── BRIEF state ── */}
       {pageState === 'brief' && (
         <div className="space-y-5">
+          {(sessions.length > 0 || sessionsLoading) && (
+            <div className="mb-6">
+              <StudioSessionList
+                sessions={sessions}
+                onSessionClick={handleSessionClick}
+                onNewSession={() => {}}
+                isLoading={sessionsLoading}
+              />
+            </div>
+          )}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
             {/* Client */}
             <div>

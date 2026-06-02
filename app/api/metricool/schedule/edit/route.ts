@@ -12,8 +12,10 @@ const supabase = createClient(
  * PATCH /api/metricool/schedule/edit
  *
  * Updates a scheduled or draft post's caption, scheduled_at, and/or platforms.
- * If the post was already scheduled in Metricool (has metricool_post_id),
- * cancels the old entry and creates a new one with the updated details.
+ * If the post was already scheduled in Metricool (has metricool_post_id):
+ *   1. Cancels the old Metricool entry FIRST — aborts with 502 if this fails (prevents duplicates)
+ *   2. Creates a new Metricool entry with updated details
+ *   3. Updates DB with new metricool_post_id
  *
  * Body: { post_id, caption, scheduled_at, platforms }
  */
@@ -50,7 +52,23 @@ export async function PATCH(req: NextRequest) {
     .eq('id', post.client_id)
     .single()
 
-  // Update in DB
+  // Step 1: Cancel the existing Metricool post BEFORE touching the DB.
+  // This is the gate that prevents duplicates — if delete fails, we abort.
+  // deleteScheduledPost treats 404 as success (already gone = fine).
+  if (post.metricool_post_id && client?.metricool_blog_id) {
+    try {
+      await deleteScheduledPost(post.metricool_post_id, client.metricool_blog_id)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[edit] Metricool delete failed — aborting edit to prevent duplicate:', message)
+      return NextResponse.json(
+        { error: `Could not cancel the existing scheduled post in Metricool (${message}). Edit aborted to prevent duplicate posts. Please try again.` },
+        { status: 502 }
+      )
+    }
+  }
+
+  // Step 2: Update DB now that the old Metricool entry is gone (or was never there).
   const { error: updateError } = await supabase
     .from('scheduled_posts')
     .update({ caption, scheduled_at, platforms, status: 'draft', metricool_post_id: null })
@@ -60,16 +78,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
 
-  // Cancel old Metricool entry if it existed
-  if (post.metricool_post_id && client?.metricool_blog_id) {
-    try {
-      await deleteScheduledPost(post.metricool_post_id, client.metricool_blog_id)
-    } catch {
-      // Non-fatal — old post may have already been removed in Metricool
-    }
-  }
-
-  // Re-schedule in Metricool if blog ID is configured
+  // Step 3: Re-schedule in Metricool if blog ID is configured.
   if (!client?.metricool_blog_id) {
     return NextResponse.json({ post_id, saved_as_draft: true, error: `"${client?.name}" has no Metricool blog ID` })
   }
@@ -107,6 +116,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: true, post_id, metricool_post_id: metricoolPost.id })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    // Old post was already deleted from Metricool. New post failed to create.
+    // DB is in draft state with no metricool_post_id — user can push again manually.
     return NextResponse.json({ post_id, saved_as_draft: true, error: `Saved — Metricool reschedule failed: ${message}` }, { status: 502 })
   }
 }

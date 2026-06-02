@@ -16,6 +16,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.supabase.in' },
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: 'drive.google.com' },
+      { protocol: 'https', hostname: 'i.ytimg.com' },         // YouTube thumbnails
+      { protocol: 'https', hostname: 'img.youtube.com' },     // YouTube alt thumbnails
     ],
   },
 }

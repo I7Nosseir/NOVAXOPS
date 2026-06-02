@@ -11,7 +11,8 @@ import { fetchTikTokTrends }  from '@/lib/data-providers/tiktok-creative-center'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
 import { createHash } from 'crypto'
 
-export const revalidate = 3600 // 1 hour
+// No cache in dev so new API keys are picked up immediately
+export const revalidate = process.env.NODE_ENV === 'production' ? 3600 : 0
 
 export interface TrendingContentItem {
   id: string
