@@ -94,12 +94,20 @@ async function getYouTubeItems(industry: string, region: string): Promise<Trendi
   const year   = new Date().getFullYear()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
 
+  // Exclude Indian-language content for non-Indian, non-global regions
+  const INDIAN_EXCLUSIONS = '-hindi -telugu -tamil -kannada -marathi -bollywood -india'
+  const ARABIC_REGIONS    = new Set(['AE', 'SA', 'EG', 'JO', 'KW', 'QA'])
+  const needsExclusion    = region !== 'global' && region !== 'IN'
+  const query = needsExclusion
+    ? `${industry} ${year} ${ARABIC_REGIONS.has(region) ? '' : INDIAN_EXCLUSIONS}`.trim()
+    : `${industry} ${year}`
+
   try {
     const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search')
     searchUrl.searchParams.set('part', 'snippet')
     searchUrl.searchParams.set('type', 'video')
     searchUrl.searchParams.set('order', 'viewCount')
-    searchUrl.searchParams.set('q', `${industry} ${year}`)
+    searchUrl.searchParams.set('q', query)
     searchUrl.searchParams.set('publishedAfter', thirtyDaysAgo)
     searchUrl.searchParams.set('maxResults', '10')
     searchUrl.searchParams.set('regionCode', ytConf.regionCode)

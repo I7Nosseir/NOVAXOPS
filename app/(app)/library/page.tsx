@@ -300,6 +300,8 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState<string>('all')
+  const [platformFilter, setPlatformFilter] = useState<string>('all')
+  const [savedOnly, setSavedOnly] = useState(false)
   const [saved, setSaved] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState<string | null>(null)
   const [usingTemplate, setUsingTemplate] = useState<string | null>(null)
@@ -316,21 +318,33 @@ export default function LibraryPage() {
   const libraryItems = posts.filter(p => p.status === 'published' && p.performance).map(post => ({
     ...post,
     saved: saved.has(post.id),
-    tags: post.performance!.engagement_rate > 7
-      ? ['Top Performer', 'Engagement']
-      : (post.performance!.likes ?? 0) > 1000
-      ? ['High Reach', 'Product Launch']
-      : ['Social Proof'],
+    tags: (() => {
+      const t: string[] = []
+      const p = post.performance!
+      const cap = post.caption.toLowerCase()
+      if (p.engagement_rate > 7)          t.push('Top Performer')
+      if (p.engagement_rate > 4)          t.push('Engagement')
+      if ((p.likes ?? 0) > 1000)          t.push('High Reach')
+      if (cap.includes('launch') || cap.includes('new') || cap.includes('introducing')) t.push('Product Launch')
+      if (cap.includes('tip') || cap.includes('how') || cap.includes('guide') || cap.includes('learn')) t.push('Educational')
+      if (cap.includes('behind') || cap.includes('bts') || cap.includes('team') || cap.includes('office')) t.push('Behind the Scenes')
+      if (cap.includes('sale') || cap.includes('off') || cap.includes('discount') || cap.includes('offer')) t.push('Promotional')
+      if (cap.includes('ramadan') || cap.includes('eid') || cap.includes('summer') || cap.includes('winter') || cap.includes('holiday') || cap.includes('season')) t.push('Seasonal')
+      if (cap.includes('review') || cap.includes('love') || cap.includes('customer') || cap.includes('results')) t.push('Social Proof')
+      return t.length > 0 ? t : ['Social Proof']
+    })(),
     template_name: `${clients.find(c => c.id === post.client_id)?.name ?? ''} — ${post.caption.slice(0, 35)}…`,
   }))
 
   const allItems: LibraryItem[] = libraryItems
 
   const filtered = allItems.filter(item => {
-    const matchSearch = search === '' || item.caption.toLowerCase().includes(search.toLowerCase()) || item.template_name.toLowerCase().includes(search.toLowerCase())
-    const matchTag = !activeTag || item.tags.includes(activeTag)
-    const matchClient = clientFilter === 'all' || item.client_id === clientFilter
-    return matchSearch && matchTag && matchClient
+    const matchSearch   = search === '' || item.caption.toLowerCase().includes(search.toLowerCase()) || item.template_name.toLowerCase().includes(search.toLowerCase())
+    const matchTag      = !activeTag || item.tags.includes(activeTag)
+    const matchClient   = clientFilter === 'all' || item.client_id === clientFilter
+    const matchPlatform = platformFilter === 'all' || item.platforms.includes(platformFilter as SocialPlatform)
+    const matchSaved    = !savedOnly || saved.has(item.id)
+    return matchSearch && matchTag && matchClient && matchPlatform && matchSaved
   })
 
   const handleCopy = (id: string, caption: string) => {
@@ -377,8 +391,8 @@ export default function LibraryPage() {
       {activeTab === 'templates' && (
         <>
           {/* Filters */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400"/>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…"
                 className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white transition-all"/>
@@ -388,6 +402,23 @@ export default function LibraryPage() {
               <option value="all">All Clients</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            <select value={platformFilter} onChange={e => setPlatformFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 outline-none focus:border-novax-muted bg-white">
+              <option value="all">All Platforms</option>
+              <option value="instagram">Instagram</option>
+              <option value="facebook">Facebook</option>
+              <option value="tiktok">TikTok</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="youtube">YouTube</option>
+            </select>
+            <button
+              onClick={() => setSavedOnly(v => !v)}
+              className={cn('flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition-colors',
+                savedOnly ? 'bg-amber-50 border-amber-300 text-amber-600' : 'border-slate-200 text-slate-600 hover:border-slate-300')}
+            >
+              <Star className={cn('w-3.5 h-3.5', savedOnly && 'fill-amber-400 text-amber-400')}/>
+              Saved
+            </button>
             <p className="text-sm text-slate-500 ml-auto">{filtered.length} templates</p>
           </div>
 
