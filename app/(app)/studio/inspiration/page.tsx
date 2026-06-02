@@ -62,6 +62,7 @@ const PLATFORMS = [
   { value: 'all',       label: 'All'            },
   { value: 'youtube',   label: 'YouTube'        },
   { value: 'tiktok',    label: 'TikTok'         },
+  { value: 'instagram', label: 'Instagram'      },
   { value: 'trendsmcp', label: 'Cross-platform' },
 ]
 

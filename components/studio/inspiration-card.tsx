@@ -14,6 +14,7 @@ const VELOCITY_CONFIG: Record<TrendingContentItem['velocity'], { label: string; 
 const PLATFORM_CONFIG: Record<TrendingContentItem['platform'], { label: string }> = {
   youtube:   { label: 'YouTube'        },
   tiktok:    { label: 'TikTok'         },
+  instagram: { label: 'Instagram'      },
   reddit:    { label: 'Reddit'         },
   trendsmcp: { label: 'Cross-platform' },
 }
@@ -44,6 +45,7 @@ function formatViewCount(n: number, type: TrendingContentItem['content_type']): 
 function PlatformPlaceholderIcon({ platform }: { platform: TrendingContentItem['platform'] }) {
   if (platform === 'youtube')   return <Play       className="w-8 h-8 text-white/60" />
   if (platform === 'tiktok')    return <Hash       className="w-8 h-8 text-white/60" />
+  if (platform === 'instagram') return <Globe      className="w-8 h-8 text-white/60" />
   if (platform === 'trendsmcp') return <TrendingUp className="w-8 h-8 text-white/60" />
   return                               <Globe      className="w-8 h-8 text-white/60" />
 }

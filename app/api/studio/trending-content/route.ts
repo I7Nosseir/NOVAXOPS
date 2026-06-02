@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchTikTokVideos, fetchTikTokTrends } from '@/lib/data-providers/tiktok-creative-center'
+import { fetchInstagramPosts }  from '@/lib/data-providers/instagram'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
 import { geminiJson }           from '@/lib/gemini'
 import { generateSearchQueries, getNicheKeywords, ARABIC_REGIONS, INDIAN_EXCLUSIONS } from '@/lib/studio/query-generator'
@@ -19,7 +20,7 @@ export const revalidate = 0
 
 export interface TrendingContentItem {
   id:             string
-  platform:       'youtube' | 'tiktok' | 'reddit' | 'trendsmcp'
+  platform:       'youtube' | 'tiktok' | 'instagram' | 'reddit' | 'trendsmcp'
   content_type:   'video' | 'hashtag' | 'post' | 'trend'
   title:          string
   url:            string
@@ -606,6 +607,42 @@ async function getYouTubeItems(industry: string, region: string): Promise<Trendi
   })
 }
 
+// ── Instagram ─────────────────────────────────────────────────
+
+async function getInstagramItems(industry: string, region: string): Promise<TrendingContentItem[]> {
+  const now = new Date().toISOString()
+  try {
+    const posts = await fetchInstagramPosts(industry, region)
+    return posts.map(p => {
+      const velocity: TrendingContentItem['velocity'] =
+        p.type === 'reel' && p.viewCount > 500_000 ? 'rising_fast' :
+        p.type === 'reel' && p.viewCount > 100_000 ? 'rising'      :
+        p.likeCount > 10_000                        ? 'peaking'     : 'stable'
+
+      const engagement = p.viewCount > 0
+        ? `${((p.likeCount + p.commentCount) / p.viewCount * 100).toFixed(1)}% ER`
+        : `${formatCount(p.likeCount)} likes`
+
+      return {
+        id:            makeId(p.url),
+        platform:      'instagram' as const,
+        content_type:  p.type === 'image' ? 'post' : 'video',
+        title:         p.caption || `${p.type === 'reel' ? 'Reel' : 'Post'} by @${p.authorHandle}`,
+        url:           p.url,
+        thumbnail_url: p.thumbnailUrl || undefined,
+        view_count:    p.viewCount || p.likeCount || undefined,
+        channel:       p.author || `@${p.authorHandle}`,
+        industry,
+        velocity,
+        why_trending:  `${p.type === 'reel' ? 'Reel' : 'Post'} · ${formatCount(p.likeCount)} likes · ${engagement}`,
+        fetched_at:    now,
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
 // ── TikTok ────────────────────────────────────────────────────
 
 async function getTikTokItems(industry: string, region: string): Promise<TrendingContentItem[]> {
@@ -741,15 +778,16 @@ export async function GET(req: NextRequest) {
 
   try {
     // Run YouTube pipeline + TikTok + TrendsMCP in parallel where possible
-    const [youtubeItems, tiktokItems, trendsmcpItems] = await Promise.all([
-      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region) : Promise.resolve([]),
-      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry, region)  : Promise.resolve([]),
-      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)       : Promise.resolve([]),
+    const [youtubeItems, tiktokItems, instagramItems, trendsmcpItems] = await Promise.all([
+      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region)   : Promise.resolve([]),
+      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry, region)    : Promise.resolve([]),
+      platform === 'all' || platform === 'instagram' ? getInstagramItems(industry, region) : Promise.resolve([]),
+      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)         : Promise.resolve([]),
     ])
 
     // YouTube items are already AI-ranked — insert them first
     const seen  = new Set<string>()
-    let nonYT   = [...tiktokItems, ...trendsmcpItems].filter(item => {
+    let nonYT   = [...tiktokItems, ...instagramItems, ...trendsmcpItems].filter(item => {
       if (seen.has(item.url)) return false
       seen.add(item.url)
       return true
