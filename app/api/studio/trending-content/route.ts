@@ -9,7 +9,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchTikTokTrends }    from '@/lib/data-providers/tiktok-creative-center'
+import { fetchTikTokVideos, fetchTikTokTrends } from '@/lib/data-providers/tiktok-creative-center'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
 import { geminiJson }           from '@/lib/gemini'
 import { createHash }           from 'crypto'
@@ -555,16 +555,43 @@ async function getYouTubeItems(industry: string, region: string): Promise<Trendi
 
 // ── TikTok ────────────────────────────────────────────────────
 
-async function getTikTokItems(industry: string): Promise<TrendingContentItem[]> {
+async function getTikTokItems(industry: string, region: string): Promise<TrendingContentItem[]> {
+  const now = new Date().toISOString()
+
+  // Primary: real videos via TikWM
+  try {
+    const videos = await fetchTikTokVideos(industry, region)
+    if (videos.length > 0) {
+      return videos.map(v => {
+        const likeRate = v.play_count > 0 ? v.like_count / v.play_count : 0
+        const velocity: TrendingContentItem['velocity'] =
+          likeRate > 0.05 && v.play_count > 1_000_000 ? 'rising_fast' :
+          likeRate > 0.02 || v.play_count > 500_000   ? 'rising'      :
+          v.play_count > 100_000                       ? 'peaking'     : 'stable'
+
+        return {
+          id:            makeId(v.url),
+          platform:      'tiktok'  as const,
+          content_type:  'video'   as const,
+          title:         v.title.slice(0, 120),
+          url:           v.url,
+          thumbnail_url: v.thumbnail_url,
+          view_count:    v.play_count || undefined,
+          channel:       v.author,
+          industry,
+          velocity,
+          why_trending:  `${formatCount(v.like_count)} likes · ${formatCount(v.share_count)} shares · ${v.duration}s`,
+          fetched_at:    now,
+        }
+      })
+    }
+  } catch { /* fall through to hashtag fallback */ }
+
+  // Fallback: hashtags from ogohogo if video search fails
   const data = await fetchTikTokTrends(industry)
-  return data.trending_hashtags.slice(0, 8).map(h => {
+  return data.trending_hashtags.slice(0, 6).map(h => {
     const tag = h.hashtag.replace(/^#/, '')
     const url = `https://www.tiktok.com/tag/${tag}`
-    const velocity: TrendingContentItem['velocity'] =
-      h.video_count > 500_000_000 ? 'rising_fast' :
-      h.trend_direction === 'rising' ? 'rising' :
-      h.trend_direction === 'stable' ? 'stable' : 'peaking'
-
     return {
       id:           makeId(url),
       platform:     'tiktok'  as const,
@@ -574,8 +601,8 @@ async function getTikTokItems(industry: string): Promise<TrendingContentItem[]> 
       view_count:   h.video_count || undefined,
       hashtag:      tag,
       industry,
-      velocity,
-      why_trending: `Trending TikTok hashtag active in the ${industry} category.`,
+      velocity:     'rising' as const,
+      why_trending: `Trending TikTok hashtag in the ${industry} category.`,
       fetched_at:   data.fetched_at,
     }
   })
@@ -663,7 +690,7 @@ export async function GET(req: NextRequest) {
     // Run YouTube pipeline + TikTok + TrendsMCP in parallel where possible
     const [youtubeItems, tiktokItems, trendsmcpItems] = await Promise.all([
       platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region) : Promise.resolve([]),
-      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry)          : Promise.resolve([]),
+      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry, region)  : Promise.resolve([]),
       platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)       : Promise.resolve([]),
     ])
 
