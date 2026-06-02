@@ -4,6 +4,8 @@
 // Hashtag fallback: ogohogo GitHub JSON
 // ============================================================
 
+import { generateSearchQueries, ARABIC_REGIONS as AR_REGIONS } from '@/lib/studio/query-generator'
+
 export interface TikTokVideoItem {
   video_id:      string
   title:         string
@@ -83,8 +85,6 @@ const EN_TIKTOK_QUERIES: Record<string, string[]> = {
   real_estate: ['real estate tips', 'property investing', 'house tour'],
 }
 
-const ARABIC_REGIONS = new Set(['AE', 'SA', 'EG', 'JO', 'KW', 'QA'])
-
 const INDIAN_SIGNALS = [
   'hindi', 'bollywood', 'india', 'indian', 'desi', 'telugu', 'tamil',
   'kannada', 'marathi', 'bengali', 'punjabi', 'bigg boss', 'bharat',
@@ -135,13 +135,22 @@ export async function fetchTikTokVideos(
   industry: string,
   region:   string,
 ): Promise<TikTokVideoItem[]> {
-  const niche     = industry.toLowerCase()
-  const isArabic  = ARABIC_REGIONS.has(region)
+  const niche    = industry.toLowerCase()
+  const isArabic = AR_REGIONS.has(region)
 
-  // Pick search queries
-  const queries = isArabic
-    ? (TIKTOK_QUERIES[region]?.[niche] ?? TIKTOK_QUERIES.SA[niche] ?? [`${niche} عربي`]).slice(0, 2)
-    : (EN_TIKTOK_QUERIES[niche] ?? [`${niche} viral`, `${niche} tutorial`]).slice(0, 2)
+  // Predefined queries first, AI fallback for custom niches
+  let queries: string[]
+  if (isArabic) {
+    const predefined = TIKTOK_QUERIES[region]?.[niche] ?? TIKTOK_QUERIES.SA?.[niche]
+    queries = predefined?.length
+      ? predefined.slice(0, 2)
+      : (await generateSearchQueries(industry, region, 'tiktok')).slice(0, 2)
+  } else {
+    const predefined = EN_TIKTOK_QUERIES[niche]
+    queries = predefined?.length
+      ? predefined.slice(0, 2)
+      : (await generateSearchQueries(industry, region, 'tiktok')).slice(0, 2)
+  }
 
   // Run queries in parallel
   const batches = await Promise.all(queries.map(q => searchTikWM(q, 8)))

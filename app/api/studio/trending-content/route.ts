@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchTikTokVideos, fetchTikTokTrends } from '@/lib/data-providers/tiktok-creative-center'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
 import { geminiJson }           from '@/lib/gemini'
+import { generateSearchQueries, ARABIC_REGIONS, INDIAN_EXCLUSIONS } from '@/lib/studio/query-generator'
 import { createHash }           from 'crypto'
 
 export const revalidate = 0
@@ -36,8 +37,6 @@ export interface TrendingContentItem {
 }
 
 // ── Static config maps ────────────────────────────────────────
-
-const ARABIC_REGIONS = new Set(['AE', 'SA', 'EG', 'JO', 'KW', 'QA'])
 
 const REGION_YT: Record<string, { regionCode: string; relevanceLanguage?: string }> = {
   global: { regionCode: 'US'                           },
@@ -159,24 +158,26 @@ interface SeedItem {
   thumbnails:   { high?: { url: string }; medium?: { url: string }; default?: { url: string } }
 }
 
-function buildQueries(industry: string, region: string): string[] {
-  const niche    = industry.toLowerCase()
-  const INDIAN_EX = '-hindi -telugu -tamil -kannada -marathi -bollywood'
+async function buildQueries(industry: string, region: string): Promise<string[]> {
+  const niche = industry.toLowerCase()
 
   if (ARABIC_REGIONS.has(region)) {
     const byCountry = AR_QUERIES[region]?.[niche] ?? AR_QUERIES_DEFAULT[niche]
     if (byCountry?.length) return byCountry.slice(0, 3)
-    return [`${niche} عربي 2025`, `${niche} خليجي ترند`]
+    // Custom/unknown niche → AI generates Arabic queries
+    return generateSearchQueries(industry, region, 'youtube')
   }
 
   const angles = EN_QUERIES[niche]
   if (angles?.length) {
-    const ex = region !== 'global' ? ` ${INDIAN_EX}` : ''
+    const ex = region !== 'global' ? ` ${INDIAN_EXCLUSIONS}` : ''
     return angles.slice(0, 3).map(q => `${q}${ex}`)
   }
 
-  const ex = region !== 'global' ? ` ${INDIAN_EX}` : ''
-  return [`${niche} tutorial 2025${ex}`, `${niche} tips review${ex}`]
+  // Custom/unknown niche → AI generates English queries
+  const aiQueries = await generateSearchQueries(industry, region, 'youtube')
+  const ex = region !== 'global' ? ` ${INDIAN_EXCLUSIONS}` : ''
+  return aiQueries.map(q => `${q}${ex}`)
 }
 
 async function seedSearch(
@@ -186,7 +187,7 @@ async function seedSearch(
   key: string,
   publishedAfter: string,
 ): Promise<SeedItem[]> {
-  const queries = buildQueries(industry, region)
+  const queries = await buildQueries(industry, region)
 
   const batches = await Promise.all(queries.map(async q => {
     try {
