@@ -1,7 +1,7 @@
 # NOVAX Ops — Master Status & Roadmap
 
-**Last updated:** 2026-05-23  
-**Platform state:** Production-ready MVP. Core content pipeline works end-to-end.
+**Last updated:** 2026-06-02  
+**Platform state:** Production-ready MVP. Studio tools rebuilt to world-class standard. Platform-wide upgrade plan underway.
 
 ---
 
@@ -107,6 +107,24 @@ Every step of this loop is live:
 ---
 
 ## Planned New Features
+
+### Platform World-Class Upgrade (2026-06-02 — studio-level intelligence on all pages)
+
+**Full plan:** [PLAN_platform_world_class.md](./PLAN_platform_world_class.md) — 57h across ~8 sessions
+
+| Priority | Feature | Est. | Status |
+|---|---|---|---|
+| P0 | Cross-cutting intelligence infrastructure (evidence chip, boss brief, anomaly detector, daily brief) | 5h | Planned |
+| P0 | Dashboard → Intelligence Command Center | 6h | Planned |
+| P1 | Clients → Real AI intelligence document (replaces mock SWOT) | 6h | Planned |
+| P1 | Reports → Studio-style generation flow with narrative | 8h | Planned |
+| P1 | Publishing → Compose mini-flow + calendar performance overlay | 7h | Planned |
+| P2 | Moderation → Priority queue + 3 reply variants + quality check | 6h | Planned |
+| P2 | Pipeline → Health banner + smart stage gates + bottleneck detection | 5h | Planned |
+| P3 | Approval → Package builder + analytics | 4h | Planned |
+| P3 | Assets → Performance linking + AI intelligence | 5h | Planned |
+| P3 | Creative Eval → Evidence scoring + Boss Brief | 3h | Planned |
+| P3 | Workload → Capacity forecast + skill match warnings | 2h | Planned |
 
 ### Round 1 (previous sessions)
 
