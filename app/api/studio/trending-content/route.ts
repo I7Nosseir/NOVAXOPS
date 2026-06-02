@@ -54,17 +54,70 @@ const REGION_YT: Record<string, { regionCode: string; relevanceLanguage?: string
   DE:     { regionCode: 'DE', relevanceLanguage: 'de'    },
 }
 
-// Arabic search terms per niche — used instead of English for MENA regions
-const ARABIC_NICHE: Record<string, string> = {
-  beauty:      'جمال سكن كير مكياج',
-  tech:        'تقنية تكنولوجيا ذكاء اصطناعي',
-  food:        'طبخ وصفات اكل',
-  fitness:     'لياقة رياضة تمارين',
-  finance:     'استثمار مال اقتصاد',
-  fashion:     'موضة ازياء',
-  travel:      'سفر سياحة',
-  education:   'تعليم دراسة',
-  real_estate: 'عقارات شقق',
+// ── Multi-query search terms ──────────────────────────────────
+// 3 angle queries per niche per region — run in parallel for variety
+
+// English query angles (global / US / GB / etc.)
+const EN_QUERIES: Record<string, string[]> = {
+  beauty:      ['skincare routine tutorial', 'makeup review products 2025', 'beauty tips transformation'],
+  tech:        ['tech review gadgets 2025', 'AI software tutorial productivity', 'tech unboxing comparison'],
+  food:        ['easy recipe cooking tutorial', 'food review restaurant', 'meal prep healthy cooking'],
+  fitness:     ['full body workout tutorial', 'fitness transformation tips', 'gym training exercises 2025'],
+  finance:     ['investing money tips 2025', 'personal finance budget savings', 'stock market crypto guide'],
+  fashion:     ['outfit ideas style trends 2025', 'fashion haul try-on', 'styling tips wardrobe'],
+  travel:      ['travel vlog destination guide', 'budget travel tips 2025', 'hidden gems travel'],
+  education:   ['learn skill online tutorial', 'study tips productivity 2025', 'education explained beginner'],
+  real_estate: ['real estate investing 2025', 'property buying guide tips', 'house tour renovation'],
+}
+
+// Country-specific Arabic query angles — different per country
+const AR_QUERIES: Record<string, Record<string, string[]>> = {
+  EG: {
+    beauty:      ['جمال مصري مكياج روتين', 'سكن كير عناية بشرة مصر', 'تجميل مصرية منتجات'],
+    tech:        ['تقنية مصر تكنولوجيا 2025', 'ريفيو موبايل مصري', 'شرح تطبيقات مصر'],
+    food:        ['طبخ مصري وصفات اكل', 'مطبخ مصري تقليدي', 'اكلات مصرية سريعة'],
+    fitness:     ['رياضة مصر تمارين لياقة', 'دايت مصري تخسيس', 'كمال اجسام مصر'],
+    finance:     ['استثمار مصر مال 2025', 'بورصة مصر اقتصاد', 'ادخار مصري نصايح'],
+    fashion:     ['موضة مصرية ازياء 2025', 'ستايل مصري لبس', 'ملابس مصر ترند'],
+    travel:      ['سياحة مصر اماكن', 'سفر مصري رحلات', 'اماكن جميلة مصر'],
+    education:   ['تعليم مصر دراسة 2025', 'شرح درس مصري', 'كورس مجاني مصر'],
+    real_estate: ['عقارات مصر شقق 2025', 'مشاريع تمليك مصر', 'استثمار عقاري مصر'],
+  },
+  SA: {
+    beauty:      ['جمال سعودي مكياج روتين', 'سكن كير عناية السعودية', 'بيوتي سعودية منتجات'],
+    tech:        ['تقنية السعودية 2025 تقنية', 'ريفيو جوال سعودي', 'تكنولوجيا رؤية 2030'],
+    food:        ['طبخ سعودي وصفات مطبخ', 'اكل سعودي تقليدي', 'وصفات سعودية سريعة'],
+    fitness:     ['رياضة السعودية لياقة', 'تمارين سعودية جيم', 'دايت سعودي تخسيس'],
+    finance:     ['استثمار السعودية 2025', 'تداول اسهم سعودي', 'ريادة اعمال السعودية'],
+    fashion:     ['موضة سعودية عبايات 2025', 'ستايل سعودي لبس', 'ازياء خليجية سعودية'],
+    travel:      ['سياحة السعودية نيوم', 'سفر داخلي السعودية', 'اماكن سعودية سياحية'],
+    education:   ['تعليم السعودية 2025', 'كورسات سعودية مجانية', 'شرح منهج سعودي'],
+    real_estate: ['عقارات السعودية 2025', 'شراء شقة الرياض', 'استثمار عقاري السعودية'],
+  },
+  AE: {
+    beauty:      ['جمال اماراتي مكياج دبي', 'سكن كير الامارات بيوتي', 'تجميل خليجي منتجات'],
+    tech:        ['تقنية الامارات دبي 2025', 'ستارت اب دبي تقنية', 'ريفيو تكنولوجيا الامارات'],
+    food:        ['طبخ اماراتي وصفات دبي', 'مطاعم دبي افضل', 'اكل اماراتي تقليدي'],
+    fitness:     ['رياضة دبي لياقة', 'جيم الامارات تمارين', 'لايف ستايل دبي صحة'],
+    finance:     ['استثمار دبي 2025 اعمال', 'عملات رقمية الامارات', 'ريادة اعمال دبي'],
+    fashion:     ['موضة دبي خليجية 2025', 'ستايل اماراتي فاشن', 'لوكس دبي موضة'],
+    travel:      ['سياحة دبي اماكن 2025', 'سفر الامارات رحلات', 'دبي مول اماكن ترفيه'],
+    education:   ['تعليم الامارات 2025', 'كورسات دبي اونلاين', 'مهارات الامارات'],
+    real_estate: ['عقارات دبي 2025 شراء', 'استثمار اماراتي عقاري', 'تملك شقة دبي'],
+  },
+}
+
+// Fallback Arabic queries for JO/KW/QA — generic pan-Arab
+const AR_QUERIES_DEFAULT: Record<string, string[]> = {
+  beauty:      ['جمال عربي مكياج روتين', 'سكن كير عناية بشرة خليجي', 'بيوتي عربي 2025'],
+  tech:        ['تقنية عربي تكنولوجيا 2025', 'ريفيو تقنية خليجي', 'تطبيقات عربية'],
+  food:        ['طبخ عربي وصفات', 'مطبخ خليجي تقليدي', 'اكل عربي سريع'],
+  fitness:     ['رياضة عربي لياقة 2025', 'تمارين خليجي جيم', 'دايت عربي'],
+  finance:     ['استثمار عربي مال 2025', 'تداول خليجي اسهم', 'ريادة اعمال عربي'],
+  fashion:     ['موضة عربية خليجية 2025', 'ستايل خليجي ازياء', 'فاشن عربي'],
+  travel:      ['سياحة خليجي سفر', 'رحلات عربية اماكن', 'سفر خليجي 2025'],
+  education:   ['تعليم عربي اونلاين 2025', 'كورسات مجانية عربي', 'شرح عربي'],
+  real_estate: ['عقارات خليجي 2025', 'استثمار عقاري عربي', 'شراء شقة خليجي'],
 }
 
 // Google Trends geo code per region
@@ -100,99 +153,135 @@ function classifyTitle(title: string): string {
   return 'General'
 }
 
+// ── YouTube search helpers ────────────────────────────────────
+
+type RawSearchItem = {
+  id: { videoId: string }
+  snippet: {
+    title: string
+    channelTitle: string
+    thumbnails: { high?: { url: string }; medium?: { url: string }; default?: { url: string } }
+  }
+}
+
+function buildQueries(industry: string, region: string): string[] {
+  const niche = industry.toLowerCase()
+  const INDIAN_EX = '-hindi -telugu -tamil -kannada -marathi -bollywood'
+
+  if (ARABIC_REGIONS.has(region)) {
+    // Country-specific Arabic queries, fall back to generic Arab queries
+    const byCountry = AR_QUERIES[region]?.[niche] ?? AR_QUERIES_DEFAULT[niche]
+    if (byCountry) return byCountry.slice(0, 3)
+    return [`${niche} عربي 2025`, `${niche} خليجي`]
+  }
+
+  const englishAngles = EN_QUERIES[niche]
+  if (englishAngles) {
+    const ex = region !== 'global' ? ` ${INDIAN_EX}` : ''
+    return englishAngles.slice(0, 3).map(q => `${q}${ex}`)
+  }
+
+  const ex = region !== 'global' ? ` ${INDIAN_EX}` : ''
+  return [`${niche} tutorial 2025${ex}`, `${niche} tips review${ex}`]
+}
+
+async function runYouTubeSearch(
+  query: string,
+  ytConf: { regionCode: string; relevanceLanguage?: string },
+  key: string,
+  thirtyDaysAgo: string,
+): Promise<RawSearchItem[]> {
+  try {
+    const url = new URL('https://www.googleapis.com/youtube/v3/search')
+    url.searchParams.set('part', 'snippet')
+    url.searchParams.set('type', 'video')
+    url.searchParams.set('order', 'viewCount')
+    url.searchParams.set('q', query)
+    url.searchParams.set('publishedAfter', thirtyDaysAgo)
+    url.searchParams.set('maxResults', '8')
+    url.searchParams.set('regionCode', ytConf.regionCode)
+    if (ytConf.relevanceLanguage) url.searchParams.set('relevanceLanguage', ytConf.relevanceLanguage)
+    url.searchParams.set('key', key)
+
+    const res = await fetch(url.toString())
+    if (!res.ok) return []
+    const data = await res.json()
+    return ((data.items ?? []) as RawSearchItem[]).filter(i => !!i.id?.videoId)
+  } catch {
+    return []
+  }
+}
+
 async function getYouTubeItems(industry: string, region: string): Promise<TrendingContentItem[]> {
   const KEY = process.env.YOUTUBE_API_KEY
   if (!KEY) return []
 
-  const ytConf = REGION_YT[region] ?? REGION_YT.US
-  const now    = new Date().toISOString()
-  const year   = new Date().getFullYear()
+  const ytConf       = REGION_YT[region] ?? REGION_YT.US
+  const now          = new Date().toISOString()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
+  const queries      = buildQueries(industry, region)
 
-  // For MENA regions: search in Arabic so results are actually from Arabic creators
-  // For other non-global regions: exclude Indian-language content
-  const INDIAN_EXCLUSIONS = '-hindi -telugu -tamil -kannada -marathi -bollywood'
-  const arabicTerm = ARABIC_NICHE[industry.toLowerCase()]
-  const query = ARABIC_REGIONS.has(region)
-    ? `${arabicTerm ?? industry} ${year}`                                        // Arabic search
-    : region !== 'global'
-    ? `${industry} ${year} ${INDIAN_EXCLUSIONS}`                                 // English + exclusions
-    : `${industry} ${year}`                                                      // global
+  // Run all queries in parallel
+  const batches = await Promise.all(
+    queries.map(q => runYouTubeSearch(q, ytConf, KEY, thirtyDaysAgo))
+  )
 
-  try {
-    const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search')
-    searchUrl.searchParams.set('part', 'snippet')
-    searchUrl.searchParams.set('type', 'video')
-    searchUrl.searchParams.set('order', 'viewCount')
-    searchUrl.searchParams.set('q', query)
-    searchUrl.searchParams.set('publishedAfter', thirtyDaysAgo)
-    searchUrl.searchParams.set('maxResults', '10')
-    searchUrl.searchParams.set('regionCode', ytConf.regionCode)
-    if (ytConf.relevanceLanguage) {
-      searchUrl.searchParams.set('relevanceLanguage', ytConf.relevanceLanguage)
-    }
-    searchUrl.searchParams.set('key', KEY)
-
-    const searchRes = await fetch(searchUrl.toString())
-    if (!searchRes.ok) return []
-
-    const searchData = await searchRes.json()
-    const items: Array<{
-      id: { videoId: string }
-      snippet: {
-        title: string
-        channelTitle: string
-        thumbnails: { high?: { url: string }; medium?: { url: string }; default?: { url: string } }
+  // Deduplicate by videoId, preserving order (first-seen wins)
+  const seen  = new Set<string>()
+  const items: RawSearchItem[] = []
+  for (const batch of batches) {
+    for (const item of batch) {
+      if (!seen.has(item.id.videoId)) {
+        seen.add(item.id.videoId)
+        items.push(item)
       }
-    }> = (searchData.items ?? []).filter((i: { id?: { videoId?: string } }) => !!i.id?.videoId)
-
-    if (!items.length) return []
-
-    // Fetch view counts
-    const videoIds = items.map(i => i.id.videoId).join(',')
-    const statsUrl = new URL('https://www.googleapis.com/youtube/v3/videos')
-    statsUrl.searchParams.set('part', 'statistics')
-    statsUrl.searchParams.set('id', videoIds)
-    statsUrl.searchParams.set('key', KEY)
-
-    const statsRes  = await fetch(statsUrl.toString())
-    const statsData = statsRes.ok ? await statsRes.json() : { items: [] }
-    const viewMap   = new Map<string, number>()
-    for (const v of (statsData.items ?? []) as Array<{ id: string; statistics?: { viewCount?: string } }>) {
-      viewMap.set(v.id, parseInt(v.statistics?.viewCount ?? '0', 10))
     }
-
-    return items.map(item => {
-      const videoId   = item.id.videoId
-      const thumbnail =
-        item.snippet.thumbnails.high?.url ??
-        item.snippet.thumbnails.medium?.url ??
-        item.snippet.thumbnails.default?.url ??
-        `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-      const url    = `https://www.youtube.com/watch?v=${videoId}`
-      const views  = viewMap.get(videoId) ?? 0
-      const format = classifyTitle(item.snippet.title)
-      const velocity: TrendingContentItem['velocity'] =
-        views > 5_000_000 ? 'rising_fast' : views > 1_000_000 ? 'rising' : 'peaking'
-
-      return {
-        id:            makeId(url),
-        platform:      'youtube' as const,
-        content_type:  'video'   as const,
-        title:         item.snippet.title,
-        url,
-        thumbnail_url: thumbnail,
-        view_count:    views || undefined,
-        channel:       item.snippet.channelTitle,
-        industry,
-        velocity,
-        why_trending:  `${format} — gaining traction in the ${industry} space.`,
-        fetched_at:    now,
-      }
-    })
-  } catch {
-    return []
   }
+
+  if (!items.length) return []
+
+  // Fetch view counts for all unique videos in one call
+  const videoIds = items.map(i => i.id.videoId).join(',')
+  const statsUrl = new URL('https://www.googleapis.com/youtube/v3/videos')
+  statsUrl.searchParams.set('part', 'statistics')
+  statsUrl.searchParams.set('id', videoIds)
+  statsUrl.searchParams.set('key', KEY)
+
+  const statsRes  = await fetch(statsUrl.toString())
+  const statsData = statsRes.ok ? await statsRes.json() : { items: [] }
+  const viewMap   = new Map<string, number>()
+  for (const v of (statsData.items ?? []) as Array<{ id: string; statistics?: { viewCount?: string } }>) {
+    viewMap.set(v.id, parseInt(v.statistics?.viewCount ?? '0', 10))
+  }
+
+  return items.map(item => {
+    const videoId   = item.id.videoId
+    const thumbnail =
+      item.snippet.thumbnails.high?.url ??
+      item.snippet.thumbnails.medium?.url ??
+      item.snippet.thumbnails.default?.url ??
+      `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+    const url    = `https://www.youtube.com/watch?v=${videoId}`
+    const views  = viewMap.get(videoId) ?? 0
+    const format = classifyTitle(item.snippet.title)
+    const velocity: TrendingContentItem['velocity'] =
+      views > 5_000_000 ? 'rising_fast' : views > 1_000_000 ? 'rising' : 'peaking'
+
+    return {
+      id:            makeId(url),
+      platform:      'youtube' as const,
+      content_type:  'video'   as const,
+      title:         item.snippet.title,
+      url,
+      thumbnail_url: thumbnail,
+      view_count:    views || undefined,
+      channel:       item.snippet.channelTitle,
+      industry,
+      velocity,
+      why_trending:  `${format} — gaining traction in the ${industry} space.`,
+      fetched_at:    now,
+    }
+  })
 }
 
 // ── TikTok ────────────────────────────────────────────────────
