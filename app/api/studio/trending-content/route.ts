@@ -1,12 +1,11 @@
 // ============================================================
 // GET /api/studio/trending-content
-// Query params:
-//   industry  – beauty | tech | food | fitness | finance | fashion | travel | education | real_estate | <custom>
-//   platform  – all | youtube | tiktok | trendsmcp
-//   region    – global | US | GB | AE | SA | EG | JO | KW | QA | FR | DE | AU
-//   language  – any | en | ar
-//   ai_filter – true | false  (Gemini relevance scoring, removes off-topic/wrong-language items)
-//   limit     – max 50
+// 5-Phase Discovery Pipeline:
+//   Phase 1 — Seed: 3 parallel country-specific YouTube searches
+//   Phase 2 — Chart: YouTube mostPopular regional chart by category
+//   Phase 3 — Expand: crawl uploads playlists of top seed channels
+//   Phase 4 — Enrich: batch-fetch statistics, tags, duration for all videos
+//   Phase 5 — AI Rank: Gemini scores country fit + niche depth, writes insight
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -18,268 +17,538 @@ import { createHash }           from 'crypto'
 export const revalidate = 0
 
 export interface TrendingContentItem {
-  id: string
-  platform: 'youtube' | 'tiktok' | 'reddit' | 'trendsmcp'
-  content_type: 'video' | 'hashtag' | 'post' | 'trend'
-  title: string
-  url: string
+  id:             string
+  platform:       'youtube' | 'tiktok' | 'reddit' | 'trendsmcp'
+  content_type:   'video' | 'hashtag' | 'post' | 'trend'
+  title:          string
+  url:            string
   thumbnail_url?: string
-  view_count?: number
-  channel?: string
-  hashtag?: string
-  industry: string
-  velocity: 'rising_fast' | 'rising' | 'peaking' | 'stable'
-  why_trending: string
-  fetched_at: string
+  view_count?:    number
+  channel?:       string
+  hashtag?:       string
+  industry:       string
+  velocity:       'rising_fast' | 'rising' | 'peaking' | 'stable'
+  why_trending:   string
+  content_format?: string   // AI-classified: Tutorial, Review, Vlog, etc.
+  ai_score?:       number   // 0-10 country+niche fit
+  ai_insight?:     string   // 1-sentence explanation from Gemini
+  fetched_at:     string
 }
 
-// ── Maps ──────────────────────────────────────────────────────
+// ── Static config maps ────────────────────────────────────────
 
 const ARABIC_REGIONS = new Set(['AE', 'SA', 'EG', 'JO', 'KW', 'QA'])
 
-// YouTube regionCode + relevanceLanguage per region
 const REGION_YT: Record<string, { regionCode: string; relevanceLanguage?: string }> = {
-  global: { regionCode: 'US'                              },
-  US:     { regionCode: 'US', relevanceLanguage: 'en'    },
-  GB:     { regionCode: 'GB', relevanceLanguage: 'en'    },
-  AU:     { regionCode: 'AU', relevanceLanguage: 'en'    },
-  CA:     { regionCode: 'CA', relevanceLanguage: 'en'    },
-  AE:     { regionCode: 'AE', relevanceLanguage: 'ar'    },
-  SA:     { regionCode: 'SA', relevanceLanguage: 'ar'    },
-  EG:     { regionCode: 'EG', relevanceLanguage: 'ar'    },
-  JO:     { regionCode: 'JO', relevanceLanguage: 'ar'    },
-  KW:     { regionCode: 'KW', relevanceLanguage: 'ar'    },
-  QA:     { regionCode: 'QA', relevanceLanguage: 'ar'    },
-  FR:     { regionCode: 'FR', relevanceLanguage: 'fr'    },
-  DE:     { regionCode: 'DE', relevanceLanguage: 'de'    },
+  global: { regionCode: 'US'                           },
+  US:     { regionCode: 'US', relevanceLanguage: 'en' },
+  GB:     { regionCode: 'GB', relevanceLanguage: 'en' },
+  AU:     { regionCode: 'AU', relevanceLanguage: 'en' },
+  CA:     { regionCode: 'CA', relevanceLanguage: 'en' },
+  AE:     { regionCode: 'AE', relevanceLanguage: 'ar' },
+  SA:     { regionCode: 'SA', relevanceLanguage: 'ar' },
+  EG:     { regionCode: 'EG', relevanceLanguage: 'ar' },
+  JO:     { regionCode: 'JO', relevanceLanguage: 'ar' },
+  KW:     { regionCode: 'KW', relevanceLanguage: 'ar' },
+  QA:     { regionCode: 'QA', relevanceLanguage: 'ar' },
+  FR:     { regionCode: 'FR', relevanceLanguage: 'fr' },
+  DE:     { regionCode: 'DE', relevanceLanguage: 'de' },
 }
 
-// ── Multi-query search terms ──────────────────────────────────
-// 3 angle queries per niche per region — run in parallel for variety
+// YouTube category ID per niche (for mostPopular chart filtering)
+const NICHE_CATEGORY: Record<string, string> = {
+  beauty:      '26', // Howto & Style
+  fashion:     '26',
+  food:        '26',
+  fitness:     '17', // Sports
+  tech:        '28', // Science & Technology
+  finance:     '25', // News & Politics
+  travel:      '19', // Travel & Events
+  education:   '27', // Education
+  real_estate: '25',
+}
 
-// English query angles (global / US / GB / etc.)
+// ── Search query banks ────────────────────────────────────────
+
 const EN_QUERIES: Record<string, string[]> = {
-  beauty:      ['skincare routine tutorial', 'makeup review products 2025', 'beauty tips transformation'],
-  tech:        ['tech review gadgets 2025', 'AI software tutorial productivity', 'tech unboxing comparison'],
-  food:        ['easy recipe cooking tutorial', 'food review restaurant', 'meal prep healthy cooking'],
-  fitness:     ['full body workout tutorial', 'fitness transformation tips', 'gym training exercises 2025'],
-  finance:     ['investing money tips 2025', 'personal finance budget savings', 'stock market crypto guide'],
-  fashion:     ['outfit ideas style trends 2025', 'fashion haul try-on', 'styling tips wardrobe'],
-  travel:      ['travel vlog destination guide', 'budget travel tips 2025', 'hidden gems travel'],
-  education:   ['learn skill online tutorial', 'study tips productivity 2025', 'education explained beginner'],
-  real_estate: ['real estate investing 2025', 'property buying guide tips', 'house tour renovation'],
+  beauty:      ['skincare routine tutorial', 'makeup review transformation', 'beauty tips products 2025'],
+  tech:        ['tech review gadgets 2025', 'AI software tutorial', 'unboxing comparison tech'],
+  food:        ['easy recipe cooking tutorial', 'restaurant food review', 'meal prep healthy 2025'],
+  fitness:     ['full body workout tutorial', 'fitness transformation 2025', 'gym training exercises'],
+  finance:     ['investing money tips 2025', 'personal finance budget', 'stock market guide'],
+  fashion:     ['outfit style trends 2025', 'fashion haul try-on', 'styling tips wardrobe'],
+  travel:      ['travel vlog destination', 'budget travel tips 2025', 'hidden gems travel guide'],
+  education:   ['learn skill tutorial 2025', 'study tips productivity', 'explained for beginners'],
+  real_estate: ['real estate investing 2025', 'property buying guide', 'house tour renovation'],
 }
 
-// Country-specific Arabic query angles — different per country
 const AR_QUERIES: Record<string, Record<string, string[]>> = {
   EG: {
-    beauty:      ['جمال مصري مكياج روتين', 'سكن كير عناية بشرة مصر', 'تجميل مصرية منتجات'],
-    tech:        ['تقنية مصر تكنولوجيا 2025', 'ريفيو موبايل مصري', 'شرح تطبيقات مصر'],
-    food:        ['طبخ مصري وصفات اكل', 'مطبخ مصري تقليدي', 'اكلات مصرية سريعة'],
-    fitness:     ['رياضة مصر تمارين لياقة', 'دايت مصري تخسيس', 'كمال اجسام مصر'],
-    finance:     ['استثمار مصر مال 2025', 'بورصة مصر اقتصاد', 'ادخار مصري نصايح'],
-    fashion:     ['موضة مصرية ازياء 2025', 'ستايل مصري لبس', 'ملابس مصر ترند'],
-    travel:      ['سياحة مصر اماكن', 'سفر مصري رحلات', 'اماكن جميلة مصر'],
-    education:   ['تعليم مصر دراسة 2025', 'شرح درس مصري', 'كورس مجاني مصر'],
-    real_estate: ['عقارات مصر شقق 2025', 'مشاريع تمليك مصر', 'استثمار عقاري مصر'],
+    beauty:      ['جمال مصري مكياج روتين', 'سكن كير عناية بشرة مصر', 'تجميل مصرية منتجات 2025'],
+    tech:        ['تقنية مصر تكنولوجيا 2025', 'ريفيو موبايل مصري', 'شرح تطبيقات ذكاء اصطناعي مصر'],
+    food:        ['طبخ مصري وصفات سريعة', 'مطبخ مصري تقليدي اكل', 'وصفات مصرية صحية 2025'],
+    fitness:     ['رياضة مصر تمارين لياقة', 'دايت مصري تخسيس 2025', 'كمال اجسام مصري جيم'],
+    finance:     ['استثمار مصر مال 2025', 'بورصة مصر اقتصاد', 'مشاريع صغيرة مصر ارباح'],
+    fashion:     ['موضة مصرية ازياء 2025', 'ستايل مصري لبس ترند', 'ملابس مصر فاشن محجبات'],
+    travel:      ['سياحة مصر اماكن 2025', 'رحلات مصرية داخلية', 'اماكن جميلة مصر مجهولة'],
+    education:   ['تعليم مصر دراسة 2025', 'شرح درس مصري منهج', 'كورس مجاني مصري اونلاين'],
+    real_estate: ['عقارات مصر شقق 2025', 'مشاريع تمليك مصر استثمار', 'شراء شقة مصر نصايح'],
   },
   SA: {
-    beauty:      ['جمال سعودي مكياج روتين', 'سكن كير عناية السعودية', 'بيوتي سعودية منتجات'],
-    tech:        ['تقنية السعودية 2025 تقنية', 'ريفيو جوال سعودي', 'تكنولوجيا رؤية 2030'],
-    food:        ['طبخ سعودي وصفات مطبخ', 'اكل سعودي تقليدي', 'وصفات سعودية سريعة'],
-    fitness:     ['رياضة السعودية لياقة', 'تمارين سعودية جيم', 'دايت سعودي تخسيس'],
-    finance:     ['استثمار السعودية 2025', 'تداول اسهم سعودي', 'ريادة اعمال السعودية'],
-    fashion:     ['موضة سعودية عبايات 2025', 'ستايل سعودي لبس', 'ازياء خليجية سعودية'],
-    travel:      ['سياحة السعودية نيوم', 'سفر داخلي السعودية', 'اماكن سعودية سياحية'],
-    education:   ['تعليم السعودية 2025', 'كورسات سعودية مجانية', 'شرح منهج سعودي'],
-    real_estate: ['عقارات السعودية 2025', 'شراء شقة الرياض', 'استثمار عقاري السعودية'],
+    beauty:      ['جمال سعودي مكياج روتين 2025', 'سكن كير عناية بشرة السعودية', 'بيوتي سعودية منتجات ريفيو'],
+    tech:        ['تقنية السعودية 2025 رؤية', 'ريفيو جوال سعودي مقارنة', 'تكنولوجيا ذكاء اصطناعي السعودية'],
+    food:        ['طبخ سعودي وصفات مطبخ 2025', 'اكل سعودي تقليدي اصيل', 'وصفات سعودية سريعة صحية'],
+    fitness:     ['رياضة السعودية لياقة 2025', 'تمارين سعودية جيم ترند', 'دايت سعودي تخسيس نظام'],
+    finance:     ['استثمار السعودية 2025 مال', 'تداول اسهم تداول سعودي', 'ريادة اعمال السعودية نجاح'],
+    fashion:     ['موضة سعودية عبايات 2025', 'ستايل سعودي خليجي لبس', 'ازياء سعودية فاشن ترند'],
+    travel:      ['سياحة السعودية نيوم العلا 2025', 'سفر داخلي السعودية مغامرة', 'اماكن سعودية سياحية جديدة'],
+    education:   ['تعليم السعودية 2025 رؤية', 'كورسات سعودية مجانية اونلاين', 'مهارات مستقبل السعودية'],
+    real_estate: ['عقارات السعودية 2025 استثمار', 'شراء شقة الرياض جدة', 'مشاريع عقارية سعودية جديدة'],
   },
   AE: {
-    beauty:      ['جمال اماراتي مكياج دبي', 'سكن كير الامارات بيوتي', 'تجميل خليجي منتجات'],
-    tech:        ['تقنية الامارات دبي 2025', 'ستارت اب دبي تقنية', 'ريفيو تكنولوجيا الامارات'],
-    food:        ['طبخ اماراتي وصفات دبي', 'مطاعم دبي افضل', 'اكل اماراتي تقليدي'],
-    fitness:     ['رياضة دبي لياقة', 'جيم الامارات تمارين', 'لايف ستايل دبي صحة'],
-    finance:     ['استثمار دبي 2025 اعمال', 'عملات رقمية الامارات', 'ريادة اعمال دبي'],
-    fashion:     ['موضة دبي خليجية 2025', 'ستايل اماراتي فاشن', 'لوكس دبي موضة'],
-    travel:      ['سياحة دبي اماكن 2025', 'سفر الامارات رحلات', 'دبي مول اماكن ترفيه'],
-    education:   ['تعليم الامارات 2025', 'كورسات دبي اونلاين', 'مهارات الامارات'],
-    real_estate: ['عقارات دبي 2025 شراء', 'استثمار اماراتي عقاري', 'تملك شقة دبي'],
+    beauty:      ['جمال اماراتي دبي مكياج 2025', 'سكن كير الامارات بيوتي', 'تجميل خليجي منتجات دبي'],
+    tech:        ['تقنية الامارات دبي 2025', 'ستارت اب دبي تقنية ذكاء', 'ريفيو تكنولوجيا الامارات'],
+    food:        ['طبخ اماراتي وصفات دبي 2025', 'مطاعم دبي افضل تجربة', 'اكل اماراتي اصيل خليجي'],
+    fitness:     ['رياضة دبي لياقة 2025', 'جيم الامارات تمارين ترند', 'لايف ستايل دبي صحة'],
+    finance:     ['استثمار دبي 2025 اعمال', 'عملات رقمية الامارات كريبتو', 'ريادة اعمال دبي نجاح'],
+    fashion:     ['موضة دبي خليجية لوكس 2025', 'ستايل اماراتي فاشن ترند', 'عبايات دبي فاخرة'],
+    travel:      ['سياحة دبي اماكن 2025 جديدة', 'عجائب الامارات سفر رحلات', 'دبي مستقبل سياحة'],
+    education:   ['تعليم الامارات 2025 مهارات', 'كورسات دبي اونلاين مجانية', 'ذكاء اصطناعي تعليم الامارات'],
+    real_estate: ['عقارات دبي 2025 استثمار شراء', 'مشاريع اماراتية عقارية جديدة', 'تملك شقة دبي نصايح'],
   },
 }
 
-// Fallback Arabic queries for JO/KW/QA — generic pan-Arab
 const AR_QUERIES_DEFAULT: Record<string, string[]> = {
-  beauty:      ['جمال عربي مكياج روتين', 'سكن كير عناية بشرة خليجي', 'بيوتي عربي 2025'],
-  tech:        ['تقنية عربي تكنولوجيا 2025', 'ريفيو تقنية خليجي', 'تطبيقات عربية'],
-  food:        ['طبخ عربي وصفات', 'مطبخ خليجي تقليدي', 'اكل عربي سريع'],
-  fitness:     ['رياضة عربي لياقة 2025', 'تمارين خليجي جيم', 'دايت عربي'],
-  finance:     ['استثمار عربي مال 2025', 'تداول خليجي اسهم', 'ريادة اعمال عربي'],
-  fashion:     ['موضة عربية خليجية 2025', 'ستايل خليجي ازياء', 'فاشن عربي'],
-  travel:      ['سياحة خليجي سفر', 'رحلات عربية اماكن', 'سفر خليجي 2025'],
-  education:   ['تعليم عربي اونلاين 2025', 'كورسات مجانية عربي', 'شرح عربي'],
-  real_estate: ['عقارات خليجي 2025', 'استثمار عقاري عربي', 'شراء شقة خليجي'],
+  beauty:      ['جمال عربي مكياج روتين 2025', 'سكن كير عناية بشرة خليجي', 'بيوتي عربي منتجات ريفيو'],
+  tech:        ['تقنية عربي تكنولوجيا 2025', 'ريفيو تقنية خليجي مقارنة', 'ذكاء اصطناعي عربي'],
+  food:        ['طبخ عربي وصفات سريعة', 'مطبخ خليجي تقليدي صحي', 'اكل عربي 2025'],
+  fitness:     ['رياضة عربي لياقة 2025', 'تمارين خليجي جيم ترند', 'دايت عربي تخسيس'],
+  finance:     ['استثمار عربي مال 2025', 'تداول خليجي اسهم تداول', 'ريادة اعمال عربي'],
+  fashion:     ['موضة عربية خليجية 2025', 'ستايل خليجي ازياء ترند', 'فاشن عربي محجبات'],
+  travel:      ['سياحة خليجي سفر 2025', 'رحلات عربية اماكن مغامرة', 'اماكن عربية مجهولة'],
+  education:   ['تعليم عربي اونلاين 2025', 'كورسات مجانية عربي مهارات', 'شرح عربي مبسط'],
+  real_estate: ['عقارات خليجي 2025 استثمار', 'شراء شقة عربي نصايح', 'عقارات خليجية جديدة'],
 }
 
-// Google Trends geo code per region
-const REGION_GT: Record<string, string> = {
-  global: '',
-  US: 'US', GB: 'GB', AU: 'AU', CA: 'CA',
-  AE: 'AE', SA: 'SA', EG: 'EG', JO: 'JO', KW: 'KW', QA: 'QA',
-  FR: 'FR', DE: 'DE',
-}
-
-const VELOCITY_ORDER: Record<TrendingContentItem['velocity'], number> = {
-  rising_fast: 0,
-  rising:      1,
-  peaking:     2,
-  stable:      3,
-}
+// ── Helpers ───────────────────────────────────────────────────
 
 function makeId(url: string): string {
   return createHash('md5').update(url).digest('hex').slice(0, 16)
 }
 
-// ── YouTube ───────────────────────────────────────────────────
-
-function classifyTitle(title: string): string {
-  const t = title.toLowerCase()
-  if (t.includes('vs') || t.includes('comparison'))                        return 'Comparison'
-  if (t.includes('how to') || t.includes('tutorial') || t.includes('guide')) return 'Tutorial'
-  if (t.includes('review') || t.includes('tested') || t.includes('honest')) return 'Review / Test'
-  if (t.includes('days') || t.includes('week') || t.includes('month'))    return 'Long-term experiment'
-  if (t.includes('explained') || t.includes('beginners'))                 return 'Educational deep-dive'
-  if (t.includes('secret') || t.includes('hack') || t.includes('tip'))    return 'Tips & tricks'
-  if (t.includes('best') || t.includes('top') || t.includes('worst'))     return 'Ranking / List'
-  return 'General'
+function formatCount(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
+  if (n >= 1_000_000)     return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000)         return `${(n / 1_000).toFixed(0)}K`
+  return String(n)
 }
 
-// ── YouTube search helpers ────────────────────────────────────
+function parseDuration(iso: string): number {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+  if (!m) return 0
+  return (parseInt(m[1] ?? '0') * 3600) + (parseInt(m[2] ?? '0') * 60) + parseInt(m[3] ?? '0')
+}
 
-type RawSearchItem = {
-  id: { videoId: string }
-  snippet: {
-    title: string
-    channelTitle: string
-    thumbnails: { high?: { url: string }; medium?: { url: string }; default?: { url: string } }
-  }
+// ── Phase 1: Seed search ──────────────────────────────────────
+
+interface SeedItem {
+  videoId:      string
+  channelId:    string
+  channelTitle: string
+  title:        string
+  thumbnails:   { high?: { url: string }; medium?: { url: string }; default?: { url: string } }
 }
 
 function buildQueries(industry: string, region: string): string[] {
-  const niche = industry.toLowerCase()
+  const niche    = industry.toLowerCase()
   const INDIAN_EX = '-hindi -telugu -tamil -kannada -marathi -bollywood'
 
   if (ARABIC_REGIONS.has(region)) {
-    // Country-specific Arabic queries, fall back to generic Arab queries
     const byCountry = AR_QUERIES[region]?.[niche] ?? AR_QUERIES_DEFAULT[niche]
-    if (byCountry) return byCountry.slice(0, 3)
-    return [`${niche} عربي 2025`, `${niche} خليجي`]
+    if (byCountry?.length) return byCountry.slice(0, 3)
+    return [`${niche} عربي 2025`, `${niche} خليجي ترند`]
   }
 
-  const englishAngles = EN_QUERIES[niche]
-  if (englishAngles) {
+  const angles = EN_QUERIES[niche]
+  if (angles?.length) {
     const ex = region !== 'global' ? ` ${INDIAN_EX}` : ''
-    return englishAngles.slice(0, 3).map(q => `${q}${ex}`)
+    return angles.slice(0, 3).map(q => `${q}${ex}`)
   }
 
   const ex = region !== 'global' ? ` ${INDIAN_EX}` : ''
   return [`${niche} tutorial 2025${ex}`, `${niche} tips review${ex}`]
 }
 
-async function runYouTubeSearch(
-  query: string,
+async function seedSearch(
+  industry: string,
+  region: string,
   ytConf: { regionCode: string; relevanceLanguage?: string },
   key: string,
-  thirtyDaysAgo: string,
-): Promise<RawSearchItem[]> {
-  try {
-    const url = new URL('https://www.googleapis.com/youtube/v3/search')
-    url.searchParams.set('part', 'snippet')
-    url.searchParams.set('type', 'video')
-    url.searchParams.set('order', 'viewCount')
-    url.searchParams.set('q', query)
-    url.searchParams.set('publishedAfter', thirtyDaysAgo)
-    url.searchParams.set('maxResults', '8')
-    url.searchParams.set('regionCode', ytConf.regionCode)
-    if (ytConf.relevanceLanguage) url.searchParams.set('relevanceLanguage', ytConf.relevanceLanguage)
-    url.searchParams.set('key', key)
+  publishedAfter: string,
+): Promise<SeedItem[]> {
+  const queries = buildQueries(industry, region)
 
-    const res = await fetch(url.toString())
+  const batches = await Promise.all(queries.map(async q => {
+    try {
+      const url = new URL('https://www.googleapis.com/youtube/v3/search')
+      url.searchParams.set('part', 'snippet')
+      url.searchParams.set('type', 'video')
+      url.searchParams.set('order', 'viewCount')
+      url.searchParams.set('q', q)
+      url.searchParams.set('publishedAfter', publishedAfter)
+      url.searchParams.set('maxResults', '8')
+      url.searchParams.set('regionCode', ytConf.regionCode)
+      if (ytConf.relevanceLanguage) url.searchParams.set('relevanceLanguage', ytConf.relevanceLanguage)
+      url.searchParams.set('key', key)
+      const res = await fetch(url.toString())
+      if (!res.ok) return []
+      const data = await res.json()
+      return (data.items ?? []) as Array<{
+        id: { videoId?: string }
+        snippet: {
+          title: string
+          channelId: string
+          channelTitle: string
+          thumbnails: { high?: { url: string }; medium?: { url: string }; default?: { url: string } }
+        }
+      }>
+    } catch { return [] }
+  }))
+
+  const seen = new Set<string>()
+  const out:  SeedItem[] = []
+  for (const batch of batches) {
+    for (const item of batch) {
+      const vid = item.id?.videoId
+      if (!vid || seen.has(vid)) continue
+      seen.add(vid)
+      out.push({
+        videoId:      vid,
+        channelId:    item.snippet.channelId,
+        channelTitle: item.snippet.channelTitle,
+        title:        item.snippet.title,
+        thumbnails:   item.snippet.thumbnails,
+      })
+    }
+  }
+  return out
+}
+
+// ── Phase 2: Regional chart ───────────────────────────────────
+
+async function regionalChart(
+  regionCode: string,
+  industry:   string,
+  key:        string,
+): Promise<string[]> {
+  try {
+    const categoryId = NICHE_CATEGORY[industry.toLowerCase()]
+    const url        = new URL('https://www.googleapis.com/youtube/v3/videos')
+    url.searchParams.set('part', 'id')
+    url.searchParams.set('chart', 'mostPopular')
+    url.searchParams.set('regionCode', regionCode)
+    url.searchParams.set('maxResults', '15')
+    if (categoryId) url.searchParams.set('videoCategoryId', categoryId)
+    url.searchParams.set('key', key)
+    const res  = await fetch(url.toString())
     if (!res.ok) return []
     const data = await res.json()
-    return ((data.items ?? []) as RawSearchItem[]).filter(i => !!i.id?.videoId)
+    return (data.items ?? []).map((i: { id: string }) => i.id).filter(Boolean)
+  } catch { return [] }
+}
+
+// ── Phase 3: Channel expansion ────────────────────────────────
+
+async function expandFromChannels(channelIds: string[], key: string): Promise<string[]> {
+  if (!channelIds.length) return []
+
+  // Get uploads playlist ID for each channel
+  const chanUrl = new URL('https://www.googleapis.com/youtube/v3/channels')
+  chanUrl.searchParams.set('part', 'contentDetails')
+  chanUrl.searchParams.set('id', channelIds.join(','))
+  chanUrl.searchParams.set('key', key)
+
+  let playlistIds: string[] = []
+  try {
+    const res  = await fetch(chanUrl.toString())
+    const data = await res.json()
+    playlistIds = (data.items ?? [])
+      .map((c: { contentDetails?: { relatedPlaylists?: { uploads?: string } } }) =>
+        c.contentDetails?.relatedPlaylists?.uploads)
+      .filter(Boolean) as string[]
+  } catch { return [] }
+
+  // Fetch recent 5 videos from each channel's uploads playlist
+  const videoIdBatches = await Promise.all(playlistIds.slice(0, 5).map(async pid => {
+    try {
+      const url = new URL('https://www.googleapis.com/youtube/v3/playlistItems')
+      url.searchParams.set('part', 'contentDetails')
+      url.searchParams.set('playlistId', pid)
+      url.searchParams.set('maxResults', '5')
+      url.searchParams.set('key', key)
+      const res  = await fetch(url.toString())
+      const data = await res.json()
+      return (data.items ?? [])
+        .map((i: { contentDetails?: { videoId?: string } }) => i.contentDetails?.videoId)
+        .filter(Boolean) as string[]
+    } catch { return [] }
+  }))
+
+  return videoIdBatches.flat()
+}
+
+// ── Phase 4: Batch enrichment ─────────────────────────────────
+
+interface EnrichedVideo {
+  videoId:      string
+  title:        string
+  channelTitle: string
+  channelId:    string
+  thumbnail:    string
+  viewCount:    number
+  likeCount:    number
+  commentCount: number
+  duration:     number   // seconds
+  tags:         string[]
+  categoryId:   string
+  description:  string
+  publishedAt:  string
+}
+
+async function enrichVideos(
+  videoIds:  string[],
+  seedMap:   Map<string, SeedItem>,
+  key:       string,
+): Promise<EnrichedVideo[]> {
+  if (!videoIds.length) return []
+
+  // YouTube videos.list accepts up to 50 IDs per call
+  const chunks: string[][] = []
+  for (let i = 0; i < videoIds.length; i += 50) chunks.push(videoIds.slice(i, i + 50))
+
+  const results: EnrichedVideo[] = []
+
+  await Promise.all(chunks.map(async chunk => {
+    try {
+      const url = new URL('https://www.googleapis.com/youtube/v3/videos')
+      url.searchParams.set('part', 'snippet,statistics,contentDetails')
+      url.searchParams.set('id', chunk.join(','))
+      url.searchParams.set('key', key)
+      const res  = await fetch(url.toString())
+      const data = await res.json()
+
+      for (const item of (data.items ?? []) as Array<{
+        id: string
+        snippet: {
+          title: string; channelId: string; channelTitle: string
+          thumbnails: { high?: { url: string }; medium?: { url: string }; default?: { url: string } }
+          tags?: string[]; categoryId: string; description: string; publishedAt: string
+        }
+        statistics: { viewCount?: string; likeCount?: string; commentCount?: string }
+        contentDetails: { duration: string }
+      }>) {
+        const seed = seedMap.get(item.id)
+        results.push({
+          videoId:      item.id,
+          title:        item.snippet.title,
+          channelTitle: item.snippet.channelTitle,
+          channelId:    item.snippet.channelId,
+          thumbnail:
+            item.snippet.thumbnails.high?.url ??
+            item.snippet.thumbnails.medium?.url ??
+            seed?.thumbnails.high?.url ??
+            `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`,
+          viewCount:    parseInt(item.statistics.viewCount    ?? '0', 10),
+          likeCount:    parseInt(item.statistics.likeCount    ?? '0', 10),
+          commentCount: parseInt(item.statistics.commentCount ?? '0', 10),
+          duration:     parseDuration(item.contentDetails.duration),
+          tags:         item.snippet.tags ?? [],
+          categoryId:   item.snippet.categoryId,
+          description:  item.snippet.description.slice(0, 200),
+          publishedAt:  item.snippet.publishedAt,
+        })
+      }
+    } catch { /* skip chunk on error */ }
+  }))
+
+  return results
+}
+
+// ── Indian content filter (pre-AI) ───────────────────────────
+
+const INDIAN_CHANNEL_SIGNALS = [
+  'hindi', 'bollywood', 'india', 'indian', 'bharath', 'bharat',
+  'desi', 'telugu', 'tamil', 'kannada', 'marathi', 'bengali',
+  'punjabi', 'gujarati', 'malayalam', 'bigg boss', 'zee', 'sun tv',
+  'star plus', 'colors tv', 'sony liv',
+]
+
+function isIndianContent(v: EnrichedVideo): boolean {
+  const haystack = `${v.title} ${v.channelTitle} ${v.description} ${v.tags.join(' ')}`.toLowerCase()
+  return INDIAN_CHANNEL_SIGNALS.some(sig => haystack.includes(sig))
+}
+
+// ── Phase 5: AI ranking ───────────────────────────────────────
+
+interface AIRankedVideo extends EnrichedVideo {
+  ai_score:      number
+  content_format: string
+  ai_insight:    string
+}
+
+async function aiRankVideos(
+  videos:   EnrichedVideo[],
+  industry: string,
+  region:   string,
+): Promise<AIRankedVideo[]> {
+  if (!videos.length || !process.env.GEMINI_API_KEY) {
+    return videos.map(v => ({
+      ...v,
+      ai_score:       5,
+      content_format: 'General',
+      ai_insight:     '',
+    }))
+  }
+
+  const isArabic   = ARABIC_REGIONS.has(region)
+  const regionName = {
+    EG: 'Egypt', SA: 'Saudi Arabia', AE: 'UAE', JO: 'Jordan',
+    KW: 'Kuwait', QA: 'Qatar', US: 'United States', GB: 'United Kingdom',
+    AU: 'Australia', FR: 'France', DE: 'Germany', global: 'Global',
+  }[region] ?? region
+
+  const langNote = isArabic
+    ? 'Arabic-language content scores highest. English content targeting Arab audiences scores medium. Generic English scores low.'
+    : 'Content in the local language and culturally relevant to this market scores highest.'
+
+  const videoList = videos.map((v, i) => {
+    const durationMin = Math.round(v.duration / 60)
+    const engagement  = v.viewCount > 0
+      ? ((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(1)
+      : '0'
+    return `${i}. title="${v.title}" channel="${v.channelTitle}" views=${formatCount(v.viewCount)} dur=${durationMin}m engagement=${engagement}% tags=[${v.tags.slice(0, 5).join(',')}]`
+  }).join('\n')
+
+  const prompt = `You are a senior content strategist for a top social media agency. You curate only truly viral, high-quality, implementable content.
+
+Target market: ${regionName}
+Niche: ${industry}
+Language rule: ${langNote}
+
+SCORING RULES (be strict — most videos should score 4-6, only exceptional ones get 8+):
+- Score 9-10: Genuinely viral format, strong structure, clear hook, works for ${regionName} audiences, could be directly adapted
+- Score 7-8: Good quality, relevant, clear niche focus, appropriate language/culture
+- Score 5-6: Decent but generic or only partially relevant
+- Score 3-4: Too generic, wrong market, or surface-level content
+- Score 0-2: Indian/Bollywood content, unrelated niche, spam, reaction videos with no original value, very low quality
+
+HARD PENALTIES (score 0-2 regardless of views):
+- Any Indian regional language content (Hindi, Telugu, Tamil, etc.)
+- Bollywood, Indian TV shows, Indian influencers making local Indian content
+- Content that is viral only due to shock value with no adaptable structure
+- Videos that cannot be implemented or adapted by a ${regionName} brand
+
+For each video, return:
+- score: 0-10
+- format: one of [Tutorial, Review, Educational, Vlog, Transformation, Product Demo, Comparison, Challenge, Entertainment, News, Ranking]
+- insight: 1 sharp, specific sentence on WHY this works and HOW a ${regionName} brand in ${industry} could adapt it
+
+Videos:
+${videoList}
+
+Return ONLY valid JSON array, same order as input:
+[{"score":8,"format":"Tutorial","insight":"..."},...]`
+
+  try {
+    const ranked = await geminiJson<Array<{ score: number; format: string; insight: string }>>(
+      prompt, undefined, { temperature: 0.2, maxOutputTokens: 1500 }
+    )
+
+    if (!Array.isArray(ranked) || ranked.length !== videos.length) {
+      throw new Error('AI response length mismatch')
+    }
+
+    return videos.map((v, i) => ({
+      ...v,
+      ai_score:       Math.min(10, Math.max(0, ranked[i]?.score ?? 5)),
+      content_format: ranked[i]?.format ?? 'General',
+      ai_insight:     ranked[i]?.insight ?? '',
+    }))
   } catch {
-    return []
+    return videos.map(v => ({
+      ...v,
+      ai_score:       5,
+      content_format: 'General',
+      ai_insight:     '',
+    }))
   }
 }
+
+// ── Full YouTube pipeline ─────────────────────────────────────
 
 async function getYouTubeItems(industry: string, region: string): Promise<TrendingContentItem[]> {
   const KEY = process.env.YOUTUBE_API_KEY
   if (!KEY) return []
 
-  const ytConf       = REGION_YT[region] ?? REGION_YT.US
-  const now          = new Date().toISOString()
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
-  const queries      = buildQueries(industry, region)
+  const ytConf        = REGION_YT[region] ?? REGION_YT.US
+  const now           = new Date().toISOString()
+  const publishedAfter = new Date(Date.now() - 60 * 86_400_000).toISOString() // 60 days
 
-  // Run all queries in parallel
-  const batches = await Promise.all(
-    queries.map(q => runYouTubeSearch(q, ytConf, KEY, thirtyDaysAgo))
-  )
+  // Phase 1 + Phase 2 in parallel (independent)
+  const [seedItems, chartIds] = await Promise.all([
+    seedSearch(industry, region, ytConf, KEY, publishedAfter),
+    regionalChart(ytConf.regionCode, industry, KEY),
+  ])
 
-  // Deduplicate by videoId, preserving order (first-seen wins)
-  const seen  = new Set<string>()
-  const items: RawSearchItem[] = []
-  for (const batch of batches) {
-    for (const item of batch) {
-      if (!seen.has(item.id.videoId)) {
-        seen.add(item.id.videoId)
-        items.push(item)
-      }
-    }
-  }
+  // Phase 3: expand from top seed channels
+  const topChannelIds = [...new Set(seedItems.map(s => s.channelId))].slice(0, 5)
+  const expandedIds   = await expandFromChannels(topChannelIds, KEY)
 
-  if (!items.length) return []
+  // Merge all video IDs, deduplicate
+  const seedMap   = new Map(seedItems.map(s => [s.videoId, s]))
+  const allIds    = [...new Set([
+    ...seedItems.map(s => s.videoId),
+    ...chartIds,
+    ...expandedIds,
+  ])].slice(0, 50) // cap at 50 to stay within videos.list limit
 
-  // Fetch view counts for all unique videos in one call
-  const videoIds = items.map(i => i.id.videoId).join(',')
-  const statsUrl = new URL('https://www.googleapis.com/youtube/v3/videos')
-  statsUrl.searchParams.set('part', 'statistics')
-  statsUrl.searchParams.set('id', videoIds)
-  statsUrl.searchParams.set('key', KEY)
+  // Phase 4: enrich
+  const enriched = await enrichVideos(allIds, seedMap, KEY)
 
-  const statsRes  = await fetch(statsUrl.toString())
-  const statsData = statsRes.ok ? await statsRes.json() : { items: [] }
-  const viewMap   = new Map<string, number>()
-  for (const v of (statsData.items ?? []) as Array<{ id: string; statistics?: { viewCount?: string } }>) {
-    viewMap.set(v.id, parseInt(v.statistics?.viewCount ?? '0', 10))
-  }
+  // Pre-filter: remove obvious Indian content before spending Gemini quota
+  const cleaned = enriched.filter(v => !isIndianContent(v))
 
-  return items.map(item => {
-    const videoId   = item.id.videoId
-    const thumbnail =
-      item.snippet.thumbnails.high?.url ??
-      item.snippet.thumbnails.medium?.url ??
-      item.snippet.thumbnails.default?.url ??
-      `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-    const url    = `https://www.youtube.com/watch?v=${videoId}`
-    const views  = viewMap.get(videoId) ?? 0
-    const format = classifyTitle(item.snippet.title)
+  // Phase 5: AI rank
+  const ranked = await aiRankVideos(cleaned, industry, region)
+
+  // Sort by AI score descending, drop low-quality items
+  ranked.sort((a, b) => b.ai_score - a.ai_score || b.viewCount - a.viewCount)
+  const quality = ranked.filter(v => v.ai_score >= 5)
+
+  return quality.map(v => {
+    const url      = `https://www.youtube.com/watch?v=${v.videoId}`
+    const views    = v.viewCount
     const velocity: TrendingContentItem['velocity'] =
-      views > 5_000_000 ? 'rising_fast' : views > 1_000_000 ? 'rising' : 'peaking'
+      v.ai_score >= 8   ? 'rising_fast' :
+      v.ai_score >= 6   ? 'rising'      :
+      v.ai_score >= 4   ? 'peaking'     : 'stable'
 
     return {
-      id:            makeId(url),
-      platform:      'youtube' as const,
-      content_type:  'video'   as const,
-      title:         item.snippet.title,
+      id:             makeId(url),
+      platform:       'youtube'  as const,
+      content_type:   'video'    as const,
+      title:          v.title,
       url,
-      thumbnail_url: thumbnail,
-      view_count:    views || undefined,
-      channel:       item.snippet.channelTitle,
+      thumbnail_url:  v.thumbnail,
+      view_count:     views || undefined,
+      channel:        v.channelTitle,
       industry,
       velocity,
-      why_trending:  `${format} — gaining traction in the ${industry} space.`,
-      fetched_at:    now,
+      why_trending:   v.ai_insight || `${v.content_format} performing well in the ${industry} space.`,
+      content_format: v.content_format,
+      ai_score:       v.ai_score,
+      ai_insight:     v.ai_insight,
+      fetched_at:     now,
     }
   })
 }
@@ -289,25 +558,21 @@ async function getYouTubeItems(industry: string, region: string): Promise<Trendi
 async function getTikTokItems(industry: string): Promise<TrendingContentItem[]> {
   const data = await fetchTikTokTrends(industry)
   return data.trending_hashtags.slice(0, 8).map(h => {
-    const cleanTag = h.hashtag.replace(/^#/, '')
-    const url      = `https://www.tiktok.com/tag/${cleanTag}`
+    const tag = h.hashtag.replace(/^#/, '')
+    const url = `https://www.tiktok.com/tag/${tag}`
     const velocity: TrendingContentItem['velocity'] =
-      h.trend_direction === 'rising' && h.video_count > 500_000_000
-        ? 'rising_fast'
-        : h.trend_direction === 'rising'
-        ? 'rising'
-        : h.trend_direction === 'stable'
-        ? 'stable'
-        : 'peaking'
+      h.video_count > 500_000_000 ? 'rising_fast' :
+      h.trend_direction === 'rising' ? 'rising' :
+      h.trend_direction === 'stable' ? 'stable' : 'peaking'
 
     return {
       id:           makeId(url),
       platform:     'tiktok'  as const,
       content_type: 'hashtag' as const,
-      title:        `#${cleanTag} — ${formatCount(h.video_count)} views`,
+      title:        `#${tag} — ${formatCount(h.video_count)} views`,
       url,
       view_count:   h.video_count || undefined,
-      hashtag:      cleanTag,
+      hashtag:      tag,
       industry,
       velocity,
       why_trending: `Trending TikTok hashtag active in the ${industry} category.`,
@@ -327,10 +592,9 @@ async function getTrendsMcpItems(industry: string): Promise<TrendingContentItem[
     const url      = `https://www.youtube.com/results?search_query=${encodeURIComponent(t.topic)}`
     const growthNum = parseFloat(String(t.growth).replace('%', ''))
     const velocity: TrendingContentItem['velocity'] =
-      growthNum > 100  ? 'rising_fast'
-      : growthNum > 30 ? 'rising'
-      : growthNum > 0  ? 'peaking'
-      : 'stable'
+      growthNum > 100 ? 'rising_fast' :
+      growthNum > 30  ? 'rising'      :
+      growthNum > 0   ? 'peaking'     : 'stable'
 
     return {
       id:           makeId(url),
@@ -346,52 +610,34 @@ async function getTrendsMcpItems(industry: string): Promise<TrendingContentItem[
   })
 }
 
-// ── AI relevance filter ───────────────────────────────────────
+// ── AI filter (for non-YouTube items) ────────────────────────
 
-async function aiFilter(
-  items: TrendingContentItem[],
+async function aiFilterItems(
+  items:    TrendingContentItem[],
   industry: string,
-  region: string,
+  region:   string,
 ): Promise<{ filtered: TrendingContentItem[]; removedCount: number }> {
-  if (!items.length || !process.env.GEMINI_API_KEY) {
-    return { filtered: items, removedCount: 0 }
-  }
+  if (!items.length || !process.env.GEMINI_API_KEY) return { filtered: items, removedCount: 0 }
 
   const isArabic  = ARABIC_REGIONS.has(region)
-  const isGlobal  = region === 'global'
-  const threshold = isGlobal ? 5 : 6   // stricter for specific regions
-
-  const regionLabel = isArabic
-    ? `${region} (Arabic-speaking market — content must be in Arabic OR be specifically made for Arab audiences)`
-    : isGlobal
-    ? 'Global'
-    : region
+  const threshold = region === 'global' ? 5 : 6
 
   const langRule = isArabic
-    ? 'Content in Arabic = 7-10. Content in English but made for Arab audiences = 6-8. Generic global English content not targeted at Arabs = 0-4.'
-    : `Content in the dominant language of ${region} or relevant to that market = 7-10. Off-topic, wrong language, or irrelevant content = 0-4.`
+    ? 'Arabic content = 7-10. English content for Arab audiences = 5-7. Generic English = 0-4.'
+    : `Content relevant to ${region} market = 7-10. Off-topic or wrong language = 0-4.`
 
-  const prompt = `You are a strict content relevance filter for a social media agency.
+  const prompt = `Filter content for a social media agency.
+Niche: ${industry} | Region: ${region}
+Rule: ${langRule}
 
-Niche: ${industry}
-Target market: ${regionLabel}
+Score each 0-10:
+${items.map((it, i) => `${i}. "${it.title}" [${it.platform}]`).join('\n')}
 
-Scoring rule: ${langRule}
-Also score 0-2 for: spam, unrelated topics, very low quality.
-
-Score each item 0–10:
-${items.map((item, i) => `${i}. "${item.title}" [${item.platform}${item.channel ? `, ch: ${item.channel}` : ''}]`).join('\n')}
-
-Return ONLY a JSON array of integers, one per item. Example: [8,2,9,1,7]`
+Return ONLY a JSON array of integers. Example: [8,2,7]`
 
   try {
-    const scores = await geminiJson<number[]>(prompt, undefined, {
-      temperature: 0,
-      maxOutputTokens: 150,
-    })
-    if (!Array.isArray(scores) || scores.length !== items.length) {
-      return { filtered: items, removedCount: 0 }
-    }
+    const scores = await geminiJson<number[]>(prompt, undefined, { temperature: 0, maxOutputTokens: 100 })
+    if (!Array.isArray(scores) || scores.length !== items.length) return { filtered: items, removedCount: 0 }
     const filtered = items.filter((_, i) => (scores[i] ?? 0) >= threshold)
     return { filtered, removedCount: items.length - filtered.length }
   } catch {
@@ -399,16 +645,11 @@ Return ONLY a JSON array of integers, one per item. Example: [8,2,9,1,7]`
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
-  if (n >= 1_000_000)     return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000)         return `${(n / 1_000).toFixed(0)}K`
-  return String(n)
-}
-
 // ── GET handler ───────────────────────────────────────────────
+
+const VELOCITY_ORDER: Record<TrendingContentItem['velocity'], number> = {
+  rising_fast: 0, rising: 1, peaking: 2, stable: 3,
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -416,41 +657,53 @@ export async function GET(req: NextRequest) {
   const platform  = searchParams.get('platform')  ?? 'all'
   const region    = searchParams.get('region')    ?? 'global'
   const aiFilter_ = searchParams.get('ai_filter') === 'true'
-  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '20', 10), 50)
+  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '24', 10), 50)
 
   try {
+    // Run YouTube pipeline + TikTok + TrendsMCP in parallel where possible
     const [youtubeItems, tiktokItems, trendsmcpItems] = await Promise.all([
-      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region)  : Promise.resolve([]),
-      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry)            : Promise.resolve([]),
-      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)         : Promise.resolve([]),
+      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region) : Promise.resolve([]),
+      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry)          : Promise.resolve([]),
+      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)       : Promise.resolve([]),
     ])
 
+    // YouTube items are already AI-ranked — insert them first
     const seen  = new Set<string>()
-    let items = [...youtubeItems, ...tiktokItems, ...trendsmcpItems]
-      .filter(item => {
-        if (seen.has(item.url)) return false
-        seen.add(item.url)
-        return true
-      })
-      .sort((a, b) => VELOCITY_ORDER[a.velocity] - VELOCITY_ORDER[b.velocity])
+    let nonYT   = [...tiktokItems, ...trendsmcpItems].filter(item => {
+      if (seen.has(item.url)) return false
+      seen.add(item.url)
+      return true
+    })
 
+    // AI filter TikTok + TrendsMCP if requested
     let removedCount = 0
     if (aiFilter_) {
-      const result = await aiFilter(items, industry, region)
-      items        = result.filtered
+      const result = await aiFilterItems(nonYT, industry, region)
+      nonYT        = result.filtered
       removedCount = result.removedCount
     }
 
-    items = items.slice(0, limit)
+    // Merge: YouTube (AI-ranked) first, then TikTok/TrendsMCP sorted by velocity
+    youtubeItems.forEach(it => seen.add(it.url))
+    nonYT.sort((a, b) => VELOCITY_ORDER[a.velocity] - VELOCITY_ORDER[b.velocity])
+
+    const items = [...youtubeItems, ...nonYT].slice(0, limit)
 
     return NextResponse.json(
-      { items, generated_at: new Date().toISOString(), region, ai_filtered: aiFilter_, removed_count: removedCount },
+      {
+        items,
+        generated_at:  new Date().toISOString(),
+        region,
+        ai_filtered:   aiFilter_,
+        removed_count: removedCount,
+        pipeline:      'v2-5phase',
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (err) {
     console.error('[trending-content] Error:', err)
     return NextResponse.json(
-      { items: [], generated_at: new Date().toISOString(), error: 'Failed to fetch' },
+      { items: [], generated_at: new Date().toISOString(), error: 'Pipeline failed' },
       { status: 500 },
     )
   }
