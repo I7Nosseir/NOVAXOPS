@@ -10,10 +10,10 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { formatNumber, cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import {
-  FileText, TrendingUp, Users, Eye, Download, Upload,
-  BarChart2, Target, Layers, Globe, ArrowUpRight, ArrowDownRight,
-  Check, AlertCircle, ChevronRight, X, DollarSign, Activity,
-  Calendar, Star, RefreshCw, Sparkles, Printer,
+  FileText, TrendingUp, Eye,
+  BarChart2, Globe, ArrowUpRight, ArrowDownRight,
+  AlertCircle, ChevronRight, X, DollarSign, Activity,
+  Calendar, Star, RefreshCw, Sparkles, Printer, Info,
 } from 'lucide-react'
 
 // ─── Brand palette ─────────────────────────────────────────────────────────────
@@ -28,369 +28,37 @@ const B = {
 // ─── Tab definition ────────────────────────────────────────────────────────────
 type ReportTab = 'monthly' | 'paid' | 'combined' | 'platform' | 'quarterly' | 'executive' | 'ai'
 type IconProps = { className?: string }
-type KPIRow         = { metric: string; current: string; previous: string; delta: string; positive: boolean | null; benchmark: string; vsBenchmark: string; vsBenchmarkPositive: boolean | null }
-type ActionRow      = { action: string; owner: string; deadline: string; impact: string; priority: 'high' | 'medium' | 'low' }
-type AudienceRow    = { signal: string; value: string; benchmark: string; status: 'good' | 'warning' | 'poor'; note: string }
-type Competitor     = { name: string; followers: string; er: string; posts: number; avgReach: string }
-type BottomPost     = { platform: string; type: string; reach: number; er: number; caption: string; diagnosis: string }
 
 const TABS: { id: ReportTab; label: string; icon: (p: IconProps) => React.ReactElement; description: string }[] = [
-  { id: 'monthly',    label: 'Monthly Performance',  icon: (p: IconProps) => <BarChart2  {...p}/>, description: 'Organic reach, impressions, ER trend, platform breakdown, top posts and recommendations.' },
-  { id: 'paid',       label: 'Paid Ads',             icon: (p: IconProps) => <DollarSign {...p}/>, description: 'ROAS, CPM/CPC/CTR/CPA, weekly spend vs revenue, campaign table and creative rankings.' },
-  { id: 'combined',   label: 'Paid + Organic',       icon: (p: IconProps) => <Layers     {...p}/>, description: 'Blended reach split, paid vs organic trend, channel mix and investment breakdown.' },
-  { id: 'platform',   label: 'Platform Deep Dive',   icon: (p: IconProps) => <Globe      {...p}/>, description: 'Instagram-focused: follower growth, format performance, best posting days and hashtags.' },
-  { id: 'quarterly',  label: 'Quarterly Report',     icon: (p: IconProps) => <Calendar   {...p}/>, description: 'Quarter OKR scorecard, monthly trend, campaign highlights and next-quarter priorities.' },
-  { id: 'executive',  label: 'Executive Summary',    icon: (p: IconProps) => <Star       {...p}/>, description: 'CEO-ready one-page: top KPIs, wins, opportunities and single priority action.' },
-  { id: 'ai',         label: 'AI Report Builder',    icon: (p: IconProps) => <Sparkles   {...p}/>, description: 'Upload analytics screenshots or paste data — AI extracts and formats a branded report.' },
+  { id: 'monthly',    label: 'Monthly Performance',  icon: (p) => <BarChart2  {...p}/>, description: 'Organic reach, impressions, ER trend, platform breakdown, and AI performance analysis.' },
+  { id: 'paid',       label: 'Paid Ads',             icon: (p) => <DollarSign {...p}/>, description: 'Organic performance baseline for paid amplification decisions, with AI analysis.' },
+  { id: 'combined',   label: 'Paid + Organic',       icon: (p) => <Activity   {...p}/>, description: 'Blended view — organic trend and platform mix with AI analysis of synergy opportunities.' },
+  { id: 'platform',   label: 'Platform Deep Dive',   icon: (p) => <Globe      {...p}/>, description: 'Per-platform breakdown — reach, ER, and posts across all active channels.' },
+  { id: 'quarterly',  label: 'Quarterly Report',     icon: (p) => <Calendar   {...p}/>, description: 'Quarter performance — reach trend, ER trajectory, and AI strategic assessment.' },
+  { id: 'executive',  label: 'Executive Summary',    icon: (p) => <Star       {...p}/>, description: 'CEO-ready: top KPIs, trend, platform mix, and AI portfolio analysis.' },
+  { id: 'ai',         label: 'AI Report Builder',    icon: (p) => <Sparkles   {...p}/>, description: 'Upload analytics screenshots or paste data — AI extracts and formats a branded report.' },
 ]
 
-// ─── Demo data ──────────────────────────────────────────────────────────────────
-const MONTHLY_DEMO = {
-  period: 'May 2026', prevPeriod: 'April 2026',
-  kpis: { reach: 284500, impressions: 412000, er: 5.8, followers: 2840, posts: 34 },
-  deltas: { reach: '+18.4%', impressions: '+22.1%', er: '+0.8%', followers: '+7.1%' },
-  trend: [
-    { month: 'Jan', reach: 182000, impressions: 264000, er: 4.8 },
-    { month: 'Feb', reach: 198000, impressions: 287000, er: 5.1 },
-    { month: 'Mar', reach: 224000, impressions: 326000, er: 5.4 },
-    { month: 'Apr', reach: 241000, impressions: 349000, er: 5.0 },
-    { month: 'May', reach: 284500, impressions: 412000, er: 5.8 },
-  ],
-  platforms: [
-    { name: 'Instagram', reach: 168000, posts: 18, er: 6.8, color: '#E1306C' },
-    { name: 'TikTok',    reach: 71000,  posts: 7,  er: 9.1, color: '#2A2A2A' },
-    { name: 'Facebook',  reach: 28200,  posts: 6,  er: 3.4, color: '#1877F2' },
-    { name: 'LinkedIn',  reach: 17300,  posts: 3,  er: 4.2, color: '#0A66C2' },
-  ],
-  contentTypes: [
-    { type: 'Reels',    posts: 8,  reach: 98200, er: 8.4 },
-    { type: 'Carousel', posts: 12, reach: 76000, er: 6.2 },
-    { type: 'Static',   posts: 10, reach: 64000, er: 4.1 },
-    { type: 'Stories',  posts: 4,  reach: 46300, er: 3.8 },
-  ],
-  topPosts: [
-    { platform: 'Instagram', type: 'Reel',     reach: 48200, er: 12.4, caption: 'Summer Glow Collection — first look reveal',          why: 'First-look reveal with founder voiceover drove 3× average saves. Shared organically by 2 micro-influencers within 6 hours, compounding reach. Hook landed in the first 2 seconds.' },
-    { platform: 'TikTok',    type: 'Video',    reach: 29900, er: 9.1,  caption: 'Morning skincare routine with Hydra Serum',           why: 'Tutorial format with bold opening hook. Dueted by 4 accounts, adding 8,400 views at zero incremental cost. Native text overlays improved watch-through to 74%.' },
-    { platform: 'Instagram', type: 'Carousel', reach: 22400, er: 8.7,  caption: '5 reasons dermatologists recommend us',              why: '62% of engagement came from saves, indicating high utility perception. Post remained on Explore for 8 days due to sustained save velocity.' },
-    { platform: 'LinkedIn',  type: 'Article',  reach: 17300, er: 4.2,  caption: 'Why ingredient transparency is the future of beauty', why: 'Long-form credibility content outperformed short posts 3:1. 14 industry reposts amplified B2B reach. Avg dwell time of 4.2 min drove algorithm favourability.' },
-    { platform: 'Facebook',  type: 'Video',    reach: 14200, er: 3.8,  caption: 'Customer story — 90-day transformation',             why: 'UGC-style testimonial outperformed all branded Facebook content by 2.4×. Native upload received algorithm preference over link shares. 38% of views from shares.' },
-  ],
-  bottomPosts: [
-    { platform: 'Instagram', type: 'Static',  reach: 4200, er: 1.2, caption: 'Colour palette inspiration — Summer Glow',           diagnosis: 'Over-designed static with no text hook reached only 14% of followers — a clear suppression signal. Static posts now average 3.1× less reach than Reels on this account.' },
-    { platform: 'Instagram', type: 'Story',   reach: 3800, er: 0.8, caption: 'Flash sale — 24 hours only',                         diagnosis: 'Posted at 08:00 Sunday — worst time slot for this account (benchmark ER at that window: 2.1%). No prior trust-building content in the preceding 48 hours reduced conversion intent. Swipe-up rate was 0.3% vs account average of 2.4%.' },
-    { platform: 'Facebook',  type: 'Static',  reach: 3100, er: 0.6, caption: '"Beauty begins the moment you decide to be yourself"', diagnosis: 'Inspirational quote format drives near-zero meaningful engagement on Facebook for B2C beauty brands. Algorithm systematically deprioritises text-heavy statics. Recommend discontinuing this format.' },
-  ] as BottomPost[],
-  kpiComparison: [
-    { metric: 'Total Reach',          current: '284,500',  previous: '241,000',  delta: '+18.4%',  positive: true  as boolean|null, benchmark: '200,000',  vsBenchmark: '+42.3%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Total Impressions',    current: '412,000',  previous: '349,000',  delta: '+22.1%',  positive: true  as boolean|null, benchmark: '300,000',  vsBenchmark: '+37.3%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Avg Eng. Rate',        current: '5.8%',     previous: '5.0%',     delta: '+0.8pp',  positive: true  as boolean|null, benchmark: '4.0%',     vsBenchmark: '+1.8pp',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'New Followers',        current: '2,840',    previous: '2,650',    delta: '+7.2%',   positive: true  as boolean|null, benchmark: '1,500',    vsBenchmark: '+89.3%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Posts Published',      current: '34',       previous: '32',       delta: '+6.3%',   positive: true  as boolean|null, benchmark: '28',       vsBenchmark: '+21.4%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Total Saves',          current: '18,400',   previous: '14,200',   delta: '+29.6%',  positive: true  as boolean|null, benchmark: '8,000',    vsBenchmark: '+130.0%', vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Total Comments',       current: '6,840',    previous: '5,200',    delta: '+31.5%',  positive: true  as boolean|null, benchmark: '4,000',    vsBenchmark: '+71.0%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Total Shares',         current: '12,400',   previous: '9,800',    delta: '+26.5%',  positive: true  as boolean|null, benchmark: '6,000',    vsBenchmark: '+106.7%', vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Profile Visits',       current: '42,800',   previous: '36,200',   delta: '+18.2%',  positive: true  as boolean|null, benchmark: '30,000',   vsBenchmark: '+42.7%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Website Clicks',       current: '8,400',    previous: '6,800',    delta: '+23.5%',  positive: true  as boolean|null, benchmark: '5,000',    vsBenchmark: '+68.0%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Story Views',          current: '68,400',   previous: '58,200',   delta: '+17.5%',  positive: true  as boolean|null, benchmark: '50,000',   vsBenchmark: '+36.8%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Story Completion',     current: '68%',      previous: '64%',      delta: '+4pp',    positive: true  as boolean|null, benchmark: '55%',      vsBenchmark: '+13pp',   vsBenchmarkPositive: true  as boolean|null },
-  ] as KPIRow[],
-  audienceSignals: [
-    { signal: 'Save Rate',               value: '6.5%',    benchmark: '2.0%',  status: 'good'    as 'good'|'warning'|'poor', note: 'Saves indicate bookmarked-for-reference intent — strong signal of genuine audience interest and content utility.' },
-    { signal: 'Follower-to-Reach Ratio', value: '664%',    benchmark: '400%',  status: 'good'    as 'good'|'warning'|'poor', note: 'Reach significantly exceeds follower count — content is distributed via Explore and hashtags well beyond the core audience.' },
-    { signal: 'Comment Sentiment',       value: '94% pos', benchmark: '85%',   status: 'good'    as 'good'|'warning'|'poor', note: 'Critical comments account for <1% and relate exclusively to pricing, not product quality.' },
-    { signal: 'Audience Authenticity',   value: '96.2%',   benchmark: '90%',   status: 'good'    as 'good'|'warning'|'poor', note: 'Low bot/ghost follower count based on engagement-pattern analysis. Maintains algorithm favourability.' },
-    { signal: 'Profile Visit Rate',      value: '15.1%',   benchmark: '8.0%',  status: 'good'    as 'good'|'warning'|'poor', note: '1 in 6.6 people who see content visit the profile — nearly 2× industry benchmark for beauty brands.' },
-    { signal: 'Story Completion Rate',   value: '68%',     benchmark: '55%',   status: 'good'    as 'good'|'warning'|'poor', note: '68% of viewers watch to the final slide. Swipe-away rate is 4.2% vs a benchmark of 8%, confirming strong sequencing.' },
-  ] as AudienceRow[],
-  competitors: [
-    { name: 'Charlotte Tilbury', followers: '12.4M',  er: '3.2%', posts: 8,  avgReach: '92,000'  },
-    { name: 'NARS Cosmetics',    followers: '8.1M',   er: '2.8%', posts: 6,  avgReach: '74,000'  },
-    { name: 'Fenty Beauty',      followers: '14.2M',  er: '4.1%', posts: 10, avgReach: '108,000' },
-    { name: 'Luxe Cosmetics',    followers: '42.8K',  er: '6.8%', posts: 5,  avgReach: '9,300'   },
-  ] as Competitor[],
-  actionPlan: [
-    { action: 'Increase Reel frequency to 4 per week',                          owner: 'Social Manager', deadline: 'June 7, 2026',  impact: '+40% organic reach based on current ER trajectory',                         priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'A/B test 3 video hook variants for TikTok',                       owner: 'Copywriter',     deadline: 'June 14, 2026', impact: '+25% CTR and watch-through rate',                                            priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Add 2 LinkedIn long-form articles per month',                     owner: 'Strategist',     deadline: 'June 1, 2026',  impact: 'Projected 3× engagement rate vs short LinkedIn posts',                      priority: 'medium' as 'high'|'medium'|'low' },
-    { action: 'Replace Facebook statics with native video',                      owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Estimated 2× reach for same production effort',                             priority: 'medium' as 'high'|'medium'|'low' },
-    { action: 'Schedule 3 Stories per week (Tue/Wed/Thu)',                       owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Story algorithm lift increases profile visits by an estimated 20–35%',      priority: 'low'    as 'high'|'medium'|'low' },
-  ] as ActionRow[],
-  narrative: {
-    executive: 'May 2026 is the strongest organic month in twelve months for Luxe Cosmetics. Total reach grew 18.4% to 284,500 unique accounts — a gain of 43,500 over April — driven by a concentrated Reels push and two carousel posts that entered the Explore page. Engagement rate reached 5.8%, exceeding the 4.0% industry benchmark by 1.8 percentage points, while follower growth of 2,840 net new accounts confirmed that the Summer Glow campaign is converting reach into sustained audience growth.',
-    reach: 'Organic reach was distributed across four platforms, with Instagram contributing 59% of total reach despite representing only 53% of posts — a clear signal that the algorithm is favouring Luxe content relative to peers. TikTok delivered the highest reach-per-post ratio at 10,143 per video on the lowest posting frequency, indicating significant untapped potential. Facebook and LinkedIn combined contributed 16% of total reach while accounting for 26% of posts, suggesting resource allocation should shift further toward Instagram and TikTok in June.',
-    engagement: 'The 5.8% blended engagement rate masks significant format-level variation. Reels achieved 8.4% ER — more than double the industry benchmark for the format — with saves increasing 29.6% month-on-month as a reliable proxy for content utility. Static posts declined to 4.1% average ER as the algorithm increasingly deprioritises non-video formats. Stories averaged 3.8% interaction rate, below the account\'s own historical benchmark of 4.6%, and require corrective action in June through improved posting cadence and hook quality.',
-    platform: 'Instagram remains the primary growth engine, accounting for 59% of total reach from 53% of posts — a favourable over-index that reflects algorithm alignment with current creative output. TikTok\'s 9.1% engagement rate on a comparatively small audience of 12,400 followers represents the highest-upside organic channel in the portfolio. Facebook continues to underperform relative to investment: at 3.4% ER and $6,800 CPC on boosted posts, the platform\'s return profile warrants reallocation of budget and creative attention toward Instagram and TikTok in Q2.',
-  },
-  recommendations: [
-    'Increase Reel frequency to 3–4 per week — they deliver 34% more reach at 2.1× the ER of static posts.',
-    'LinkedIn ER (4.2%) outperforms the B2C average (2.8%) — add 2 posts per month to compound this advantage.',
-    'TikTok has the highest ER at 9.1% but the lowest follower count — consistent posting will accelerate compounding growth.',
-  ],
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+function deltaStr(cur: number | null | undefined, prv: number | null | undefined): string {
+  if (cur == null || prv == null || prv === 0) return '—'
+  const pct = ((cur - prv) / prv * 100).toFixed(1)
+  return `${Number(pct) >= 0 ? '+' : ''}${pct}%`
+}
+function deltaPos(cur: number | null | undefined, prv: number | null | undefined): boolean | null {
+  if (cur == null || prv == null || prv === 0) return null
+  return cur >= prv
 }
 
-const PAID_DEMO = {
-  period: 'May 2026',
-  budget: 10000, spend: 8500, revenue: 28900, roas: 3.4,
-  impressions: 1240000, clicks: 38400, ctr: 3.1, cpc: 0.22, cpm: 6.85,
-  conversions: 847, cpa: 10.04,
-  campaigns: [
-    { name: 'Summer Glow — Awareness',  platform: 'Instagram', spend: 2800, roas: 2.8, impressions: 420000, ctr: 3.0, status: 'active' },
-    { name: 'Hydra Serum — Conversion', platform: 'Facebook',  spend: 2400, roas: 4.1, impressions: 320000, ctr: 3.2, status: 'active' },
-    { name: 'Retargeting — Cart Rec.',  platform: 'Instagram', spend: 1800, roas: 5.2, impressions: 180000, ctr: 4.0, status: 'active' },
-    { name: 'Brand Video — TikTok',     platform: 'TikTok',    spend: 1500, roas: 1.9, impressions: 320000, ctr: 2.6, status: 'paused' },
-  ],
-  weeklySpend: [
-    { week: 'Week 1', spend: 1800, revenue: 6120 },
-    { week: 'Week 2', spend: 2100, revenue: 7140 },
-    { week: 'Week 3', spend: 2400, revenue: 8160 },
-    { week: 'Week 4', spend: 2200, revenue: 7480 },
-  ],
-  audiences: [
-    { name: 'Beauty 25–34',       spend: 3200, roas: 4.2 },
-    { name: 'Lookalike Buyers',   spend: 2400, roas: 3.8 },
-    { name: 'Interest: Skincare', spend: 1900, roas: 2.9 },
-    { name: 'Retargeting — Web',  spend: 1000, roas: 5.4 },
-  ],
-  creatives: [
-    { name: 'Reel — Morning Ritual',   platform: 'Instagram', ctr: 4.2, cpa: 7.80 },
-    { name: 'Static — Before/After',   platform: 'Instagram', ctr: 3.8, cpa: 9.40 },
-    { name: 'Carousel — Product Line', platform: 'Facebook',  ctr: 3.1, cpa: 11.20 },
-    { name: 'Video — Founder Story',   platform: 'TikTok',    ctr: 2.6, cpa: 14.60 },
-  ],
-  kpiComparison: [
-    { metric: 'Total Ad Spend',    current: '$8,500',   previous: '$8,100',   delta: '+4.9%',   positive: null  as boolean|null, benchmark: '$8,000',   vsBenchmark: '+6.3%',   vsBenchmarkPositive: null  as boolean|null },
-    { metric: 'Total Revenue',     current: '$28,900',  previous: '$24,600',  delta: '+17.5%',  positive: true  as boolean|null, benchmark: '$24,000',  vsBenchmark: '+20.4%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'ROAS',              current: '3.4×',     previous: '3.0×',     delta: '+0.4×',   positive: true  as boolean|null, benchmark: '2.5×',     vsBenchmark: '+0.9×',   vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'CPM',               current: '$6.85',    previous: '$7.20',    delta: '−4.9%',   positive: true  as boolean|null, benchmark: '$9.50',    vsBenchmark: '−27.9%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'CPC',               current: '$0.22',    previous: '$0.26',    delta: '−15.4%',  positive: true  as boolean|null, benchmark: '$0.35',    vsBenchmark: '−37.1%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'CTR',               current: '3.1%',     previous: '2.9%',     delta: '+0.2pp',  positive: true  as boolean|null, benchmark: '1.0%',     vsBenchmark: '+2.1pp',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'CPA',               current: '$10.04',   previous: '$11.40',   delta: '−11.9%',  positive: true  as boolean|null, benchmark: '$18.00',   vsBenchmark: '−44.2%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Conversions',       current: '847',      previous: '711',      delta: '+19.1%',  positive: true  as boolean|null, benchmark: '500',      vsBenchmark: '+69.4%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Impressions',       current: '1,240,000',previous: '1,080,000',delta: '+14.8%',  positive: true  as boolean|null, benchmark: '900,000',  vsBenchmark: '+37.8%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Clicks',            current: '38,400',   previous: '31,300',   delta: '+22.7%',  positive: true  as boolean|null, benchmark: '20,000',   vsBenchmark: '+92.0%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Budget Utilisation',current: '85%',      previous: '81%',      delta: '+4pp',    positive: null  as boolean|null, benchmark: '90%',      vsBenchmark: '−5pp',    vsBenchmarkPositive: null  as boolean|null },
-    { metric: 'Frequency',         current: '2.3×',     previous: '2.1×',     delta: '+0.2×',   positive: null  as boolean|null, benchmark: '2.5×',     vsBenchmark: '−0.2×',   vsBenchmarkPositive: null  as boolean|null },
-  ] as KPIRow[],
-  actionPlan: [
-    { action: 'Scale Cart Retargeting from $1.8K to $3.6K',             owner: 'Paid Manager',   deadline: 'June 1, 2026',  impact: 'ROAS 5.2× makes this the highest-confidence budget move; projected +$9.4K revenue',    priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Pause TikTok Brand Video, reallocate to IG Conversion',   owner: 'Paid Manager',   deadline: 'June 1, 2026',  impact: 'Swap ROAS 1.9× for 4.1× on same spend; projected +$3.3K monthly revenue',              priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Test video-first creative for Hydra Serum campaign',       owner: 'Copywriter',     deadline: 'June 14, 2026', impact: 'Video ads average 40% lower CPA vs static on Instagram — projected CPA to $6.00',      priority: 'medium' as 'high'|'medium'|'low' },
-    { action: 'Expand Beauty 25–34 audience budget by 25%',              owner: 'Paid Manager',   deadline: 'June 7, 2026',  impact: 'Highest-ROAS audience (4.2×) has headroom before saturation frequency',                 priority: 'medium' as 'high'|'medium'|'low' },
-    { action: 'Set up automated budget rules for CPA threshold',          owner: 'Paid Manager',   deadline: 'June 21, 2026', impact: 'Auto-pause ad sets if CPA exceeds $14 — prevents budget drain on underperformers',       priority: 'low'    as 'high'|'medium'|'low' },
-  ] as ActionRow[],
-  narrative: {
-    executive: 'May 2026 delivered a 3.4× portfolio ROAS — above the 2.5× agency benchmark and a +0.4× improvement on April. Total ad spend of $8,500 generated $28,900 in attributed revenue, with Cart Retargeting emerging as the standout performer at 5.2× ROAS. CPM fell to $6.85 (−4.9% vs April) while CTR climbed to 3.1%, signalling improving creative-audience fit across the portfolio.',
-    efficiency: 'Cost efficiency improved across all primary metrics month-on-month. CPC dropped 15.4% to $0.22 — well below the $0.35 industry benchmark — driven by strong creative relevance scores on the Instagram Awareness and Conversion campaigns. CPA fell to $10.04, representing a 44.2% advantage over the $18.00 category benchmark, largely attributable to the Retargeting audience\'s superior purchase intent. The TikTok Brand Video campaign (ROAS 1.9×) is the sole underperformer and should be paused to free budget for higher-return placements.',
-    creative: 'The top-performing creative was the "Morning Ritual" Reel, achieving 4.2% CTR and $7.80 CPA — the strongest result in the portfolio. The pattern across all top creatives is consistent: video-first formats with product in the first 3 seconds outperform static alternatives by 1.8–2.4× on CPA. The Founder Story video on TikTok underperformed despite high reach (320K impressions), suggesting the audience segment (broad interest targeting) is too high-funnel for a conversion objective.',
-  },
-  recommendations: [
-    'Scale Retargeting — Cart Recovery to $5.4K: ROAS 5.2× is the strongest signal in the portfolio — 3× current budget has clear headroom.',
-    'Pause TikTok Brand Video (ROAS 1.9×) and reallocate $1.5K to Instagram Hydra Serum Conversion (ROAS 4.1×).',
-    'Test video-first creative for Hydra Serum — video ads average 40% lower CPA vs static on Instagram.',
-  ],
+const PLATFORM_COLORS: Record<string, string> = {
+  instagram: '#E1306C', facebook: '#1877F2', linkedin: '#0A66C2',
+  tiktok: '#2A2A2A', twitter: '#1DA1F2', youtube: '#FF0000',
 }
 
-const COMBINED_DEMO = {
-  period: 'May 2026',
-  organic: { reach: 284500, impressions: 412000, posts: 34, er: 5.8 },
-  paid:    { reach: 847000, impressions: 1240000, spend: 8500, roas: 3.4 },
-  total:   { reach: 1131500, blendedCPM: 7.52, blendedCPE: 0.19 },
-  trend: [
-    { month: 'Jan', organic: 182000, paid: 620000 },
-    { month: 'Feb', organic: 198000, paid: 690000 },
-    { month: 'Mar', organic: 224000, paid: 740000 },
-    { month: 'Apr', organic: 241000, paid: 780000 },
-    { month: 'May', organic: 284500, paid: 847000 },
-  ],
-  channels: [
-    { platform: 'Instagram', organic: 168000, paid: 420000 },
-    { platform: 'Facebook',  organic: 28200,  paid: 320000 },
-    { platform: 'TikTok',    organic: 71000,  paid: 107000 },
-    { platform: 'LinkedIn',  organic: 17300,  paid: 0 },
-  ],
-  kpiComparison: [
-    { metric: 'Combined Total Reach',   current: '1,131,500', previous: '990,000',  delta: '+14.3%',  positive: true  as boolean|null, benchmark: '800,000',  vsBenchmark: '+41.4%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Organic Reach',          current: '284,500',   previous: '241,000',  delta: '+18.4%',  positive: true  as boolean|null, benchmark: '200,000',  vsBenchmark: '+42.3%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Paid Reach',             current: '847,000',   previous: '749,000',  delta: '+13.1%',  positive: true  as boolean|null, benchmark: '600,000',  vsBenchmark: '+41.2%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Paid Reach %',           current: '74.8%',     previous: '75.7%',    delta: '−0.9pp',  positive: null  as boolean|null, benchmark: '75%',      vsBenchmark: '−0.2pp',  vsBenchmarkPositive: null  as boolean|null },
-    { metric: 'Blended CPM',            current: '$7.52',     previous: '$7.90',    delta: '−4.8%',   positive: true  as boolean|null, benchmark: '$9.50',    vsBenchmark: '−20.8%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Blended CPE',            current: '$0.19',     previous: '$0.22',    delta: '−13.6%',  positive: true  as boolean|null, benchmark: '$0.30',    vsBenchmark: '−36.7%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Organic Posts',          current: '34',        previous: '32',       delta: '+6.3%',   positive: true  as boolean|null, benchmark: '28',       vsBenchmark: '+21.4%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Paid Ad Spend',          current: '$8,500',    previous: '$8,100',   delta: '+4.9%',   positive: null  as boolean|null, benchmark: '$8,000',   vsBenchmark: '+6.3%',   vsBenchmarkPositive: null  as boolean|null },
-    { metric: 'Paid ROAS',              current: '3.4×',      previous: '3.0×',     delta: '+0.4×',   positive: true  as boolean|null, benchmark: '2.5×',     vsBenchmark: '+0.9×',   vsBenchmarkPositive: true  as boolean|null },
-  ] as KPIRow[],
-  actionPlan: [
-    { action: 'Boost top 2 organic posts as paid dark posts',             owner: 'Paid Manager',   deadline: 'June 7, 2026',  impact: 'Reduces creative production cost ~40% and validates copy before full budget commitment',   priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Increase TikTok organic posting to 3×/week',               owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'ER of 9.1% signals high-value audience; build organic base before adding paid spend',       priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Run $800 LinkedIn Campaign Manager test',                   owner: 'Paid Manager',   deadline: 'June 14, 2026', impact: 'Organic ER 4.2% is already above B2C benchmark — paid amplification is low-risk',          priority: 'medium' as 'high'|'medium'|'low' },
-    { action: 'Move Instagram paid reporting to blended CPM dashboard',    owner: 'Strategist',     deadline: 'June 7, 2026',  impact: 'Unified view prevents double-counting reach and enables true channel ROI comparison',         priority: 'medium' as 'high'|'medium'|'low' },
-  ] as ActionRow[],
-  narrative: {
-    executive: 'Luxe Cosmetics generated a combined reach of 1,131,500 accounts in May 2026 — a 14.3% increase on April. Paid channels account for 74.8% of total reach at a blended CPM of $7.52, while organic content continues to perform at a 5.8% engagement rate that requires zero incremental spend. The relationship between the two channels is complementary: organic content validates creative quality before paid amplification, a workflow that is currently underutilised.',
-    synergy: 'The highest-performing paid creative (Morning Ritual Reel, CTR 4.2%) was originally an organic post that the team promoted after observing its 12.4% engagement rate. This creative-to-paid pipeline approach reduces production cost per acquisition by an estimated 38% compared to purpose-built paid creative. Only 2 of the 5 top organic posts this month were promoted — a gap that represents significant efficiency available without additional creative investment.',
-    channel: 'TikTok presents the most compelling channel balance opportunity: organic ER of 9.1% and 71K organic reach on just 7 posts indicates a highly receptive audience, yet only $1,500 of the $8,500 paid budget was allocated here. The paid-to-organic reach ratio on TikTok is 1.5×, compared to 2.5× on Instagram — organic content is nearly as efficient as paid on this platform, suggesting paid investment should follow further organic proof-of-concept before scaling.',
-  },
-  recommendations: [
-    'Top-performing organic posts should become paid ads — this reduces creative production costs by ~40% and validates creative before committing budget.',
-    'TikTok organic (71K reach) vs paid uplift (+107K) is only 1.5× — organic performance is strong here; scale it before adding more paid spend.',
-    'LinkedIn has no paid spend but 4.2% ER — a $800 Campaign Manager test could amplify B2B reach with minimal risk.',
-  ],
-}
-
-const PLATFORM_DEMO = {
-  platform: 'Instagram', period: 'May 2026',
-  followers: 42800, netGrowth: 2840, growthRate: 7.1,
-  reach: 168000, impressions: 247000, er: 6.8,
-  followerTrend: [
-    { month: 'Jan', followers: 34200 },
-    { month: 'Feb', followers: 36400 },
-    { month: 'Mar', followers: 38600 },
-    { month: 'Apr', followers: 40800 },
-    { month: 'May', followers: 42800 },
-  ],
-  formats: [
-    { format: 'Reels',    posts: 8, reach: 98200, er: 9.4, saves: 4200 },
-    { format: 'Carousel', posts: 6, reach: 52000, er: 7.2, saves: 2800 },
-    { format: 'Static',   posts: 3, reach: 12400, er: 4.8, saves: 840 },
-    { format: 'Stories',  posts: 1, reach: 5400,  er: 3.2, saves: 0 },
-  ],
-  erByDay: [
-    { day: 'Mon', er: 5.4 },
-    { day: 'Tue', er: 6.8 },
-    { day: 'Wed', er: 8.2 },
-    { day: 'Thu', er: 7.6 },
-    { day: 'Fri', er: 5.9 },
-    { day: 'Sat', er: 4.8 },
-    { day: 'Sun', er: 4.2 },
-  ],
-  topHashtags: [
-    { tag: '#LuxeCosmetics',   posts: 48, reach: 84000, er: 7.2 },
-    { tag: '#SkincareRoutine', posts: 22, reach: 62000, er: 6.4 },
-    { tag: '#GlowSkin',        posts: 18, reach: 48000, er: 5.8 },
-    { tag: '#CrueltyFree',     posts: 12, reach: 34000, er: 5.2 },
-    { tag: '#SummerGlow',      posts: 8,  reach: 22000, er: 8.4 },
-  ],
-  kpiComparison: [
-    { metric: 'Total Followers',       current: '42,800',  previous: '40,800',  delta: '+4.9%',   positive: true  as boolean|null, benchmark: '30,000',   vsBenchmark: '+42.7%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Net New Followers',     current: '2,840',   previous: '2,420',   delta: '+17.4%',  positive: true  as boolean|null, benchmark: '1,200',    vsBenchmark: '+136.7%', vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Follower Growth Rate',  current: '7.1%',    previous: '6.3%',    delta: '+0.8pp',  positive: true  as boolean|null, benchmark: '1.8%',     vsBenchmark: '+5.3pp',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Total Reach',           current: '168,000', previous: '142,000', delta: '+18.3%',  positive: true  as boolean|null, benchmark: '120,000',  vsBenchmark: '+40.0%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Avg Eng. Rate',         current: '6.8%',    previous: '6.2%',    delta: '+0.6pp',  positive: true  as boolean|null, benchmark: '3.5%',     vsBenchmark: '+3.3pp',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Reels Avg ER',          current: '9.4%',    previous: '8.1%',    delta: '+1.3pp',  positive: true  as boolean|null, benchmark: '5.0%',     vsBenchmark: '+4.4pp',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Carousel Avg ER',       current: '7.2%',    previous: '6.8%',    delta: '+0.4pp',  positive: true  as boolean|null, benchmark: '4.5%',     vsBenchmark: '+2.7pp',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Story Completion',      current: '68%',     previous: '64%',     delta: '+4pp',    positive: true  as boolean|null, benchmark: '55%',      vsBenchmark: '+13pp',   vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Total Saves',           current: '14,200',  previous: '10,800',  delta: '+31.5%',  positive: true  as boolean|null, benchmark: '6,000',    vsBenchmark: '+136.7%', vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Avg Reach per Post',    current: '9,333',   previous: '8,222',   delta: '+13.5%',  positive: true  as boolean|null, benchmark: '6,500',    vsBenchmark: '+43.6%',  vsBenchmarkPositive: true  as boolean|null },
-  ] as KPIRow[],
-  audienceSignals: [
-    { signal: 'Save Rate',               value: '8.5%',    benchmark: '2.0%',   status: 'good'    as 'good'|'warning'|'poor', note: 'Save rate on Instagram-only posts is 4× the platform average, confirming high content utility and evergreen appeal.' },
-    { signal: 'Reel Watch-Through Rate', value: '74%',     benchmark: '50%',    status: 'good'    as 'good'|'warning'|'poor', note: '74% of Reel viewers watch to completion — a key input for the algorithm\'s distribution decisions. Well above the 50% benchmark.' },
-    { signal: 'Explore Placement Rate',  value: '31%',     benchmark: '15%',    status: 'good'    as 'good'|'warning'|'poor', note: '31% of reach this month came from Explore, meaning content is consistently surfaced to non-followers.' },
-    { signal: 'Follower Authenticity',   value: '96.2%',   benchmark: '90%',    status: 'good'    as 'good'|'warning'|'poor', note: 'Low estimated bot/ghost follower count based on engagement-pattern analysis. Maintains algorithm favourability.' },
-    { signal: 'Wed/Thu Post ER Premium', value: '+38%',    benchmark: '0%',     status: 'good'    as 'good'|'warning'|'poor', note: 'Posts published Wed–Thu achieve 38% higher ER than the account average — currently only 42% of posts land on these days.' },
-    { signal: 'Profile-to-Follow Rate', value: '6.6%',    benchmark: '3.0%',   status: 'good'    as 'good'|'warning'|'poor', note: '6.6% of profile visitors follow — more than double the benchmark, confirming strong profile page conversion.' },
-  ] as AudienceRow[],
-  actionPlan: [
-    { action: 'Shift 60% of posts to Wed–Thu publish slots',              owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Estimated +38% ER based on day-of-week performance data',                              priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Increase Reels to 4 per week',                             owner: 'Social Manager', deadline: 'June 7, 2026',  impact: 'Reels drive 9.4% ER vs 4.8% for static — 4 per week targets 12K+ additional reach',       priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Add #SummerGlow to all June Reel posts',                   owner: 'Copywriter',     deadline: 'June 1, 2026',  impact: '#SummerGlow delivers 8.4% ER vs account average 6.8% — highest hashtag performance',      priority: 'medium' as 'high'|'medium'|'low' },
-    { action: 'Create 3 Stories per week with engagement stickers',       owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Story stickers increase completion rate by 12–18% on average',                            priority: 'low'    as 'high'|'medium'|'low' },
-  ] as ActionRow[],
-  narrative: {
-    executive: 'Luxe Cosmetics Instagram account delivered its strongest month in 2026, with 42,800 total followers, a 7.1% monthly growth rate, and a 6.8% average engagement rate — 3.3 percentage points above the platform benchmark. The account grew by 2,840 net new followers in May, 17.4% more than April, driven by the Explore placement of the Summer Glow Reel and two carousel posts with exceptional save velocity.',
-    formats: 'Reels are the dominant growth engine, delivering 9.4% average engagement rate at 4× the reach of Carousels on equal posting frequency. The format also benefits from algorithm amplification: 31% of May\'s total reach came from Explore page placement, compared to 8% for static posts. Wednesday and Thursday are the highest-performing publishing days by a statistically significant margin — Wednesday posts average 8.2% ER versus 4.2% on Sundays, yet only 42% of posts are currently published on peak days.',
-    hashtags: 'Branded hashtags (#LuxeCosmetics, #SummerGlow) outperform generic category tags in both reach and engagement rate. #SummerGlow in particular generated 8.4% ER across 8 posts — the highest in the hashtag portfolio — suggesting strong seasonal relevance for the campaign. The hashtag strategy should be consolidated to 3–5 consistent tags per post rather than rotating through large tag sets, which dilutes reach concentration.',
-  },
-}
-
-const QUARTERLY_DEMO = {
-  quarter: 'Q1 2026', client: 'Luxe Cosmetics',
-  objectives: [
-    { kpi: 'Total Reach',     target: 600000, actual: 604500, unit: '' },
-    { kpi: 'Avg Engagement',  target: 5.0,    actual: 5.1,    unit: '%' },
-    { kpi: 'Follower Growth', target: 6000,   actual: 7140,   unit: '' },
-    { kpi: 'Published Posts', target: 90,     actual: 91,     unit: '' },
-    { kpi: 'Paid ROAS',       target: 3.0,    actual: 3.4,    unit: '×' },
-  ],
-  trend: [
-    { month: 'Jan', reach: 182000, er: 4.8, spend: 7200 },
-    { month: 'Feb', reach: 198000, er: 5.1, spend: 8100 },
-    { month: 'Mar', reach: 224500, er: 5.4, spend: 8500 },
-  ],
-  campaigns: [
-    { name: "Valentine's Day Collection", reach: 84000,  er: 6.2, highlight: 'Highest-engagement campaign of Q1' },
-    { name: 'Spring Renewal Launch',      reach: 112000, er: 5.8, highlight: 'Exceeded reach target by 22%' },
-    { name: "International Women's Day",  reach: 64000,  er: 7.4, highlight: 'Top ER of the quarter — viral Reel reached 48K' },
-  ],
-  kpiComparison: [
-    { metric: 'Q1 Total Reach',         current: '604,500',  previous: '498,000',  delta: '+21.4%',  positive: true  as boolean|null, benchmark: '540,000',  vsBenchmark: '+11.9%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Avg Eng. Rate',          current: '5.1%',     previous: '4.4%',     delta: '+0.7pp',  positive: true  as boolean|null, benchmark: '4.0%',     vsBenchmark: '+1.1pp',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Follower Growth (net)',   current: '7,140',    previous: '5,200',    delta: '+37.3%',  positive: true  as boolean|null, benchmark: '4,500',    vsBenchmark: '+58.7%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Posts Published',        current: '91',       previous: '84',       delta: '+8.3%',   positive: true  as boolean|null, benchmark: '90',       vsBenchmark: '+1.1%',   vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Paid ROAS',              current: '3.4×',     previous: '2.8×',     delta: '+0.6×',   positive: true  as boolean|null, benchmark: '2.5×',     vsBenchmark: '+0.9×',   vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Total Ad Spend',         current: '$23,800',  previous: '$21,600',  delta: '+10.2%',  positive: null  as boolean|null, benchmark: '$24,000',  vsBenchmark: '−0.8%',   vsBenchmarkPositive: null  as boolean|null },
-    { metric: 'Total Paid Revenue',     current: '$80,920',  previous: '$60,480',  delta: '+33.8%',  positive: true  as boolean|null, benchmark: '$60,000',  vsBenchmark: '+34.9%',  vsBenchmarkPositive: true  as boolean|null },
-    { metric: 'Campaigns Delivered',    current: '3',        previous: '3',        delta: '—',       positive: null  as boolean|null, benchmark: '3',        vsBenchmark: 'On plan',  vsBenchmarkPositive: null  as boolean|null },
-  ] as KPIRow[],
-  actionPlan: [
-    { action: 'Brief Q2 campaign calendar by June 15',                    owner: 'Strategist',     deadline: 'June 15, 2026', impact: 'Earlier briefing reduces revision cycles and allows 2 weeks additional production time per campaign',  priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Set Q2 paid budget at $26,000 (+9% vs Q1)',               owner: 'Account Manager', deadline: 'June 1, 2026',  impact: 'ROAS trajectory supports budget increase; projected Q2 revenue $92K at 3.5× ROAS',                  priority: 'high'   as 'high'|'medium'|'low' },
-    { action: 'Double TikTok organic posting in Q2',                      owner: 'Social Manager', deadline: 'June 1, 2026',  impact: 'Q1 TikTok ER of 9.1% on low frequency signals highest organic growth lever available',              priority: 'medium' as 'high'|'medium'|'low' },
-    { action: 'Introduce monthly organic content audit',                  owner: 'Creative Director',deadline:'July 1, 2026', impact: 'Systematic bottom-post review prevents recurring format mistakes and improves portfolio ER',           priority: 'medium' as 'high'|'medium'|'low' },
-    { action: 'Produce Q2 OKR presentation for client by June 30',        owner: 'Account Manager', deadline: 'June 30, 2026', impact: 'Aligns client expectations and secures Q2 budget approval before campaign launch',                  priority: 'low'    as 'high'|'medium'|'low' },
-  ] as ActionRow[],
-  narrative: {
-    executive: 'Q1 2026 was a breakthrough quarter for Luxe Cosmetics across all tracked dimensions. Total organic reach of 604,500 exceeded the quarterly target of 600,000, average engagement rate improved from 4.4% to 5.1%, and follower growth of 7,140 net new accounts surpassed the 6,000 target by 19%. Paid ROAS improved from 2.8× to 3.4× quarter-on-quarter, driven by refined audience targeting and creative improvements validated through organic performance data.',
-    trend: 'The month-on-month reach trajectory — 182K in January, 198K in February, 224K in March — represents a consistent 10–13% compounding growth rate. The growth acceleration in March (13.4% vs February) coincided with the International Women\'s Day campaign, confirming that culturally relevant content significantly amplifies organic distribution. If the Q1 growth rate is maintained in Q2, total quarterly reach should reach 740,000–780,000.',
-    priorities: 'Three priorities define Q2 strategy. First, the TikTok opportunity: Q1\'s 9.1% ER at low posting frequency signals a highly receptive audience that is not yet being maximised. Doubling posting frequency to 14 videos per month is the single highest-upside action. Second, the paid retargeting stack produced 5.2× ROAS in Q1 — budget scaling to $5,000 per month is the highest-confidence paid investment. Third, the existing creative-to-paid promotion pipeline (boosting organic top performers) should be systematised to cover all posts with ER above 8%.',
-  },
-  q2Priorities: [
-    { priority: 'Scale TikTok organic to 14 videos per month', rationale: 'Q1 TikTok ER of 9.1% on a modest following signals a highly engaged audience that is currently under-served. Doubling posting frequency is the single highest-upside organic action available and requires no incremental budget.' },
-    { priority: 'Increase paid retargeting budget to $5,000/month', rationale: 'The retargeting campaign delivered 5.2× ROAS in Q1 — the highest-performing paid activation. Scaling spend to $5,000/month at current conversion rates projects $26,000 incremental revenue per month, representing the best risk-adjusted paid investment.' },
-    { priority: 'Systematise organic-to-paid promotion pipeline', rationale: 'All organic posts achieving above 8% ER should be evaluated for paid promotion within 48 hours of publishing. This pipeline produced 3.8× ROAS on boosted posts in Q1 and should be formalised as a standing workflow across all campaigns.' },
-  ],
-}
-
-const EXECUTIVE_DEMO = {
-  period: 'May 2026',
-  kpis: [
-    { label: 'Total Reach',    value: '1.13M', delta: '+20.2%', positive: true  as boolean | null },
-    { label: 'Avg Eng. Rate',  value: '5.8%',  delta: '+0.8%',  positive: true  as boolean | null },
-    { label: 'Paid ROAS',      value: '3.4×',  delta: '+0.4',   positive: true  as boolean | null },
-    { label: 'Active Clients', value: '4',     delta: '—',      positive: null  as boolean | null },
-  ],
-  trend: [
-    { month: 'Mar', reach: 224000 },
-    { month: 'Apr', reach: 241000 },
-    { month: 'May', reach: 284500 },
-  ],
-  wins: [
-    'Luxe Cosmetics Reel reached 48.2K organic — best single post in 12 months.',
-    'Cart Retargeting achieved 5.2× ROAS — highest in portfolio history.',
-    'LinkedIn average ER hit 4.2%, outperforming the 3.1% B2C benchmark.',
-  ],
-  opportunities: [
-    'TikTok organic ER (9.1%) signals high-value untapped audience — increase posting frequency before adding paid spend.',
-    'FitForge LinkedIn presence is near-zero — competitor Gymshark drives 28% of leads via this channel.',
-    'Stories average only 4/month per account vs the recommended 12 — algorithm distribution is being left on the table.',
-  ],
-  action: 'Scale Luxe Cosmetics Instagram Retargeting from $1.8K to $3.6K in June — ROAS of 5.2× makes this the highest-confidence budget move in the portfolio.',
-  clientBreakdown: [
-    { client: 'Luxe Cosmetics', reach: '284,500', er: '5.8%', roas: '3.4×', status: 'ahead'    as 'ahead'|'on-track'|'at-risk' },
-    { client: 'TechNova',       reach: '142,000', er: '4.2%', roas: '2.8×', status: 'on-track' as 'ahead'|'on-track'|'at-risk' },
-    { client: 'Coastal Eats',   reach: '88,400',  er: '6.4%', roas: '—',    status: 'ahead'    as 'ahead'|'on-track'|'at-risk' },
-    { client: 'FitForge',       reach: '64,200',  er: '3.8%', roas: '2.1×', status: 'at-risk'  as 'ahead'|'on-track'|'at-risk' },
-  ],
-  narrative: {
-    portfolio: 'The NOVAX portfolio delivered a combined 579,100 organic reach accounts in May 2026, with a blended engagement rate of 5.05% — 26% above the 4.0% industry benchmark. Three of four clients are ahead of or on track to OKR targets; FitForge requires intervention due to declining ER (3.8%) against the fitness category benchmark of 4.5%.',
-    highlights: 'Two portfolio records were set in May: the Luxe Cosmetics Summer Glow Reel reached 48,200 accounts organically — the best single post in twelve months — and Cart Retargeting achieved 5.2× ROAS, the highest paid return in portfolio history. Both followed the same workflow: validate organic performance, then amplify with paid budget. This pipeline should be standardised across all four accounts.',
-  },
-}
-
-// ─── Shared components ──────────────────────────────────────────────────────────
+// ─── Shared UI components ───────────────────────────────────────────────────────
 
 function DeltaBadge({ delta, positive }: { delta: string; positive: boolean | null }) {
-  if (positive === null) {
+  if (delta === '—' || positive === null) {
     return <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">{delta}</span>
   }
   return (
@@ -452,8 +120,6 @@ function ReportHeader({ title, subtitle, client, period }: { title: string; subt
   )
 }
 
-// ─── Deep report shared components ────────────────────────────────────────────
-
 function CoverPage({ title, subtitle, client, period, tag }: { title: string; subtitle: string; client: string; period: string; tag: string }) {
   return (
     <div className="report-cover-page rounded-2xl overflow-hidden flex flex-col" style={{ background: B.primary }}>
@@ -494,548 +160,296 @@ function Paragraph({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-slate-600 leading-7">{children}</p>
 }
 
-function KPIComparisonTable({ rows }: { rows: KPIRow[] }) {
+function InfoBanner({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100">
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ background: B.light }}>
-            {['Metric', 'Current Period', 'Prior Period', 'MoM Change', 'Industry Benchmark', 'vs Benchmark'].map((h, i) => (
-              <th key={h} className={cn('p-3 text-xs font-semibold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-              <td className="p-3 font-medium text-slate-700">{r.metric}</td>
-              <td className="p-3 text-right font-bold text-slate-900">{r.current}</td>
-              <td className="p-3 text-right text-slate-500">{r.previous}</td>
-              <td className="p-3 text-right"><DeltaBadge delta={r.delta} positive={r.positive}/></td>
-              <td className="p-3 text-right text-slate-400">{r.benchmark}</td>
-              <td className="p-3 text-right"><DeltaBadge delta={r.vsBenchmark} positive={r.vsBenchmarkPositive}/></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50">
+      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5"/>
+      <p className="text-xs text-amber-800 leading-relaxed">{children}</p>
     </div>
   )
 }
 
-const SIGNAL_BADGE: Record<string, string> = { good: 'bg-emerald-50 text-emerald-700', warning: 'bg-amber-50 text-amber-700', poor: 'bg-red-50 text-red-700' }
-
-function AudienceSignalsTable({ signals }: { signals: AudienceRow[] }) {
+function KPICard({ icon: Icon, label, value, delta, positive }: {
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
+  label: string
+  value: string
+  delta: string
+  positive: boolean | null
+}) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100">
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ background: B.light }}>
-            {['Audience Signal', 'Value', 'Benchmark', 'Status', 'Interpretation'].map((h, i) => (
-              <th key={h} className={cn('p-3 text-xs font-semibold', i === 3 ? 'text-center' : i < 2 || i === 4 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {signals.map((s, i) => (
-            <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-              <td className="p-3 font-medium text-slate-700">{s.signal}</td>
-              <td className="p-3 text-right font-bold text-slate-900">{s.value}</td>
-              <td className="p-3 text-right text-slate-400">{s.benchmark}</td>
-              <td className="p-3 text-center"><span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full capitalize', SIGNAL_BADGE[s.status])}>{s.status}</span></td>
-              <td className="p-3 text-slate-600 text-xs leading-relaxed">{s.note}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="rounded-2xl border border-novax-border p-5" style={{ background: B.light }}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-2 rounded-lg" style={{ background: 'rgba(27,61,56,0.12)' }}>
+          <Icon className="w-4 h-4" style={{ color: B.primary }}/>
+        </div>
+        <span className="text-xs font-semibold" style={{ color: B.muted }}>{label}</span>
+      </div>
+      <p className="text-3xl font-bold text-slate-900 mb-1">{value}</p>
+      {delta !== '—' && <DeltaBadge delta={`${delta} vs prior period`} positive={positive}/>}
     </div>
   )
-}
-
-function CompetitorTable({ rows }: { rows: Competitor[] }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-slate-100">
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ background: B.light }}>
-            {['Account', 'Followers', 'Avg ER', 'Posts/Week', 'Avg Reach/Post'].map((h, i) => (
-              <th key={h} className={cn('p-3 text-xs font-semibold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => {
-            const isUs = r.name.includes('Luxe')
-            return (
-              <tr key={i} className={cn('border-t border-slate-50', isUs ? 'font-semibold' : i % 2 === 1 ? 'bg-slate-50/50' : '')} style={isUs ? { background: B.light } : {}}>
-                <td className="p-3 font-medium" style={isUs ? { color: B.primary } : { color: '#334155' }}>
-                  {r.name}{isUs && <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: B.accent, color: 'white' }}>Us</span>}
-                </td>
-                <td className="p-3 text-right text-slate-700">{r.followers}</td>
-                <td className="p-3 text-right font-bold" style={isUs ? { color: B.primary } : { color: '#475569' }}>{r.er}</td>
-                <td className="p-3 text-right text-slate-700">{r.posts}</td>
-                <td className="p-3 text-right text-slate-700">{r.avgReach}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-const PLATFORM_COLORS: Record<string, string> = {
-  instagram: '#E1306C', facebook: '#1877F2', linkedin: '#0A66C2',
-  tiktok: '#2A2A2A', twitter: '#1DA1F2', youtube: '#FF0000',
 }
 
 // ─── Monthly Report ─────────────────────────────────────────────────────────────
 
-function MonthlyReport({ client, liveStats, livePlatforms, liveTrend, aiReport }: {
+function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, liveTrend, aiReport }: {
   client: string
+  period: string
   liveStats?: Record<string, number> | null
-  livePlatforms?: { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }[] | null
-  liveTrend?: { month: string; reach: number; impressions: number; er: number }[] | null
+  prevStats?: Record<string, number> | null
+  livePlatforms?: LivePlatform[] | null
+  liveTrend?: LiveTrendPoint[] | null
   aiReport?: AIReport | null
 }) {
   const { user } = useAuth()
-  const d = MONTHLY_DEMO
-  const platformData = livePlatforms?.length
-    ? livePlatforms.map(p => ({
-        name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
-        reach: p.reach, posts: p.posts, er: p.engagement_rate,
-        color: PLATFORM_COLORS[p.platform] ?? '#94a3b8',
-      }))
-    : d.platforms
-  const trendData = liveTrend?.length ? liveTrend : d.trend
+  const platformData = (livePlatforms ?? [])
+    .filter(p => p.reach > 0 || p.impressions > 0)
+    .map(p => ({
+      name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
+      reach: p.reach, posts: p.posts, er: p.engagement_rate,
+      color: PLATFORM_COLORS[p.platform] ?? '#94a3b8',
+    }))
+  const trendData = liveTrend ?? []
   const maxReach = Math.max(...platformData.map(p => p.reach), 1)
+  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
+
   return (
     <div className="space-y-5">
       <CoverPage
         title="Monthly Performance Report"
-        subtitle="Organic social media performance across all active platforms — reach, engagement, audience quality, and content analysis"
-        client={client} period={d.period}
-        tag="Organic Social — Monthly"
+        subtitle="Organic social media performance across all active platforms — reach, engagement, and trend analysis"
+        client={client} period={period} tag="Organic Social — Monthly"
       />
-      <ReportHeader title="Monthly Performance Report" subtitle="Organic social media performance across all platforms" client={client} period={d.period}/>
+      <ReportHeader title="Monthly Performance Report" subtitle="Organic social media performance across all platforms" client={client} period={period}/>
 
-      {/* Highlight callouts */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { icon: Eye,                          label: 'Total Reach',         value: liveStats?.reach != null ? formatNumber(liveStats.reach) : formatNumber(d.kpis.reach), delta: d.deltas.reach },
-          { icon: TrendingUp,                   label: 'Avg Engagement Rate', value: liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : `${d.kpis.er}%`, delta: d.deltas.er },
-          { icon: liveStats ? BarChart2 : Users, label: liveStats ? 'Total Impressions' : 'New Followers', value: liveStats?.impressions != null ? formatNumber(liveStats.impressions) : `+${formatNumber(d.kpis.followers)}`, delta: d.deltas.followers },
-        ].map(({ icon: Icon, label, value, delta }) => (
-          <div key={label} className="rounded-2xl border border-novax-border p-5" style={{ background: B.light }}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 rounded-lg" style={{ background: 'rgba(27,61,56,0.12)' }}>
-                <Icon className="w-4 h-4" style={{ color: B.primary }}/>
-              </div>
-              <span className="text-xs font-semibold" style={{ color: B.muted }}>{label}</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 mb-1">{value}</p>
-            <DeltaBadge delta={`${delta} vs ${d.prevPeriod}`} positive={true}/>
+        <KPICard icon={Eye}       label="Total Reach"          value={liveStats?.reach != null ? formatNumber(liveStats.reach) : '—'}                                        delta={deltaStr(liveStats?.reach, prevStats?.reach)}               positive={deltaPos(liveStats?.reach, prevStats?.reach)}/>
+        <KPICard icon={TrendingUp} label="Avg Engagement Rate" value={liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—'}        delta={deltaStr(liveStats?.engagement_rate, prevStats?.engagement_rate)} positive={deltaPos(liveStats?.engagement_rate, prevStats?.engagement_rate)}/>
+        <KPICard icon={BarChart2}  label="Total Impressions"   value={liveStats?.impressions != null ? formatNumber(liveStats.impressions) : '—'}                           delta={deltaStr(liveStats?.impressions, prevStats?.impressions)}    positive={deltaPos(liveStats?.impressions, prevStats?.impressions)}/>
+      </div>
+
+      {trendData.length > 0 && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <SectionHeader title="Reach & Impressions Trend" subtitle={`5-month data — ${vendorName(user?.role, 'Metricool')}`}/>
+            <ResponsiveContainer width="100%" height={200}>
+              <ComposedChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
+                <Tooltip formatter={(v, n) => [formatNumber(Number(v)), n === 'reach' ? 'Reach' : 'Impressions']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
+                <Bar dataKey="impressions" fill={B.light} stroke={B.border} radius={[3, 3, 0, 0]} name="Impressions"/>
+                <Line type="monotone" dataKey="reach" stroke={B.primary} strokeWidth={2.5} dot={{ fill: B.primary, r: 3 }} name="Reach"/>
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
-        ))}
-      </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <SectionHeader title="Engagement Rate Trend" subtitle="Monthly average"/>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="erGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={B.accent} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={B.accent} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
+                <Tooltip formatter={v => [`${v}%`, 'Eng. Rate']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
+                <ReferenceLine y={4} stroke="#cbd5e1" strokeDasharray="4 4" label={{ value: 'Benchmark 4%', position: 'insideTopRight', fontSize: 10, fill: '#94a3b8' }}/>
+                <Area type="monotone" dataKey="er" stroke={B.accent} strokeWidth={2.5} fill="url(#erGrad)" dot={{ fill: B.accent, r: 3 }}/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
-      {/* Trend charts */}
-      <div className="grid grid-cols-2 gap-4">
+      {platformData.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Reach & Impressions Trend" subtitle={liveTrend?.length ? `5-month live data from ${vendorName(user?.role, 'Metricool')}` : '5-month organic trajectory'}/>
-          <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-              <Tooltip formatter={(v, n) => [formatNumber(Number(v)), n === 'reach' ? 'Reach' : 'Impressions']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-              <Bar dataKey="impressions" fill={B.light} stroke={B.border} radius={[3, 3, 0, 0]} name="Impressions"/>
-              <Line type="monotone" dataKey="reach" stroke={B.primary} strokeWidth={2.5} dot={{ fill: B.primary, r: 3 }} name="Reach"/>
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Engagement Rate Trend" subtitle="Monthly average — benchmark 4.0%"/>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={trendData}>
-              <defs>
-                <linearGradient id="erGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={B.accent} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={B.accent} stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
-              <Tooltip formatter={v => [`${v}%`, 'Eng. Rate']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-              <ReferenceLine y={4} stroke="#cbd5e1" strokeDasharray="4 4" label={{ value: 'Benchmark 4%', position: 'insideTopRight', fontSize: 10, fill: '#94a3b8' }}/>
-              <Area type="monotone" dataKey="er" stroke={B.accent} strokeWidth={2.5} fill="url(#erGrad)" dot={{ fill: B.accent, r: 3 }}/>
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Platform breakdown */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Platform Performance" subtitle={livePlatforms?.length ? `Live data from ${vendorName(user?.role, 'Metricool')}` : 'Reach, posts, and engagement rate by channel'}/>
-        <div className="space-y-4">
-          {platformData.map(p => (
-            <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '120px 1fr 280px' }}>
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }}/>
-                <span className="text-sm font-semibold text-slate-700">{p.name}</span>
-              </div>
-              <div>
-                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${(p.reach / maxReach) * 100}%`, background: p.color }}/>
+          <SectionHeader title="Platform Performance" subtitle={`Reach, posts, and engagement rate — ${vendorName(user?.role, 'Metricool')}`}/>
+          <div className="space-y-4">
+            {platformData.map(p => (
+              <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '120px 1fr 280px' }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }}/>
+                  <span className="text-sm font-semibold text-slate-700">{p.name}</span>
+                </div>
+                <div>
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${(p.reach / maxReach) * 100}%`, background: p.color }}/>
+                  </div>
+                </div>
+                <div className="flex items-center gap-5 text-xs">
+                  <div className="text-right w-20"><span className="font-bold text-slate-800">{formatNumber(p.reach)}</span><span className="text-slate-400 ml-1">reach</span></div>
+                  <div className="text-right w-14"><span className="font-bold text-slate-800">{p.posts}</span><span className="text-slate-400 ml-1">posts</span></div>
+                  <div className="text-right w-16"><span className="font-bold text-slate-800">{Number(p.er).toFixed(1)}%</span><span className="text-slate-400 ml-1">ER</span></div>
                 </div>
               </div>
-              <div className="flex items-center gap-5 text-xs">
-                <div className="text-right w-20"><span className="font-bold text-slate-800">{formatNumber(p.reach)}</span><span className="text-slate-400 ml-1">reach</span></div>
-                <div className="text-right w-14"><span className="font-bold text-slate-800">{p.posts}</span><span className="text-slate-400 ml-1">posts</span></div>
-                <div className="text-right w-16"><span className="font-bold text-slate-800">{p.er}%</span><span className="text-slate-400 ml-1">ER</span></div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Content type performance */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Content Format Performance" subtitle="Reach by post type"/>
-        <ResponsiveContainer width="100%" height={190}>
-          <BarChart data={d.contentTypes} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false}/>
-            <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-            <YAxis type="category" dataKey="type" tick={{ fontSize: 12, fill: '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} width={70}/>
-            <Tooltip formatter={(v, n) => [n === 'reach' ? formatNumber(Number(v)) : `${v}%`, n === 'reach' ? 'Reach' : 'ER']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-            <Bar dataKey="reach" fill={B.primary} radius={[0, 4, 4, 0]} name="Reach"/>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Top posts */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Top Performing Posts" subtitle="Highest-reach content this month"/>
-        <div className="space-y-3">
-          {d.topPosts.map((post, i) => (
-            <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5" style={{ background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : '#a16207' }}>
-                {i + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 break-words">{post.caption}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{post.platform} · {post.type}</p>
-              </div>
-              <div className="flex items-center gap-5 text-xs shrink-0">
-                <div className="text-right"><p className="font-bold text-slate-800">{formatNumber(post.reach)}</p><p className="text-slate-400">reach</p></div>
-                <div className="text-right"><p className="font-bold" style={{ color: B.primary }}>{post.er}%</p><p className="text-slate-400">ER</p></div>
-              </div>
-            </div>
-          ))}
+      {hasNarrative && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of the data"/>
+          <div className="space-y-4">
+            {aiReport.narrative.executive    && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
+            {aiReport.narrative.reach        && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
+            {aiReport.narrative.engagement   && <Paragraph>{aiReport.narrative.engagement}</Paragraph>}
+            {aiReport.narrative.platform     && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
+            {aiReport.narrative.trend        && <Paragraph>{aiReport.narrative.trend}</Paragraph>}
+            {aiReport.narrative.audience     && <Paragraph>{aiReport.narrative.audience}</Paragraph>}
+          </div>
         </div>
-      </div>
-
-      {/* Performance narrative */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of results"/>
-        <div className="space-y-4">
-          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
-          {(aiReport?.narrative?.reach ?? d.narrative.reach) && <Paragraph>{aiReport?.narrative?.reach ?? d.narrative.reach}</Paragraph>}
-          {(aiReport?.narrative?.engagement ?? d.narrative.engagement) && <Paragraph>{aiReport?.narrative?.engagement ?? d.narrative.engagement}</Paragraph>}
-          {(aiReport?.narrative?.platform ?? d.narrative.platform) && <Paragraph>{aiReport?.narrative?.platform ?? d.narrative.platform}</Paragraph>}
-          {aiReport?.narrative?.trend && <Paragraph>{aiReport.narrative.trend}</Paragraph>}
-          {aiReport?.narrative?.audience && <Paragraph>{aiReport.narrative.audience}</Paragraph>}
-        </div>
-      </div>
-
-      {/* KPI comparison table */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Full KPI Comparison" subtitle="Current period vs prior period vs industry benchmark — 12 metrics"/>
-        <KPIComparisonTable rows={d.kpiComparison}/>
-      </div>
-
-      {/* Extended top posts */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Top Performing Posts" subtitle="5 highest-reach posts with performance analysis"/>
-        <div className="space-y-3">
-          {d.topPosts.map((post, i) => (
-            <div key={i} className="p-4 rounded-xl border border-slate-100 bg-slate-50">
-              <div className="flex items-start gap-4 mb-3">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5" style={{ background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#a16207' : B.border }}>
-                  {i + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 break-words">{post.caption}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{post.platform} · {post.type}</p>
-                </div>
-                <div className="flex items-center gap-5 text-xs shrink-0">
-                  <div className="text-right"><p className="font-bold text-slate-800">{formatNumber(post.reach)}</p><p className="text-slate-400">reach</p></div>
-                  <div className="text-right"><p className="font-bold" style={{ color: B.primary }}>{post.er}%</p><p className="text-slate-400">ER</p></div>
-                </div>
-              </div>
-              {post.why && (
-                <div className="flex items-start gap-2 pl-11">
-                  <ChevronRight className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: B.accent }}/>
-                  <p className="text-xs text-slate-500 leading-relaxed">{post.why}</p>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Bottom posts content audit */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Content Audit — Underperforming Posts" subtitle="3 lowest-reach posts with diagnosis and corrective action"/>
-        <div className="space-y-3">
-          {d.bottomPosts.map((post, i) => (
-            <div key={i} className="p-4 rounded-xl border border-red-100 bg-red-50/40">
-              <div className="flex items-start gap-4 mb-2">
-                <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-600 shrink-0 mt-0.5">
-                  {i + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 break-words">{post.caption}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{post.platform} · {post.type} · {formatNumber(post.reach)} reach · {post.er}% ER</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2 pl-11">
-                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-400"/>
-                <p className="text-xs text-slate-600 leading-relaxed">{post.diagnosis}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Audience quality signals */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Audience Quality Signals" subtitle="6 key indicators of genuine audience health vs benchmark"/>
-        <AudienceSignalsTable signals={d.audienceSignals}/>
-      </div>
-
-      {/* Competitor benchmarks */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Competitor Benchmark" subtitle="Luxe Cosmetics vs category peers on Instagram"/>
-        <CompetitorTable rows={d.competitors}/>
-        <p className="text-xs text-slate-400 mt-3 leading-relaxed">Note: Luxe Cosmetics ER of 6.8% exceeds all benchmarked competitors despite a smaller follower base — a pattern consistent with high content relevance and strong community fit. At current growth rate, the account will reach 100K followers by Q1 2027.</p>
-      </div>
-
+      )}
     </div>
   )
 }
 
 // ─── Paid Ads Report ────────────────────────────────────────────────────────────
 
-function PaidReport({ client, aiReport }: { client: string; aiReport?: AIReport | null }) {
-  const d = PAID_DEMO
-  const budgetPct = Math.round((d.spend / d.budget) * 100)
+function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiReport }: {
+  client: string
+  period: string
+  liveStats?: Record<string, number> | null
+  prevStats?: Record<string, number> | null
+  livePlatforms?: LivePlatform[] | null
+  aiReport?: AIReport | null
+}) {
+  const { user } = useAuth()
+  const platformData = (livePlatforms ?? [])
+    .filter(p => p.reach > 0 || p.impressions > 0)
+    .map(p => ({
+      name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
+      reach: p.reach, posts: p.posts, er: p.engagement_rate,
+      color: PLATFORM_COLORS[p.platform] ?? '#94a3b8',
+    }))
+  const maxReach = Math.max(...platformData.map(p => p.reach), 1)
+  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
+
   return (
     <div className="space-y-5">
       <CoverPage
         title="Paid Media Performance Report"
-        subtitle="Campaign efficiency, ROAS analysis, creative performance, and audience segmentation — full paid portfolio review"
-        client={client} period={d.period}
-        tag="Paid Media — Monthly"
+        subtitle="Organic performance baseline for paid amplification decisions — reach, engagement, and channel efficiency"
+        client={client} period={period} tag="Paid Media — Monthly"
       />
-      <ReportHeader title="Paid Media Performance Report" subtitle="Campaign analytics, ROAS, and creative performance" client={client} period={d.period}/>
+      <ReportHeader title="Paid Media Performance Report" subtitle="Organic performance baseline for paid amplification decisions" client={client} period={period}/>
 
-      {/* Budget hero row */}
+      <InfoBanner>
+        Paid campaign data (ROAS, CPC, CPA, spend) is sourced from ad platforms — Meta Ads Manager, TikTok Ads Manager, LinkedIn Campaign Manager — and is not available via {vendorName(user?.role, 'Metricool')}. The metrics below reflect organic reach and engagement performance, which serves as a direct proxy for creative quality and paid amplification readiness.
+      </InfoBanner>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Budget Utilisation</p>
-            <p className="text-3xl font-bold text-slate-900">{budgetPct}%</p>
-            <p className="text-xs text-slate-400 mt-1">${d.spend.toLocaleString()} of ${d.budget.toLocaleString()} spent</p>
-          </div>
-          <div className="mt-4">
-            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${budgetPct}%`, background: B.primary }}/>
-            </div>
-            <div className="flex justify-between text-[10px] text-slate-400 mt-1"><span>$0</span><span>${d.budget.toLocaleString()}</span></div>
-          </div>
-        </div>
-        <div className="rounded-2xl border-2 p-5 flex flex-col justify-between" style={{ borderColor: B.accent, background: 'white' }}>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>Return on Ad Spend</p>
-          <p className="text-5xl font-bold my-3" style={{ color: B.primary }}>{d.roas}×</p>
-          <p className="text-xs text-slate-500">${d.revenue.toLocaleString()} revenue on ${d.spend.toLocaleString()} spend</p>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 grid grid-cols-2 gap-4">
-          {[
-            { label: 'CPM', value: `$${d.cpm}` },
-            { label: 'CPC', value: `$${d.cpc}` },
-            { label: 'CTR', value: `${d.ctr}%` },
-            { label: 'CPA', value: `$${d.cpa}` },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
-              <p className="text-xl font-bold text-slate-900 mt-0.5">{value}</p>
-            </div>
-          ))}
-        </div>
+        <KPICard icon={Eye}       label="Organic Reach"        value={liveStats?.reach != null ? formatNumber(liveStats.reach) : '—'}                                      delta={deltaStr(liveStats?.reach, prevStats?.reach)}               positive={deltaPos(liveStats?.reach, prevStats?.reach)}/>
+        <KPICard icon={TrendingUp} label="Avg Engagement Rate" value={liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—'}      delta={deltaStr(liveStats?.engagement_rate, prevStats?.engagement_rate)} positive={deltaPos(liveStats?.engagement_rate, prevStats?.engagement_rate)}/>
+        <KPICard icon={BarChart2}  label="Total Impressions"   value={liveStats?.impressions != null ? formatNumber(liveStats.impressions) : '—'}                         delta={deltaStr(liveStats?.impressions, prevStats?.impressions)}    positive={deltaPos(liveStats?.impressions, prevStats?.impressions)}/>
       </div>
 
-      {/* Weekly spend vs revenue */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Weekly Spend vs Revenue" subtitle="Investment efficiency across the month"/>
-        <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={d.weeklySpend}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-            <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v) / 1000}K`}/>
-            <Tooltip formatter={(v, n) => [`$${Number(v).toLocaleString()}`, n === 'spend' ? 'Ad Spend' : 'Revenue']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-            <Legend wrapperStyle={{ fontSize: 12 }}/>
-            <Bar dataKey="spend" fill={B.accent} radius={[4, 4, 0, 0]} name="Ad Spend"/>
-            <Line type="monotone" dataKey="revenue" stroke={B.primary} strokeWidth={2.5} dot={{ fill: B.primary, r: 4 }} name="Revenue"/>
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Campaign table */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Campaign Performance" subtitle="All active and paused campaigns this period"/>
-        <div className="overflow-hidden rounded-xl border border-slate-100">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: B.light }}>
-                <th className="text-left p-3 text-xs font-semibold" style={{ color: B.primary }}>Campaign</th>
-                <th className="text-left p-3 text-xs font-semibold" style={{ color: B.primary }}>Platform</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Spend</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>ROAS</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Impressions</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>CTR</th>
-                <th className="text-center p-3 text-xs font-semibold" style={{ color: B.primary }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.campaigns.map((c, i) => (
-                <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-                  <td className="p-3 font-medium text-slate-800">{c.name}</td>
-                  <td className="p-3 text-slate-500">{c.platform}</td>
-                  <td className="p-3 text-right font-semibold text-slate-800">${c.spend.toLocaleString()}</td>
-                  <td className="p-3 text-right font-bold" style={{ color: c.roas >= 3 ? B.primary : c.roas >= 2 ? '#d97706' : '#ef4444' }}>{c.roas}×</td>
-                  <td className="p-3 text-right text-slate-600">{formatNumber(c.impressions)}</td>
-                  <td className="p-3 text-right text-slate-600">{c.ctr}%</td>
-                  <td className="p-3 text-center">
-                    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', c.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500')}>
-                      {c.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Audience ROAS + Creative performance */}
-      <div className="grid grid-cols-2 gap-4">
+      {platformData.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Audience Segment ROAS"/>
-          <div className="space-y-3 mt-2">
-            {d.audiences.map(a => (
-              <div key={a.name} className="flex items-center gap-3">
-                <p className="text-xs text-slate-600 w-36 shrink-0 break-words leading-tight">{a.name}</p>
-                <div className="flex-1">
+          <SectionHeader title="Organic Platform Performance" subtitle="Channel-level baseline for paid investment decisions"/>
+          <div className="space-y-4">
+            {platformData.map(p => (
+              <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '120px 1fr 280px' }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }}/>
+                  <span className="text-sm font-semibold text-slate-700">{p.name}</span>
+                </div>
+                <div>
                   <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${(a.roas / 6) * 100}%`, background: B.primary }}/>
+                    <div className="h-full rounded-full" style={{ width: `${(p.reach / maxReach) * 100}%`, background: p.color }}/>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-slate-800 w-10 text-right">{a.roas}×</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Creative Performance" subtitle="CTR and CPA by ad creative"/>
-          <div className="space-y-2 mt-2">
-            {d.creatives.map((c, i) => (
-              <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-slate-50">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-700 break-words">{c.name}</p>
-                  <p className="text-[10px] text-slate-400">{c.platform}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs font-bold" style={{ color: B.primary }}>{c.ctr}% CTR</p>
-                  <p className="text-[10px] text-slate-400">${c.cpa} CPA</p>
+                <div className="flex items-center gap-5 text-xs">
+                  <div className="text-right w-20"><span className="font-bold text-slate-800">{formatNumber(p.reach)}</span><span className="text-slate-400 ml-1">reach</span></div>
+                  <div className="text-right w-14"><span className="font-bold text-slate-800">{p.posts}</span><span className="text-slate-400 ml-1">posts</span></div>
+                  <div className="text-right w-16"><span className="font-bold text-slate-800">{Number(p.er).toFixed(1)}%</span><span className="text-slate-400 ml-1">ER</span></div>
                 </div>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Narrative */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of paid results"/>
-        <div className="space-y-4">
-          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
-          {(aiReport?.narrative?.efficiency ?? d.narrative.efficiency) && <Paragraph>{aiReport?.narrative?.efficiency ?? d.narrative.efficiency}</Paragraph>}
-          {(aiReport?.narrative?.creative ?? d.narrative.creative) && <Paragraph>{aiReport?.narrative?.creative ?? d.narrative.creative}</Paragraph>}
-          {aiReport?.narrative?.reach && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
-          {aiReport?.narrative?.platform && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
+      {hasNarrative && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of organic metrics as paid amplification signals"/>
+          <div className="space-y-4">
+            {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
+            {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
+            {aiReport.narrative.engagement && <Paragraph>{aiReport.narrative.engagement}</Paragraph>}
+            {aiReport.narrative.platform  && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
+          </div>
         </div>
-      </div>
-
-      {/* KPI comparison */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Full KPI Comparison" subtitle="Current period vs prior period vs industry benchmark — 12 paid metrics"/>
-        <KPIComparisonTable rows={d.kpiComparison}/>
-      </div>
+      )}
     </div>
   )
 }
 
 // ─── Combined Report ────────────────────────────────────────────────────────────
 
-function CombinedReport({ client, aiReport }: { client: string; aiReport?: AIReport | null }) {
-  const d = COMBINED_DEMO
-  const totalReach = d.organic.reach + d.paid.reach
-  const organicPct = Math.round((d.organic.reach / totalReach) * 100)
-  const paidPct = 100 - organicPct
-  const pieData = [
-    { name: 'Organic', value: d.organic.reach },
-    { name: 'Paid',    value: d.paid.reach },
-  ]
+function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, liveTrend, aiReport }: {
+  client: string
+  period: string
+  liveStats?: Record<string, number> | null
+  prevStats?: Record<string, number> | null
+  livePlatforms?: LivePlatform[] | null
+  liveTrend?: LiveTrendPoint[] | null
+  aiReport?: AIReport | null
+}) {
+  const { user } = useAuth()
+  const platformData = (livePlatforms ?? [])
+    .filter(p => p.reach > 0 || p.impressions > 0)
+    .map(p => ({
+      name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
+      reach: p.reach, posts: p.posts, er: p.engagement_rate,
+      color: PLATFORM_COLORS[p.platform] ?? '#94a3b8',
+    }))
+  const trendData = liveTrend ?? []
+  const totalReach = liveStats?.reach ?? 0
+  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
+
   return (
     <div className="space-y-5">
       <CoverPage
         title="Paid + Organic Combined Report"
-        subtitle="Blended reach analysis, channel investment breakdown, paid-organic synergy, and cross-channel performance mix"
-        client={client} period={d.period}
-        tag="Paid + Organic — Monthly"
+        subtitle="Organic channel performance and cross-channel synergy analysis — foundation for blended media strategy"
+        client={client} period={period} tag="Paid + Organic — Monthly"
       />
-      <ReportHeader title="Paid + Organic Combined Report" subtitle="Blended reach, investment breakdown, and channel mix" client={client} period={d.period}/>
+      <ReportHeader title="Paid + Organic Combined Report" subtitle="Organic performance and cross-channel synergy" client={client} period={period}/>
+
+      <InfoBanner>
+        Paid campaign metrics (spend, ROAS, CPC, CPA) are sourced from ad platforms and are not available via {vendorName(user?.role, 'Metricool')}. Organic performance data from {vendorName(user?.role, 'Metricool')} is shown below as the foundation for paid amplification analysis.
+      </InfoBanner>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Combined Reach',  value: formatNumber(totalReach),                             icon: Eye,        bg: 'bg-novax-light' },
-          { label: 'Organic Reach',   value: `${formatNumber(d.organic.reach)} (${organicPct}%)`,  icon: TrendingUp, bg: 'bg-emerald-50' },
-          { label: 'Paid Reach',      value: `${formatNumber(d.paid.reach)} (${paidPct}%)`,        icon: Target,     bg: 'bg-amber-50' },
-          { label: 'Blended CPM',     value: `$${d.total.blendedCPM}`,                             icon: Activity,   bg: 'bg-slate-100' },
-        ].map(({ label, value, icon: Icon, bg }) => (
+          { label: 'Organic Reach',   value: totalReach > 0 ? formatNumber(totalReach) : '—',                                                    delta: deltaStr(liveStats?.reach, prevStats?.reach),               positive: deltaPos(liveStats?.reach, prevStats?.reach),               icon: Eye },
+          { label: 'Engagement Rate', value: liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—',      delta: deltaStr(liveStats?.engagement_rate, prevStats?.engagement_rate), positive: deltaPos(liveStats?.engagement_rate, prevStats?.engagement_rate), icon: TrendingUp },
+          { label: 'Total Impressions', value: liveStats?.impressions != null ? formatNumber(liveStats.impressions) : '—',                       delta: deltaStr(liveStats?.impressions, prevStats?.impressions),    positive: deltaPos(liveStats?.impressions, prevStats?.impressions),    icon: BarChart2 },
+          { label: 'Posts Published', value: liveStats?.posts != null ? String(Math.round(liveStats.posts)) : '—',                              delta: deltaStr(liveStats?.posts, prevStats?.posts),               positive: deltaPos(liveStats?.posts, prevStats?.posts),               icon: Activity },
+        ].map(({ label, value, delta, positive, icon: Icon }) => (
           <div key={label} className="bg-white rounded-2xl border border-slate-200 p-4">
-            <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center mb-3', bg)}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-3" style={{ background: B.light }}>
               <Icon className="w-4 h-4" style={{ color: B.primary }}/>
             </div>
             <p className="text-lg font-bold text-slate-900">{value}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">{label}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5 mb-1">{label}</p>
+            {delta !== '—' && <DeltaBadge delta={`${delta} vs prior period`} positive={positive}/>}
           </div>
         ))}
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: '2fr 1fr' }}>
+      {trendData.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Paid vs Organic Reach Trend" subtitle="Monthly reach split — 5 months"/>
+          <SectionHeader title="Organic Reach Trend" subtitle={`5-month trajectory — ${vendorName(user?.role, 'Metricool')}`}/>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={d.trend}>
+            <AreaChart data={trendData}>
               <defs>
-                <linearGradient id="paidGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={B.primary} stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor={B.primary} stopOpacity={0.1}/>
-                </linearGradient>
-                <linearGradient id="orgGrad" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="orgGrad2" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor={B.accent} stopOpacity={0.8}/>
                   <stop offset="95%" stopColor={B.accent} stopOpacity={0.1}/>
                 </linearGradient>
@@ -1043,481 +457,388 @@ function CombinedReport({ client, aiReport }: { client: string; aiReport?: AIRep
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-              <Tooltip formatter={(v, n) => [formatNumber(Number(v)), n === 'paid' ? 'Paid Reach' : 'Organic Reach']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-              <Legend wrapperStyle={{ fontSize: 12 }}/>
-              <Area type="monotone" dataKey="paid"    stroke={B.primary} strokeWidth={2} fill="url(#paidGrad)" name="Paid"/>
-              <Area type="monotone" dataKey="organic" stroke={B.accent}  strokeWidth={2} fill="url(#orgGrad)"  name="Organic"/>
+              <Tooltip formatter={v => [formatNumber(Number(v)), 'Organic Reach']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
+              <Area type="monotone" dataKey="reach" stroke={B.accent} strokeWidth={2} fill="url(#orgGrad2)" name="Organic Reach"/>
             </AreaChart>
           </ResponsiveContainer>
         </div>
+      )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col">
-          <SectionHeader title="Reach Mix" subtitle="May 2026"/>
-          <div className="flex-1">
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={78} dataKey="value" paddingAngle={3}>
-                  <Cell fill={B.primary}/>
-                  <Cell fill={B.accent}/>
-                </Pie>
-                <Tooltip formatter={(v) => formatNumber(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-                <Legend wrapperStyle={{ fontSize: 12 }}/>
-              </PieChart>
-            </ResponsiveContainer>
+      {platformData.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <SectionHeader title="Organic Channel Mix" subtitle="Platform-level contribution to total organic reach"/>
+          <div className="space-y-3">
+            {platformData.map(p => {
+              const pct = totalReach > 0 ? Math.round((p.reach / totalReach) * 100) : 0
+              return (
+                <div key={p.name} className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 w-28 shrink-0">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }}/>
+                    <span className="text-sm font-semibold text-slate-700">{p.name}</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: p.color }}/>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs shrink-0">
+                    <span className="font-bold text-slate-800 w-16 text-right">{formatNumber(p.reach)}</span>
+                    <span className="text-slate-500 w-10 text-right">{pct}%</span>
+                    <span className="font-semibold text-slate-700 w-12 text-right">{Number(p.er).toFixed(1)}% ER</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Channel Mix" subtitle="Paid and organic reach breakdown by platform"/>
-        <div className="overflow-hidden rounded-xl border border-slate-100">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: B.light }}>
-                <th className="text-left p-3 text-xs font-semibold" style={{ color: B.primary }}>Platform</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Organic</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Paid</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Total</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Paid %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.channels.map((c, i) => {
-                const total = c.organic + c.paid
-                const pPct  = total > 0 ? Math.round((c.paid / total) * 100) : 0
-                return (
-                  <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-                    <td className="p-3 font-semibold text-slate-800">{c.platform}</td>
-                    <td className="p-3 text-right text-slate-600">{formatNumber(c.organic)}</td>
-                    <td className="p-3 text-right text-slate-600">{c.paid > 0 ? formatNumber(c.paid) : '—'}</td>
-                    <td className="p-3 text-right font-bold text-slate-800">{formatNumber(total)}</td>
-                    <td className="p-3 text-right font-semibold" style={{ color: B.primary }}>{pPct}%</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      {hasNarrative && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <SectionHeader title="Performance Analysis" subtitle="AI-generated cross-channel interpretation"/>
+          <div className="space-y-4">
+            {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
+            {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
+            {aiReport.narrative.synergy   && <Paragraph>{aiReport.narrative.synergy}</Paragraph>}
+            {aiReport.narrative.channel   && <Paragraph>{aiReport.narrative.channel}</Paragraph>}
+            {aiReport.narrative.platform  && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
+          </div>
         </div>
-      </div>
-
-      {/* Narrative */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Performance Analysis" subtitle="Analyst interpretation of blended results"/>
-        <div className="space-y-4">
-          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
-          {(aiReport?.narrative?.synergy ?? d.narrative.synergy) && <Paragraph>{aiReport?.narrative?.synergy ?? d.narrative.synergy}</Paragraph>}
-          {(aiReport?.narrative?.channel ?? d.narrative.channel) && <Paragraph>{aiReport?.narrative?.channel ?? d.narrative.channel}</Paragraph>}
-          {aiReport?.narrative?.reach && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Full KPI Comparison" subtitle="Blended metrics — current vs prior vs benchmark"/>
-        <KPIComparisonTable rows={d.kpiComparison}/>
-      </div>
+      )}
     </div>
   )
 }
 
 // ─── Platform Deep Dive ─────────────────────────────────────────────────────────
 
-function PlatformReport({ client, aiReport }: { client: string; aiReport?: AIReport | null }) {
-  const d = PLATFORM_DEMO
-  const maxFormatReach = Math.max(...d.formats.map(f => f.reach))
-  const maxHashReach   = Math.max(...d.topHashtags.map(h => h.reach))
+function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: {
+  client: string
+  period: string
+  livePlatforms?: LivePlatform[] | null
+  liveTrend?: LiveTrendPoint[] | null
+  aiReport?: AIReport | null
+}) {
+  const { user } = useAuth()
+  const platformData = (livePlatforms ?? [])
+    .filter(p => p.reach > 0 || p.impressions > 0)
+    .sort((a, b) => b.reach - a.reach)
+  const trendData = liveTrend ?? []
+  const topPlatform = platformData[0]
+  const platformLabel = topPlatform
+    ? topPlatform.platform.charAt(0).toUpperCase() + topPlatform.platform.slice(1)
+    : 'Primary Platform'
+  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
+
   return (
     <div className="space-y-5">
       <CoverPage
-        title="Instagram Deep Dive Report"
-        subtitle="Follower growth, format performance, posting time analysis, hashtag strategy, and audience quality signals"
-        client={client} period={d.period}
-        tag="Platform Deep Dive — Instagram"
+        title={`${platformLabel} Deep Dive Report`}
+        subtitle="Per-platform breakdown — reach, engagement rate, posts, and AI performance analysis"
+        client={client} period={period} tag={`Platform Deep Dive — ${platformLabel}`}
       />
-      <ReportHeader title="Instagram Deep Dive Report" subtitle="Format performance, follower growth, best days and hashtag analysis" client={client} period={d.period}/>
+      <ReportHeader title={`${platformLabel} Deep Dive Report`} subtitle="Per-platform reach, engagement, and channel analysis" client={client} period={period}/>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Followers',  value: formatNumber(d.followers),          delta: `+${d.growthRate}%`,       positive: true as boolean | null, icon: Users,      bg: 'bg-novax-light' },
-          { label: 'Net New Followers', value: `+${formatNumber(d.netGrowth)}`,   delta: 'this month',              positive: null as boolean | null, icon: TrendingUp, bg: 'bg-emerald-50' },
-          { label: 'Organic Reach',    value: formatNumber(d.reach),              delta: 'organic only',            positive: null as boolean | null, icon: Eye,        bg: 'bg-blue-50' },
-          { label: 'Avg Eng. Rate',    value: `${d.er}%`,                         delta: '+2.6% vs benchmark',      positive: true as boolean | null, icon: Activity,   bg: 'bg-amber-50' },
-        ].map(({ label, value, delta, positive, icon: Icon, bg }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 p-4">
-            <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center mb-3', bg)}>
-              <Icon className="w-4 h-4" style={{ color: B.primary }}/>
-            </div>
-            <p className="text-2xl font-bold text-slate-900 mb-1">{value}</p>
-            <p className="text-[11px] text-slate-500 mb-2">{label}</p>
-            <DeltaBadge delta={delta} positive={positive}/>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Follower Growth" subtitle="5-month trajectory"/>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={d.followerTrend}>
-              <defs>
-                <linearGradient id="follGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={B.primary} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={B.primary} stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${(Number(v) / 1000).toFixed(0)}K`}/>
-              <Tooltip formatter={v => [Number(v).toLocaleString(), 'Followers']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-              <Area type="monotone" dataKey="followers" stroke={B.primary} strokeWidth={2.5} fill="url(#follGrad)" dot={{ fill: B.primary, r: 3 }}/>
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Engagement Rate by Day" subtitle="Best days to post — benchmark 5.0%"/>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={d.erByDay}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
-              <Tooltip formatter={v => [`${v}%`, 'Avg ER']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-              <ReferenceLine y={5} stroke="#cbd5e1" strokeDasharray="4 4"/>
-              <Bar dataKey="er" radius={[4, 4, 0, 0]} name="ER">
-                {d.erByDay.map((entry, i) => (
-                  <Cell key={i} fill={entry.er >= 7 ? B.primary : entry.er >= 5 ? B.muted : B.border}/>
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Content Format Performance" subtitle="Reach, ER, and saves by post type"/>
-        <div className="space-y-3">
-          {d.formats.map((f) => (
-            <div key={f.format} className="p-4 rounded-xl border border-slate-100 bg-slate-50">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-bold text-slate-800">{f.format}</span>
-                <div className="flex items-center gap-5 text-xs">
-                  <span className="text-slate-500"><span className="font-bold text-slate-800">{f.posts}</span> posts</span>
-                  <span className="text-slate-500"><span className="font-bold" style={{ color: B.primary }}>{f.er}%</span> ER</span>
-                  {f.saves > 0 && <span className="text-slate-500"><span className="font-bold text-slate-800">{formatNumber(f.saves)}</span> saves</span>}
+      {platformData.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {platformData.map(p => {
+            const color = PLATFORM_COLORS[p.platform] ?? '#94a3b8'
+            const name = p.platform.charAt(0).toUpperCase() + p.platform.slice(1)
+            return (
+              <div key={p.platform} className="bg-white rounded-2xl border border-slate-200 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ background: color }}/>
+                  <span className="text-sm font-bold text-slate-800">{name}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Reach</p>
+                    <p className="text-xl font-bold text-slate-900 mt-0.5">{formatNumber(p.reach)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Eng. Rate</p>
+                    <p className="text-xl font-bold mt-0.5" style={{ color: B.primary }}>{Number(p.engagement_rate).toFixed(1)}%</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Impressions</p>
+                    <p className="text-base font-semibold text-slate-700 mt-0.5">{formatNumber(p.impressions)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Posts</p>
+                    <p className="text-base font-semibold text-slate-700 mt-0.5">{p.posts}</p>
+                  </div>
+                  {p.saves > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Saves</p>
+                      <p className="text-base font-semibold text-slate-700 mt-0.5">{formatNumber(p.saves)}</p>
+                    </div>
+                  )}
+                  {p.comments > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Comments</p>
+                      <p className="text-base font-semibold text-slate-700 mt-0.5">{formatNumber(p.comments)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="h-2.5 bg-white rounded-full overflow-hidden border border-slate-200">
-                <div className="h-full rounded-full" style={{ width: `${(f.reach / maxFormatReach) * 100}%`, background: B.primary }}/>
-              </div>
-              <p className="text-[10px] text-slate-400 mt-1">{formatNumber(f.reach)} reach</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Hashtag Performance" subtitle="Top 5 hashtags by reach and engagement"/>
-        <div className="overflow-hidden rounded-xl border border-slate-100">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: B.light }}>
-                <th className="text-left p-3 text-xs font-semibold" style={{ color: B.primary }}>Hashtag</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Posts</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Reach</th>
-                <th className="text-right p-3 text-xs font-semibold" style={{ color: B.primary }}>Avg ER</th>
-                <th className="p-3 text-xs font-semibold" style={{ color: B.primary }}>Reach Share</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.topHashtags.map((h, i) => (
-                <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-                  <td className="p-3 font-semibold" style={{ color: B.primary }}>{h.tag}</td>
-                  <td className="p-3 text-right text-slate-600">{h.posts}</td>
-                  <td className="p-3 text-right text-slate-600">{formatNumber(h.reach)}</td>
-                  <td className="p-3 text-right font-bold text-slate-800">{h.er}%</td>
-                  <td className="p-3 pr-5">
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${(h.reach / maxHashReach) * 100}%`, background: B.accent }}/>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+          <p className="text-sm text-slate-400">No platform data available — configure {vendorName(user?.role, 'Metricool')} in Settings to enable per-platform analytics.</p>
         </div>
-      </div>
+      )}
 
-      {/* KPI Comparison Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Full KPI Comparison" subtitle="Current month vs prior month and Instagram benchmarks"/>
-        <KPIComparisonTable rows={d.kpiComparison}/>
-      </div>
-
-      {/* Narrative */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Performance Analysis" subtitle="Account health, format insights, and engagement quality"/>
-        <div className="space-y-4">
-          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
-          {(aiReport?.narrative?.follower ?? aiReport?.narrative?.reach) && <Paragraph>{aiReport?.narrative?.follower ?? aiReport?.narrative?.reach}</Paragraph>}
-          {(aiReport?.narrative?.formats ?? d.narrative.formats) && <Paragraph>{aiReport?.narrative?.formats ?? d.narrative.formats}</Paragraph>}
-          {(aiReport?.narrative?.hashtags ?? d.narrative.hashtags) && <Paragraph>{aiReport?.narrative?.hashtags ?? d.narrative.hashtags}</Paragraph>}
-          {aiReport?.narrative?.engagement && <Paragraph>{aiReport.narrative.engagement}</Paragraph>}
+      {trendData.length > 0 && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <SectionHeader title="Reach Trend" subtitle="5-month organic reach trajectory"/>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="platReachGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={B.primary} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={B.primary} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
+                <Tooltip formatter={v => [formatNumber(Number(v)), 'Reach']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
+                <Area type="monotone" dataKey="reach" stroke={B.primary} strokeWidth={2.5} fill="url(#platReachGrad)" dot={{ fill: B.primary, r: 3 }}/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <SectionHeader title="Engagement Rate Trend" subtitle="Monthly ER trajectory"/>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="platErGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={B.accent} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={B.accent} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
+                <Tooltip formatter={v => [`${v}%`, 'Eng. Rate']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
+                <Area type="monotone" dataKey="er" stroke={B.accent} strokeWidth={2.5} fill="url(#platErGrad)" dot={{ fill: B.accent, r: 3 }}/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Audience Quality */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Audience Quality Signals" subtitle="Platform-specific health indicators"/>
-        <AudienceSignalsTable signals={d.audienceSignals}/>
-      </div>
+      {hasNarrative && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <SectionHeader title="Platform Analysis" subtitle="AI-generated account health and format insights"/>
+          <div className="space-y-4">
+            {aiReport.narrative.executive  && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
+            {aiReport.narrative.follower   && <Paragraph>{aiReport.narrative.follower}</Paragraph>}
+            {aiReport.narrative.reach      && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
+            {aiReport.narrative.engagement && <Paragraph>{aiReport.narrative.engagement}</Paragraph>}
+            {aiReport.narrative.formats    && <Paragraph>{aiReport.narrative.formats}</Paragraph>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── Quarterly Report ───────────────────────────────────────────────────────────
 
-function QuarterlyReport({ client, liveTrend, aiReport }: {
+function QuarterlyReport({ client, period, liveStats, prevStats, liveTrend, aiReport }: {
   client: string
-  liveTrend?: { month: string; reach: number; impressions: number; er: number }[] | null
+  period: string
+  liveStats?: Record<string, number> | null
+  prevStats?: Record<string, number> | null
+  liveTrend?: LiveTrendPoint[] | null
   aiReport?: AIReport | null
 }) {
-  const d = QUARTERLY_DEMO
-  const quarterlyTrend: { month: string; reach: number; er: number }[] =
-    liveTrend?.length
-      ? liveTrend.slice(-3).map(t => ({ month: t.month, reach: t.reach, er: t.er }))
-      : d.trend.map(t => ({ month: t.month, reach: t.reach, er: t.er }))
+  const { user } = useAuth()
+  const trendData = (liveTrend ?? []).slice(-3).map(t => ({ month: t.month, reach: t.reach, er: t.er }))
+  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
+
   return (
     <div className="space-y-5">
       <CoverPage
         title="Quarterly Performance Report"
-        subtitle="OKR achievement scorecard, campaign highlights, month-over-month trend analysis, and Q2 strategy priorities"
-        client={client} period={d.quarter}
-        tag="Quarterly Strategy — Q1 2026"
+        subtitle="Quarter-level reach trend, engagement trajectory, and AI strategic assessment"
+        client={client} period={period} tag="Quarterly Strategy"
       />
-      <ReportHeader title="Quarterly Performance Report" subtitle="OKR scorecard, campaign highlights, and next-quarter priorities" client={client} period={d.quarter}/>
+      <ReportHeader title="Quarterly Performance Report" subtitle="Quarter performance — reach trend and AI analysis" client={client} period={period}/>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Quarter OKR Scorecard" subtitle="Target vs actual for all key metrics"/>
-        <div className="space-y-4">
-          {d.objectives.map((obj) => {
-            const pct      = Math.min(Math.round((obj.actual / obj.target) * 100), 120)
-            const achieved = obj.actual >= obj.target
-            const displayActual = obj.actual > 1000 ? formatNumber(obj.actual) : obj.actual
-            const displayTarget = obj.target > 1000 ? formatNumber(obj.target) : obj.target
-            return (
-              <div key={obj.kpi} className="p-4 rounded-xl border border-slate-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className={cn('w-5 h-5 rounded-full flex items-center justify-center', achieved ? 'bg-emerald-100' : 'bg-amber-100')}>
-                      {achieved ? <Check className="w-3 h-3 text-emerald-600"/> : <AlertCircle className="w-3 h-3 text-amber-600"/>}
-                    </div>
-                    <span className="text-sm font-semibold text-slate-800">{obj.kpi}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-slate-400">Target: <span className="font-semibold text-slate-600">{displayTarget}{obj.unit}</span></span>
-                    <span className={cn('font-bold', achieved ? 'text-emerald-600' : 'text-amber-600')}>
-                      Actual: {displayActual}{obj.unit}
-                    </span>
-                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full', achieved ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
-                      {pct}%
-                    </span>
-                  </div>
-                </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: achieved ? B.primary : '#f59e0b' }}/>
-                </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Reach',       key: 'reach',           format: (v: number) => formatNumber(v),                              icon: Eye },
+          { label: 'Avg Eng. Rate',     key: 'engagement_rate', format: (v: number) => `${Number(v).toFixed(1)}%`,                   icon: TrendingUp },
+          { label: 'Total Impressions', key: 'impressions',     format: (v: number) => formatNumber(v),                              icon: BarChart2 },
+          { label: 'Posts Published',   key: 'posts',           format: (v: number) => String(Math.round(v)),                        icon: Activity },
+        ].map(({ label, key, format, icon: Icon }) => {
+          const val = liveStats?.[key]
+          const prv = prevStats?.[key]
+          return (
+            <div key={label} className="bg-white rounded-2xl border border-slate-200 p-4">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-3" style={{ background: B.light }}>
+                <Icon className="w-4 h-4" style={{ color: B.primary }}/>
               </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Quarter Trend" subtitle="Reach and engagement across the quarter"/>
-        <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={quarterlyTrend as object[]}>
-
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-            <YAxis yAxisId="left"  tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-            <Legend wrapperStyle={{ fontSize: 12 }}/>
-            <Bar yAxisId="left" dataKey="reach" fill={B.light} stroke={B.border} radius={[4, 4, 0, 0]} name="Reach"/>
-            <Line yAxisId="right" type="monotone" dataKey="er" stroke={B.primary} strokeWidth={2.5} dot={{ fill: B.primary, r: 4 }} name="ER (%)"/>
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Campaign Highlights" subtitle="Standout campaigns and key learnings"/>
-        <div className="space-y-3">
-          {d.campaigns.map((c, i) => (
-            <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-slate-100">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5" style={{ background: B.primary }}>
-                {i + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 break-words">{c.name}</p>
-                <p className="text-xs mt-0.5 break-words" style={{ color: B.muted }}>{c.highlight}</p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-sm font-bold text-slate-800">{formatNumber(c.reach)}</p>
-                <p className="text-[10px] text-slate-400">reach · {c.er}% ER</p>
-              </div>
+              <p className="text-xl font-bold text-slate-900">{val != null ? format(val) : '—'}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5 mb-1">{label}</p>
+              {deltaStr(val, prv) !== '—' && <DeltaBadge delta={`${deltaStr(val, prv)} vs prior quarter`} positive={deltaPos(val, prv)}/>}
             </div>
-          ))}
-        </div>
+          )
+        })}
       </div>
 
-      {/* Narrative */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Quarterly Analysis" subtitle="Performance interpretation and momentum assessment"/>
-        <div className="space-y-4">
-          <Paragraph>{aiReport?.narrative?.executive ?? d.narrative.executive}</Paragraph>
-          {(aiReport?.narrative?.quarterly_overview ?? aiReport?.narrative?.trend ?? d.narrative.trend) && (
-            <Paragraph>{aiReport?.narrative?.quarterly_overview ?? aiReport?.narrative?.trend ?? d.narrative.trend}</Paragraph>
-          )}
-          {aiReport?.narrative?.monthly_breakdown && <Paragraph>{aiReport.narrative.monthly_breakdown}</Paragraph>}
-          {(aiReport?.narrative?.platform) && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
+      {trendData.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <SectionHeader title="Quarter Trend" subtitle={`Reach and engagement — ${vendorName(user?.role, 'Metricool')}`}/>
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={trendData as object[]}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+              <YAxis yAxisId="left"  tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
+              <Legend wrapperStyle={{ fontSize: 12 }}/>
+              <Bar yAxisId="left" dataKey="reach" fill={B.light} stroke={B.border} radius={[4, 4, 0, 0]} name="Reach"/>
+              <Line yAxisId="right" type="monotone" dataKey="er" stroke={B.primary} strokeWidth={2.5} dot={{ fill: B.primary, r: 4 }} name="ER (%)"/>
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
-      </div>
+      )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Full KPI Comparison" subtitle="Current quarter vs prior quarter vs annual benchmark"/>
-        <KPIComparisonTable rows={d.kpiComparison}/>
-      </div>
+      {hasNarrative && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <SectionHeader title="Quarterly Analysis" subtitle="AI-generated performance interpretation and momentum assessment"/>
+          <div className="space-y-4">
+            {aiReport.narrative.executive         && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
+            {aiReport.narrative.quarterly_overview && <Paragraph>{aiReport.narrative.quarterly_overview}</Paragraph>}
+            {aiReport.narrative.monthly_breakdown  && <Paragraph>{aiReport.narrative.monthly_breakdown}</Paragraph>}
+            {aiReport.narrative.trend              && <Paragraph>{aiReport.narrative.trend}</Paragraph>}
+            {aiReport.narrative.platform           && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── Executive Summary ──────────────────────────────────────────────────────────
 
-function ExecutiveReport({ client, liveStats, livePlatforms, aiReport }: {
+function ExecutiveReport({ client, period, liveStats, prevStats, livePlatforms, liveTrend, aiReport }: {
   client: string
+  period: string
   liveStats?: Record<string, number> | null
-  livePlatforms?: { platform: string; reach: number; engagement_rate: number }[] | null
+  prevStats?: Record<string, number> | null
+  livePlatforms?: LivePlatform[] | null
+  liveTrend?: LiveTrendPoint[] | null
   aiReport?: AIReport | null
 }) {
-  void livePlatforms
-  const d = EXECUTIVE_DEMO
+  const platformData = (livePlatforms ?? [])
+    .filter(p => p.reach > 0 || p.impressions > 0)
+    .sort((a, b) => b.reach - a.reach)
+  const trendSlice = (liveTrend ?? []).slice(-3)
+  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
+
   return (
     <div className="space-y-5">
       <CoverPage
         title="Executive Summary"
-        subtitle="CEO-ready portfolio overview — key performance indicators, wins, strategic opportunities, and priority action for the next 30 days"
-        client={client} period={d.period}
-        tag="Executive Summary — May 2026"
+        subtitle="CEO-ready portfolio overview — key performance indicators, trend, platform mix, and AI strategic analysis"
+        client={client} period={period} tag="Executive Summary"
       />
-      <ReportHeader title="Executive Summary" subtitle="CEO-ready portfolio overview — all clients" client={client} period={d.period}/>
+      <ReportHeader title="Executive Summary" subtitle="CEO-ready portfolio overview" client={client} period={period}/>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {d.kpis.map(({ label, value, delta, positive }, idx) => {
-          let displayValue = value
-          if (liveStats) {
-            if (idx === 0 && liveStats.reach != null) displayValue = formatNumber(liveStats.reach)
-            if (idx === 1 && liveStats.engagement_rate != null) displayValue = `${Number(liveStats.engagement_rate).toFixed(1)}%`
-          }
+        {[
+          { label: 'Total Reach',       key: 'reach',           format: (v: number) => formatNumber(v) },
+          { label: 'Avg Eng. Rate',     key: 'engagement_rate', format: (v: number) => `${Number(v).toFixed(1)}%` },
+          { label: 'Total Impressions', key: 'impressions',     format: (v: number) => formatNumber(v) },
+          { label: 'Posts Published',   key: 'posts',           format: (v: number) => String(Math.round(v)) },
+        ].map(({ label, key, format }) => {
+          const val = liveStats?.[key]
+          const prv = prevStats?.[key]
           return (
-          <div key={label} className="bg-white rounded-2xl border-2 border-slate-100 p-6 text-center hover:border-novax-border transition-colors">
-            <p className="text-4xl font-bold mb-2" style={{ color: B.primary }}>{displayValue}</p>
-            <p className="text-xs font-semibold text-slate-500 mb-3">{label}</p>
-            <DeltaBadge delta={delta} positive={positive}/>
-          </div>
+            <div key={label} className="bg-white rounded-2xl border-2 border-slate-100 p-6 text-center hover:border-novax-border transition-colors">
+              <p className="text-4xl font-bold mb-2" style={{ color: B.primary }}>{val != null ? format(val) : '—'}</p>
+              <p className="text-xs font-semibold text-slate-500 mb-3">{label}</p>
+              {deltaStr(val, prv) !== '—' && <DeltaBadge delta={`${deltaStr(val, prv)}`} positive={deltaPos(val, prv)}/>}
+            </div>
           )
         })}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="3-Month Reach Trend" subtitle="Portfolio-wide"/>
-        <ResponsiveContainer width="100%" height={140}>
-          <AreaChart data={d.trend}>
-            <defs>
-              <linearGradient id="execGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={B.primary} stopOpacity={0.25}/>
-                <stop offset="95%" stopColor={B.primary} stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-            <Tooltip formatter={v => [formatNumber(Number(v)), 'Total Reach']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-            <Area type="monotone" dataKey="reach" stroke={B.primary} strokeWidth={2.5} fill="url(#execGrad)" dot={{ fill: B.primary, r: 4 }}/>
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
+      {trendSlice.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Wins This Month" subtitle="Results worth amplifying"/>
-          <div className="space-y-3">
-            {d.wins.map((win, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3 h-3 text-emerald-600"/>
-                </div>
-                <p className="text-sm text-slate-700 leading-relaxed">{win}</p>
-              </div>
-            ))}
+          <SectionHeader title="Reach Trend" subtitle="Recent monthly trajectory"/>
+          <ResponsiveContainer width="100%" height={140}>
+            <AreaChart data={trendSlice}>
+              <defs>
+                <linearGradient id="execGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={B.primary} stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor={B.primary} stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
+              <Tooltip formatter={v => [formatNumber(Number(v)), 'Total Reach']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
+              <Area type="monotone" dataKey="reach" stroke={B.primary} strokeWidth={2.5} fill="url(#execGrad)" dot={{ fill: B.primary, r: 4 }}/>
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {platformData.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <SectionHeader title="Platform Breakdown" subtitle="Organic reach and ER across all active channels"/>
+          <div className="overflow-hidden rounded-xl border border-slate-100">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: B.light }}>
+                  {['Platform', 'Reach', 'Impressions', 'Eng. Rate', 'Posts', 'Saves', 'Comments'].map((h, i) => (
+                    <th key={h} className={cn('p-3 text-xs font-semibold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {platformData.map((p, i) => {
+                  const color = PLATFORM_COLORS[p.platform] ?? '#94a3b8'
+                  const name = p.platform.charAt(0).toUpperCase() + p.platform.slice(1)
+                  return (
+                    <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
+                      <td className="p-3 font-semibold text-slate-800 flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }}/>
+                        {name}
+                      </td>
+                      <td className="p-3 text-right font-bold text-slate-800">{formatNumber(p.reach)}</td>
+                      <td className="p-3 text-right text-slate-600">{formatNumber(p.impressions)}</td>
+                      <td className="p-3 text-right font-bold" style={{ color: B.primary }}>{Number(p.engagement_rate).toFixed(1)}%</td>
+                      <td className="p-3 text-right text-slate-600">{p.posts}</td>
+                      <td className="p-3 text-right text-slate-500">{p.saves > 0 ? formatNumber(p.saves) : '—'}</td>
+                      <td className="p-3 text-right text-slate-500">{p.comments > 0 ? formatNumber(p.comments) : '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Opportunities" subtitle="Highest-return gaps to close"/>
-          <div className="space-y-3">
-            {d.opportunities.map((opp, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: B.light }}>
-                  <ChevronRight className="w-3 h-3" style={{ color: B.primary }}/>
-                </div>
-                <p className="text-sm text-slate-700 leading-relaxed">{opp}</p>
-              </div>
-            ))}
+      )}
+
+      {hasNarrative && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <SectionHeader title="Portfolio Analysis" subtitle="AI-generated period-in-review commentary"/>
+          <div className="space-y-4">
+            {aiReport.narrative.portfolio   && <Paragraph>{aiReport.narrative.portfolio}</Paragraph>}
+            {aiReport.narrative.highlights  && <Paragraph>{aiReport.narrative.highlights}</Paragraph>}
+            {aiReport.narrative.executive   && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
+            {aiReport.narrative.platform    && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
+            {aiReport.narrative.audience    && <Paragraph>{aiReport.narrative.audience}</Paragraph>}
           </div>
         </div>
-      </div>
-
-      {/* Client health table */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <SectionHeader title="Client Health Scorecard" subtitle="May 2026 — all active accounts"/>
-        <div className="overflow-hidden rounded-xl border border-slate-100">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: B.light }}>
-                {['Client', 'Organic Reach', 'Avg ER', 'Paid ROAS', 'Status'].map((h, i) => (
-                  <th key={h} className={cn('p-3 text-xs font-semibold', i < 4 ? 'text-left' : 'text-center')} style={{ color: B.primary }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {d.clientBreakdown.map((c, i) => {
-                const statusStyle = { ahead: 'bg-emerald-50 text-emerald-700', 'on-track': 'bg-blue-50 text-blue-700', 'at-risk': 'bg-red-50 text-red-700' }
-                return (
-                  <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-                    <td className="p-3 font-semibold text-slate-800">{c.client}</td>
-                    <td className="p-3 text-slate-700">{c.reach}</td>
-                    <td className="p-3 font-bold" style={{ color: B.primary }}>{c.er}</td>
-                    <td className="p-3 text-slate-700">{c.roas}</td>
-                    <td className="p-3">
-                      <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full capitalize', statusStyle[c.status])}>{c.status.replace('-', ' ')}</span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Portfolio narrative */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <SectionHeader title="Portfolio Analysis" subtitle="Period-in-review commentary"/>
-        <div className="space-y-4">
-          <Paragraph>{aiReport?.narrative?.portfolio ?? d.narrative.portfolio}</Paragraph>
-          {(aiReport?.narrative?.highlights ?? d.narrative.highlights) && (
-            <Paragraph>{aiReport?.narrative?.highlights ?? d.narrative.highlights}</Paragraph>
-          )}
-          {aiReport?.narrative?.platform && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
-          {aiReport?.narrative?.audience && <Paragraph>{aiReport.narrative.audience}</Paragraph>}
-        </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -1533,7 +854,6 @@ type ReportStructuredData = {
 function renderMarkdown(text: string): React.ReactNode[] {
   return text.split('\n').map((line, i) => {
     if (!line.trim()) return <div key={i} className="h-3"/>
-    // Bold: **text**
     const parts = line.split(/(\*\*[^*]+\*\*)/g)
     const rendered = parts.map((p, j) =>
       p.startsWith('**') && p.endsWith('**')
@@ -1544,9 +864,13 @@ function renderMarkdown(text: string): React.ReactNode[] {
       return (
         <div key={i} className="flex items-start gap-2 py-0.5">
           <div className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ background: B.accent }}/>
-          <p className="text-sm text-slate-700 leading-relaxed">{rendered.map((r, j) => r.props?.children?.toString?.().replace(/^[-*] /, '') ? <span key={j}>{r}</span> : r)}</p>
+          <p className="text-sm text-slate-700 leading-relaxed">{rendered}</p>
         </div>
       )
+    }
+    if (line.startsWith('### ') || line.startsWith('## ')) {
+      const txt = line.replace(/^#{2,3}\s*/, '').replace(/\*/g, '')
+      return <h4 key={i} className="text-sm font-bold text-slate-900 mt-5 mb-2" style={{ color: B.primary }}>{txt}</h4>
     }
     if (line.match(/^\d+\. /)) {
       const num = line.match(/^(\d+)\. /)?.[1]
@@ -1554,15 +878,6 @@ function renderMarkdown(text: string): React.ReactNode[] {
         <div key={i} className="flex items-start gap-3 py-1">
           <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5" style={{ background: B.primary }}>{num}</span>
           <p className="text-sm text-slate-700 leading-relaxed">{rendered}</p>
-        </div>
-      )
-    }
-    if (line.startsWith('|')) {
-      const cells = line.split('|').filter(Boolean).map(c => c.trim())
-      if (cells.every(c => c.match(/^[-:]+$/))) return null
-      return (
-        <div key={i} className="grid gap-2 py-1 border-b border-slate-100" style={{ gridTemplateColumns: `repeat(${cells.length}, 1fr)` }}>
-          {cells.map((c, j) => <span key={j} className="text-xs text-slate-700 px-1">{c}</span>)}
         </div>
       )
     }
@@ -1684,7 +999,6 @@ function AIBuilder() {
           </div>
         </div>
 
-        {/* Client + Report type */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
           <div>
             <label className="text-xs font-semibold text-slate-600 mb-2 block">Client</label>
@@ -1700,49 +1014,56 @@ function AIBuilder() {
               <button
                 onClick={pullLiveData}
                 disabled={selectedClient === 'all'}
-                title={`Pull live ${vendorName(user?.role, 'Metricool')} data`}
-                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors shrink-0"
+                className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors whitespace-nowrap"
               >
-                <Activity className="w-3.5 h-3.5"/>
-                Pull Live Data
+                Pull live data
               </button>
             </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-600 mb-2 block">Report Type</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['monthly', 'paid', 'combined', 'platform', 'quarterly', 'executive'] as const).map(t => (
-                <button key={t} onClick={() => setReportType(t)} className={cn(
-                  'px-2 py-2 rounded-lg text-xs font-semibold border transition-colors text-left',
-                  reportType === t ? 'text-white border-novax' : 'text-slate-600 border-slate-200 hover:border-novax-border',
-                )} style={reportType === t ? { background: B.primary } : {}}>
-                  {TABS.find(tab => tab.id === t)?.label}
-                </button>
-              ))}
-            </div>
+            <select
+              value={reportType}
+              onChange={e => setReportType(e.target.value as Exclude<ReportTab, 'ai'>)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+            >
+              {TABS.filter(t => t.id !== 'ai').map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
           </div>
         </div>
 
-        {/* Drop zone */}
+        <div className="mb-4">
+          <label className="text-xs font-semibold text-slate-600 mb-2 block">Paste raw data or context</label>
+          <textarea
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            rows={5}
+            placeholder="Paste analytics data, numbers, campaign context, or anything you'd like the AI to include in the report..."
+            className="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-novax-border resize-none bg-slate-50 focus:bg-white transition-colors"
+          />
+        </div>
+
         <div
           onDrop={onDrop}
           onDragOver={e => e.preventDefault()}
+          className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-novax-border transition-colors mb-4"
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center cursor-pointer hover:border-novax-border hover:bg-novax-light transition-all mb-4"
         >
-          <Upload className="w-8 h-8 text-slate-300 mx-auto mb-2"/>
-          <p className="text-sm font-medium text-slate-500">Drop analytics screenshots here</p>
-          <p className="text-xs text-slate-400 mt-1">PNG, JPG, PDF — up to 5 files</p>
-          <input ref={fileInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={onFileChange}/>
+          <input ref={fileInputRef} type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={onFileChange}/>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: B.light }}>
+            <FileText className="w-5 h-5" style={{ color: B.primary }}/>
+          </div>
+          <p className="text-sm text-slate-500">Drop screenshots or PDFs here, or click to upload</p>
+          <p className="text-xs text-slate-400 mt-1">PNG, JPG, PDF · Max 5 files</p>
         </div>
 
         {files.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {files.map((f, i) => (
-              <div key={i} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-novax-border text-xs font-medium" style={{ background: B.light, color: B.primary }}>
-                <FileText className="w-3 h-3"/>
-                <span className="truncate max-w-[120px]">{f.name}</span>
-                <button onClick={e => { e.stopPropagation(); removeFile(i) }} className="hover:text-red-500 transition-colors">
+              <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-700">
+                <FileText className="w-3 h-3 text-slate-400"/>
+                <span className="max-w-[140px] truncate">{f.name}</span>
+                <button onClick={() => removeFile(i)} className="text-slate-400 hover:text-slate-600">
                   <X className="w-3 h-3"/>
                 </button>
               </div>
@@ -1750,107 +1071,50 @@ function AIBuilder() {
           </div>
         )}
 
-        <div className="mb-5">
-          <label className="text-xs font-semibold text-slate-600 mb-2 block">Context & Instructions</label>
-          <textarea
-            value={prompt}
-            onChange={e => setPrompt(e.target.value)}
-            placeholder="E.g. This is May 2026 Instagram performance data for Luxe Cosmetics. Focus on Reels growth and follower trajectory. Compare ER against a 4% industry benchmark."
-            rows={4}
-            className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl resize-none outline-none focus:border-novax-border transition-colors text-slate-700 placeholder:text-slate-300"
-          />
-        </div>
+        {error && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-100 mb-4">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0"/>
+            <p className="text-xs text-red-700">{error}</p>
+          </div>
+        )}
 
-        <button
-          onClick={handleGenerate}
-          disabled={loading || (!prompt.trim() && files.length === 0)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-colors"
-          style={{ background: B.primary }}
-        >
-          {loading ? <RefreshCw className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
-          {loading ? 'Analysing data…' : 'Analyse & Generate Report'}
-        </button>
-      </div>
-
-      {error && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
-          <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0"/>
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      {result && (
-        <div id="ai-report-preview" className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {/* Report toolbar */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
-                <Check className="w-3.5 h-3.5 text-emerald-600"/>
-              </div>
-              <h3 className="font-semibold text-slate-900">AI-Generated Report</h3>
-              <span className="text-xs text-slate-400">— {clientName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePrintPDF}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <Download className="w-3.5 h-3.5"/> Export PDF
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleGenerate}
+            disabled={loading || (!prompt.trim() && files.length === 0)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60 transition-colors"
+            style={{ background: B.primary }}
+          >
+            {loading ? <><RefreshCw className="w-4 h-4 animate-spin"/> Analysing…</> : <><Sparkles className="w-4 h-4"/> Generate Report</>}
+          </button>
+          {result && (
+            <>
+              <button onClick={handlePrintPDF} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+                <Printer className="w-3.5 h-3.5"/> Print PDF
               </button>
               <button
                 onClick={handleExportPptx}
                 disabled={exporting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white font-medium transition-colors disabled:opacity-50"
-                style={{ background: B.primary }}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
-                {exporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Download className="w-3.5 h-3.5"/>}
+                {exporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <FileText className="w-3.5 h-3.5"/>}
                 {exporting ? 'Exporting…' : 'Export PPTX'}
               </button>
-            </div>
-          </div>
-
-          {/* KPI cards from structured data */}
-          {structuredData?.kpis && structuredData.kpis.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-6 pb-0">
-              {structuredData.kpis.slice(0, 4).map(kpi => (
-                <div key={kpi.label} className="rounded-xl border border-novax-border p-4" style={{ background: B.light }}>
-                  <p className="text-2xl font-bold text-slate-900">{kpi.value}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{kpi.label}</p>
-                  {kpi.change && <p className="text-xs font-semibold mt-1" style={{ color: B.muted }}>{kpi.change}</p>}
-                </div>
-              ))}
-            </div>
+            </>
           )}
+        </div>
+      </div>
 
-          {/* Platform chart from structured data */}
-          {structuredData?.platforms && structuredData.platforms.length > 0 && (
-            <div className="px-6 pt-5">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Platform Breakdown</p>
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={structuredData.platforms} barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-                  <Tooltip formatter={(v, n) => [n === 'reach' ? formatNumber(Number(v)) : `${v}%`, n === 'reach' ? 'Reach' : 'ER']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-                  <Bar dataKey="reach" fill={B.primary} radius={[3,3,0,0]} name="Reach"/>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Styled markdown report */}
-          <div className="p-6 space-y-6">
-            {result.split(/^### /m).filter(Boolean).map((section, i) => {
-              const lines = section.trim().split('\n')
-              const title = lines[0].trim()
-              const body = lines.slice(1).join('\n').trim()
-              return (
-                <div key={i}>
-                  <h3 className="text-sm font-bold uppercase tracking-wider mb-3 pb-2 border-b" style={{ color: B.primary, borderColor: B.border }}>{title}</h3>
-                  <div className="space-y-0.5">{renderMarkdown(body)}</div>
-                </div>
-              )
-            })}
+      {result && (
+        <div id="ai-report-preview" className="bg-white rounded-2xl border border-slate-200 p-8">
+          <ReportHeader
+            title={TABS.find(t => t.id === reportType)?.label ?? 'Report'}
+            subtitle="AI-generated from provided data and screenshots"
+            client={clientName}
+            period={new Date().toLocaleString('en', { month: 'long', year: 'numeric' })}
+          />
+          <div className="mt-6 space-y-1">
+            {renderMarkdown(result)}
           </div>
         </div>
       )}
@@ -1880,7 +1144,7 @@ function parsePeriodToRange(period: string): { startDate: string; endDate: strin
   return null
 }
 
-// ─── Main page ──────────────────────────────────────────────────────────────────
+// ─── Main page types ─────────────────────────────────────────────────────────────
 
 type LivePlatform = { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }
 type LiveTrendPoint = { month: string; reach: number; impressions: number; er: number }
@@ -1910,71 +1174,76 @@ type AIReport = {
   meta: { period: string; clientName: string; reportType: string; generatedAt: string; isMock: boolean }
 }
 
+// ─── Main page ──────────────────────────────────────────────────────────────────
+
 export default function ReportsPage() {
   const { clients }                   = useClients()
   const [activeTab, setActiveTab]     = useState<ReportTab>('monthly')
-  const [selectedClient, setSelectedClient] = useState('all')
+  const [selectedClient, setSelectedClient] = useState('')
   const [period, setPeriod]           = useState('May 2026')
   const [generating, setGenerating]   = useState(false)
   const [generated, setGenerated]     = useState(false)
   const [liveStats, setLiveStats]     = useState<Record<string, number> | null>(null)
+  const [prevStats, setPrevStats]     = useState<Record<string, number> | null>(null)
   const [livePlatforms, setLivePlatforms] = useState<LivePlatform[] | null>(null)
   const [liveTrend, setLiveTrend]     = useState<LiveTrendPoint[] | null>(null)
   const [liveError, setLiveError]     = useState<string | null>(null)
   const [aiReport, setAiReport]       = useState<AIReport | null>(null)
   const [exportingPdf, setExportingPdf] = useState(false)
 
-  const clientName = selectedClient === 'all'
-    ? 'All Clients'
-    : (clients.find(c => c.id === selectedClient)?.name ?? 'All Clients')
+  const clientName = selectedClient
+    ? (clients.find(c => c.id === selectedClient)?.name ?? 'Client')
+    : 'Select a client'
 
   const handleGenerate = async () => {
+    if (!selectedClient) return
     setGenerating(true)
     setGenerated(false)
     setLiveStats(null)
+    setPrevStats(null)
     setLivePlatforms(null)
     setLiveTrend(null)
     setLiveError(null)
     setAiReport(null)
 
-    if (selectedClient !== 'all') {
-      const range = parsePeriodToRange(period)
-      if (range) {
-        try {
-          const res = await fetch('/api/reports/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              clientId:   selectedClient,
-              reportType: activeTab,
-              startDate:  range.startDate,
-              endDate:    range.endDate,
-            }),
-          })
-          const data = await res.json() as {
-            narrative?: AIReportNarrative
-            stats?: Record<string, number>
-            platforms?: LivePlatform[]
-            trend?: LiveTrendPoint[]
-            meta?: AIReport['meta']
-            _mock?: boolean
-            _geminiError?: string
-            error?: string
-          }
-          if (res.ok) {
-            if (data.stats)             setLiveStats(data.stats)
-            if (data.platforms?.length) setLivePlatforms(data.platforms)
-            if (data.trend?.length)     setLiveTrend(data.trend)
-            if (data._mock)             setLiveError('Using sample data — configure Metricool blog ID in Settings')
-            if (data.narrative && data.meta) {
-              setAiReport({ narrative: data.narrative, meta: data.meta })
-            }
-          } else {
-            setLiveError(data.error ?? 'Report generation failed')
-          }
-        } catch {
-          setLiveError('Could not connect to report generation API')
+    const range = parsePeriodToRange(period)
+    if (range) {
+      try {
+        const res = await fetch('/api/reports/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId:   selectedClient,
+            reportType: activeTab,
+            startDate:  range.startDate,
+            endDate:    range.endDate,
+          }),
+        })
+        const data = await res.json() as {
+          narrative?: AIReportNarrative
+          stats?: Record<string, number>
+          prevStats?: Record<string, number>
+          platforms?: LivePlatform[]
+          trend?: LiveTrendPoint[]
+          meta?: AIReport['meta']
+          _mock?: boolean
+          _geminiError?: string
+          error?: string
         }
+        if (res.ok) {
+          if (data.stats)             setLiveStats(data.stats)
+          if (data.prevStats)         setPrevStats(data.prevStats)
+          if (data.platforms?.length) setLivePlatforms(data.platforms)
+          if (data.trend?.length)     setLiveTrend(data.trend)
+          if (data._mock)             setLiveError('No Metricool data — configure the blog ID in Settings to enable live analytics')
+          if (data.narrative && data.meta) {
+            setAiReport({ narrative: data.narrative, meta: data.meta })
+          }
+        } else {
+          setLiveError(data.error ?? 'Report generation failed')
+        }
+      } catch {
+        setLiveError('Could not connect to report generation API')
       }
     }
 
@@ -2004,12 +1273,7 @@ export default function ReportsPage() {
               { metric: 'Impressions',     value: liveStats.impressions != null ? String(Math.round(liveStats.impressions)) : '—' },
               { metric: 'Engagement Rate', value: liveStats.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—' },
               { metric: 'Posts',           value: liveStats.posts != null ? String(Math.round(liveStats.posts)) : '—' },
-            ] : [
-              { metric: 'Reach',           value: '—' },
-              { metric: 'Impressions',     value: '—' },
-              { metric: 'Engagement Rate', value: '—' },
-              { metric: 'Posts',           value: '—' },
-            ],
+            ] : [],
             platforms: livePlatforms ?? undefined,
           },
         }),
@@ -2025,6 +1289,8 @@ export default function ReportsPage() {
       setExportingPdf(false)
     }
   }
+
+  const sharedProps = { client: clientName, period, liveStats, prevStats, livePlatforms, liveTrend, aiReport }
 
   return (
     <div className="space-y-5">
@@ -2064,7 +1330,7 @@ export default function ReportsPage() {
                 onChange={e => { setSelectedClient(e.target.value); setGenerated(false); setAiReport(null) }}
                 className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
               >
-                <option value="all">All Clients</option>
+                <option value="">Select client</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <select
@@ -2078,13 +1344,13 @@ export default function ReportsPage() {
               </select>
               <button
                 onClick={handleGenerate}
-                disabled={generating}
+                disabled={generating || !selectedClient}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60 transition-colors"
                 style={{ background: generating ? B.muted : B.primary }}
               >
                 {generating
                   ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Generating…</>
-                  : <><FileText className="w-3.5 h-3.5"/> {selectedClient !== 'all' ? 'Generate Report' : 'Generate Demo Report'}</>}
+                  : <><FileText className="w-3.5 h-3.5"/> Generate Report</>}
               </button>
               {generated && liveStats && !liveError && (
                 <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
@@ -2096,9 +1362,9 @@ export default function ReportsPage() {
                   <Sparkles className="w-3 h-3"/> AI Narrative
                 </span>
               )}
-              {generated && liveError && selectedClient !== 'all' && (
+              {generated && liveError && (
                 <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={liveError}>
-                  <AlertCircle className="w-3 h-3"/> Sample Data
+                  <AlertCircle className="w-3 h-3"/> {liveError.length > 40 ? 'No live data' : liveError}
                 </span>
               )}
               {generated && (
@@ -2121,12 +1387,12 @@ export default function ReportsPage() {
         <AIBuilder/>
       ) : generated ? (
         <div id="printable-report" className="space-y-5">
-          {activeTab === 'monthly'   && <MonthlyReport   client={clientName} liveStats={liveStats} livePlatforms={livePlatforms} liveTrend={liveTrend} aiReport={aiReport}/>}
-          {activeTab === 'paid'      && <PaidReport       client={clientName} aiReport={aiReport}/>}
-          {activeTab === 'combined'  && <CombinedReport   client={clientName} aiReport={aiReport}/>}
-          {activeTab === 'platform'  && <PlatformReport   client={clientName} aiReport={aiReport}/>}
-          {activeTab === 'quarterly' && <QuarterlyReport  client={clientName} liveTrend={liveTrend} aiReport={aiReport}/>}
-          {activeTab === 'executive' && <ExecutiveReport  client={clientName} liveStats={liveStats} livePlatforms={livePlatforms} aiReport={aiReport}/>}
+          {activeTab === 'monthly'   && <MonthlyReport   {...sharedProps}/>}
+          {activeTab === 'paid'      && <PaidReport       {...sharedProps}/>}
+          {activeTab === 'combined'  && <CombinedReport   {...sharedProps}/>}
+          {activeTab === 'platform'  && <PlatformReport   client={clientName} period={period} livePlatforms={livePlatforms} liveTrend={liveTrend} aiReport={aiReport}/>}
+          {activeTab === 'quarterly' && <QuarterlyReport  client={clientName} period={period} liveStats={liveStats} prevStats={prevStats} liveTrend={liveTrend} aiReport={aiReport}/>}
+          {activeTab === 'executive' && <ExecutiveReport  {...sharedProps}/>}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200">
@@ -2137,17 +1403,19 @@ export default function ReportsPage() {
             {TABS.find(t => t.id === activeTab)?.label}
           </h3>
           <p className="text-sm text-slate-400 text-center max-w-sm mb-6 leading-relaxed">
-            {TABS.find(t => t.id === activeTab)?.description}
+            {selectedClient
+              ? TABS.find(t => t.id === activeTab)?.description
+              : 'Select a client from the dropdown above, then click Generate Report.'}
           </p>
           <button
             onClick={handleGenerate}
-            disabled={generating}
+            disabled={generating || !selectedClient}
             className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60 transition-colors"
             style={{ background: B.primary }}
           >
             {generating
               ? <><RefreshCw className="w-4 h-4 animate-spin"/> Generating…</>
-              : <><FileText className="w-4 h-4"/> Generate Demo Report</>}
+              : <><FileText className="w-4 h-4"/> Generate Report</>}
           </button>
         </div>
       )}

@@ -250,6 +250,28 @@ async function resolveClient(clientId: string): Promise<{
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
+function prevPeriodDates(startDate: string, endDate: string, reportType: string): { prevStart: string; prevEnd: string } {
+  const sd = new Date(startDate)
+  const ed = new Date(endDate)
+  const diffDays = Math.round((ed.getTime() - sd.getTime()) / 86400000) + 1
+  // For monthly/platform/paid/combined/executive: go back one month
+  // For quarterly: go back 3 months (same number of days in range)
+  const isQuarterly = reportType === 'quarterly'
+  const shiftMonths = isQuarterly ? 3 : 1
+  const ps = new Date(sd.getFullYear(), sd.getMonth() - shiftMonths, sd.getDate())
+  const pe = new Date(ed.getFullYear(), ed.getMonth() - shiftMonths, ed.getDate())
+  // Clamp day to last day of month if shifted date overflows (e.g. May 31 → Feb 28)
+  const psLast = new Date(ps.getFullYear(), ps.getMonth() + 1, 0).getDate()
+  const peLast = new Date(pe.getFullYear(), pe.getMonth() + 1, 0).getDate()
+  const psDay = Math.min(ps.getDate(), psLast)
+  const peDay = Math.min(pe.getDate(), peLast)
+  void diffDays
+  return {
+    prevStart: `${ps.getFullYear()}-${String(ps.getMonth() + 1).padStart(2, '0')}-${String(psDay).padStart(2, '0')}`,
+    prevEnd:   `${pe.getFullYear()}-${String(pe.getMonth() + 1).padStart(2, '0')}-${String(peDay).padStart(2, '0')}`,
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: { clientId?: string; reportType?: string; startDate?: string; endDate?: string }
   try {
@@ -270,11 +292,15 @@ export async function POST(req: NextRequest) {
   // 1. Resolve client info
   const client = await resolveClient(clientId)
 
-  // 2. Determine blog ID — use client's metricoolBlogId if available
+  // 2. Determine blog ID
   const blogId = client.metricoolBlogId ?? clientId
 
-  // 3. Fetch Metricool data
-  const metricoolData = await fetchMetricoolData(blogId, startDate, endDate)
+  // 3. Fetch current + previous period data in parallel
+  const { prevStart, prevEnd } = prevPeriodDates(startDate, endDate, reportType)
+  const [metricoolData, prevData] = await Promise.all([
+    fetchMetricoolData(blogId, startDate, endDate),
+    fetchMetricoolData(blogId, prevStart, prevEnd).catch(() => null),
+  ])
 
   // 4. Build and run Gemini prompt (if API key configured)
   let narrative: Record<string, string> = {}
@@ -302,10 +328,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     narrative,
     stats: metricoolData.stats,
+    prevStats: prevData?.stats ?? null,
     platforms: metricoolData.platforms,
     trend: metricoolData.trend,
     meta: {
       period: `${startDate} to ${endDate}`,
+      prevPeriod: `${prevStart} to ${prevEnd}`,
       clientName: client.name,
       reportType,
       generatedAt: new Date().toISOString(),
