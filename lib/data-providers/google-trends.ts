@@ -31,101 +31,6 @@ const INDUSTRY_KEYWORDS: Record<string, string[]> = {
   general:     [],
 }
 
-// ── Industry mock fallback data ───────────────────────────────
-
-const MOCK_DATA: Record<string, Pick<TrendsData, 'trending_topics' | 'breakout_keywords'>> = {
-  beauty: {
-    trending_topics: [
-      { keyword: 'skin cycling routine', search_volume_increase: '+340%', time_period: 'last 7 days' },
-      { keyword: 'barrier repair moisturizer', search_volume_increase: '+280%', time_period: 'last 7 days' },
-      { keyword: 'glass skin tutorial', search_volume_increase: '+155%', time_period: 'last 14 days' },
-      { keyword: 'retinol beginner guide', search_volume_increase: '+130%', time_period: 'last 14 days' },
-      { keyword: 'slugging skincare method', search_volume_increase: '+110%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['ceramide moisturizer', 'double cleansing', 'niacinamide serum', 'tinted sunscreen', 'dewy skin', 'SPF reapplication'],
-  },
-  tech: {
-    trending_topics: [
-      { keyword: 'AI tools productivity 2026', search_volume_increase: '+520%', time_period: 'last 7 days' },
-      { keyword: 'local AI model self-host', search_volume_increase: '+320%', time_period: 'last 14 days' },
-      { keyword: 'spatial computing apps', search_volume_increase: '+260%', time_period: 'last 7 days' },
-      { keyword: 'passkeys setup guide', search_volume_increase: '+190%', time_period: 'last 14 days' },
-      { keyword: 'ARM laptop battery life', search_volume_increase: '+160%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['MCP protocol', 'vision pro apps', 'AI PC features', 'edge computing', 'NFC business card'],
-  },
-  food: {
-    trending_topics: [
-      { keyword: 'high protein meal prep', search_volume_increase: '+410%', time_period: 'last 7 days' },
-      { keyword: 'smash burger at home', search_volume_increase: '+280%', time_period: 'last 7 days' },
-      { keyword: 'cottage cheese protein bowl', search_volume_increase: '+245%', time_period: 'last 14 days' },
-      { keyword: 'fermented foods gut health', search_volume_increase: '+190%', time_period: 'last 14 days' },
-      { keyword: 'pistachio cream dessert', search_volume_increase: '+165%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['Dubai chocolate bar', 'birria tacos', 'sourdough starter', 'bento box lunch', 'air fryer salmon'],
-  },
-  fitness: {
-    trending_topics: [
-      { keyword: 'zone 2 cardio benefits', search_volume_increase: '+380%', time_period: 'last 7 days' },
-      { keyword: 'progressive overload beginners', search_volume_increase: '+310%', time_period: 'last 14 days' },
-      { keyword: 'pilates reformer at home', search_volume_increase: '+270%', time_period: 'last 7 days' },
-      { keyword: 'creatine loading women', search_volume_increase: '+200%', time_period: 'last 14 days' },
-      { keyword: 'hybrid athlete training', search_volume_increase: '+175%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['rucking workout', 'VO2 max testing', 'cold plunge routine', 'Bulgarian split squat', 'grip strength exercises'],
-  },
-  finance: {
-    trending_topics: [
-      { keyword: 'high yield savings account', search_volume_increase: '+450%', time_period: 'last 7 days' },
-      { keyword: 'index fund vs ETF', search_volume_increase: '+290%', time_period: 'last 7 days' },
-      { keyword: 'Roth IRA contribution 2026', search_volume_increase: '+240%', time_period: 'last 14 days' },
-      { keyword: 'credit score improve fast', search_volume_increase: '+210%', time_period: 'last 14 days' },
-      { keyword: 'emergency fund how much', search_volume_increase: '+180%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['HYSA comparison', 'backdoor Roth IRA', 'dollar cost averaging', 'FIRE calculator', 'sinking fund categories'],
-  },
-  fashion: {
-    trending_topics: [
-      { keyword: 'quiet luxury style 2026', search_volume_increase: '+360%', time_period: 'last 7 days' },
-      { keyword: 'capsule wardrobe essentials', search_volume_increase: '+280%', time_period: 'last 14 days' },
-      { keyword: 'linen outfits summer', search_volume_increase: '+245%', time_period: 'last 7 days' },
-      { keyword: 'ballet flat styling', search_volume_increase: '+195%', time_period: 'last 14 days' },
-      { keyword: 'thrift store high end finds', search_volume_increase: '+160%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['old money wardrobe', 'barrel leg jeans', 'cream tonal outfits', 'mob wife aesthetic', 'Italian vacation style'],
-  },
-  travel: {
-    trending_topics: [
-      { keyword: 'slow travel itinerary', search_volume_increase: '+390%', time_period: 'last 7 days' },
-      { keyword: 'digital nomad visa countries', search_volume_increase: '+320%', time_period: 'last 14 days' },
-      { keyword: 'hidden beaches Europe 2026', search_volume_increase: '+275%', time_period: 'last 7 days' },
-      { keyword: 'budget airline hacks', search_volume_increase: '+215%', time_period: 'last 14 days' },
-      { keyword: 'solo female travel safety', search_volume_increase: '+185%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['Albania travel guide', 'Georgia country tourism', 'train Europe pass', 'packing cube system', 'carry-on only'],
-  },
-  education: {
-    trending_topics: [
-      { keyword: 'AI tools for students 2026', search_volume_increase: '+480%', time_period: 'last 7 days' },
-      { keyword: 'spaced repetition method', search_volume_increase: '+310%', time_period: 'last 14 days' },
-      { keyword: 'online certification worth it', search_volume_increase: '+265%', time_period: 'last 7 days' },
-      { keyword: 'second brain PKM system', search_volume_increase: '+220%', time_period: 'last 14 days' },
-      { keyword: 'deliberate practice method', search_volume_increase: '+185%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['active recall flashcards', 'Obsidian for students', 'Cornell notes', 'Pomodoro technique', 'Anki deck'],
-  },
-  real_estate: {
-    trending_topics: [
-      { keyword: 'real estate market forecast 2026', search_volume_increase: '+420%', time_period: 'last 7 days' },
-      { keyword: 'house hacking strategy', search_volume_increase: '+295%', time_period: 'last 14 days' },
-      { keyword: 'first time buyer grants', search_volume_increase: '+260%', time_period: 'last 7 days' },
-      { keyword: 'short term rental ROI', search_volume_increase: '+225%', time_period: 'last 14 days' },
-      { keyword: 'Airbnb arbitrage guide', search_volume_increase: '+190%', time_period: 'last 30 days' },
-    ],
-    breakout_keywords: ['BRRRR method', 'cap rate calculation', 'seller financing', 'off-plan property', 'property syndication'],
-  },
-}
-
 // ── Parse Google Trends RSS XML ───────────────────────────────
 
 function parseRssItems(xml: string): string[] {
@@ -180,8 +85,8 @@ async function fetchViaRss(industry: string): Promise<TrendsData> {
   const breakout_keywords = filtered.slice(6, 14)
 
   return {
-    trending_topics: trending_topics.length ? trending_topics : (MOCK_DATA[industry] ?? MOCK_DATA.beauty).trending_topics,
-    breakout_keywords: breakout_keywords.length ? breakout_keywords : (MOCK_DATA[industry] ?? MOCK_DATA.beauty).breakout_keywords,
+    trending_topics,
+    breakout_keywords,
     source: 'rss',
     fetched_at: new Date().toISOString(),
   }
@@ -193,8 +98,7 @@ export async function fetchGoogleTrends(industry: string): Promise<TrendsData> {
   try {
     return await fetchViaRss(industry)
   } catch (err) {
-    console.warn('[google-trends] RSS fetch failed, using fallback:', err)
-    const mock = MOCK_DATA[industry.toLowerCase()] ?? MOCK_DATA.beauty
-    return { ...mock, source: 'fallback', fetched_at: new Date().toISOString() }
+    console.warn('[google-trends] RSS fetch failed:', err)
+    return { trending_topics: [], breakout_keywords: [], source: 'fallback', fetched_at: new Date().toISOString() }
   }
 }

@@ -6,7 +6,6 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchYouTubeTrends } from '@/lib/data-providers/youtube'
 import { fetchTikTokTrends }  from '@/lib/data-providers/tiktok-creative-center'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
 import { createHash } from 'crypto'
@@ -49,84 +48,59 @@ function makeId(url: string): string {
 
 async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]> {
   const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY
+  if (!YOUTUBE_API_KEY) return []
 
   const now   = new Date().toISOString()
   const year  = new Date().getFullYear()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
 
-  // If we have a real API key, call the YouTube Data API directly
-  if (YOUTUBE_API_KEY) {
-    try {
-      const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search')
-      searchUrl.searchParams.set('part', 'snippet')
-      searchUrl.searchParams.set('type', 'video')
-      searchUrl.searchParams.set('order', 'viewCount')
-      searchUrl.searchParams.set('q', `${industry} ${year}`)
-      searchUrl.searchParams.set('publishedAfter', thirtyDaysAgo)
-      searchUrl.searchParams.set('maxResults', '8')
-      searchUrl.searchParams.set('key', YOUTUBE_API_KEY)
+  try {
+    const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search')
+    searchUrl.searchParams.set('part', 'snippet')
+    searchUrl.searchParams.set('type', 'video')
+    searchUrl.searchParams.set('order', 'viewCount')
+    searchUrl.searchParams.set('q', `${industry} ${year}`)
+    searchUrl.searchParams.set('publishedAfter', thirtyDaysAgo)
+    searchUrl.searchParams.set('maxResults', '8')
+    searchUrl.searchParams.set('key', YOUTUBE_API_KEY)
 
-      const searchRes = await fetch(searchUrl.toString())
-      if (searchRes.ok) {
-        const searchData = await searchRes.json()
-        const items: Array<{
-          id: { videoId: string }
-          snippet: {
-            title: string
-            channelTitle: string
-            thumbnails: { medium?: { url: string }; default?: { url: string } }
-            publishedAt: string
-          }
-        }> = searchData.items ?? []
+    const searchRes = await fetch(searchUrl.toString())
+    if (!searchRes.ok) return []
 
-        return items.map((item) => {
-          const videoId = item.id.videoId
-          const thumbnail =
-            item.snippet.thumbnails.medium?.url ??
-            item.snippet.thumbnails.default?.url
-          const url = `https://www.youtube.com/watch?v=${videoId}`
-          return {
-            id:            makeId(url),
-            platform:      'youtube' as const,
-            content_type:  'video'   as const,
-            title:         item.snippet.title,
-            url,
-            thumbnail_url: thumbnail,
-            channel:       item.snippet.channelTitle,
-            industry,
-            velocity:      'rising'  as const,
-            why_trending:  'High view count in the last 30 days for this industry segment.',
-            fetched_at:    now,
-          }
-        })
+    const searchData = await searchRes.json()
+    const items: Array<{
+      id: { videoId: string }
+      snippet: {
+        title: string
+        channelTitle: string
+        thumbnails: { medium?: { url: string }; default?: { url: string } }
+        publishedAt: string
       }
-    } catch {
-      // fall through to mock
-    }
-  }
+    }> = searchData.items ?? []
 
-  // Fallback: use the existing mock-powered provider and build search URLs
-  const data = await fetchYouTubeTrends(industry)
-  return data.trending_videos.slice(0, 6).map((v) => {
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(v.title)}`
-    return {
-      id:           makeId(searchUrl),
-      platform:     'youtube' as const,
-      content_type: 'video'   as const,
-      title:        v.title,
-      url:          searchUrl,
-      view_count:   v.view_count,
-      channel:      v.channel,
-      industry,
-      velocity:     v.view_count > 4_000_000
-        ? ('rising_fast' as const)
-        : v.view_count > 2_000_000
-        ? ('rising'      as const)
-        : ('peaking'     as const),
-      why_trending: `${v.format_type} — gaining significant traction in the ${industry} space.`,
-      fetched_at:   data.fetched_at,
-    }
-  })
+    return items.map((item) => {
+      const videoId = item.id.videoId
+      const thumbnail =
+        item.snippet.thumbnails.medium?.url ??
+        item.snippet.thumbnails.default?.url
+      const url = `https://www.youtube.com/watch?v=${videoId}`
+      return {
+        id:            makeId(url),
+        platform:      'youtube' as const,
+        content_type:  'video'   as const,
+        title:         item.snippet.title,
+        url,
+        thumbnail_url: thumbnail,
+        channel:       item.snippet.channelTitle,
+        industry,
+        velocity:      'rising'  as const,
+        why_trending:  'High view count in the last 30 days for this industry segment.',
+        fetched_at:    now,
+      }
+    })
+  } catch {
+    return []
+  }
 }
 
 // ── TikTok items ──────────────────────────────────────────────

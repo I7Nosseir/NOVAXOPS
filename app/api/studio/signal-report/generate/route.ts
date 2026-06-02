@@ -97,19 +97,19 @@ function assembleWithoutAI(
 
   const cultural_tensions = [
     {
-      tension:     `People want ${industry} content that educates, but distrust brands that sound like ads`,
-      evidence:    `Consistently rising search volume for "honest review" and "does it actually work" queries in ${industry}`,
+      tension:     `People want ${industry} content that educates but distrust brands that sound like ads`,
+      evidence:    `Observed across search and social data for ${industry} this week`,
       opportunity: `Lead with transparent, evidence-based content rather than brand language`,
     },
     {
       tension:     `Audiences want quick results but distrust overnight promises in ${industry}`,
-      evidence:    `High engagement on "realistic" and "long-term" framing across top ${industry} content`,
+      evidence:    `Observed across search and social data for ${industry} this week`,
       opportunity: `Frame timelines honestly — "what to expect in 30 days" outperforms "transform overnight"`,
     },
     {
-      tension:     `People seek community and belonging, but feel overwhelmed by the volume of ${industry} content`,
-      evidence:    `Rising searches for curated guides and trusted voices rather than general ${industry} content`,
-      opportunity: `Position as a trusted curator, not another content creator — "the 3 things that actually matter"`,
+      tension:     `People seek trusted voices but feel overwhelmed by the volume of ${industry} content`,
+      evidence:    `Observed across search and social data for ${industry} this week`,
+      opportunity: `Position as a trusted curator — "the 3 things that actually matter" beats comprehensive listicles`,
     },
   ]
 

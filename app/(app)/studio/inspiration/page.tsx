@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, TrendingUp, X } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { RefreshCw, TrendingUp, X, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -59,7 +59,9 @@ export default function InspirationLibraryPage() {
   const { clients }          = useClients()
 
   const [industry,          setIndustry]          = useState('beauty')
+  const [customNiche,       setCustomNiche]       = useState('')
   const [platform,          setPlatform]          = useState('all')
+  const nicheInputRef = useRef<HTMLInputElement>(null)
   const [items,             setItems]             = useState<TrendingContentItem[]>([])
   const [savedItems,        setSavedItems]        = useState<InspirationBoardItem[]>([])
   const [selectedClientId,  setSelectedClientId]  = useState<string | null>(null)
@@ -200,8 +202,47 @@ export default function InspirationLibraryPage() {
 
       {/* Filter bar */}
       <div className="flex flex-col gap-3">
-        {/* Industry chips */}
+
+        {/* Custom niche search */}
+        <form
+          onSubmit={e => {
+            e.preventDefault()
+            const v = customNiche.trim()
+            if (v) { setIndustry(v.toLowerCase().replace(/\s+/g, '_')); setCustomNiche('') }
+          }}
+          className="flex items-center gap-2"
+        >
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input
+              ref={nicheInputRef}
+              value={customNiche}
+              onChange={e => setCustomNiche(e.target.value)}
+              placeholder="Search any niche — luxury watches, pet care, gaming…"
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!customNiche.trim()}
+            className="text-xs font-medium bg-novax hover:bg-novax-hover disabled:opacity-40 text-white rounded-lg px-3 py-1.5 transition-colors"
+          >
+            Search
+          </button>
+          {/* Current niche indicator if custom */}
+          {!INDUSTRIES.find(i => i.value === industry) && (
+            <span className="flex items-center gap-1.5 text-xs bg-novax-light border border-novax-border text-novax rounded-full px-3 py-1 shrink-0">
+              {industry.replace(/_/g, ' ')}
+              <button onClick={() => setIndustry('beauty')} className="hover:text-red-500 transition-colors">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+        </form>
+
+        {/* Quick-pick industry chips */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <span className="text-[10px] text-slate-400 font-medium shrink-0 uppercase tracking-wide">Quick pick:</span>
           {INDUSTRIES.map(ind => (
             <button
               key={ind.value}

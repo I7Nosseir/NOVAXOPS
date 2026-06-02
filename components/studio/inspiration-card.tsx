@@ -112,50 +112,52 @@ export function InspirationCard({
       </div>
 
       {/* Body */}
-      <div className="p-4 flex-1 flex flex-col">
-        <p className="text-sm font-semibold text-slate-900 leading-snug line-clamp-2 mb-1">
+      <div className="p-4 flex-1 flex flex-col min-w-0">
+        <p className="text-sm font-semibold text-slate-900 leading-snug line-clamp-2 mb-1 break-words">
           {item.title}
         </p>
 
-        {(item.channel || item.hashtag) && (
-          <p className="text-xs text-slate-400">
-            {item.channel ? item.channel : `#${item.hashtag}`}
-          </p>
-        )}
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          {(item.channel || item.hashtag) && (
+            <p className="text-xs text-slate-400 truncate min-w-0">
+              {item.channel ? item.channel : `#${item.hashtag}`}
+            </p>
+          )}
+          {item.view_count != null && item.view_count > 0 && (
+            <p className="text-xs text-slate-400 shrink-0">
+              {formatViewCount(item.view_count, item.content_type)}
+            </p>
+          )}
+        </div>
 
-        {item.view_count != null && item.view_count > 0 && (
-          <p className="text-xs text-slate-500 mt-0.5">
-            {formatViewCount(item.view_count, item.content_type)}
-          </p>
-        )}
-
-        <p className="text-xs text-novax-muted italic mt-2 line-clamp-2 flex-1">
+        <p className="text-xs text-novax-muted italic mt-2 line-clamp-2 flex-1 break-words">
           {item.why_trending}
         </p>
       </div>
 
       {/* Footer */}
-      <div className="px-4 pb-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-novax-muted border border-novax-border rounded-lg px-3 py-1.5 hover:bg-novax-light transition-colors"
-          >
-            Open
-            <ExternalLink className="w-3 h-3" />
-          </a>
+      <div className="px-4 pb-4 flex items-center gap-2">
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs text-novax-muted border border-novax-border rounded-lg px-3 py-1.5 hover:bg-novax-light transition-colors shrink-0"
+        >
+          Open
+          <ExternalLink className="w-3 h-3" />
+        </a>
 
-          {onUseAsInspiration && (
-            <button
-              onClick={() => onUseAsInspiration(item)}
-              className="text-xs text-slate-500 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition-colors"
-            >
-              Use as inspiration
-            </button>
-          )}
-        </div>
+        {onUseAsInspiration && (
+          <button
+            onClick={() => onUseAsInspiration(item)}
+            title="Use as inspiration in Content Studio"
+            className="flex items-center gap-1 text-xs text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors shrink-0"
+          >
+            Use
+          </button>
+        )}
+
+        <div className="flex-1" />
 
         <button
           onClick={handleSaveToggle}
