@@ -46,6 +46,19 @@ function makeId(url: string): string {
 
 // ── YouTube items ─────────────────────────────────────────────
 
+function classifyTitle(title: string): string {
+  const t = title.toLowerCase()
+  if (t.includes('vs') || t.includes('comparison') || t.includes('compared')) return 'Comparison'
+  if (t.includes('how to') || t.includes('tutorial') || t.includes('guide')) return 'Tutorial'
+  if (t.includes('review') || t.includes('tested') || t.includes('honest')) return 'Review / Test'
+  if (t.includes('days') || t.includes('week') || t.includes('months') || t.includes('year')) return 'Long-term experiment'
+  if (t.includes('explained') || t.includes('simple') || t.includes('beginners')) return 'Educational deep-dive'
+  if (t.includes('everything') || t.includes('complete') || t.includes('ultimate')) return 'Comprehensive guide'
+  if (t.includes('secret') || t.includes('hack') || t.includes('trick') || t.includes('tip')) return 'Tips & tricks'
+  if (t.includes('best') || t.includes('top') || t.includes('worst')) return 'Ranking / List'
+  return 'General'
+}
+
 async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]> {
   const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY
   if (!YOUTUBE_API_KEY) return []
@@ -73,17 +86,39 @@ async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]>
       snippet: {
         title: string
         channelTitle: string
-        thumbnails: { medium?: { url: string }; default?: { url: string } }
+        thumbnails: { medium?: { url: string }; high?: { url: string }; default?: { url: string } }
         publishedAt: string
       }
     }> = searchData.items ?? []
 
+    if (!items.length) return []
+
+    // Fetch view counts via videos.list
+    const videoIds = items.map(i => i.id.videoId).filter(Boolean).join(',')
+    const statsUrl = new URL('https://www.googleapis.com/youtube/v3/videos')
+    statsUrl.searchParams.set('part', 'statistics')
+    statsUrl.searchParams.set('id', videoIds)
+    statsUrl.searchParams.set('key', YOUTUBE_API_KEY)
+
+    const statsRes  = await fetch(statsUrl.toString())
+    const statsData = statsRes.ok ? await statsRes.json() : { items: [] }
+    const viewMap   = new Map<string, number>()
+    for (const v of (statsData.items ?? []) as Array<{ id: string; statistics?: { viewCount?: string } }>) {
+      viewMap.set(v.id, parseInt(v.statistics?.viewCount ?? '0', 10))
+    }
+
     return items.map((item) => {
-      const videoId = item.id.videoId
+      const videoId   = item.id.videoId
       const thumbnail =
+        item.snippet.thumbnails.high?.url ??
         item.snippet.thumbnails.medium?.url ??
         item.snippet.thumbnails.default?.url
-      const url = `https://www.youtube.com/watch?v=${videoId}`
+      const url       = `https://www.youtube.com/watch?v=${videoId}`
+      const views     = viewMap.get(videoId) ?? 0
+      const format    = classifyTitle(item.snippet.title)
+      const velocity: TrendingContentItem['velocity'] =
+        views > 5_000_000 ? 'rising_fast' : views > 1_000_000 ? 'rising' : 'peaking'
+
       return {
         id:            makeId(url),
         platform:      'youtube' as const,
@@ -91,10 +126,11 @@ async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]>
         title:         item.snippet.title,
         url,
         thumbnail_url: thumbnail,
+        view_count:    views || undefined,
         channel:       item.snippet.channelTitle,
         industry,
-        velocity:      'rising'  as const,
-        why_trending:  'High view count in the last 30 days for this industry segment.',
+        velocity,
+        why_trending:  `${format} — gaining significant traction in the ${industry} space.`,
         fetched_at:    now,
       }
     })
