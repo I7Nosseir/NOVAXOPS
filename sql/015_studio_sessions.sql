@@ -1,7 +1,7 @@
--- Studio Sessions table: stores all AI generation sessions across tools
--- Run this in Supabase SQL editor after 001_initial_schema.sql
+-- Studio Sessions table
+-- Safe to run even if table already exists (IF NOT EXISTS throughout)
 
-CREATE TABLE studio_sessions (
+CREATE TABLE IF NOT EXISTS studio_sessions (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name                 text NOT NULL,
   client_id            uuid REFERENCES clients(id) ON DELETE SET NULL,
@@ -22,7 +22,7 @@ CREATE TABLE studio_sessions (
   edit_history         jsonb DEFAULT '[]',
   signal_report_used   jsonb,
   metricool_snapshot   jsonb,
-  performance          jsonb,          -- filled 7 days after publish via /api/studio/session/[id]/performance
+  performance          jsonb,
   performance_verdict  text CHECK (performance_verdict IN (
                          'exceeded', 'met', 'below', 'significantly_below'
                        )),
@@ -30,26 +30,22 @@ CREATE TABLE studio_sessions (
   updated_at           timestamptz DEFAULT now()
 );
 
--- Indexes
-CREATE INDEX studio_sessions_client_idx      ON studio_sessions (client_id);
-CREATE INDEX studio_sessions_tool_idx        ON studio_sessions (tool, created_at DESC);
-CREATE INDEX studio_sessions_created_by_idx  ON studio_sessions (created_by);
-CREATE INDEX studio_sessions_status_idx      ON studio_sessions (status);
-CREATE INDEX studio_sessions_verdict_idx     ON studio_sessions (performance_verdict)
-  WHERE performance_verdict IS NOT NULL;
+-- Indexes (IF NOT EXISTS)
+CREATE INDEX IF NOT EXISTS studio_sessions_client_idx     ON studio_sessions (client_id);
+CREATE INDEX IF NOT EXISTS studio_sessions_tool_idx       ON studio_sessions (tool, created_at DESC);
+CREATE INDEX IF NOT EXISTS studio_sessions_created_by_idx ON studio_sessions (created_by);
+CREATE INDEX IF NOT EXISTS studio_sessions_status_idx     ON studio_sessions (status);
 
--- Row Level Security
+-- RLS
 ALTER TABLE studio_sessions ENABLE ROW LEVEL SECURITY;
 
--- Users can manage their own sessions
+DROP POLICY IF EXISTS "users_own_sessions" ON studio_sessions;
 CREATE POLICY "users_own_sessions" ON studio_sessions
-  FOR ALL
-  USING (created_by = auth.uid());
+  FOR ALL USING (created_by = auth.uid());
 
--- Admins, CEOs, and Creative Directors can see all sessions
+DROP POLICY IF EXISTS "admin_all_sessions" ON studio_sessions;
 CREATE POLICY "admin_all_sessions" ON studio_sessions
-  FOR ALL
-  USING (
+  FOR ALL USING (
     EXISTS (
       SELECT 1 FROM users
       WHERE auth_id = auth.uid()
@@ -57,7 +53,7 @@ CREATE POLICY "admin_all_sessions" ON studio_sessions
     )
   );
 
--- Auto-update updated_at on any row change
+-- updated_at trigger
 CREATE OR REPLACE FUNCTION update_studio_sessions_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -66,7 +62,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS studio_sessions_updated_at ON studio_sessions;
 CREATE TRIGGER studio_sessions_updated_at
   BEFORE UPDATE ON studio_sessions
-  FOR EACH ROW
-  EXECUTE FUNCTION update_studio_sessions_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION update_studio_sessions_updated_at();

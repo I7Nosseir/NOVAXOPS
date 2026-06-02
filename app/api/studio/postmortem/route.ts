@@ -1,11 +1,11 @@
 // ============================================================
 // POST /api/studio/postmortem
-// 4 parallel Haiku analyses + 1 Sonnet verdict.
+// 4 parallel Gemini analyses + 1 Gemini verdict.
 // Returns PostMortemDiagnosis.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { geminiJson } from '@/lib/gemini'
 import type { PostMortemAnalysis, PostMortemDiagnosis } from '@/lib/studio-types'
 
 // ─── Request types ────────────────────────────────────────────
@@ -96,7 +96,6 @@ function buildMockDiagnosis(body: PostMortemBody): PostMortemDiagnosis {
 // ─── AI analysis helpers ──────────────────────────────────────
 
 async function analyzeHook(
-  client: Anthropic,
   data: PostMortemBody['session_data'],
   perf: PostMortemBody['performance'],
   ctx: PostMortemBody['client_context'],
@@ -117,18 +116,13 @@ Compare this hook type against the client's top performing types.
 Return ONLY valid JSON — no markdown, no extra text:
 {"verdict":"likely_cause"|"contributing"|"not_issue","finding":"one concise sentence with evidence","fix":"one actionable sentence"}`
 
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    messages: [{ role: 'user', content: prompt }],
+  return geminiJson<PostMortemAnalysis>(prompt, undefined, {
+    temperature:     0.3,
+    maxOutputTokens: 200,
   })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
-  const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim()
-  return JSON.parse(clean) as PostMortemAnalysis
 }
 
 async function analyzeFormat(
-  client: Anthropic,
   data: PostMortemBody['session_data'],
   perf: PostMortemBody['performance'],
   ctx: PostMortemBody['client_context'],
@@ -148,18 +142,13 @@ Compare format used vs client's proven best format.
 Return ONLY valid JSON — no markdown, no extra text:
 {"verdict":"likely_cause"|"contributing"|"not_issue","finding":"one concise sentence with evidence","fix":"one actionable sentence"}`
 
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    messages: [{ role: 'user', content: prompt }],
+  return geminiJson<PostMortemAnalysis>(prompt, undefined, {
+    temperature:     0.3,
+    maxOutputTokens: 200,
   })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
-  const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim()
-  return JSON.parse(clean) as PostMortemAnalysis
 }
 
 async function analyzeTiming(
-  client: Anthropic,
   data: PostMortemBody['session_data'],
   perf: PostMortemBody['performance'],
   ctx: PostMortemBody['client_context'],
@@ -178,18 +167,13 @@ Compare actual publish time vs client's peak engagement window.
 Return ONLY valid JSON — no markdown, no extra text:
 {"verdict":"likely_cause"|"contributing"|"not_issue","finding":"one concise sentence with evidence","fix":"one actionable sentence or omit key if not an issue"}`
 
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    messages: [{ role: 'user', content: prompt }],
+  return geminiJson<PostMortemAnalysis>(prompt, undefined, {
+    temperature:     0.3,
+    maxOutputTokens: 200,
   })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
-  const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim()
-  return JSON.parse(clean) as PostMortemAnalysis
 }
 
 async function analyzeCaption(
-  client: Anthropic,
   data: PostMortemBody['session_data'],
   perf: PostMortemBody['performance'],
   ctx: PostMortemBody['client_context'],
@@ -208,18 +192,13 @@ Score for: CTA clarity, hook continuation (does caption continue the hook's ener
 Return ONLY valid JSON — no markdown, no extra text:
 {"verdict":"likely_cause"|"contributing"|"not_issue","finding":"one concise sentence citing specific issue","fix":"one actionable sentence"}`
 
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    messages: [{ role: 'user', content: prompt }],
+  return geminiJson<PostMortemAnalysis>(prompt, undefined, {
+    temperature:     0.3,
+    maxOutputTokens: 200,
   })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
-  const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim()
-  return JSON.parse(clean) as PostMortemAnalysis
 }
 
 async function buildVerdict(
-  client: Anthropic,
   analyses: PostMortemDiagnosis['analyses'],
   body: PostMortemBody,
 ): Promise<{ verdict: string; rerun_constraints: Record<string, string> }> {
@@ -251,14 +230,11 @@ Return ONLY valid JSON — no markdown, no extra text:
   }
 }`
 
-  const msg = await client.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: 400,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
-  const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim()
-  return JSON.parse(clean)
+  return geminiJson<{ verdict: string; rerun_constraints: Record<string, string> }>(
+    prompt,
+    undefined,
+    { temperature: 0.3, maxOutputTokens: 400 },
+  )
 }
 
 // ─── Handler ─────────────────────────────────────────────────
@@ -278,33 +254,31 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({ ...buildMockDiagnosis(body), _mock: true })
   }
 
-  const client = new Anthropic()
-
-  // ── 4 parallel Haiku analyses ──────────────────────────────
+  // ── 4 parallel Gemini analyses ─────────────────────────────
   const [hookResult, formatResult, timingResult, captionResult] = await Promise.all([
-    analyzeHook(client, body.session_data, body.performance, body.client_context).catch(
+    analyzeHook(body.session_data, body.performance, body.client_context).catch(
       (): PostMortemAnalysis => ({
         verdict: 'not_issue',
         finding: 'Hook analysis unavailable — API error.',
       }),
     ),
-    analyzeFormat(client, body.session_data, body.performance, body.client_context).catch(
+    analyzeFormat(body.session_data, body.performance, body.client_context).catch(
       (): PostMortemAnalysis => ({
         verdict: 'not_issue',
         finding: 'Format analysis unavailable — API error.',
       }),
     ),
-    analyzeTiming(client, body.session_data, body.performance, body.client_context).catch(
+    analyzeTiming(body.session_data, body.performance, body.client_context).catch(
       (): PostMortemAnalysis => ({
         verdict: 'not_issue',
         finding: 'Timing analysis unavailable — API error.',
       }),
     ),
-    analyzeCaption(client, body.session_data, body.performance, body.client_context).catch(
+    analyzeCaption(body.session_data, body.performance, body.client_context).catch(
       (): PostMortemAnalysis => ({
         verdict: 'not_issue',
         finding: 'Caption analysis unavailable — API error.',
@@ -319,10 +293,10 @@ export async function POST(req: NextRequest) {
     caption: captionResult,
   }
 
-  // ── Sonnet verdict ─────────────────────────────────────────
+  // ── Gemini verdict ─────────────────────────────────────────
   let verdictData: { verdict: string; rerun_constraints: Record<string, string> }
   try {
-    verdictData = await buildVerdict(client, analyses, body)
+    verdictData = await buildVerdict(analyses, body)
   } catch {
     verdictData = {
       verdict: `Analysis complete. Primary areas of concern: ${

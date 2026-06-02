@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Zap, Wand2, Brain, Flame, BarChart2, Target, TrendingUp,
-  ArrowRight, Sparkles,
+  ArrowRight, Sparkles, BookOpen,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
@@ -56,6 +56,17 @@ const TOOLS = [
     gradient: false,
     dark: true,
     cta: 'Ignite Campaign',
+  },
+  {
+    href: '/studio/inspiration',
+    icon: BookOpen,
+    title: 'Inspiration Library',
+    description: 'Live trending content from YouTube, TikTok and across the web. Save to per-client boards.',
+    badge: 'Live',
+    badgeColor: 'bg-emerald-100 text-emerald-700',
+    gradient: false,
+    dark: false,
+    cta: 'Browse Trends',
   },
 ]
 

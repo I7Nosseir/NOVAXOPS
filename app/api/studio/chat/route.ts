@@ -6,7 +6,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { geminiGenerate } from '@/lib/gemini'
 import type { ChatMessage, EditPayload } from '@/lib/studio-types'
 
 // ─── System prompt (verbatim from plan section 15) ────────────
@@ -86,6 +86,18 @@ function tryParseEdit(text: string): EditPayload | null {
   }
 }
 
+// ─── Build conversation prompt from history ───────────────────
+
+function buildConversationPrompt(history: ChatMessage[], newMessage: string): string {
+  if (history.length === 0) return newMessage
+
+  const turns = history
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n\n')
+
+  return `${turns}\n\nUser: ${newMessage}`
+}
+
 // ─── Handler ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -116,7 +128,7 @@ export async function POST(req: NextRequest) {
     timestamp: new Date().toISOString(),
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     const responseText = mockResponse(body.message)
     const edit = tryParseEdit(responseText)
 
@@ -134,31 +146,20 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const client = new Anthropic()
   const systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace(
     '{{CONTEXT_JSON}}',
     JSON.stringify(sessionContext, null, 2),
   )
 
-  // Build Anthropic messages from history
-  const messages: Anthropic.MessageParam[] = [
-    ...history.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })),
-    { role: 'user', content: body.message },
-  ]
+  // Build a flat conversation prompt from history + new message
+  const conversationPrompt = buildConversationPrompt(history, body.message)
 
   try {
-    const response = await client.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system:     systemPrompt,
-      messages,
+    const responseText = await geminiGenerate(conversationPrompt, systemPrompt, {
+      temperature:     0.4,
+      maxOutputTokens: 1024,
     })
 
-    const responseText =
-      response.content[0].type === 'text' ? response.content[0].text : ''
     const edit = tryParseEdit(responseText)
 
     const assistantMessage: ChatMessage = {

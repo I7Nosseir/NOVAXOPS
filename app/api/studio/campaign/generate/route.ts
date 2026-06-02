@@ -6,7 +6,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { geminiJson, geminiGenerate } from '@/lib/gemini'
 import type {
   CampaignDocument,
   CampaignConcept,
@@ -68,10 +68,9 @@ function parseJson<T>(text: string, fallback: T): T {
   }
 }
 
-// ─── Phase 1: Cultural Tension Mining (Sonnet) ───────────────
+// ─── Phase 1: Cultural Tension Mining (Sonnet → Gemini) ──────
 
 async function runPhase1(
-  client: Anthropic,
   body: CampaignGenerateBody,
 ): Promise<Array<{ tension: string; evidence: string; opportunity: string }>> {
   const tensionsContext = body.signal_report?.cultural_tensions
@@ -99,25 +98,17 @@ Return ONLY valid JSON array — no markdown, no extra text:
   }
 ]`
 
-  const msg = await client.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: 1200,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text : '[]'
-  return parseJson(text, [
-    {
-      tension:     `Consumers in ${body.industry} want premium results but resist the premium price signal`,
-      evidence:    'Price sensitivity alongside aspiration is a dominant consumer pattern in this category',
-      opportunity: 'A brand that democratizes the premium result without the premium aesthetic',
-    },
-  ])
+  const result = await geminiJson<Array<{ tension: string; evidence: string; opportunity: string }>>(
+    prompt,
+    undefined,
+    { temperature: 0.5, maxOutputTokens: 1200 },
+  )
+  return result
 }
 
-// ─── Phase 2: Constraint Inversion (Sonnet) ──────────────────
+// ─── Phase 2: Constraint Inversion (Sonnet → Gemini) ─────────
 
 async function runPhase2(
-  client: Anthropic,
   industry: string,
 ): Promise<Array<{ rule: string; inversion: string }>> {
   const prompt = `List 5 unwritten marketing rules that EVERY brand in ${industry} follows without questioning.
@@ -131,24 +122,16 @@ Return ONLY valid JSON array — no markdown, no extra text:
   }
 ]`
 
-  const msg = await client.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: 800,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text : '[]'
-  return parseJson(text, [
-    {
-      rule:      `Every ${industry} brand shows aspirational results in their content`,
-      inversion: 'Show the failure, the process, and the doubt — document what actually goes wrong',
-    },
-  ])
+  return geminiJson<Array<{ rule: string; inversion: string }>>(
+    prompt,
+    undefined,
+    { temperature: 0.5, maxOutputTokens: 800 },
+  )
 }
 
-// ─── Phase 3: Cross-Domain Stimulation (Haiku) ───────────────
+// ─── Phase 3: Cross-Domain Stimulation (Haiku → Gemini) ──────
 
 async function runPhase3(
-  client: Anthropic,
   domains: string[],
   industry: string,
   client_name: string,
@@ -168,12 +151,10 @@ Generate 3 raw concept seeds — one per domain. Wild. No judgment. No filtering
 
 Return ONLY 3 lines — one seed per line, no numbering, no JSON.`
 
-  const msg = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 300,
-    messages: [{ role: 'user', content: prompt }],
+  const text = await geminiGenerate(prompt, undefined, {
+    temperature:     0.4,
+    maxOutputTokens: 300,
   })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
   const lines = text
     .split('\n')
     .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
@@ -190,10 +171,9 @@ Return ONLY 3 lines — one seed per line, no numbering, no JSON.`
   return lines
 }
 
-// ─── Phase 4: Divergent Ideation (Opus) ──────────────────────
+// ─── Phase 4: Divergent Ideation (Opus → Gemini high-temp) ───
 
 async function runPhase4(
-  client: Anthropic,
   tensions: Array<{ tension: string }>,
   inversions: Array<{ inversion: string }>,
   seeds: string[],
@@ -232,12 +212,10 @@ RULES:
 
 Return ONLY 15 lines — one concept per line, no numbering, no bullets.`
 
-  const msg = await client.messages.create({
-    model:      'claude-opus-4-8',
-    max_tokens: 600,
-    messages: [{ role: 'user', content: prompt }],
+  const text = await geminiGenerate(prompt, undefined, {
+    temperature:     0.8,
+    maxOutputTokens: 3000,
   })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
   const lines = text
     .split('\n')
     .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
@@ -255,10 +233,9 @@ Return ONLY 15 lines — one concept per line, no numbering, no bullets.`
   ]
 }
 
-// ─── Phase 5: Participatory Mechanics (Sonnet) ───────────────
+// ─── Phase 5: Participatory Mechanics (Sonnet → Gemini) ──────
 
 async function runPhase5(
-  client: Anthropic,
   concepts: string[],
   targetAudience: string,
 ): Promise<Array<{ concept: string; mechanic_type: string; mechanic_description: string }>> {
@@ -287,20 +264,14 @@ Return ONLY valid JSON array — no markdown, no extra text:
   }
 ]`
 
-  const msg = await client.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: 800,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text : '[]'
-  return parseJson(text, top7.map((c) => ({
-    concept:              c,
-    mechanic_type:        'UGC trigger',
-    mechanic_description: 'Audience shares their own version of the core concept',
-  })))
+  return geminiJson<Array<{ concept: string; mechanic_type: string; mechanic_description: string }>>(
+    prompt,
+    undefined,
+    { temperature: 0.5, maxOutputTokens: 800 },
+  )
 }
 
-// ─── Phase 6: Convergent Scoring (Haiku) ─────────────────────
+// ─── Phase 6: Convergent Scoring (Haiku → Gemini) ────────────
 
 interface ScoredConcept {
   concept:          string
@@ -312,7 +283,6 @@ interface ScoredConcept {
 }
 
 async function runPhase6(
-  client: Anthropic,
   conceptsWithMechanics: Array<{ concept: string; mechanic_type: string; mechanic_description: string }>,
   constraint: CampaignGenerateBody['constraint'],
 ): Promise<ScoredConcept[]> {
@@ -338,18 +308,10 @@ Return ONLY valid JSON array — no markdown, no extra text:
   }
 ]`
 
-  const msg = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 800,
-    messages: [{ role: 'user', content: prompt }],
+  const scored = await geminiJson<ScoredConcept[]>(prompt, undefined, {
+    temperature:     0.4,
+    maxOutputTokens: 800,
   })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text : '[]'
-  const scored = parseJson<ScoredConcept[]>(text, conceptsWithMechanics.map((c) => ({
-    ...c,
-    boldness:         7,
-    implementability: 6,
-    virality:         6,
-  })))
 
   // Apply filters from spec:
   // implementability < 4 kept only if virality = 9-10
@@ -380,10 +342,9 @@ Return ONLY valid JSON array — no markdown, no extra text:
   return filtered.length > 0 ? filtered : scored.slice(0, 5)
 }
 
-// ─── Phase 7: Execution Briefs (Opus) ────────────────────────
+// ─── Phase 7: Execution Briefs (Opus → Gemini high-temp) ─────
 
 async function runPhase7(
-  client: Anthropic,
   topConcepts: ScoredConcept[],
   body: CampaignGenerateBody,
   tensions: Array<{ tension: string }>,
@@ -428,12 +389,10 @@ Return ONLY valid JSON array — no markdown, no extra text:
   }
 ]`
 
-  const msg = await client.messages.create({
-    model:      'claude-opus-4-8',
-    max_tokens: 3000,
-    messages: [{ role: 'user', content: prompt }],
+  const text = await geminiGenerate(prompt, undefined, {
+    temperature:     0.8,
+    maxOutputTokens: 3000,
   })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text : '[]'
   return parseJson<CampaignConcept[]>(text, top5.map((c, i) => ({
     campaign_name: `Concept ${i + 1}`,
     tagline:       c.concept,
@@ -458,10 +417,9 @@ Return ONLY valid JSON array — no markdown, no extra text:
   })))
 }
 
-// ─── Boss Brief (Haiku) ───────────────────────────────────────
+// ─── Boss Brief (Haiku → Gemini) ─────────────────────────────
 
 async function buildBossBrief(
-  client: Anthropic,
   topConcept: CampaignConcept,
   body: CampaignGenerateBody,
 ): Promise<BossBrief> {
@@ -488,18 +446,9 @@ Return ONLY valid JSON — no markdown, no extra text:
   "watch_out_for": "One-sentence risk. Omit this key if there is no meaningful risk."
 }`
 
-  const msg = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 350,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
-  return parseJson<BossBrief>(text, {
-    what_we_made:  `Campaign concept for ${body.client_name} targeting ${body.target_audience}.`,
-    why_it_works:  topConcept.why_it_works,
-    the_one_thing: topConcept.tagline,
-    do_this_now:   `Review the execution steps with the team. Assign ownership of Step 1 today.`,
-    watch_out_for: topConcept.risk,
+  return geminiJson<BossBrief>(prompt, undefined, {
+    temperature:     0.4,
+    maxOutputTokens: 350,
   })
 }
 
@@ -573,17 +522,16 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({ ...buildMockDocument(body), _mock: true })
   }
 
-  const client  = new Anthropic()
   const domains = pickRandomDomains(3)
 
   // ── Phase 1 — Cultural Tension Mining ─────────────────────
   let tensions: Array<{ tension: string; evidence: string; opportunity: string }> = []
   try {
-    tensions = await runPhase1(client, body)
+    tensions = await runPhase1(body)
     if (body.session_id) await savePhase(body.session_id, 'tensions', tensions)
   } catch {
     tensions = [
@@ -598,7 +546,7 @@ export async function POST(req: NextRequest) {
   // ── Phase 2 — Constraint Inversion ────────────────────────
   let inversions: Array<{ rule: string; inversion: string }> = []
   try {
-    inversions = await runPhase2(client, body.industry)
+    inversions = await runPhase2(body.industry)
     if (body.session_id) await savePhase(body.session_id, 'inversions', inversions)
   } catch {
     inversions = [
@@ -612,7 +560,7 @@ export async function POST(req: NextRequest) {
   // ── Phase 3 — Cross-Domain Stimulation ────────────────────
   let seeds: string[] = []
   try {
-    seeds = await runPhase3(client, domains, body.industry, body.client_name)
+    seeds = await runPhase3(domains, body.industry, body.client_name)
     if (body.session_id) await savePhase(body.session_id, 'seeds', { domains, seeds })
   } catch {
     seeds = [
@@ -625,7 +573,7 @@ export async function POST(req: NextRequest) {
   // ── Phase 4 — Divergent Ideation ──────────────────────────
   let rawConcepts: string[] = []
   try {
-    rawConcepts = await runPhase4(client, tensions, inversions, seeds, body.boldness, body.target_audience)
+    rawConcepts = await runPhase4(tensions, inversions, seeds, body.boldness, body.target_audience)
     if (body.session_id) await savePhase(body.session_id, 'raw_concepts', rawConcepts)
   } catch {
     rawConcepts = [
@@ -638,7 +586,7 @@ export async function POST(req: NextRequest) {
   // ── Phase 5 — Participatory Mechanics ─────────────────────
   let conceptsWithMechanics: Array<{ concept: string; mechanic_type: string; mechanic_description: string }> = []
   try {
-    conceptsWithMechanics = await runPhase5(client, rawConcepts, body.target_audience)
+    conceptsWithMechanics = await runPhase5(rawConcepts, body.target_audience)
     if (body.session_id) await savePhase(body.session_id, 'mechanics', conceptsWithMechanics)
   } catch {
     conceptsWithMechanics = rawConcepts.slice(0, 7).map((c) => ({
@@ -651,7 +599,7 @@ export async function POST(req: NextRequest) {
   // ── Phase 6 — Convergent Scoring ──────────────────────────
   let scoredConcepts: ScoredConcept[] = []
   try {
-    scoredConcepts = await runPhase6(client, conceptsWithMechanics, body.constraint)
+    scoredConcepts = await runPhase6(conceptsWithMechanics, body.constraint)
     if (body.session_id) await savePhase(body.session_id, 'scored_concepts', scoredConcepts)
   } catch {
     scoredConcepts = conceptsWithMechanics.map((c) => ({
@@ -663,7 +611,7 @@ export async function POST(req: NextRequest) {
   // ── Phase 7 — Execution Briefs ─────────────────────────────
   let concepts: CampaignConcept[] = []
   try {
-    concepts = await runPhase7(client, scoredConcepts, body, tensions)
+    concepts = await runPhase7(scoredConcepts, body, tensions)
     if (body.session_id) await savePhase(body.session_id, 'concepts', concepts)
   } catch {
     concepts = scoredConcepts.slice(0, 3).map((c, i) => ({
@@ -700,7 +648,7 @@ export async function POST(req: NextRequest) {
 
   try {
     if (concepts.length > 0) {
-      bossBrief = await buildBossBrief(client, concepts[0], body)
+      bossBrief = await buildBossBrief(concepts[0], body)
     }
     if (body.session_id) await savePhase(body.session_id, 'boss_brief', bossBrief)
   } catch {

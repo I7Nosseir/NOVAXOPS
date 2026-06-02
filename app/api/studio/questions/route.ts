@@ -1,12 +1,12 @@
 // ============================================================
 // POST /api/studio/questions
-// Haiku call. Returns a StructuredQuestion with 4 AI-generated
+// Gemini call. Returns a StructuredQuestion with 4 AI-generated
 // or static options for the one structured question per tool.
-// Never blocked — static fallback if Haiku fails.
+// Never blocked — static fallback if Gemini fails.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { geminiGenerate } from '@/lib/gemini'
 import type { StructuredQuestion, StudioTool } from '@/lib/studio-types'
 
 // ─── Static fallbacks per tool ────────────────────────────────
@@ -66,8 +66,6 @@ async function generateContentOptions(
   goal: string,
   audience: string,
 ): Promise<string[]> {
-  const client = new Anthropic()
-
   const prompt = `A creative agency is about to generate social content for a client.
 
 Brief: "${brief}"
@@ -88,13 +86,10 @@ Rules:
 
 Return only the 4 lines. Nothing else.`
 
-  const message = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    messages: [{ role: 'user', content: prompt }],
+  const text = await geminiGenerate(prompt, undefined, {
+    temperature:     0.5,
+    maxOutputTokens: 200,
   })
-
-  const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
   const lines = text
     .split('\n')
     .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
@@ -112,8 +107,6 @@ async function generateStrategyOptions(
   goal: string,
   audience: string,
 ): Promise<string[]> {
-  const client = new Anthropic()
-
   const prompt = `A creative agency is building a social media strategy for a client.
 
 Brief: "${brief}"
@@ -133,13 +126,10 @@ Rules:
 
 Return only the 4 lines. Nothing else.`
 
-  const message = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    messages: [{ role: 'user', content: prompt }],
+  const text = await geminiGenerate(prompt, undefined, {
+    temperature:     0.5,
+    maxOutputTokens: 200,
   })
-
-  const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
   const lines = text
     .split('\n')
     .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
@@ -184,7 +174,7 @@ export async function POST(req: NextRequest) {
   }
 
   // No API key → return static fallback
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({ ...STATIC_QUESTIONS[body.tool], type: 'static' })
   }
 
@@ -223,7 +213,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(result)
   } catch {
-    // Haiku failed — return static fallback, never block
+    // Gemini failed — return static fallback, never block
     return NextResponse.json({ ...STATIC_QUESTIONS[body.tool], type: 'static' })
   }
 }

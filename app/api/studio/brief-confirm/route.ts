@@ -1,13 +1,13 @@
 // ============================================================
 // POST /api/studio/brief-confirm
-// Fast Haiku call (<1s). Reads the brief and returns a
+// Fast Gemini call (<1s). Reads the brief and returns a
 // structured BriefConfirmation for the UI to display.
-// If no ANTHROPIC_API_KEY: derives BriefConfirmation from
+// If no GEMINI_API_KEY: derives BriefConfirmation from
 // the inputs directly — zero AI needed.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { geminiJson } from '@/lib/gemini'
 import type { BriefConfirmation } from '@/lib/studio-types'
 
 // ─── Types ────────────────────────────────────────────────────
@@ -63,11 +63,9 @@ export async function POST(req: NextRequest) {
   }
 
   // No API key → derive without AI
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(deriveFromInputs(body))
   }
-
-  const client = new Anthropic()
 
   const prompt = `You are extracting a structured understanding of a creative brief.
 
@@ -101,17 +99,10 @@ Rules:
 - Do not invent client data you don't have — use what's given`
 
   try {
-    const message = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      messages: [{ role: 'user', content: prompt }],
+    const parsed = await geminiJson<BriefConfirmation>(prompt, undefined, {
+      temperature:     0.3,
+      maxOutputTokens: 400,
     })
-
-    const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-
-    // Strip possible markdown code fences
-    const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim()
-    const parsed = JSON.parse(clean) as BriefConfirmation
     return NextResponse.json(parsed)
   } catch {
     // Parse failure or API error — fall back to derived result
