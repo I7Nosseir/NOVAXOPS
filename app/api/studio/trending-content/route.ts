@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchTikTokVideos, fetchTikTokTrends } from '@/lib/data-providers/tiktok-creative-center'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
 import { geminiJson }           from '@/lib/gemini'
-import { generateSearchQueries, ARABIC_REGIONS, INDIAN_EXCLUSIONS } from '@/lib/studio/query-generator'
+import { generateSearchQueries, getNicheKeywords, ARABIC_REGIONS, INDIAN_EXCLUSIONS } from '@/lib/studio/query-generator'
 import { createHash }           from 'crypto'
 
 export const revalidate = 0
@@ -70,15 +70,17 @@ const NICHE_CATEGORY: Record<string, string> = {
 // ── Search query banks ────────────────────────────────────────
 
 const EN_QUERIES: Record<string, string[]> = {
-  beauty:      ['skincare routine tutorial', 'makeup review transformation', 'beauty tips products 2025'],
-  tech:        ['tech review gadgets 2025', 'AI software tutorial', 'unboxing comparison tech'],
-  food:        ['easy recipe cooking tutorial', 'restaurant food review', 'meal prep healthy 2025'],
-  fitness:     ['full body workout tutorial', 'fitness transformation 2025', 'gym training exercises'],
-  finance:     ['investing money tips 2025', 'personal finance budget', 'stock market guide'],
-  fashion:     ['outfit style trends 2025', 'fashion haul try-on', 'styling tips wardrobe'],
-  travel:      ['travel vlog destination', 'budget travel tips 2025', 'hidden gems travel guide'],
-  education:   ['learn skill tutorial 2025', 'study tips productivity', 'explained for beginners'],
-  real_estate: ['real estate investing 2025', 'property buying guide', 'house tour renovation'],
+  beauty:           ['skincare routine tutorial', 'makeup review transformation', 'beauty tips products 2025'],
+  tech:             ['tech review gadgets 2025', 'AI software tutorial', 'unboxing comparison tech'],
+  food:             ['easy recipe cooking tutorial', 'restaurant food review', 'meal prep healthy 2025'],
+  fitness:          ['gym workout training tutorial', 'fitness body transformation before after', 'strength training exercises program'],
+  finance:          ['investing money tips 2025', 'personal finance budget', 'stock market guide'],
+  fashion:          ['outfit style trends 2025', 'fashion haul try-on', 'styling tips wardrobe'],
+  travel:           ['travel vlog destination', 'budget travel tips 2025', 'hidden gems travel guide'],
+  education:        ['learn skill tutorial 2025', 'study tips productivity', 'explained for beginners'],
+  real_estate:      ['real estate investing 2025', 'property buying guide', 'house tour renovation'],
+  marketing:        ['social media marketing strategy 2025', 'content marketing tips creator', 'digital marketing tutorial explained'],
+  marketing_agency: ['marketing agency client results', 'how to run marketing agency', 'agency content strategy case study'],
 }
 
 const AR_QUERIES: Record<string, Record<string, string[]>> = {
@@ -90,8 +92,10 @@ const AR_QUERIES: Record<string, Record<string, string[]>> = {
     finance:     ['استثمار مصر مال 2025', 'بورصة مصر اقتصاد', 'مشاريع صغيرة مصر ارباح'],
     fashion:     ['موضة مصرية ازياء 2025', 'ستايل مصري لبس ترند', 'ملابس مصر فاشن محجبات'],
     travel:      ['سياحة مصر اماكن 2025', 'رحلات مصرية داخلية', 'اماكن جميلة مصر مجهولة'],
-    education:   ['تعليم مصر دراسة 2025', 'شرح درس مصري منهج', 'كورس مجاني مصري اونلاين'],
-    real_estate: ['عقارات مصر شقق 2025', 'مشاريع تمليك مصر استثمار', 'شراء شقة مصر نصايح'],
+    education:        ['تعليم مصر دراسة 2025', 'شرح درس مصري منهج', 'كورس مجاني مصري اونلاين'],
+    real_estate:      ['عقارات مصر شقق 2025', 'مشاريع تمليك مصر استثمار', 'شراء شقة مصر نصايح'],
+    marketing:        ['تسويق مصري محتوى سوشيال ميديا', 'تسويق رقمي مصر نصايح 2025', 'كريتور مصري تسويق محتوى'],
+    marketing_agency: ['وكالة تسويق مصر عملاء', 'ادارة سوشيال ميديا مصر', 'تسويق رقمي وكالة مصر نتائج'],
   },
   SA: {
     beauty:      ['جمال سعودي مكياج روتين 2025', 'سكن كير عناية بشرة السعودية', 'بيوتي سعودية منتجات ريفيو'],
@@ -101,8 +105,10 @@ const AR_QUERIES: Record<string, Record<string, string[]>> = {
     finance:     ['استثمار السعودية 2025 مال', 'تداول اسهم تداول سعودي', 'ريادة اعمال السعودية نجاح'],
     fashion:     ['موضة سعودية عبايات 2025', 'ستايل سعودي خليجي لبس', 'ازياء سعودية فاشن ترند'],
     travel:      ['سياحة السعودية نيوم العلا 2025', 'سفر داخلي السعودية مغامرة', 'اماكن سعودية سياحية جديدة'],
-    education:   ['تعليم السعودية 2025 رؤية', 'كورسات سعودية مجانية اونلاين', 'مهارات مستقبل السعودية'],
-    real_estate: ['عقارات السعودية 2025 استثمار', 'شراء شقة الرياض جدة', 'مشاريع عقارية سعودية جديدة'],
+    education:        ['تعليم السعودية 2025 رؤية', 'كورسات سعودية مجانية اونلاين', 'مهارات مستقبل السعودية'],
+    real_estate:      ['عقارات السعودية 2025 استثمار', 'شراء شقة الرياض جدة', 'مشاريع عقارية سعودية جديدة'],
+    marketing:        ['تسويق سعودي محتوى رقمي 2025', 'سوشيال ميديا السعودية نصايح', 'كريتور سعودي تسويق'],
+    marketing_agency: ['وكالة تسويق السعودية عملاء', 'ادارة سوشيال ميديا سعودي', 'تسويق رقمي وكالة السعودية'],
   },
   AE: {
     beauty:      ['جمال اماراتي دبي مكياج 2025', 'سكن كير الامارات بيوتي', 'تجميل خليجي منتجات دبي'],
@@ -112,8 +118,10 @@ const AR_QUERIES: Record<string, Record<string, string[]>> = {
     finance:     ['استثمار دبي 2025 اعمال', 'عملات رقمية الامارات كريبتو', 'ريادة اعمال دبي نجاح'],
     fashion:     ['موضة دبي خليجية لوكس 2025', 'ستايل اماراتي فاشن ترند', 'عبايات دبي فاخرة'],
     travel:      ['سياحة دبي اماكن 2025 جديدة', 'عجائب الامارات سفر رحلات', 'دبي مستقبل سياحة'],
-    education:   ['تعليم الامارات 2025 مهارات', 'كورسات دبي اونلاين مجانية', 'ذكاء اصطناعي تعليم الامارات'],
-    real_estate: ['عقارات دبي 2025 استثمار شراء', 'مشاريع اماراتية عقارية جديدة', 'تملك شقة دبي نصايح'],
+    education:        ['تعليم الامارات 2025 مهارات', 'كورسات دبي اونلاين مجانية', 'ذكاء اصطناعي تعليم الامارات'],
+    real_estate:      ['عقارات دبي 2025 استثمار شراء', 'مشاريع اماراتية عقارية جديدة', 'تملك شقة دبي نصايح'],
+    marketing:        ['تسويق دبي محتوى رقمي 2025', 'سوشيال ميديا الامارات استراتيجية', 'كريتور دبي تسويق'],
+    marketing_agency: ['وكالة تسويق دبي عملاء نتائج', 'ادارة سوشيال ميديا الامارات', 'دبي وكالة تسويق رقمي'],
   },
 }
 
@@ -125,8 +133,10 @@ const AR_QUERIES_DEFAULT: Record<string, string[]> = {
   finance:     ['استثمار عربي مال 2025', 'تداول خليجي اسهم تداول', 'ريادة اعمال عربي'],
   fashion:     ['موضة عربية خليجية 2025', 'ستايل خليجي ازياء ترند', 'فاشن عربي محجبات'],
   travel:      ['سياحة خليجي سفر 2025', 'رحلات عربية اماكن مغامرة', 'اماكن عربية مجهولة'],
-  education:   ['تعليم عربي اونلاين 2025', 'كورسات مجانية عربي مهارات', 'شرح عربي مبسط'],
-  real_estate: ['عقارات خليجي 2025 استثمار', 'شراء شقة عربي نصايح', 'عقارات خليجية جديدة'],
+  education:        ['تعليم عربي اونلاين 2025', 'كورسات مجانية عربي مهارات', 'شرح عربي مبسط'],
+  real_estate:      ['عقارات خليجي 2025 استثمار', 'شراء شقة عربي نصايح', 'عقارات خليجية جديدة'],
+  marketing:        ['تسويق عربي محتوى رقمي 2025', 'سوشيال ميديا خليجي نصايح', 'تسويق اونلاين عربي'],
+  marketing_agency: ['وكالة تسويق عربي عملاء', 'ادارة سوشيال ميديا خليجي', 'تسويق رقمي وكالة عربي'],
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -375,6 +385,33 @@ async function enrichVideos(
   return results
 }
 
+// ── Niche keyword pre-filter ──────────────────────────────────
+// Drops any video where the title + description + tags contain ZERO
+// niche-specific keywords. Runs before AI to save Gemini quota and
+// guarantee on-topic results.
+
+const KNOWN_NICHE_KEYWORDS: Record<string, string[]> = {
+  beauty:            ['skincare', 'makeup', 'beauty', 'skin', 'moisturizer', 'serum', 'glow', 'routine', 'cosmetic', 'foundation', 'lipstick', 'تجميل', 'مكياج', 'بشرة'],
+  tech:              ['tech', 'technology', 'software', 'gadget', 'phone', 'laptop', 'computer', 'ai', 'app', 'device', 'تقنية', 'تكنولوجيا'],
+  food:              ['recipe', 'cooking', 'food', 'eat', 'meal', 'restaurant', 'chef', 'kitchen', 'bake', 'طبخ', 'وصفة', 'اكل'],
+  fitness:           ['workout', 'exercise', 'gym', 'fitness', 'training', 'muscle', 'cardio', 'weight', 'رياضة', 'تمارين', 'جيم'],
+  finance:           ['invest', 'money', 'finance', 'stock', 'crypto', 'budget', 'saving', 'wealth', 'استثمار', 'مال', 'تداول'],
+  fashion:           ['fashion', 'style', 'outfit', 'clothing', 'wear', 'trend', 'dress', 'موضة', 'ستايل', 'ازياء'],
+  travel:            ['travel', 'trip', 'vacation', 'destination', 'flight', 'hotel', 'explore', 'سفر', 'سياحة', 'رحلة'],
+  education:         ['learn', 'study', 'education', 'tutorial', 'course', 'skill', 'school', 'تعليم', 'دراسة', 'كورس'],
+  real_estate:       ['real estate', 'house', 'property', 'home', 'apartment', 'mortgage', 'عقارات', 'شقة', 'منزل'],
+  marketing:         ['marketing', 'brand', 'campaign', 'social media', 'content', 'ads', 'audience', 'strategy', 'تسويق', 'محتوى'],
+  marketing_agency:  ['marketing agency', 'agency', 'client', 'campaign', 'branding', 'digital marketing', 'وكالة', 'تسويق رقمي'],
+}
+
+function filterByNicheKeywords(videos: EnrichedVideo[], keywords: string[]): EnrichedVideo[] {
+  if (!keywords.length) return videos
+  return videos.filter(v => {
+    const hay = `${v.title} ${v.description} ${v.tags.join(' ')} ${v.channelTitle}`.toLowerCase()
+    return keywords.some(kw => hay.includes(kw.toLowerCase()))
+  })
+}
+
 // ── Indian content filter (pre-AI) ───────────────────────────
 
 const INDIAN_CHANNEL_SIGNALS = [
@@ -430,35 +467,42 @@ async function aiRankVideos(
     return `${i}. title="${v.title}" channel="${v.channelTitle}" views=${formatCount(v.viewCount)} dur=${durationMin}m engagement=${engagement}% tags=[${v.tags.slice(0, 5).join(',')}]`
   }).join('\n')
 
-  const prompt = `You are a senior content strategist for a top social media agency. You curate only truly viral, high-quality, implementable content.
+  const prompt = `You are a strict content gatekeeper for a social media agency. Your job is to surface only videos that are DIRECTLY about the target niche.
 
+━━━ CONTEXT ━━━
+Niche: "${industry}"
 Target market: ${regionName}
-Niche: ${industry}
-Language rule: ${langNote}
+Language: ${langNote}
 
-SCORING RULES (be strict — most videos should score 4-6, only exceptional ones get 8+):
-- Score 9-10: Genuinely viral format, strong structure, clear hook, works for ${regionName} audiences, could be directly adapted
-- Score 7-8: Good quality, relevant, clear niche focus, appropriate language/culture
-- Score 5-6: Decent but generic or only partially relevant
-- Score 3-4: Too generic, wrong market, or surface-level content
-- Score 0-2: Indian/Bollywood content, unrelated niche, spam, reaction videos with no original value, very low quality
+━━━ NICHE MATCH — THIS IS THE PRIMARY GATE ━━━
+A video is ON-NICHE only if its MAIN TOPIC is "${industry}".
+Adjacent topics do not count. Examples:
+• Niche = "dental clinic" → ON-NICHE: tooth whitening, dental implants, dentist advice | OFF-NICHE: general health, diet, hospital
+• Niche = "fitness" → ON-NICHE: specific workouts, gym exercises, nutrition for athletes | OFF-NICHE: general wellness, mental health, lifestyle vlogs
+• Niche = "marketing agency" → ON-NICHE: running a marketing agency, client acquisition, campaign strategies | OFF-NICHE: general entrepreneurship, motivational content
 
-HARD PENALTIES (score 0-2 regardless of views):
-- Any Indian regional language content (Hindi, Telugu, Tamil, etc.)
-- Bollywood, Indian TV shows, Indian influencers making local Indian content
-- Content that is viral only due to shock value with no adaptable structure
-- Videos that cannot be implemented or adapted by a ${regionName} brand
+OFF-NICHE videos MUST score 0-2 regardless of view count, virality, or quality. No exceptions.
 
-For each video, return:
-- score: 0-10
-- format: one of [Tutorial, Review, Educational, Vlog, Transformation, Product Demo, Comparison, Challenge, Entertainment, News, Ranking]
-- insight: 1 sharp, specific sentence on WHY this works and HOW a ${regionName} brand in ${industry} could adapt it
+━━━ SCORING FOR ON-NICHE VIDEOS ━━━
+9-10: Directly on-niche, strong structure, could be adapted for ${regionName} — rare, reserve for exceptional
+7-8:  Clearly on-niche, good quality, culturally appropriate for ${regionName}
+5-6:  On-niche but generic, surface-level, or weak cultural fit
+3-4:  Barely on-niche or very poor quality
+0-2:  Off-niche OR Indian/Bollywood content OR shock-value content with no adaptable structure
 
-Videos:
+━━━ ADDITIONAL HARD PENALTIES (0-2) ━━━
+- Indian regional language content (Hindi, Telugu, Tamil, etc.)
+- Not primarily about "${industry}"
+- Spam, clickbait with misleading titles
+
+━━━ VIDEOS TO SCORE ━━━
 ${videoList}
 
-Return ONLY valid JSON array, same order as input:
-[{"score":8,"format":"Tutorial","insight":"..."},...]`
+━━━ OUTPUT ━━━
+Return ONLY a valid JSON array, same order as input. For the insight field: if OFF-NICHE write why it doesn't fit; if ON-NICHE write specifically how a ${regionName} brand in "${industry}" could adapt this format.
+[{"score":8,"format":"Tutorial","insight":"..."},...]
+
+Formats: Tutorial | Review | Educational | Vlog | Transformation | Product Demo | Comparison | Challenge | Entertainment | News | Ranking | General`
 
   try {
     const ranked = await geminiJson<Array<{ score: number; format: string; insight: string }>>(
@@ -516,11 +560,19 @@ async function getYouTubeItems(industry: string, region: string): Promise<Trendi
   // Phase 4: enrich
   const enriched = await enrichVideos(allIds, seedMap, KEY)
 
-  // Pre-filter: remove obvious Indian content before spending Gemini quota
-  const cleaned = enriched.filter(v => !isIndianContent(v))
+  // Pre-filter A: remove Indian content
+  const deIndian = enriched.filter(v => !isIndianContent(v))
+
+  // Pre-filter B: niche keyword gate — drop videos with zero niche term matches
+  const niche_lower = industry.toLowerCase()
+  const nicheKeywords = KNOWN_NICHE_KEYWORDS[niche_lower]
+    ?? await getNicheKeywords(industry, region)
+  const onNiche = filterByNicheKeywords(deIndian, nicheKeywords)
+  // Fallback: if keyword gate removes everything, use de-Indianised pool
+  const toRank = onNiche.length >= 3 ? onNiche : deIndian
 
   // Phase 5: AI rank
-  const ranked = await aiRankVideos(cleaned, industry, region)
+  const ranked = await aiRankVideos(toRank, industry, region)
 
   // Sort by AI score descending, drop low-quality items
   ranked.sort((a, b) => b.ai_score - a.ai_score || b.viewCount - a.viewCount)

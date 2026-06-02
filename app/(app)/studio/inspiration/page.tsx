@@ -12,16 +12,48 @@ import type { InspirationBoardItem } from '@/app/api/studio/inspiration/route'
 
 // ── Industries ────────────────────────────────────────────────
 
+// Quick-pick niches — grouped for clarity
 const INDUSTRIES = [
-  { value: 'beauty',      label: 'Beauty'       },
-  { value: 'tech',        label: 'Tech'         },
-  { value: 'food',        label: 'Food'         },
-  { value: 'fitness',     label: 'Fitness'      },
-  { value: 'finance',     label: 'Finance'      },
-  { value: 'fashion',     label: 'Fashion'      },
-  { value: 'travel',      label: 'Travel'       },
-  { value: 'education',   label: 'Education'    },
-  { value: 'real_estate', label: 'Real Estate'  },
+  // Beauty & Fashion
+  { value: 'skincare',            label: 'Skincare'            },
+  { value: 'makeup',              label: 'Makeup'              },
+  { value: 'hair care',           label: 'Hair Care'           },
+  { value: 'beauty',              label: 'Beauty'              },
+  { value: 'fashion',             label: 'Fashion'             },
+  { value: 'luxury fashion',      label: 'Luxury Fashion'      },
+  // Health & Fitness
+  { value: 'gym workout',         label: 'Gym & Workout'       },
+  { value: 'yoga pilates',        label: 'Yoga & Pilates'      },
+  { value: 'nutrition diet',      label: 'Nutrition & Diet'    },
+  { value: 'fitness',             label: 'Fitness'             },
+  // Food
+  { value: 'food recipes',        label: 'Recipes'             },
+  { value: 'restaurants',         label: 'Restaurants'         },
+  { value: 'food',                label: 'Food'                },
+  // Business & Finance
+  { value: 'personal finance',    label: 'Personal Finance'    },
+  { value: 'entrepreneurship',    label: 'Entrepreneurship'    },
+  { value: 'real estate',         label: 'Real Estate'         },
+  { value: 'finance',             label: 'Finance'             },
+  // Marketing
+  { value: 'marketing',           label: 'Marketing'           },
+  { value: 'marketing agency',    label: 'Marketing Agency'    },
+  { value: 'social media tips',   label: 'Social Media Tips'   },
+  // Tech
+  { value: 'tech',                label: 'Tech'                },
+  { value: 'AI tools',            label: 'AI Tools'            },
+  { value: 'software tutorial',   label: 'Software'            },
+  // Travel
+  { value: 'travel',              label: 'Travel'              },
+  { value: 'travel MENA',         label: 'Travel – MENA'       },
+  // Education
+  { value: 'education',           label: 'Education'           },
+  { value: 'online courses',      label: 'Online Courses'      },
+  // Professional services
+  { value: 'dental clinic',       label: 'Dental Clinic'       },
+  { value: 'law firm',            label: 'Law Firm'            },
+  { value: 'interior design',     label: 'Interior Design'     },
+  { value: 'photography',         label: 'Photography'         },
 ]
 
 // ── Platform filters ──────────────────────────────────────────
