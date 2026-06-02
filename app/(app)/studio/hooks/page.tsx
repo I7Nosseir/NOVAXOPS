@@ -1,303 +1,299 @@
-'use client'
+﻿'use client'
 
-import { useState, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { Wand2, Loader2, Star, Copy, RefreshCw, ArrowLeft, ChevronDown, ChevronUp, BookMarked, CheckCircle, PlusCircle, Download } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import {
+  Wand2, ArrowLeft, Loader2, CheckCircle, PlusCircle,
+  AlertTriangle, RefreshCw, Star, Copy, Download,
+} from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
+import { StudioLoading } from '@/components/studio/studio-loading'
+import { StudioDocument } from '@/components/studio/studio-document'
+import { StudioChatbot } from '@/components/studio/studio-chatbot'
+import type {
+  HookDocument,
+  BossBrief,
+  ChatMessage,
+  EditPayload,
+  LoadingStep,
+  StudioSession,
+} from '@/lib/studio-types'
 import type { GeneratedHook } from '@/app/api/studio/hooks/generate/route'
 
-const PLATFORMS  = ['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Facebook', 'X (Twitter)']
-const AUDIENCES  = ['B2C', 'B2B']
-const GOALS      = ['Virality', 'Authority', 'Engagement', 'Leads', 'Sales', 'Community']
-const EMOTIONS   = ['Inspire', 'Educate', 'Entertain', 'Challenge', 'Reassure', 'Shock']
+// ── Constants ──────────────────────────────────────────────────────────────────
+const PLATFORMS = ['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Facebook', 'X (Twitter)']
+const GOALS     = ['Engagement', 'Virality', 'Authority', 'Leads', 'Sales', 'Community']
 
-const TIER_CONFIG = {
-  S: { label: 'S', color: 'bg-amber-400 text-white',     title: 'Elite — top 1%' },
-  A: { label: 'A', color: 'bg-emerald-500 text-white',   title: 'Viral potential' },
-  B: { label: 'B', color: 'bg-blue-400 text-white',      title: 'Above average' },
-  C: { label: 'C', color: 'bg-slate-300 text-slate-600', title: 'Standard' },
-}
+const BOLDNESS_OPTIONS = [
+  {
+    value: 'familiar',
+    label: 'Familiar',
+    description: 'Safe for any audience',
+    prefix: '',
+  },
+  {
+    value: 'unexpected',
+    label: 'Unexpected',
+    description: 'Push the boundary',
+    prefix: 'Push boundaries. Challenge conventional thinking. ',
+  },
+  {
+    value: 'edge',
+    label: 'Edge',
+    description: 'Make them uncomfortable',
+    prefix: 'Be provocative. Include hooks that challenge the audience\'s beliefs. ',
+  },
+]
 
-const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  curiosity:      { label: 'Curiosity',       color: 'bg-violet-50 text-violet-700 border border-violet-200' },
-  contradiction:  { label: 'Contradiction',   color: 'bg-rose-50 text-rose-700 border border-rose-200'       },
-  fear:           { label: 'Fear',            color: 'bg-red-50 text-red-700 border border-red-200'           },
-  status:         { label: 'Status',          color: 'bg-amber-50 text-amber-700 border border-amber-200'     },
-  authority:      { label: 'Authority',       color: 'bg-blue-50 text-blue-700 border border-blue-200'        },
-  transformation: { label: 'Transformation', color: 'bg-teal-50 text-teal-700 border border-teal-200'         },
-  emotional:      { label: 'Emotional',       color: 'bg-pink-50 text-pink-700 border border-pink-200'        },
-  story:          { label: 'Story',           color: 'bg-orange-50 text-orange-700 border border-orange-200'  },
-  shock:          { label: 'Shock',           color: 'bg-slate-800 text-white'                                 },
-}
+type PageState = 'brief' | 'loading' | 'document'
 
-const FORMAT_LABEL: Record<string, string> = {
-  vocal:       'Vocal',
-  text_block:  'Text Overlay',
-  caption:     'Caption',
-  all_three:   'All Formats',
-}
-
-function ScoreBar({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] text-slate-400 w-12">{label}</span>
-      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full bg-novax-accent transition-all"
-          style={{ width: `${(value / 10) * 100}%` }}
-        />
-      </div>
-      <span className="text-[10px] font-semibold text-slate-600 w-4 text-right">{value}</span>
-    </div>
-  )
-}
-
-function HookCard({
-  hook,
-  index,
-  saved,
-  language,
-  onSave,
-  onCopy,
-  onRefine,
-}: {
-  hook: GeneratedHook
-  index: number
-  saved: boolean
-  language: string
-  onSave: () => void
-  onCopy: () => void
-  onRefine: () => void
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const tier = TIER_CONFIG[hook.virality_tier]
-  const type = TYPE_CONFIG[hook.hook_type] ?? { label: hook.hook_type, color: 'bg-slate-100 text-slate-600' }
-
-  return (
-    <div className={cn(
-      'bg-white border rounded-xl p-4 transition-all hover:shadow-sm',
-      saved ? 'border-novax-border bg-novax-light/30' : 'border-slate-200',
-    )}>
-      <div className="flex items-start gap-3">
-        {/* Rank + tier */}
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <span className="text-[11px] text-slate-400 font-medium">#{index + 1}</span>
-          <span className={cn('text-xs font-bold w-7 h-7 rounded-lg flex items-center justify-center', tier.color)} title={tier.title}>
-            {tier.label}
-          </span>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* Hook text */}
-          <p className="text-sm font-medium text-slate-900 leading-snug mb-2" dir={language === 'arabic' ? 'rtl' : 'ltr'}>{hook.hook_text}</p>
-
-          {/* Badges */}
-          <div className="flex flex-wrap items-center gap-1.5 mb-2">
-            <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', type.color)}>
-              {type.label}
-            </span>
-            <span className="text-[10px] text-slate-400 px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200">
-              {FORMAT_LABEL[hook.format_rec] ?? hook.format_rec}
-            </span>
-            <span className="text-[10px] font-bold text-slate-600 px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200">
-              {hook.total_score}/30
-            </span>
-          </div>
-
-          {/* Expand for scores */}
-          <button
-            onClick={() => setExpanded(v => !v)}
-            className="text-[10px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition-colors mb-1"
-          >
-            3C Scores
-            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
-
-          {expanded && (
-            <div className="space-y-1 mb-2">
-              <ScoreBar label="Clarity" value={hook.clarity_score} />
-              <ScoreBar label="Context" value={hook.context_score} />
-              <ScoreBar label="Curiosity" value={hook.curiosity_score} />
-              {hook.format_note && (
-                <p className="text-[10px] text-slate-400 italic mt-1.5">{hook.format_note}</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col gap-1 shrink-0">
-          <button
-            onClick={onSave}
-            title={saved ? 'Saved to library' : 'Save to library'}
-            className={cn(
-              'p-1.5 rounded-lg transition-colors',
-              saved ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:text-amber-400 hover:bg-amber-50',
-            )}
-          >
-            <Star className="w-3.5 h-3.5" fill={saved ? 'currentColor' : 'none'} />
-          </button>
-          <button
-            onClick={onCopy}
-            title="Copy hook"
-            className="p-1.5 rounded-lg text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors"
-          >
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onRefine}
-            title="Generate 3 variations"
-            className="p-1.5 rounded-lg text-slate-300 hover:text-novax-muted hover:bg-novax-light transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
+// ── Main page ──────────────────────────────────────────────────────────────────
 export default function HookLabPage() {
-  const params = useSearchParams()
-  const { clients }    = useClients()
-  const { user }       = useAuth()
+  const router      = useRouter()
+  const params      = useSearchParams()
+  const { clients } = useClients()
+  const { user }    = useAuth()
 
-  // Form state
-  const [clientId,  setClientId]  = useState(params?.get('client') ?? '')
-  const [platform,  setPlatform]  = useState(params?.get('platform') ?? 'Instagram')
-  const [audience,  setAudience]  = useState('B2C')
-  const [goal,      setGoal]      = useState('Engagement')
-  const [emotion,   setEmotion]   = useState('Inspire')
-  const [brief,     setBrief]     = useState(params?.get('brief') ?? '')
-  const [language,  setLanguage]  = useState<'english' | 'arabic'>('english')
-  const [dialect,   setDialect]   = useState<'saudi' | 'egyptian'>('saudi')
-
-  // Result state
-  const [hooks,     setHooks]     = useState<GeneratedHook[]>([])
-  const [loading,   setLoading]   = useState(false)
+  // State machine
+  const [pageState, setPageState] = useState<PageState>('brief')
   const [error,     setError]     = useState<string | null>(null)
-  const [savedIds,  setSavedIds]  = useState<Set<number>>(new Set())
-  const [copied,    setCopied]    = useState<number | null>(null)
-  const [refining,  setRefining]  = useState<number | null>(null)
 
-  const resultsRef = useRef<HTMLDivElement>(null)
+  // Form
+  const [clientId,  setClientId]  = useState(params?.get('client') ?? '')
+  const [platforms, setPlatforms] = useState<string[]>(['Instagram'])
+  const [audience,  setAudience]  = useState<'B2C' | 'B2B'>('B2C')
+  const [goal,      setGoal]      = useState('Engagement')
+  const [language,  setLanguage]  = useState<'english' | 'arabic'>('english')
+  const [brief,     setBrief]     = useState(params?.get('brief') ?? '')
+  const [boldness,  setBoldness]  = useState<'familiar' | 'unexpected' | 'edge'>('familiar')
+
+  // Loading
+  const [loadingSteps,   setLoadingSteps]   = useState<LoadingStep[]>([
+    { label: 'Divergent pass — 20 hooks, no filter', status: 'pending' },
+    { label: '3C scoring',                           status: 'pending' },
+    { label: 'SCAMPER refinement on weak hooks',     status: 'pending' },
+    { label: 'Ranking and selecting',                status: 'pending' },
+  ])
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+
+  // Session
+  const [sessionId, setSessionId] = useState<string | null>(null)
+
+  // Document
+  const [hookDoc,     setHookDoc]     = useState<HookDocument | null>(null)
+  const [bossBrief,   setBossBrief]   = useState<BossBrief | null>(null)
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
+  const [chatOpen,    setChatOpen]    = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
 
-  const handleGenerate = async () => {
+  // ── Resume from session_id param ────────────────────────────────────────────
+  useEffect(() => {
+    const sid = params?.get('session_id')
+    if (!sid) return
+    fetch(`/api/studio/session/${sid}`)
+      .then(r => r.json())
+      .then((data: { session?: StudioSession }) => {
+        const s = data.session
+        if (!s || s.status !== 'complete') return
+        setSessionId(sid)
+        setHookDoc((s.outputs as { hooks?: HookDocument }).hooks ?? null)
+        setBossBrief(s.boss_brief ?? null)
+        setChatHistory(s.chat_history ?? [])
+        setPageState('document')
+      })
+      .catch(() => {})
+  }, [params])
+
+  // ── Elapsed timer ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (pageState !== 'loading') { setElapsedSeconds(0); return }
+    const t = setInterval(() => setElapsedSeconds(s => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [pageState])
+
+  // ── Generate ─────────────────────────────────────────────────────────────────
+  async function handleGenerate() {
     if (!brief.trim()) return
-    setLoading(true)
     setError(null)
-    setHooks([])
-    setSavedIds(new Set())
+
+    const boldnessOption = BOLDNESS_OPTIONS.find(b => b.value === boldness)
+    const briefWithBoldness = (boldnessOption?.prefix ?? '') + brief.trim()
+
+    // Reset loading steps
+    setLoadingSteps([
+      { label: 'Divergent pass — 20 hooks, no filter', status: 'active' },
+      { label: '3C scoring',                           status: 'pending' },
+      { label: 'SCAMPER refinement on weak hooks',     status: 'pending' },
+      { label: 'Ranking and selecting',                status: 'pending' },
+    ])
+    setPageState('loading')
 
     try {
-      const res = await fetch('/api/studio/hooks/generate', {
+      // Create session
+      const sessRes = await fetch('/api/studio/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          brief: brief.trim(),
-          platform,
-          audience,
-          goal,
-          emotion,
-          brand_voice: selectedClient?.brand_identity?.tone_of_voice,
-          language,
-          dialect,
+          tool:       'hooks',
+          client_id:  clientId || null,
+          created_by: user?.id ?? null,
+          name:       `${selectedClient?.name ?? 'Hooks'} — ${platforms[0]}`,
+          brief,
+          inputs:     { clientId, platforms, audience, goal, language, boldness },
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
-      setHooks(data.hooks ?? [])
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+      const sessData = await sessRes.json() as { session?: { id: string } }
+      const sid = sessData.session?.id ?? null
+      if (sid) setSessionId(sid)
+
+      // Step 1+2: Generate hooks (single call, two-pass happens in the API)
+      const hookRes = await fetch('/api/studio/hooks/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brief:       briefWithBoldness,
+          platform:    platforms[0],
+          audience,
+          goal,
+          brand_voice: selectedClient?.brand_identity?.tone_of_voice,
+          language,
+        }),
+      })
+      const hookData = await hookRes.json() as { hooks?: GeneratedHook[]; error?: string }
+      if (!hookRes.ok) throw new Error(hookData.error ?? 'Hook generation failed')
+      const hooks = hookData.hooks ?? []
+
+      setLoadingSteps(prev => prev.map((s, i) => {
+        if (i === 0) return { ...s, status: 'complete', insight: '20 hooks generated — no self-censoring' }
+        if (i === 1) return { ...s, status: 'complete', insight: 'Scoring complete' }
+        if (i === 2) return { ...s, status: 'active' }
+        return s
+      }))
+
+      // Step 3: SCAMPER (visual — completed instantly, the API handles it)
+      await new Promise(r => setTimeout(r, 400))
+      const weakCount = hooks.filter(h => (h.clarity_score + h.context_score + h.curiosity_score) < 15).length
+      setLoadingSteps(prev => prev.map((s, i) => {
+        if (i === 2) return { ...s, status: 'complete', insight: `${weakCount} hooks refined via SCAMPER` }
+        if (i === 3) return { ...s, status: 'active' }
+        return s
+      }))
+
+      // Step 4: rank
+      await new Promise(r => setTimeout(r, 300))
+      const tierCounts = hooks.reduce<Record<string, number>>((acc, h) => {
+        acc[h.virality_tier] = (acc[h.virality_tier] ?? 0) + 1; return acc
+      }, {})
+      const bestHook = [...hooks].sort((a, b) => b.total_score - a.total_score)[0]
+
+      setLoadingSteps(prev => prev.map((s, i) =>
+        i === 3 ? { ...s, status: 'complete', insight: `S-tier: ${tierCounts['S'] ?? 0}, A-tier: ${tierCounts['A'] ?? 0}` } : s
+      ))
+
+      // Assemble HookDocument
+      const doc: HookDocument = {
+        hooks: hooks.map(h => ({
+          hook_text:       h.hook_text,
+          hook_type:       h.hook_type,
+          virality_tier:   h.virality_tier as 'S' | 'A' | 'B' | 'C',
+          clarity_score:   h.clarity_score,
+          context_score:   h.context_score,
+          curiosity_score: h.curiosity_score,
+          total_score:     h.total_score,
+          format_rec:      h.format_rec,
+          format_note:     h.format_note,
+        })),
+        tier_summary: {
+          S: tierCounts['S'] ?? 0,
+          A: tierCounts['A'] ?? 0,
+          B: tierCounts['B'] ?? 0,
+          C: tierCounts['C'] ?? 0,
+        },
+        best_hook: bestHook ? {
+          hook_text:      bestHook.hook_text,
+          hook_type:      bestHook.hook_type,
+          virality_tier:  bestHook.virality_tier as 'S' | 'A' | 'B' | 'C',
+          clarity_score:  bestHook.clarity_score,
+          context_score:  bestHook.context_score,
+          curiosity_score: bestHook.curiosity_score,
+          total_score:    bestHook.total_score,
+        } : null,
+        platform:  platforms[0],
+        language,
+        boldness,
+      }
+      setHookDoc(doc)
+
+      // Boss Brief
+      let bb: BossBrief | null = null
+      try {
+        const bbRes = await fetch('/api/studio/brief-confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ brief, mode: 'boss_brief', hook: bestHook?.hook_text, client: selectedClient ? { name: selectedClient.name } : null }),
+        })
+        const bbData = await bbRes.json() as { boss_brief?: BossBrief }
+        bb = bbData.boss_brief ?? null
+      } catch { /* non-fatal */ }
+      setBossBrief(bb)
+
+      // Save session
+      if (sid) {
+        fetch(`/api/studio/session/${sid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'complete', outputs: { hooks: doc }, boss_brief: bb }),
+        }).catch(() => {})
+      }
+
+      setPageState('document')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to generate hooks')
-    } finally {
-      setLoading(false)
+      setError(e instanceof Error ? e.message : 'Generation failed. Try again.')
+      setPageState('brief')
     }
   }
 
-  const handleSave = async (index: number) => {
-    const hook = hooks[index]
-    if (!hook || savedIds.has(index)) return
-
-    setSavedIds(prev => new Set([...prev, index]))
-
-    // Persist to hook_library via a simple fetch
-    fetch('/api/studio/hooks/library', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id:       clientId || null,
-        created_by:      user?.id || null,
-        hook_text:       hook.hook_text,
-        hook_type:       hook.hook_type,
-        format_rec:      hook.format_rec,
-        clarity_score:   hook.clarity_score,
-        context_score:   hook.context_score,
-        curiosity_score: hook.curiosity_score,
-        virality_tier:   hook.virality_tier,
-        platform,
-        brief_context:   brief.trim(),
-      }),
-    }).catch(() => {})
+  function handleNewSession() {
+    setPageState('brief')
+    setSessionId(null)
+    setHookDoc(null)
+    setBossBrief(null)
+    setChatHistory([])
+    setChatOpen(false)
+    setError(null)
+    setBrief('')
   }
 
-  const handleCopy = (index: number) => {
-    const hook = hooks[index]
-    if (!hook) return
-    navigator.clipboard.writeText(hook.hook_text).catch(() => {})
-    setCopied(index)
-    setTimeout(() => setCopied(null), 1800)
+  function handleExportTxt() {
+    if (!hookDoc) return
+    const lines = [
+      `HOOK LAB EXPORT`,
+      `Client: ${selectedClient?.name ?? 'Global'} | Platform: ${platforms.join(', ')} | Boldness: ${boldness}`,
+      `Brief: ${brief}`,
+      '',
+      `TIER SUMMARY: S·${hookDoc.tier_summary?.S ?? 0} A·${hookDoc.tier_summary?.A ?? 0} B·${hookDoc.tier_summary?.B ?? 0} C·${hookDoc.tier_summary?.C ?? 0}`,
+      '',
+    ]
+    ;(hookDoc.hooks as Array<{ hook_text: string; hook_type: string; virality_tier: string; total_score: number }>).forEach((h, i) => {
+      lines.push(`#${i + 1} [${h.virality_tier}] ${h.total_score}/30 — ${h.hook_type}`)
+      lines.push(h.hook_text)
+      lines.push('')
+    })
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `novax-hooks-${Date.now()}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
   }
-
-  const handleRefine = async (index: number) => {
-    const hook = hooks[index]
-    if (!hook || refining !== null) return
-    setRefining(index)
-
-    try {
-      const res = await fetch('/api/studio/hooks/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brief: `Create 3 variations of this hook, keeping the same hook type and emotional trigger but varying the wording, structure, and angle. Original hook: "${hook.hook_text}". Brief context: ${brief}`,
-          platform,
-          audience,
-          goal,
-          emotion,
-          brand_voice: selectedClient?.brand_identity?.tone_of_voice,
-          language,
-          dialect,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Refinement failed')
-
-      const variations = (data.hooks ?? []).slice(0, 3) as GeneratedHook[]
-      // Insert variations after the current hook
-      setHooks(prev => [
-        ...prev.slice(0, index + 1),
-        ...variations,
-        ...prev.slice(index + 1),
-      ])
-    } catch {
-      // ignore refinement errors silently
-    } finally {
-      setRefining(null)
-    }
-  }
-
-  const tierCounts = hooks.reduce<Record<string, number>>((acc, h) => {
-    acc[h.virality_tier] = (acc[h.virality_tier] ?? 0) + 1
-    return acc
-  }, {})
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-5xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link
@@ -311,22 +307,20 @@ export default function HookLabPage() {
             <Wand2 className="w-4 h-4 text-novax-accent" />
             Hook Lab
           </h1>
-          <p className="text-xs text-slate-500">One Peak 3C framework — Clarity · Context · Curiosity</p>
+          <p className="text-xs text-slate-500">Two-pass generation — divergent then convergent</p>
         </div>
-        <button
-          onClick={() => { setBrief(''); setHooks([]); setSavedIds(new Set()); setError(null) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-        >
-          <PlusCircle className="w-3.5 h-3.5" />
-          New Session
-        </button>
-        {hooks.length > 0 && (
+        {(pageState === 'brief' || pageState === 'document') && (
           <button
-            onClick={() => {
-              const lines = hooks.map((h, i) => `#${i + 1} [${h.virality_tier}] ${h.hook_text}\nType: ${h.hook_type} | Score: ${h.total_score}/30`).join('\n\n')
-              const blob = new Blob([`HOOK LAB EXPORT\nBrief: ${brief}\n\n${lines}`], { type: 'text/plain' })
-              const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `novax-hooks-${Date.now()}.txt`; a.click()
-            }}
+            onClick={handleNewSession}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            New Session
+          </button>
+        )}
+        {pageState === 'document' && hookDoc && (
+          <button
+            onClick={handleExportTxt}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-novax-muted border border-novax-border rounded-lg hover:bg-novax-light transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
@@ -335,62 +329,71 @@ export default function HookLabPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
-        {/* Input panel */}
-        <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Brief</p>
+      {/* Error banner */}
+      {error && (
+        <div className="mb-5 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+          <p className="flex-1 text-sm text-red-700">{error}</p>
+          <button
+            onClick={() => { setError(null); setPageState('brief') }}
+            className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-semibold"
+          >
+            <RefreshCw className="w-3 h-3" /> Try again
+          </button>
+        </div>
+      )}
 
+      {/* ── BRIEF state ── */}
+      {pageState === 'brief' && (
+        <div className="space-y-5">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
             {/* Client */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Client (optional)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Client (optional)</label>
               <select
                 value={clientId}
                 onChange={e => setClientId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted bg-white text-slate-700"
               >
                 <option value="">No client (global)</option>
-                {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
 
-            {/* Platform */}
+            {/* Platforms */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Platform</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Platform</label>
               <div className="flex flex-wrap gap-1.5">
-                {PLATFORMS.map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setPlatform(p)}
-                    className={cn(
-                      'px-2.5 py-1 text-xs rounded-lg font-medium border transition-all',
-                      platform === p
-                        ? 'bg-novax text-white border-novax'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
-                    )}
-                  >
-                    {p}
-                  </button>
-                ))}
+                {PLATFORMS.map(p => {
+                  const selected = platforms.includes(p)
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setPlatforms(selected ? platforms.filter(x => x !== p) : [...platforms, p])}
+                      className={cn(
+                        'px-2.5 py-1 text-xs rounded-lg font-medium border transition-all',
+                        selected ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
+                      )}
+                    >
+                      {p}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
             {/* Audience + Goal */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Audience</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Audience</label>
                 <div className="flex gap-1.5">
-                  {AUDIENCES.map(a => (
+                  {(['B2C', 'B2B'] as const).map(a => (
                     <button
                       key={a}
                       onClick={() => setAudience(a)}
                       className={cn(
                         'flex-1 py-1.5 text-xs rounded-lg font-medium border transition-all',
-                        audience === a
-                          ? 'bg-novax text-white border-novax'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
+                        audience === a ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
                       )}
                     >
                       {a}
@@ -399,7 +402,7 @@ export default function HookLabPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Goal</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Goal</label>
                 <select
                   value={goal}
                   onChange={e => setGoal(e.target.value)}
@@ -410,151 +413,161 @@ export default function HookLabPage() {
               </div>
             </div>
 
-            {/* Emotion */}
+            {/* Language */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Desired Emotion</label>
-              <div className="flex flex-wrap gap-1.5">
-                {EMOTIONS.map(em => (
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Hook Language</label>
+              <div className="flex gap-2">
+                {(['english', 'arabic'] as const).map(lang => (
                   <button
-                    key={em}
-                    onClick={() => setEmotion(em)}
+                    key={lang}
+                    onClick={() => setLanguage(lang)}
                     className={cn(
-                      'px-2.5 py-1 text-xs rounded-lg font-medium border transition-all',
-                      emotion === em
-                        ? 'bg-novax text-white border-novax'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
+                      'flex-1 py-1.5 text-xs rounded-lg font-semibold border transition-all',
+                      language === lang ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
                     )}
                   >
-                    {em}
+                    {lang === 'english' ? 'English' : 'Arabic — عربي'}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Language */}
+            {/* Boldness — inline question */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Hook Language</label>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  {(['english', 'arabic'] as const).map(lang => (
-                    <button
-                      key={lang}
-                      onClick={() => setLanguage(lang)}
-                      className={cn(
-                        'flex-1 py-1.5 text-xs rounded-lg font-semibold border transition-all',
-                        language === lang ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
-                      )}
-                    >
-                      {lang === 'english' ? 'English' : 'Arabic — عربي'}
-                    </button>
-                  ))}
-                </div>
-                {language === 'arabic' && (
-                  <div className="flex gap-2 pl-1">
-                    <span className="text-[10px] text-slate-400 self-center shrink-0">Dialect:</span>
-                    {([
-                      { value: 'saudi',    label: 'Saudi — سعودي' },
-                      { value: 'egyptian', label: 'Egyptian — مصري' },
-                    ] as const).map(d => (
-                      <button
-                        key={d.value}
-                        onClick={() => setDialect(d.value)}
-                        className={cn(
-                          'flex-1 py-1.5 text-xs rounded-lg font-medium border transition-all',
-                          dialect === d.value ? 'bg-novax-light border-novax-border text-novax' : 'bg-white text-slate-500 border-slate-200 hover:border-novax-border',
-                        )}
-                      >
-                        {d.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <label className="block text-xs font-semibold text-slate-700 mb-2">How bold should these hooks be?</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {BOLDNESS_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setBoldness(opt.value as 'familiar' | 'unexpected' | 'edge')}
+                    className={cn(
+                      'flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all',
+                      boldness === opt.value
+                        ? 'border-novax bg-novax-light'
+                        : 'border-slate-200 bg-white hover:border-novax-border',
+                    )}
+                  >
+                    <span className={cn(
+                      'text-xs font-semibold mb-0.5',
+                      boldness === opt.value ? 'text-novax' : 'text-slate-800',
+                    )}>
+                      {opt.label}
+                    </span>
+                    <span className="text-[10px] text-slate-500">{opt.description}</span>
+                    {boldness === opt.value && (
+                      <CheckCircle className="w-3.5 h-3.5 text-novax mt-1.5" />
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Brief */}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Content Brief</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Content Brief</label>
               <textarea
                 value={brief}
                 onChange={e => setBrief(e.target.value)}
-                placeholder="Describe the content in 2–3 sentences. What's the topic, the angle, the key message you want to deliver?"
+                placeholder="Describe the content in 2-3 sentences. What is the topic, the angle, the key message?"
                 rows={4}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none"
               />
             </div>
-
-            <button
-              onClick={handleGenerate}
-              disabled={!brief.trim() || loading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              {loading
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Generating 20 hooks…</>
-                : <><Wand2 className="w-4 h-4" />Generate Hooks</>
-              }
-            </button>
-
-            {error && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                {error}
-              </p>
-            )}
           </div>
 
-          {/* Saved count */}
-          {savedIds.size > 0 && (
-            <div className="flex items-center gap-2 p-3 bg-novax-light border border-novax-border rounded-xl">
-              <BookMarked className="w-3.5 h-3.5 text-novax-muted" />
-              <span className="text-xs text-novax-muted font-medium">
-                {savedIds.size} hook{savedIds.size !== 1 ? 's' : ''} saved to library
-              </span>
-            </div>
-          )}
+          <button
+            onClick={handleGenerate}
+            disabled={!brief.trim()}
+            className="flex items-center gap-2 px-6 py-3 bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+          >
+            <Wand2 className="w-4 h-4" />
+            Generate Hooks
+          </button>
         </div>
+      )}
 
-        {/* Results panel */}
-        <div ref={resultsRef}>
-          {hooks.length === 0 && !loading && (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <Wand2 className="w-8 h-8 text-slate-200 mb-3" />
-              <p className="text-sm font-medium text-slate-400">Your 20 hooks will appear here</p>
-              <p className="text-xs text-slate-300 mt-1">Ranked by virality score, S → C tier</p>
-            </div>
-          )}
+      {/* ── LOADING state ── */}
+      {pageState === 'loading' && (
+        <StudioLoading
+          steps={loadingSteps}
+          sessionName={`${selectedClient?.name ?? 'Hooks'} — ${platforms[0]}`}
+          tool="hooks"
+          elapsedSeconds={elapsedSeconds}
+        />
+      )}
 
-          {hooks.length > 0 && (
-            <div className="space-y-3">
-              {/* Summary bar */}
-              <div className="flex items-center justify-between px-1">
-                <p className="text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700">{hooks.length}</span> hooks generated
-                </p>
-                <div className="flex items-center gap-2">
-                  {(['S', 'A', 'B', 'C'] as const).map(t => tierCounts[t] ? (
-                    <span key={t} className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', TIER_CONFIG[t].color)}>
-                      {t}·{tierCounts[t]}
-                    </span>
-                  ) : null)}
+      {/* ── DOCUMENT state ── */}
+      {pageState === 'document' && hookDoc && (
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 min-w-0">
+            <StudioDocument
+              tool="hooks"
+              clientName={selectedClient?.name ?? ''}
+              clientColor={selectedClient?.color ?? '#1B3D38'}
+              platforms={platforms}
+              content={hookDoc}
+              bossBrief={bossBrief}
+              language={language}
+              onExportTxt={handleExportTxt}
+              onExportPdf={() => window.print()}
+              onChatOpen={() => setChatOpen(true)}
+              onEditApplied={(target, newContent) => {
+                if (!hookDoc) return
+                const idx = parseInt(target.replace('hook_', ''), 10)
+                if (!isNaN(idx)) {
+                  const updated = { ...hookDoc, hooks: hookDoc.hooks.map((h, i) => i === idx ? { ...h, hook_text: newContent } : h) }
+                  setHookDoc(updated)
+                }
+              }}
+            />
+          </div>
+
+          {chatOpen && sessionId && (
+            <>
+              <div className="hidden lg:block w-[380px] shrink-0">
+                <div className="sticky top-4">
+                  <StudioChatbot
+                    sessionId={sessionId}
+                    sessionContext={{ tool: 'hooks', document: hookDoc, client: selectedClient }}
+                    initialHistory={chatHistory}
+                    onEditDetected={(edit: EditPayload) => {
+                      const idx = parseInt(edit.target.replace('hook_', ''), 10)
+                      if (!isNaN(idx) && hookDoc) {
+                        setHookDoc({ ...hookDoc, hooks: hookDoc.hooks.map((h, i) => i === idx ? { ...h, hook_text: edit.new_content } : h) })
+                      }
+                    }}
+                  />
                 </div>
               </div>
+              <div className="fixed inset-x-0 bottom-0 z-50 lg:hidden">
+                <div className="bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl" style={{ maxHeight: '70vh' }}>
+                  <StudioChatbot
+                    sessionId={sessionId}
+                    sessionContext={{ tool: 'hooks', document: hookDoc, client: selectedClient }}
+                    initialHistory={chatHistory}
+                    onEditDetected={(edit: EditPayload) => {
+                      const idx = parseInt(edit.target.replace('hook_', ''), 10)
+                      if (!isNaN(idx) && hookDoc) {
+                        setHookDoc({ ...hookDoc, hooks: hookDoc.hooks.map((h, i) => i === idx ? { ...h, hook_text: edit.new_content } : h) })
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
-              {hooks.map((hook, i) => (
-                <HookCard
-                  key={i}
-                  hook={hook}
-                  index={i}
-                  saved={savedIds.has(i)}
-                  language={language}
-                  onSave={() => handleSave(i)}
-                  onCopy={() => handleCopy(i)}
-                  onRefine={() => handleRefine(i)}
-                />
-              ))}
-            </div>
+          {!chatOpen && (
+            <button
+              onClick={() => setChatOpen(true)}
+              className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center gap-2 px-4 py-3 bg-novax text-white text-sm font-semibold rounded-full shadow-lg hover:bg-novax-hover transition-colors"
+            >
+              <Wand2 className="w-4 h-4" />
+              Chat
+            </button>
           )}
         </div>
-      </div>
+      )}
     </div>
   )
 }
