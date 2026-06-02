@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, TrendingUp, X, Search } from 'lucide-react'
+import { RefreshCw, TrendingUp, X, Search, Globe, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -33,6 +33,23 @@ const PLATFORMS = [
   { value: 'trendsmcp', label: 'Cross-platform' },
 ]
 
+// ── Regions ───────────────────────────────────────────────────
+
+const REGIONS = [
+  { value: 'global', label: 'Global'       },
+  { value: 'US',     label: 'United States' },
+  { value: 'GB',     label: 'United Kingdom'},
+  { value: 'AU',     label: 'Australia'    },
+  { value: 'AE',     label: 'UAE'          },
+  { value: 'SA',     label: 'Saudi Arabia' },
+  { value: 'EG',     label: 'Egypt'        },
+  { value: 'JO',     label: 'Jordan'       },
+  { value: 'KW',     label: 'Kuwait'       },
+  { value: 'QA',     label: 'Qatar'        },
+  { value: 'FR',     label: 'France'       },
+  { value: 'DE',     label: 'Germany'      },
+]
+
 // ── Skeleton card ─────────────────────────────────────────────
 
 function SkeletonCard() {
@@ -61,6 +78,8 @@ export default function InspirationLibraryPage() {
   const [industry,          setIndustry]          = useState('beauty')
   const [customNiche,       setCustomNiche]       = useState('')
   const [platform,          setPlatform]          = useState('all')
+  const [region,            setRegion]            = useState('global')
+  const [aiFilter,          setAiFilter]          = useState(false)
   const nicheInputRef = useRef<HTMLInputElement>(null)
   const [items,             setItems]             = useState<TrendingContentItem[]>([])
   const [savedItems,        setSavedItems]        = useState<InspirationBoardItem[]>([])
@@ -73,9 +92,14 @@ export default function InspirationLibraryPage() {
   const fetchFeed = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res  = await fetch(
-        `/api/studio/trending-content?industry=${encodeURIComponent(industry)}&platform=${encodeURIComponent(platform)}&limit=20`,
-      )
+      const params = new URLSearchParams({
+        industry: industry,
+        platform: platform,
+        region:   region,
+        limit:    '24',
+        ...(aiFilter ? { ai_filter: 'true' } : {}),
+      })
+      const res  = await fetch(`/api/studio/trending-content?${params}`)
       const data = await res.json() as { items: TrendingContentItem[] }
       setItems(data.items ?? [])
     } catch {
@@ -83,7 +107,7 @@ export default function InspirationLibraryPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [industry, platform])
+  }, [industry, platform, region, aiFilter])
 
   // ── Fetch saved board ─────────────────────────────────────
 
@@ -259,8 +283,9 @@ export default function InspirationLibraryPage() {
           ))}
         </div>
 
-        {/* Platform + Refresh */}
-        <div className="flex items-center gap-2">
+        {/* Platform + Region + AI filter + Refresh */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Platform tabs */}
           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
             {PLATFORMS.map(p => (
               <button
@@ -278,10 +303,39 @@ export default function InspirationLibraryPage() {
             ))}
           </div>
 
+          {/* Region selector */}
+          <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+            <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <select
+              value={region}
+              onChange={e => setRegion(e.target.value)}
+              className="text-xs text-slate-700 bg-transparent outline-none cursor-pointer"
+            >
+              {REGIONS.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* AI filter toggle */}
+          <button
+            onClick={() => setAiFilter(v => !v)}
+            className={cn(
+              'flex items-center gap-1.5 text-xs border rounded-lg px-3 py-1.5 transition-colors',
+              aiFilter
+                ? 'bg-novax text-white border-novax'
+                : 'border-slate-200 text-slate-600 hover:border-novax-border hover:bg-novax-light/50',
+            )}
+            title="AI filter removes off-topic and wrong-language content"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            AI Filter
+          </button>
+
           <button
             onClick={fetchFeed}
             disabled={isLoading}
-            className="flex items-center gap-1.5 text-xs border border-slate-200 rounded-lg px-3 py-2 text-slate-600 hover:border-novax-border hover:bg-novax-light/50 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 hover:border-novax-border hover:bg-novax-light/50 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
             Refresh

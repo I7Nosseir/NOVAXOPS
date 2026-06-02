@@ -61,8 +61,8 @@ function filterByIndustry(topics: string[], industry: string): string[] {
 
 // ── RSS fetch ─────────────────────────────────────────────────
 
-async function fetchViaRss(industry: string): Promise<TrendsData> {
-  const url = 'https://trends.google.com/trends/trendingsearches/daily/rss?geo=US'
+async function fetchViaRss(industry: string, geo = 'US'): Promise<TrendsData> {
+  const url = `https://trends.google.com/trends/trendingsearches/daily/rss?geo=${geo}`
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NOVAXOps/1.0)' },
@@ -94,9 +94,9 @@ async function fetchViaRss(industry: string): Promise<TrendsData> {
 
 // ── Public API ────────────────────────────────────────────────
 
-export async function fetchGoogleTrends(industry: string): Promise<TrendsData> {
+export async function fetchGoogleTrends(industry: string, geo = 'US'): Promise<TrendsData> {
   try {
-    return await fetchViaRss(industry)
+    return await fetchViaRss(industry, geo)
   } catch (err) {
     console.warn('[google-trends] RSS fetch failed:', err)
     return { trending_topics: [], breakout_keywords: [], source: 'fallback', fetched_at: new Date().toISOString() }

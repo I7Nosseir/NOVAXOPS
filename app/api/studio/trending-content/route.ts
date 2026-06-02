@@ -1,16 +1,21 @@
 // ============================================================
 // GET /api/studio/trending-content
-// Returns a unified feed of trending content with real links.
-// Query params: industry, platform (all|youtube|tiktok|trendsmcp), limit
-// Cached for 1 hour via Next.js revalidate.
+// Query params:
+//   industry  – beauty | tech | food | fitness | finance | fashion | travel | education | real_estate | <custom>
+//   platform  – all | youtube | tiktok | trendsmcp
+//   region    – global | US | GB | AE | SA | EG | JO | KW | QA | FR | DE | AU
+//   language  – any | en | ar
+//   ai_filter – true | false  (Gemini relevance scoring, removes off-topic/wrong-language items)
+//   limit     – max 50
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchTikTokTrends }  from '@/lib/data-providers/tiktok-creative-center'
+import { fetchTikTokTrends }    from '@/lib/data-providers/tiktok-creative-center'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
-import { createHash } from 'crypto'
+import { geminiJson }           from '@/lib/gemini'
+import { createHash }           from 'crypto'
 
-export const revalidate = 0 // always fresh — no stale CDN cache
+export const revalidate = 0
 
 export interface TrendingContentItem {
   id: string
@@ -28,7 +33,32 @@ export interface TrendingContentItem {
   fetched_at: string
 }
 
-// ── Velocity order for sorting ────────────────────────────────
+// ── Maps ──────────────────────────────────────────────────────
+
+// YouTube regionCode + relevanceLanguage per region
+const REGION_YT: Record<string, { regionCode: string; relevanceLanguage?: string }> = {
+  global: { regionCode: 'US'                              },
+  US:     { regionCode: 'US', relevanceLanguage: 'en'    },
+  GB:     { regionCode: 'GB', relevanceLanguage: 'en'    },
+  AU:     { regionCode: 'AU', relevanceLanguage: 'en'    },
+  CA:     { regionCode: 'CA', relevanceLanguage: 'en'    },
+  AE:     { regionCode: 'AE', relevanceLanguage: 'ar'    },
+  SA:     { regionCode: 'SA', relevanceLanguage: 'ar'    },
+  EG:     { regionCode: 'EG', relevanceLanguage: 'ar'    },
+  JO:     { regionCode: 'JO', relevanceLanguage: 'ar'    },
+  KW:     { regionCode: 'KW', relevanceLanguage: 'ar'    },
+  QA:     { regionCode: 'QA', relevanceLanguage: 'ar'    },
+  FR:     { regionCode: 'FR', relevanceLanguage: 'fr'    },
+  DE:     { regionCode: 'DE', relevanceLanguage: 'de'    },
+}
+
+// Google Trends geo code per region
+const REGION_GT: Record<string, string> = {
+  global: '',
+  US: 'US', GB: 'GB', AU: 'AU', CA: 'CA',
+  AE: 'AE', SA: 'SA', EG: 'EG', JO: 'JO', KW: 'KW', QA: 'QA',
+  FR: 'FR', DE: 'DE',
+}
 
 const VELOCITY_ORDER: Record<TrendingContentItem['velocity'], number> = {
   rising_fast: 0,
@@ -37,33 +67,31 @@ const VELOCITY_ORDER: Record<TrendingContentItem['velocity'], number> = {
   stable:      3,
 }
 
-// ── Deterministic ID from URL ─────────────────────────────────
-
 function makeId(url: string): string {
   return createHash('md5').update(url).digest('hex').slice(0, 16)
 }
 
-// ── YouTube items ─────────────────────────────────────────────
+// ── YouTube ───────────────────────────────────────────────────
 
 function classifyTitle(title: string): string {
   const t = title.toLowerCase()
-  if (t.includes('vs') || t.includes('comparison') || t.includes('compared')) return 'Comparison'
+  if (t.includes('vs') || t.includes('comparison'))                        return 'Comparison'
   if (t.includes('how to') || t.includes('tutorial') || t.includes('guide')) return 'Tutorial'
   if (t.includes('review') || t.includes('tested') || t.includes('honest')) return 'Review / Test'
-  if (t.includes('days') || t.includes('week') || t.includes('months') || t.includes('year')) return 'Long-term experiment'
-  if (t.includes('explained') || t.includes('simple') || t.includes('beginners')) return 'Educational deep-dive'
-  if (t.includes('everything') || t.includes('complete') || t.includes('ultimate')) return 'Comprehensive guide'
-  if (t.includes('secret') || t.includes('hack') || t.includes('trick') || t.includes('tip')) return 'Tips & tricks'
-  if (t.includes('best') || t.includes('top') || t.includes('worst')) return 'Ranking / List'
+  if (t.includes('days') || t.includes('week') || t.includes('month'))    return 'Long-term experiment'
+  if (t.includes('explained') || t.includes('beginners'))                 return 'Educational deep-dive'
+  if (t.includes('secret') || t.includes('hack') || t.includes('tip'))    return 'Tips & tricks'
+  if (t.includes('best') || t.includes('top') || t.includes('worst'))     return 'Ranking / List'
   return 'General'
 }
 
-async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]> {
-  const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY
-  if (!YOUTUBE_API_KEY) return []
+async function getYouTubeItems(industry: string, region: string): Promise<TrendingContentItem[]> {
+  const KEY = process.env.YOUTUBE_API_KEY
+  if (!KEY) return []
 
-  const now   = new Date().toISOString()
-  const year  = new Date().getFullYear()
+  const ytConf = REGION_YT[region] ?? REGION_YT.US
+  const now    = new Date().toISOString()
+  const year   = new Date().getFullYear()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString()
 
   try {
@@ -73,8 +101,12 @@ async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]>
     searchUrl.searchParams.set('order', 'viewCount')
     searchUrl.searchParams.set('q', `${industry} ${year}`)
     searchUrl.searchParams.set('publishedAfter', thirtyDaysAgo)
-    searchUrl.searchParams.set('maxResults', '8')
-    searchUrl.searchParams.set('key', YOUTUBE_API_KEY)
+    searchUrl.searchParams.set('maxResults', '10')
+    searchUrl.searchParams.set('regionCode', ytConf.regionCode)
+    if (ytConf.relevanceLanguage) {
+      searchUrl.searchParams.set('relevanceLanguage', ytConf.relevanceLanguage)
+    }
+    searchUrl.searchParams.set('key', KEY)
 
     const searchRes = await fetch(searchUrl.toString())
     if (!searchRes.ok) return []
@@ -85,19 +117,18 @@ async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]>
       snippet: {
         title: string
         channelTitle: string
-        thumbnails: { medium?: { url: string }; high?: { url: string }; default?: { url: string } }
-        publishedAt: string
+        thumbnails: { high?: { url: string }; medium?: { url: string }; default?: { url: string } }
       }
-    }> = searchData.items ?? []
+    }> = (searchData.items ?? []).filter((i: { id?: { videoId?: string } }) => !!i.id?.videoId)
 
     if (!items.length) return []
 
-    // Fetch view counts via videos.list
-    const videoIds = items.map(i => i.id.videoId).filter(Boolean).join(',')
+    // Fetch view counts
+    const videoIds = items.map(i => i.id.videoId).join(',')
     const statsUrl = new URL('https://www.googleapis.com/youtube/v3/videos')
     statsUrl.searchParams.set('part', 'statistics')
     statsUrl.searchParams.set('id', videoIds)
-    statsUrl.searchParams.set('key', YOUTUBE_API_KEY)
+    statsUrl.searchParams.set('key', KEY)
 
     const statsRes  = await fetch(statsUrl.toString())
     const statsData = statsRes.ok ? await statsRes.json() : { items: [] }
@@ -106,16 +137,16 @@ async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]>
       viewMap.set(v.id, parseInt(v.statistics?.viewCount ?? '0', 10))
     }
 
-    return items.filter(item => !!item.id?.videoId).map((item) => {
+    return items.map(item => {
       const videoId   = item.id.videoId
       const thumbnail =
         item.snippet.thumbnails.high?.url ??
         item.snippet.thumbnails.medium?.url ??
         item.snippet.thumbnails.default?.url ??
         `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-      const url       = `https://www.youtube.com/watch?v=${videoId}`
-      const views     = viewMap.get(videoId) ?? 0
-      const format    = classifyTitle(item.snippet.title)
+      const url    = `https://www.youtube.com/watch?v=${videoId}`
+      const views  = viewMap.get(videoId) ?? 0
+      const format = classifyTitle(item.snippet.title)
       const velocity: TrendingContentItem['velocity'] =
         views > 5_000_000 ? 'rising_fast' : views > 1_000_000 ? 'rising' : 'peaking'
 
@@ -130,7 +161,7 @@ async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]>
         channel:       item.snippet.channelTitle,
         industry,
         velocity,
-        why_trending:  `${format} — gaining significant traction in the ${industry} space.`,
+        why_trending:  `${format} — gaining traction in the ${industry} space.`,
         fetched_at:    now,
       }
     })
@@ -139,15 +170,15 @@ async function getYouTubeItems(industry: string): Promise<TrendingContentItem[]>
   }
 }
 
-// ── TikTok items ──────────────────────────────────────────────
+// ── TikTok ────────────────────────────────────────────────────
 
 async function getTikTokItems(industry: string): Promise<TrendingContentItem[]> {
   const data = await fetchTikTokTrends(industry)
-  return data.trending_hashtags.slice(0, 8).map((h) => {
+  return data.trending_hashtags.slice(0, 8).map(h => {
     const cleanTag = h.hashtag.replace(/^#/, '')
     const url      = `https://www.tiktok.com/tag/${cleanTag}`
     const velocity: TrendingContentItem['velocity'] =
-      h.trend_direction === 'rising' && h.video_count > 20_000_000
+      h.trend_direction === 'rising' && h.video_count > 500_000_000
         ? 'rising_fast'
         : h.trend_direction === 'rising'
         ? 'rising'
@@ -159,27 +190,27 @@ async function getTikTokItems(industry: string): Promise<TrendingContentItem[]> 
       id:           makeId(url),
       platform:     'tiktok'  as const,
       content_type: 'hashtag' as const,
-      title:        `#${cleanTag} — ${formatCount(h.video_count)} videos`,
+      title:        `#${cleanTag} — ${formatCount(h.video_count)} views`,
       url,
-      view_count:   h.video_count,
+      view_count:   h.video_count || undefined,
       hashtag:      cleanTag,
       industry,
       velocity,
-      why_trending: `${h.trend_direction === 'rising' ? 'Rising' : 'Active'} TikTok hashtag with strong video volume in the ${industry} category.`,
+      why_trending: `Trending TikTok hashtag active in the ${industry} category.`,
       fetched_at:   data.fetched_at,
     }
   })
 }
 
-// ── TrendsMCP items ───────────────────────────────────────────
+// ── TrendsMCP ─────────────────────────────────────────────────
 
 async function getTrendsMcpItems(industry: string): Promise<TrendingContentItem[]> {
   const data = await fetchTrendsMcpForced(industry)
   if (!data.topics.length) return []
 
   const now = new Date().toISOString()
-  return data.topics.slice(0, 6).map((t) => {
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(t.topic)}`
+  return data.topics.slice(0, 6).map(t => {
+    const url      = `https://www.youtube.com/results?search_query=${encodeURIComponent(t.topic)}`
     const growthNum = parseFloat(String(t.growth).replace('%', ''))
     const velocity: TrendingContentItem['velocity'] =
       growthNum > 100  ? 'rising_fast'
@@ -188,20 +219,64 @@ async function getTrendsMcpItems(industry: string): Promise<TrendingContentItem[
       : 'stable'
 
     return {
-      id:           makeId(searchUrl),
+      id:           makeId(url),
       platform:     'trendsmcp' as const,
       content_type: 'trend'     as const,
       title:        t.topic,
-      url:          searchUrl,
+      url,
       industry,
       velocity,
-      why_trending: `Cross-platform trend signal (${t.source}). Growth: ${t.growth}.`,
+      why_trending: `Cross-platform trend (${t.source}). Growth: ${t.growth}.`,
       fetched_at:   now,
     }
   })
 }
 
-// ── Format helpers ────────────────────────────────────────────
+// ── AI relevance filter ───────────────────────────────────────
+
+async function aiFilter(
+  items: TrendingContentItem[],
+  industry: string,
+  region: string,
+  language: string,
+): Promise<TrendingContentItem[]> {
+  if (!items.length || !process.env.GEMINI_API_KEY) return items
+
+  const langLabel =
+    language === 'ar' ? 'Arabic' :
+    language === 'en' ? 'English' :
+    region === 'global' || region === 'US' || region === 'GB' || region === 'AU' ? 'English' :
+    (region === 'AE' || region === 'SA' || region === 'EG' || region === 'JO' || region === 'KW' || region === 'QA') ? 'Arabic or English' :
+    'English'
+
+  const prompt = `You are a content quality filter for a social media agency.
+Niche: ${industry}
+Target region: ${region === 'global' ? 'Global (prefer English)' : region}
+Preferred language: ${langLabel}
+
+Score each item 0–10 for relevance and quality:
+${items.map((item, i) => `${i}. "${item.title}" [${item.platform}${item.channel ? `, ${item.channel}` : ''}]`).join('\n')}
+
+Rules:
+- 0–3: Wrong language for region, unrelated to niche, very low quality, spam
+- 4–6: Partially relevant or mixed language
+- 7–10: Highly relevant to niche, correct language/region, quality content
+
+Return ONLY a JSON array of integers with one score per item, same order. Example: [8,3,9,2,7,5,8,1]`
+
+  try {
+    const scores = await geminiJson<number[]>(prompt, undefined, {
+      temperature: 0,
+      maxOutputTokens: 200,
+    })
+    if (!Array.isArray(scores) || scores.length !== items.length) return items
+    return items.filter((_, i) => (scores[i] ?? 0) >= 5)
+  } catch {
+    return items
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
 
 function formatCount(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
@@ -214,40 +289,43 @@ function formatCount(n: number): string {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const industry = searchParams.get('industry') ?? 'beauty'
-  const platform = searchParams.get('platform') ?? 'all'
-  const limit    = Math.min(parseInt(searchParams.get('limit') ?? '20', 10), 50)
+  const industry  = searchParams.get('industry')  ?? 'beauty'
+  const platform  = searchParams.get('platform')  ?? 'all'
+  const region    = searchParams.get('region')    ?? 'global'
+  const language  = searchParams.get('language')  ?? 'any'
+  const aiFilter_ = searchParams.get('ai_filter') === 'true'
+  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '20', 10), 50)
 
   try {
     const [youtubeItems, tiktokItems, trendsmcpItems] = await Promise.all([
-      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry)   : Promise.resolve([]),
-      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry)    : Promise.resolve([]),
-      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry) : Promise.resolve([]),
+      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region)  : Promise.resolve([]),
+      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry)            : Promise.resolve([]),
+      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)         : Promise.resolve([]),
     ])
 
-    // Combine, deduplicate by URL, sort by velocity
     const seen  = new Set<string>()
-    const items = [...youtubeItems, ...tiktokItems, ...trendsmcpItems]
-      .filter((item) => {
+    let items = [...youtubeItems, ...tiktokItems, ...trendsmcpItems]
+      .filter(item => {
         if (seen.has(item.url)) return false
         seen.add(item.url)
         return true
       })
       .sort((a, b) => VELOCITY_ORDER[a.velocity] - VELOCITY_ORDER[b.velocity])
-      .slice(0, limit)
+
+    if (aiFilter_) {
+      items = await aiFilter(items, industry, region, language)
+    }
+
+    items = items.slice(0, limit)
 
     return NextResponse.json(
-      { items, generated_at: new Date().toISOString() },
-      {
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-      },
+      { items, generated_at: new Date().toISOString(), region, ai_filtered: aiFilter_ },
+      { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (err) {
     console.error('[trending-content] Error:', err)
     return NextResponse.json(
-      { items: [], generated_at: new Date().toISOString(), error: 'Failed to fetch trending content' },
+      { items: [], generated_at: new Date().toISOString(), error: 'Failed to fetch' },
       { status: 500 },
     )
   }

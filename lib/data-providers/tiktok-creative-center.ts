@@ -2,7 +2,6 @@
 // TikTok Trend Data Provider
 // Source: ogohogo/tiktok-trending-data-api (GitHub, hourly updates)
 // No API key required. Completely free.
-// https://github.com/ogohogo/tiktok-trending-data-api
 // ============================================================
 
 export interface TikTokData {
@@ -17,17 +16,17 @@ export interface TikTokData {
   fetched_at: string
 }
 
-// ── Raw JSON shape from ogohogo repo ─────────────────────────
+// ── Actual ogohogo JSON shapes ────────────────────────────────
 
-interface OgohogoItem {
-  title?: string
-  desc?: string
-  stats?: { videoCount?: number; viewCount?: number }
-  hashtag_name?: string
-  music_title?: string
-  author?: { nickname?: string }
-  challengeInfo?: { challengeAnnex?: { hashtagName?: string }; stats?: { videoCount?: number } }
+interface OgohogoHashtag {
+  name?: string           // e.g. "#fyp"
+  description?: string
+  stats?: { views?: number }
+}
+
+interface OgohogoMusic {
   musicInfo?: { music?: { title?: string } }
+  music_title?: string
 }
 
 // ── Industry keyword filters ──────────────────────────────────
@@ -47,41 +46,46 @@ const INDUSTRY_HASHTAGS: Record<string, string[]> = {
 
 // ── Parse ogohogo JSON ────────────────────────────────────────
 
-function parseOgohogoJson(data: OgohogoItem[], industry: string): Omit<TikTokData, 'source' | 'fetched_at'> {
+function parseOgohogoJson(
+  data: { hashtag?: OgohogoHashtag[]; music?: OgohogoMusic[] },
+  industry: string,
+): Omit<TikTokData, 'source' | 'fetched_at'> {
   const industryKeys = INDUSTRY_HASHTAGS[industry.toLowerCase()] ?? []
 
-  // Extract hashtags from the raw data
-  const allHashtags: TikTokData['trending_hashtags'] = data
-    .filter(item => item.title ?? item.hashtag_name ?? item.challengeInfo?.challengeAnnex?.hashtagName)
-    .map(item => ({
-      hashtag: (item.hashtag_name ?? item.challengeInfo?.challengeAnnex?.hashtagName ?? item.title ?? '').toLowerCase().replace(/\s+/g, ''),
-      video_count: item.stats?.videoCount ?? item.challengeInfo?.stats?.videoCount ?? 0,
-      trend_direction: 'rising' as const,
-    }))
+  // Extract hashtags from the correct key + shape
+  const allHashtags: TikTokData['trending_hashtags'] = (data.hashtag ?? [])
+    .map(item => {
+      const rawName = item.name ?? ''
+      const tag = rawName.replace(/^#/, '').toLowerCase().trim()
+      return {
+        hashtag: tag,
+        video_count: item.stats?.views ?? 0,
+        trend_direction: 'rising' as const,
+      }
+    })
     .filter(h => h.hashtag.length > 0)
 
-  // Filter to industry-relevant
+  // Filter to industry-relevant, fall back to all
   const relevant = industryKeys.length > 0
     ? allHashtags.filter(h => industryKeys.some(k => h.hashtag.includes(k)))
     : allHashtags
 
-  const trending_hashtags = relevant.length >= 3
-    ? relevant.slice(0, 6)
-    : allHashtags.slice(0, 6)
+  const trending_hashtags = (relevant.length >= 3 ? relevant : allHashtags).slice(0, 8)
 
-  // Extract sounds
-  const trending_sounds = data
-    .filter(item => item.musicInfo?.music?.title ?? item.music_title)
-    .slice(0, 4)
+  // Sounds
+  const trending_sounds = (data.music ?? [])
     .map(item => item.musicInfo?.music?.title ?? item.music_title ?? '')
     .filter(Boolean)
+    .slice(0, 4)
 
-  const trending_formats = [
-    'Short-form video (15-30s) with text overlay',
-    'Tutorial rapid-fire format',
-  ]
-
-  return { trending_hashtags, trending_sounds, trending_formats }
+  return {
+    trending_hashtags,
+    trending_sounds,
+    trending_formats: [
+      'Short-form video (15-30s) with text overlay',
+      'Tutorial rapid-fire format',
+    ],
+  }
 }
 
 // ── Fetch from ogohogo GitHub ─────────────────────────────────
@@ -91,22 +95,17 @@ async function fetchFromGithub(industry: string): Promise<TikTokData> {
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NOVAXOps/1.0)' },
-    next: { revalidate: 3600 }, // cache 1h
+    next: { revalidate: 3600 },
   })
 
   if (!res.ok) throw new Error(`ogohogo GitHub returned ${res.status}`)
 
-  const data: OgohogoItem[] = await res.json()
-  const parsed = parseOgohogoJson(data, industry)
+  const raw = await res.json() as { hashtag?: OgohogoHashtag[]; music?: OgohogoMusic[] }
+  const parsed = parseOgohogoJson(raw, industry)
 
   return {
-    trending_hashtags: parsed.trending_hashtags,
-    trending_sounds:   parsed.trending_sounds,
-    trending_formats:  parsed.trending_formats.length ? parsed.trending_formats : [
-      'Short-form video (15-30s) with text overlay',
-      'Tutorial rapid-fire format',
-    ],
-    source:     'github_json',
+    ...parsed,
+    source: 'github_json',
     fetched_at: new Date().toISOString(),
   }
 }
@@ -118,6 +117,12 @@ export async function fetchTikTokTrends(industry: string): Promise<TikTokData> {
     return await fetchFromGithub(industry)
   } catch (err) {
     console.warn('[tiktok] GitHub JSON fetch failed:', err)
-    return { trending_hashtags: [], trending_sounds: [], trending_formats: [], source: 'fallback', fetched_at: new Date().toISOString() }
+    return {
+      trending_hashtags: [],
+      trending_sounds: [],
+      trending_formats: [],
+      source: 'fallback',
+      fetched_at: new Date().toISOString(),
+    }
   }
 }
