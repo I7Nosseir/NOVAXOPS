@@ -36,7 +36,9 @@ async function mFetch<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     let body = ''
     try { body = await res.text() } catch { /* ignore */ }
-    throw new Error(`Metricool ${res.status} on ${path}: ${body}`)
+    const isHtml = body.trimStart().startsWith('<')
+    const detail = isHtml ? `(HTML error page — route may not exist)` : body.slice(0, 300)
+    throw new Error(`Metricool ${res.status} on ${path}: ${detail}`)
   }
   return res.json() as Promise<T>
 }
@@ -353,7 +355,9 @@ export async function deleteScheduledPost(postId: string, blogId: string | numbe
   }
 }
 
-// ─── Post-level analytics (the only confirmed working analytics endpoint) ────
+// ─── Post-level analytics ─────────────────────────────────────────────────────
+// Endpoint: GET /api/v2/analytics/posts/{network}?userId=&blogId=&from=yyyy-MM-ddTHH:mm:ss&to=yyyy-MM-ddTHH:mm:ss
+// Each network is a separate call. Returns 400 if network not connected — skipped silently.
 
 export interface MetricoolPostAnalytics {
   id?: string
@@ -373,23 +377,48 @@ export interface MetricoolPostAnalytics {
   engagement_rate?: number
 }
 
+const ANALYTICS_NETWORKS = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube'] as const
+
 /**
- * Fetch all published posts with their analytics for a date range.
- * GET /api/v2/analytics/posts?userId=&blogId=&from=YYYY-MM-DD&to=YYYY-MM-DD
- *
- * This is the confirmed-working analytics endpoint. `/analytics/summary` does not exist.
- * We use `from`/`to` params (not `startDate`/`endDate`).
+ * Fetch published posts with analytics for one network.
+ * Returns [] if the network is not connected to the blog (400) or has no data.
+ * Dates must be full ISO datetime: "2026-05-01" → "2026-05-01T00:00:00"
+ */
+async function fetchNetworkPosts(
+  blogId: string | number,
+  network: string,
+  startDate: string,
+  endDate: string
+): Promise<MetricoolPostAnalytics[]> {
+  const from = startDate.includes('T') ? startDate : `${startDate}T00:00:00`
+  const to   = endDate.includes('T')   ? endDate   : `${endDate}T23:59:59`
+  const params = qs(blogId, { from, to })
+  let raw: Record<string, unknown>
+  try {
+    raw = await mFetch<Record<string, unknown>>(`/analytics/posts/${network}?${params}`)
+  } catch (err) {
+    // 400 = network not connected to this blog — not an error worth surfacing
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.includes('400')) return []
+    throw err
+  }
+  const items = Array.isArray(raw.data) ? raw.data : Array.isArray(raw) ? raw : []
+  return (items as MetricoolPostAnalytics[]).map(p => ({ ...p, network: p.network ?? network }))
+}
+
+/**
+ * Fetch posts across all connected networks for a date range.
+ * Networks that return 400 (not connected) are skipped silently.
  */
 async function fetchPostsList(
   blogId: string | number,
   startDate: string,
   endDate: string
 ): Promise<MetricoolPostAnalytics[]> {
-  const raw = await mFetch<Record<string, unknown>>(
-    `/analytics/posts?${qs(blogId, { from: startDate, to: endDate })}`
+  const results = await Promise.all(
+    ANALYTICS_NETWORKS.map(net => fetchNetworkPosts(blogId, net, startDate, endDate))
   )
-  const items = Array.isArray(raw.data) ? raw.data : Array.isArray(raw) ? raw : []
-  return items as MetricoolPostAnalytics[]
+  return results.flat()
 }
 
 /**

@@ -351,11 +351,40 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {clients.map(client => {
+            const now = new Date()
             const clientTasks = tasks.filter(t => t.client_id === client.id)
-            const completed   = clientTasks.filter(t => t.status === 'completed').length
-            const active      = clientTasks.filter(t => t.status === 'active').length
-            const health      = Math.min(100, Math.round((completed / Math.max(clientTasks.length, 1)) * 100) + 40)
+            const activeTasks = clientTasks.filter(t => t.status === 'active')
             const scheduled   = posts.filter(p => p.client_id === client.id && p.status === 'scheduled').length
+
+            // Factor 1: crisis (15 pts)
+            const crisisScore = client.is_in_crisis ? 0 : 15
+
+            // Factor 2: overdue tasks (20 pts, -7 per overdue)
+            const overdueCount = activeTasks.filter(t => t.due_date && new Date(t.due_date) < now).length
+            const overdueScore = Math.max(0, 20 - overdueCount * 7)
+
+            // Factor 3: pipeline momentum (30 pts) — later stages score higher
+            const stageWeight: Record<string, number> = {
+              strategy: 1, ideas: 2, calendar: 3, copy: 4, design: 5,
+              review: 6, approval: 7, scheduled: 8, published: 9, reporting: 10,
+            }
+            const avgStage = clientTasks.length > 0
+              ? clientTasks.reduce((s, t) => s + (stageWeight[t.pipeline_stage] ?? 1), 0) / clientTasks.length
+              : 0
+            const momentumScore = Math.round((avgStage / 10) * 30)
+
+            // Factor 4: content cadence (25 pts) — scheduled posts queued
+            const cadenceScore = scheduled >= 3 ? 25 : scheduled === 2 ? 18 : scheduled === 1 ? 10 : 0
+
+            // Factor 5: publishing track record (10 pts)
+            const publishScore = clientTasks.some(
+              t => t.pipeline_stage === 'published' || t.pipeline_stage === 'reporting' || t.status === 'completed'
+            ) ? 10 : 0
+
+            const health = crisisScore + overdueScore + momentumScore + cadenceScore + publishScore
+            const healthLabel = client.is_in_crisis ? 'In Crisis' : health >= 60 ? 'Healthy' : health >= 35 ? 'At Risk' : 'Needs Attention'
+            const healthColor = health >= 60 ? '#10b981' : health >= 35 ? '#f59e0b' : '#f43f5e'
+
             return (
               <div key={client.id} className="p-4 rounded-xl border border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-novax-border/40 hover:shadow-sm dark:bg-white/[0.02] transition-all cursor-pointer">
                 <div className="flex items-center gap-2 mb-3">
@@ -369,17 +398,17 @@ export default function DashboardPage() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-500">Health score</span>
-                    <span className="font-semibold text-slate-700">{health}%</span>
+                    <span className="text-slate-500">{healthLabel}</span>
+                    <span className="font-semibold" style={{ color: healthColor }}>{health}%</span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
-                      style={{ width: `${health}%`, background: health > 70 ? '#10b981' : health > 40 ? '#f59e0b' : '#f43f5e' }}
+                      style={{ width: `${health}%`, background: healthColor }}
                     />
                   </div>
                   <div className="flex justify-between text-[10px] text-slate-400 pt-1">
-                    <span>{active} active</span>
+                    <span>{activeTasks.length} active</span>
                     <span>{scheduled} scheduled</span>
                   </div>
                 </div>
