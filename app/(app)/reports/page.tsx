@@ -30,12 +30,12 @@ type ReportTab = 'monthly' | 'paid' | 'combined' | 'platform' | 'quarterly' | 'e
 type IconProps = { className?: string }
 
 const TABS: { id: ReportTab; label: string; icon: (p: IconProps) => React.ReactElement; description: string }[] = [
-  { id: 'monthly',    label: 'Monthly Performance',  icon: (p) => <BarChart2  {...p}/>, description: 'Organic reach, impressions, ER trend, platform breakdown, and AI performance analysis.' },
-  { id: 'paid',       label: 'Paid Ads',             icon: (p) => <DollarSign {...p}/>, description: 'Organic performance baseline for paid amplification decisions, with AI analysis.' },
-  { id: 'combined',   label: 'Paid + Organic',       icon: (p) => <Activity   {...p}/>, description: 'Blended view — organic trend and platform mix with AI analysis of synergy opportunities.' },
+  { id: 'monthly',    label: 'Monthly Performance',  icon: (p) => <BarChart2  {...p}/>, description: 'Organic reach, impressions, engagement rate trend, and platform breakdown.' },
+  { id: 'paid',       label: 'Paid Ads',             icon: (p) => <DollarSign {...p}/>, description: 'Organic performance metrics — reach, engagement, and channel breakdown.' },
+  { id: 'combined',   label: 'Paid + Organic',       icon: (p) => <Activity   {...p}/>, description: 'Organic trend and platform mix across all active channels.' },
   { id: 'platform',   label: 'Platform Deep Dive',   icon: (p) => <Globe      {...p}/>, description: 'Per-platform breakdown — reach, ER, and posts across all active channels.' },
-  { id: 'quarterly',  label: 'Quarterly Report',     icon: (p) => <Calendar   {...p}/>, description: 'Quarter performance — reach trend, ER trajectory, and AI strategic assessment.' },
-  { id: 'executive',  label: 'Executive Summary',    icon: (p) => <Star       {...p}/>, description: 'CEO-ready: top KPIs, trend, platform mix, and AI portfolio analysis.' },
+  { id: 'quarterly',  label: 'Quarterly Report',     icon: (p) => <Calendar   {...p}/>, description: 'Quarter performance — reach trend and engagement rate trajectory.' },
+  { id: 'executive',  label: 'Executive Summary',    icon: (p) => <Star       {...p}/>, description: 'CEO-ready: top KPIs, trend, and platform breakdown.' },
   { id: 'ai',         label: 'AI Report Builder',    icon: (p) => <Sparkles   {...p}/>, description: 'Upload analytics screenshots or paste data — AI extracts and formats a branded report.' },
 ]
 
@@ -91,11 +91,12 @@ function ReportHeader({ title, subtitle, client, period }: { title: string; subt
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-2.5">
             <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-6 w-auto">
-              <path d="M12 56V16h7.5l18 26.4V16H45v40h-7.5L19.5 29.6V56H12z" fill="white"/>
-              <path d="M52 36c0-12.2 8.6-21 20-21s20 8.8 20 21-8.6 21-20 21S52 48.2 52 36zm31.4 0c0-8.4-4.8-14-11.4-14S60.6 27.6 60.6 36s4.8 14 11.4 14 11.4-5.6 11.4-14z" fill="white"/>
-              <line x1="94" y1="62" x2="148" y2="10" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
-              <path d="M148 16h8.6l11.4 30.8L179.4 16H188l-16 40h-8z" fill="white"/>
-              <path d="M195.6 56l16-40h8.4l16 40h-8.2l-3.4-8.8H207l-3.4 8.8h-8zm14-15.2h10.8L215.8 24l-6.2 16.8z" fill="white"/>
+              <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
+              <path fillRule="evenodd" d="M82,10 A26,26 0 0 1 82,62 A26,26 0 0 1 82,10 Z M82,22 A14,14 0 0 1 82,50 A14,14 0 0 1 82,22 Z" fill="white"/>
+              <line x1="60" y1="68" x2="104" y2="4" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+              <path d="M114,10 L124,10 L151,58 L178,10 L188,10 L151,64 L141,64 Z" fill="white"/>
+              <path fillRule="evenodd" d="M194,62 L218,10 L228,10 L252,62 L243,62 L237,50 L209,50 L203,62 Z M215,42 L223,18 L235,42 Z" fill="white"/>
+              <text x="250" y="18" fill="white" fontSize="9" fontFamily="system-ui,Arial,sans-serif">™</text>
             </svg>
           </div>
           <div className="w-px h-10 bg-white/20"/>
@@ -123,11 +124,12 @@ function CoverPage({ title, subtitle, client, period, tag }: { title: string; su
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
       <div className="px-12 pt-12 flex items-center gap-4">
         <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-9 w-auto">
-          <path d="M12 56V16h7.5l18 26.4V16H45v40h-7.5L19.5 29.6V56H12z" fill="white"/>
-          <path d="M52 36c0-12.2 8.6-21 20-21s20 8.8 20 21-8.6 21-20 21S52 48.2 52 36zm31.4 0c0-8.4-4.8-14-11.4-14S60.6 27.6 60.6 36s4.8 14 11.4 14 11.4-5.6 11.4-14z" fill="white"/>
-          <line x1="94" y1="62" x2="148" y2="10" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
-          <path d="M148 16h8.6l11.4 30.8L179.4 16H188l-16 40h-8z" fill="white"/>
-          <path d="M195.6 56l16-40h8.4l16 40h-8.2l-3.4-8.8H207l-3.4 8.8h-8zm14-15.2h10.8L215.8 24l-6.2 16.8z" fill="white"/>
+          <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
+          <path fillRule="evenodd" d="M82,10 A26,26 0 0 1 82,62 A26,26 0 0 1 82,10 Z M82,22 A14,14 0 0 1 82,50 A14,14 0 0 1 82,22 Z" fill="white"/>
+          <line x1="60" y1="68" x2="104" y2="4" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M114,10 L124,10 L151,58 L178,10 L188,10 L151,64 L141,64 Z" fill="white"/>
+          <path fillRule="evenodd" d="M194,62 L218,10 L228,10 L252,62 L243,62 L237,50 L209,50 L203,62 Z M215,42 L223,18 L235,42 Z" fill="white"/>
+          <text x="250" y="18" fill="white" fontSize="9" fontFamily="system-ui,Arial,sans-serif">™</text>
         </svg>
       </div>
       <div className="flex-1 flex flex-col justify-center px-12 py-20">
@@ -142,7 +144,7 @@ function CoverPage({ title, subtitle, client, period, tag }: { title: string; su
           <p className="text-sm mt-0.5" style={{ color: B.border }}>{period}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs opacity-60" style={{ color: B.border }}>Prepared by NOVA Ops</p>
+          <p className="text-xs opacity-60" style={{ color: B.border }}>Prepared by NOVAX Ops</p>
         </div>
       </div>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.light}, ${B.border}, ${B.accent})` }}/>
@@ -295,7 +297,7 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of the data"/>
+          <SectionHeader title="Performance Summary"/>
           <div className="space-y-4">
             {aiReport.narrative.executive    && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.reach        && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
@@ -335,13 +337,13 @@ function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiRep
     <div className="space-y-5">
       <CoverPage
         title="Paid Media Performance Report"
-        subtitle="Organic performance baseline for paid amplification decisions — reach, engagement, and channel efficiency"
+        subtitle="Organic reach, engagement, and channel performance"
         client={client} period={period} tag="Paid Media — Monthly"
       />
-      <ReportHeader title="Paid Media Performance Report" subtitle="Organic performance baseline for paid amplification decisions" client={client} period={period}/>
+      <ReportHeader title="Paid Media Performance Report" subtitle="Organic reach and engagement performance" client={client} period={period}/>
 
       <InfoBanner>
-        Paid campaign data (ROAS, CPC, CPA, spend) is sourced from ad platforms — Meta Ads Manager, TikTok Ads Manager, LinkedIn Campaign Manager — and is not available via {vendorName(user?.role, 'Metricool')}. The metrics below reflect organic reach and engagement performance, which serves as a direct proxy for creative quality and paid amplification readiness.
+        Paid campaign data (ROAS, CPC, CPA, spend) is sourced directly from ad platforms — Meta Ads Manager, TikTok Ads Manager, LinkedIn Campaign Manager — and is not available via {vendorName(user?.role, 'Metricool')}. The metrics below reflect organic reach and engagement performance.
       </InfoBanner>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -352,7 +354,7 @@ function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiRep
 
       {platformData.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Organic Platform Performance" subtitle="Channel-level baseline for paid investment decisions"/>
+          <SectionHeader title="Organic Platform Performance" subtitle="Channel-level performance breakdown"/>
           <div className="space-y-4">
             {platformData.map(p => (
               <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '120px 1fr 280px' }}>
@@ -378,7 +380,7 @@ function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiRep
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of organic metrics as paid amplification signals"/>
+          <SectionHeader title="Performance Summary"/>
           <div className="space-y-4">
             {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
@@ -418,13 +420,13 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
     <div className="space-y-5">
       <CoverPage
         title="Paid + Organic Combined Report"
-        subtitle="Organic channel performance and cross-channel synergy analysis — foundation for blended media strategy"
+        subtitle="Organic channel performance across all active platforms"
         client={client} period={period} tag="Paid + Organic — Monthly"
       />
-      <ReportHeader title="Paid + Organic Combined Report" subtitle="Organic performance and cross-channel synergy" client={client} period={period}/>
+      <ReportHeader title="Paid + Organic Combined Report" subtitle="Organic performance across all active platforms" client={client} period={period}/>
 
       <InfoBanner>
-        Paid campaign metrics (spend, ROAS, CPC, CPA) are sourced from ad platforms and are not available via {vendorName(user?.role, 'Metricool')}. Organic performance data from {vendorName(user?.role, 'Metricool')} is shown below as the foundation for paid amplification analysis.
+        Paid campaign metrics (spend, ROAS, CPC, CPA) are sourced directly from ad platforms and are not available via {vendorName(user?.role, 'Metricool')}. Organic performance data from {vendorName(user?.role, 'Metricool')} is shown below.
       </InfoBanner>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -497,7 +499,7 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Analysis" subtitle="AI-generated cross-channel interpretation"/>
+          <SectionHeader title="Performance Summary"/>
           <div className="space-y-4">
             {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
@@ -634,7 +636,7 @@ function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: 
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Platform Analysis" subtitle="AI-generated account health and format insights"/>
+          <SectionHeader title="Platform Summary"/>
           <div className="space-y-4">
             {aiReport.narrative.executive  && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.follower   && <Paragraph>{aiReport.narrative.follower}</Paragraph>}
@@ -713,7 +715,7 @@ function QuarterlyReport({ client, period, liveStats, prevStats, liveTrend, aiRe
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Quarterly Analysis" subtitle="AI-generated performance interpretation and momentum assessment"/>
+          <SectionHeader title="Quarterly Summary"/>
           <div className="space-y-4">
             {aiReport.narrative.executive         && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.quarterly_overview && <Paragraph>{aiReport.narrative.quarterly_overview}</Paragraph>}
@@ -831,7 +833,7 @@ function ExecutiveReport({ client, period, liveStats, prevStats, livePlatforms, 
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Portfolio Analysis" subtitle="AI-generated period-in-review commentary"/>
+          <SectionHeader title="Portfolio Summary"/>
           <div className="space-y-4">
             {aiReport.narrative.portfolio   && <Paragraph>{aiReport.narrative.portfolio}</Paragraph>}
             {aiReport.narrative.highlights  && <Paragraph>{aiReport.narrative.highlights}</Paragraph>}
@@ -1283,25 +1285,24 @@ export default function ReportsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tab: activeTab,
+          tab:       activeTab,
           clientName,
           period,
-          data: {
-            kpis: liveStats ? [
-              { metric: 'Reach',           value: liveStats.reach != null ? String(Math.round(liveStats.reach)) : '—' },
-              { metric: 'Impressions',     value: liveStats.impressions != null ? String(Math.round(liveStats.impressions)) : '—' },
-              { metric: 'Engagement Rate', value: liveStats.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—' },
-              { metric: 'Posts',           value: liveStats.posts != null ? String(Math.round(liveStats.posts)) : '—' },
-            ] : [],
-            platforms: livePlatforms ?? undefined,
-          },
+          stats:     liveStats     ?? undefined,
+          prevStats: prevStats     ?? undefined,
+          platforms: livePlatforms ?? undefined,
+          trend:     liveTrend     ?? undefined,
+          narrative: aiReport?.narrative ?? undefined,
         }),
       })
-      const html = await res.text()
-      const blob = new Blob([html], { type: 'text/html' })
+      if (!res.ok) { console.error('PDF export failed', res.status); return }
+      const blob = await res.blob()
       const url  = URL.createObjectURL(blob)
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60000)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `NOVAX_${clientName.replace(/\s+/g, '_')}_${activeTab}_${period.replace(/\s+/g, '_')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch (e) {
       console.error(e)
     } finally {

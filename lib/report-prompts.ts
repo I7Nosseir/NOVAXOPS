@@ -133,8 +133,8 @@ Compare performance across the platforms with data. Call out the strongest and w
 ### Trend Analysis
 Describe the trajectory of key metrics across the 5-month trend. Identify acceleration or deceleration.
 
-### Audience Insights
-What does the engagement pattern (especially saves/comments ratio) indicate about audience behaviour?
+### Audience Engagement
+State the save rate, comment rate, and share rate as percentages of total reach. Describe what the engagement composition shows with specific numbers.
 
 ${FORMAT}`
 }
@@ -168,14 +168,14 @@ Write exactly these sections in order:
 ### Executive Summary
 3 key findings. Each must reference a specific number.
 
-### Organic Reach & Efficiency
-Analyse the organic reach performance as a baseline for paid amplification decisions.
+### Organic Reach & Impressions
+State the total organic reach and impressions for the period. Reference platform distribution where available.
 
-### Engagement Quality
-Analyse engagement signals (ER, saves, comments) — these indicate content that would perform well as paid creative.
+### Engagement Performance
+State the engagement rate, saves, comments, and shares with specific numbers. Compare against the benchmarks above.
 
 ### Platform Distribution
-Compare platform-by-platform performance. Identify which platforms are generating the strongest organic results.
+State each platform's reach, impressions, and ER. Identify which platform recorded the highest and lowest figures.
 
 ${FORMAT}`
 }
@@ -218,8 +218,8 @@ Analyse total organic reach, impressions, and engagement rate.
 ### Channel Mix Analysis
 Analyse how reach is distributed across platforms. Identify over- and under-performing channels.
 
-### Paid vs Organic Synergy
-Discuss how the organic engagement quality (saves, ER, comments) signals content readiness for paid amplification.
+### Cross-Channel Performance
+State the engagement quality metrics — save rate, comment rate, and ER — for each platform with specific numbers.
 
 ${FORMAT}`
 }
@@ -272,8 +272,8 @@ Analyse reach and audience growth on ${platformName}.
 ### Engagement Quality
 Analyse engagement rate, saves, comments, and what they indicate about audience quality. Apply the benchmarks above.
 
-### Content Performance Patterns
-What patterns emerge from the engagement data? Reference the numbers to identify which metrics stand out.
+### Engagement Composition
+State the save rate, comment rate, and share rate as percentages of reach. Identify which engagement metric is highest and which is lowest, with the specific numbers.
 
 ${FORMAT}`
 }
