@@ -397,9 +397,9 @@ async function fetchNetworkPosts(
   try {
     raw = await mFetch<Record<string, unknown>>(`/analytics/posts/${network}?${params}`)
   } catch (err) {
-    // 400 = network not connected to this blog — not an error worth surfacing
+    // 400/403 = network not connected to this blog — not an error worth surfacing
     const msg = err instanceof Error ? err.message : ''
-    if (msg.includes('400')) return []
+    if (msg.includes('400') || msg.includes('403')) return []
     throw err
   }
   const items = Array.isArray(raw.data) ? raw.data : Array.isArray(raw) ? raw : []
