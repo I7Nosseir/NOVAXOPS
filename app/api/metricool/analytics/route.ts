@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 /**
  * GET /api/metricool/analytics
  * Query: client_id, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD)
- * Optional: trend=true — fetches 5-month trend by making one call per month
+ * Optional: trend=true
  *
- * Returns: { stats, platforms, trend? }
- * All data is live from Metricool — no mock fallback.
+ * Uses /analytics/posts (confirmed working endpoint).
+ * No mock fallback — returns real errors.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { createClient } = await import('@supabase/supabase-js')
-  const { getStats } = await import('@/lib/metricool')
+  const { getStats, getPlatformStats } = await import('@/lib/metricool')
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -59,44 +59,13 @@ export async function GET(req: NextRequest) {
   }
 
   const blogId = String(client.metricool_blog_id)
-  const token  = process.env.METRICOOL_API_TOKEN
-  const userId = process.env.METRICOOL_USER_ID
-  const BASE   = 'https://app.metricool.com/api/v2'
 
   try {
-    const stats = await getStats(blogId, startDate, endDate)
+    const [stats, platforms] = await Promise.all([
+      getStats(blogId, startDate, endDate),
+      getPlatformStats(blogId, startDate, endDate),
+    ])
 
-    // Per-platform breakdown — only include platforms that actually have data
-    const platformList = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube']
-    type PRow = { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }
-    const platformResults = await Promise.allSettled(
-      platformList.map(async (p): Promise<PRow | null> => {
-        const res = await fetch(
-          `${BASE}/analytics/summary?userId=${userId}&blogId=${blogId}&startDate=${startDate}&endDate=${endDate}&network=${p}`,
-          { headers: { 'X-Mc-Auth': token, Accept: 'application/json' }, cache: 'no-store' }
-        )
-        if (!res.ok) return null
-        const raw = await res.json() as Record<string, unknown>
-        const d = (raw.data ?? raw[p] ?? raw) as Record<string, number>
-        const reach       = Number(d.reach ?? 0)
-        const impressions = Number(d.impressions ?? 0)
-        if (!reach && !impressions) return null
-        return {
-          platform: p, reach, impressions,
-          likes:           Number(d.likes ?? 0),
-          comments:        Number(d.comments ?? 0),
-          shares:          Number(d.shares ?? 0),
-          saves:           Number(d.saves ?? 0),
-          posts:           Number(d.posts ?? d.postsCount ?? 0),
-          engagement_rate: Number(d.engagement_rate ?? d.engagement ?? 0),
-        }
-      })
-    )
-    const platforms: PRow[] = platformResults
-      .filter((r): r is PromiseFulfilledResult<PRow> => r.status === 'fulfilled' && r.value !== null)
-      .map(r => r.value)
-
-    // Optional 5-month trend
     let trend: { month: string; reach: number; impressions: number; er: number }[] | undefined
     if (withTrend) {
       const months: typeof trend = []

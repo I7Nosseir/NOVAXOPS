@@ -85,12 +85,14 @@ function CarouselMedia({ urls }: { urls: string[] }) {
   )
 }
 
-function NovaxLogoSmall() {
+function NovaLogoSmall() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-6 h-6">
-      <circle cx="12" cy="12" r="12" fill="#1B3D38"/>
-      <path d="M5 17V7l4 7 4-7v10" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M15 7l3.5 5-3.5 5" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-7 w-auto">
+      <path d="M12 56V16h7.5l18 26.4V16H45v40h-7.5L19.5 29.6V56H12z" fill="#0D3535"/>
+      <path d="M52 36c0-12.2 8.6-21 20-21s20 8.8 20 21-8.6 21-20 21S52 48.2 52 36zm31.4 0c0-8.4-4.8-14-11.4-14S60.6 27.6 60.6 36s4.8 14 11.4 14 11.4-5.6 11.4-14z" fill="#0D3535"/>
+      <line x1="94" y1="62" x2="148" y2="10" stroke="#0D3535" strokeWidth="3.5" strokeLinecap="round"/>
+      <path d="M148 16h8.6l11.4 30.8L179.4 16H188l-16 40h-8z" fill="#0D3535"/>
+      <path d="M195.6 56l16-40h8.4l16 40h-8.2l-3.4-8.8H207l-3.4 8.8h-8zm14-15.2h10.8L215.8 24l-6.2 16.8z" fill="#0D3535"/>
     </svg>
   )
 }
@@ -189,11 +191,9 @@ export default function ApprovalPortalPage() {
     <div className="min-h-screen bg-slate-50">
       {/* Top bar */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
-        <NovaxLogoSmall/>
-        <div>
-          <p className="text-xs text-slate-500">Content Review powered by</p>
-          <p className="text-sm font-semibold text-slate-900 leading-tight">NOVAX Ops</p>
-        </div>
+        <NovaLogoSmall/>
+        <div className="w-px h-6 bg-slate-200 mx-1"/>
+        <p className="text-xs text-slate-400">Content Review</p>
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">

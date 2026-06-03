@@ -76,13 +76,16 @@ const NAV_SECTIONS: NavSection[] = [
 
 const CEO_NAV_ITEM: NavItem = { href: '/ceo', icon: Crown, label: 'CEO Hub' }
 
-function NovaxMark({ className }: { className?: string }) {
+function NovaLogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      <circle cx="16" cy="16" r="16" fill="#1B3D38"/>
-      <path d="M7 23V9l5.5 9L18 9v14" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M20 9l5 7-5 7" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14 16.5l3.5-3" stroke="#5BB4AE" strokeWidth="1.5" strokeLinecap="round"/>
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+      <rect width="36" height="36" rx="8" fill="#0D3535"/>
+      {/* N */}
+      <path d="M5 27V10l4 6.5 4-6.5v17" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Slash */}
+      <line x1="17" y1="29" x2="27" y2="7" stroke="#5BB4AE" strokeWidth="2" strokeLinecap="round"/>
+      {/* A */}
+      <path d="M22 27l5-17 5 17M24.5 21h5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   )
 }
@@ -137,10 +140,10 @@ export function Sidebar() {
 
         {/* Logo + mobile close */}
         <div className="flex items-center gap-3 px-5 py-5 border-b border-white/5 relative">
-          <NovaxMark className="w-8 h-8 shrink-0" />
+          <NovaLogoMark className="w-8 h-8 shrink-0" />
           <div className="flex-1">
-            <p className="text-white font-semibold text-sm leading-tight tracking-wide">NOVAX</p>
-            <p className="text-slate-500 text-xs">Operations Platform</p>
+            <p className="text-white font-bold text-sm leading-tight tracking-widest">NOVA</p>
+            <p className="text-slate-500 text-[11px] tracking-wide">Operations Platform</p>
           </div>
           <button
             onClick={() => setOpen(false)}

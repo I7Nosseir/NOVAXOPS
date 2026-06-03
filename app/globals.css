@@ -5,13 +5,13 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* NOVAX brand palette */
-  --novax:              #1B3D38;
-  --novax-hover:        #163330;
-  --novax-muted:        #2A6B62;
+  /* NOVA brand palette */
+  --novax:              #0D3535;
+  --novax-hover:        #092C2C;
+  --novax-muted:        #1E5C57;
   --novax-accent:       #5BB4AE;
-  --novax-light:        #EBF4F3;
-  --novax-light-hover:  #D6ECEA;
+  --novax-light:        #E8F4F3;
+  --novax-light-hover:  #D0ECEA;
   --novax-border:       #9DCCC8;
   --novax-border-active:#5BB4AE;
 
@@ -171,6 +171,40 @@ body {
 @keyframes intro-dot-fade {
   0%, 100% { opacity: 0.04; }
   50%       { opacity: 0.12; }
+}
+
+/* ── Login page animations ───────────────────────────────────────────────── */
+@keyframes login-orb-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(30px, -20px) scale(1.05); }
+  66%  { transform: translate(-20px, 15px) scale(0.97); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes login-orb-drift2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  40%  { transform: translate(-40px, 25px) scale(1.08); }
+  80%  { transform: translate(20px, -30px) scale(0.95); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes login-logo-in {
+  0%   { opacity: 0; transform: translateY(-16px) scale(0.94); filter: blur(6px); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0); }
+}
+@keyframes login-card-in {
+  0%   { opacity: 0; transform: translateY(24px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes login-slash-draw {
+  0%   { stroke-dashoffset: 80; opacity: 0; }
+  100% { stroke-dashoffset: 0;  opacity: 1; }
+}
+@keyframes login-field-in {
+  0%   { opacity: 0; transform: translateX(-10px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes login-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
 }
 
 .dark {

@@ -90,15 +90,13 @@ function ReportHeader({ title, subtitle, client, period }: { title: string; subt
       <div className="px-8 py-6 flex items-center justify-between">
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-2.5">
-            <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="32" height="32" rx="8" fill="white" fillOpacity="0.12"/>
-              <path d="M8 24V8l6 16 6-16v16" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="24" cy="16" r="3" fill={B.accent}/>
+            <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-6 w-auto">
+              <path d="M12 56V16h7.5l18 26.4V16H45v40h-7.5L19.5 29.6V56H12z" fill="white"/>
+              <path d="M52 36c0-12.2 8.6-21 20-21s20 8.8 20 21-8.6 21-20 21S52 48.2 52 36zm31.4 0c0-8.4-4.8-14-11.4-14S60.6 27.6 60.6 36s4.8 14 11.4 14 11.4-5.6 11.4-14z" fill="white"/>
+              <line x1="94" y1="62" x2="148" y2="10" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+              <path d="M148 16h8.6l11.4 30.8L179.4 16H188l-16 40h-8z" fill="white"/>
+              <path d="M195.6 56l16-40h8.4l16 40h-8.2l-3.4-8.8H207l-3.4 8.8h-8zm14-15.2h10.8L215.8 24l-6.2 16.8z" fill="white"/>
             </svg>
-            <div>
-              <p className="text-white font-bold text-sm leading-none">NOVAX</p>
-              <p className="text-[10px] leading-none mt-0.5 font-medium" style={{ color: B.accent }}>OPS PLATFORM</p>
-            </div>
           </div>
           <div className="w-px h-10 bg-white/20"/>
           <div>
@@ -124,15 +122,13 @@ function CoverPage({ title, subtitle, client, period, tag }: { title: string; su
     <div className="report-cover-page rounded-2xl overflow-hidden flex flex-col" style={{ background: B.primary }}>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
       <div className="px-12 pt-12 flex items-center gap-4">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="8" fill="white" fillOpacity="0.12"/>
-          <path d="M8 24V8l6 16 6-16v16" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          <circle cx="24" cy="16" r="3" fill={B.accent}/>
+        <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-9 w-auto">
+          <path d="M12 56V16h7.5l18 26.4V16H45v40h-7.5L19.5 29.6V56H12z" fill="white"/>
+          <path d="M52 36c0-12.2 8.6-21 20-21s20 8.8 20 21-8.6 21-20 21S52 48.2 52 36zm31.4 0c0-8.4-4.8-14-11.4-14S60.6 27.6 60.6 36s4.8 14 11.4 14 11.4-5.6 11.4-14z" fill="white"/>
+          <line x1="94" y1="62" x2="148" y2="10" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M148 16h8.6l11.4 30.8L179.4 16H188l-16 40h-8z" fill="white"/>
+          <path d="M195.6 56l16-40h8.4l16 40h-8.2l-3.4-8.8H207l-3.4 8.8h-8zm14-15.2h10.8L215.8 24l-6.2 16.8z" fill="white"/>
         </svg>
-        <div>
-          <p className="text-white font-bold text-xl leading-none">NOVAX</p>
-          <p className="text-xs font-medium mt-0.5" style={{ color: B.accent }}>OPS PLATFORM</p>
-        </div>
       </div>
       <div className="flex-1 flex flex-col justify-center px-12 py-20">
         <div className="w-16 h-0.5 rounded-full mb-8" style={{ background: B.accent }}/>

@@ -9,12 +9,12 @@ const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#1B3D38',
+  themeColor: '#0D3535',
 }
 
 export const metadata: Metadata = {
-  title: 'NOVAX Ops',
-  description: 'NOVAX unified operations platform',
+  title: 'NOVA Ops',
+  description: 'NOVA unified operations platform',
   icons: { icon: '/icon.svg' },
   manifest: '/manifest.json',
   appleWebApp: {

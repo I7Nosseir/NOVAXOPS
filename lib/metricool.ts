@@ -109,6 +109,7 @@ export interface MetricoolStats {
   saves?: number
   followers?: number
   clicks?: number
+  posts?: number
   // per-platform sub-objects (Metricool sometimes nests stats by network)
   instagram?: Partial<MetricoolStats>
   facebook?: Partial<MetricoolStats>
@@ -352,47 +353,117 @@ export async function deleteScheduledPost(postId: string, blogId: string | numbe
   }
 }
 
+// ─── Post-level analytics (the only confirmed working analytics endpoint) ────
+
+export interface MetricoolPostAnalytics {
+  id?: string
+  network?: string
+  platform?: string
+  publishDate?: string
+  reach?: number
+  impressions?: number
+  likes?: number
+  comments?: number
+  shares?: number
+  saves?: number
+  linkClicks?: number
+  clicks?: number
+  engagementRate?: number
+  engagement?: number
+  engagement_rate?: number
+}
+
 /**
- * Fetch aggregate analytics stats for a blog in a date range.
+ * Fetch all published posts with their analytics for a date range.
+ * GET /api/v2/analytics/posts?userId=&blogId=&from=YYYY-MM-DD&to=YYYY-MM-DD
  *
- * Metricool may return either:
- *   { data: { reach, impressions, ... } }        — flat aggregate
- *   { instagram: { reach, ... }, facebook: { ... } } — per-platform object
- *
- * We normalise to a flat MetricoolStats by summing numeric fields across platforms.
+ * This is the confirmed-working analytics endpoint. `/analytics/summary` does not exist.
+ * We use `from`/`to` params (not `startDate`/`endDate`).
+ */
+async function fetchPostsList(
+  blogId: string | number,
+  startDate: string,
+  endDate: string
+): Promise<MetricoolPostAnalytics[]> {
+  const raw = await mFetch<Record<string, unknown>>(
+    `/analytics/posts?${qs(blogId, { from: startDate, to: endDate })}`
+  )
+  const items = Array.isArray(raw.data) ? raw.data : Array.isArray(raw) ? raw : []
+  return items as MetricoolPostAnalytics[]
+}
+
+/**
+ * Aggregate stats for a blog over a date range.
+ * Sums reach/impressions/likes/comments/shares/saves across all posts in the period.
+ * Engagement rate is averaged across posts that have ER data.
  */
 export async function getStats(
   blogId: string | number,
   startDate: string,
   endDate: string
 ): Promise<MetricoolStats> {
-  const raw = await mFetch<Record<string, unknown>>(
-    `/analytics/summary?${qs(blogId, { startDate, endDate })}`
-  )
+  const posts = await fetchPostsList(blogId, startDate, endDate)
+  if (posts.length === 0) return {}
 
-  // Flat response: { data: { reach, ... } }
-  const flat = raw.data as MetricoolStats | undefined
-  if (flat && (flat.reach != null || flat.impressions != null)) return flat
-
-  // Per-platform response: { instagram: { reach, ... }, facebook: { ... }, ... }
-  const PLATFORMS = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube']
-  const aggregated: MetricoolStats = {}
-  const numericKeys: (keyof MetricoolStats)[] = ['reach', 'impressions', 'likes', 'comments', 'shares', 'saves', 'clicks', 'followers']
-
-  for (const platform of PLATFORMS) {
-    const p = raw[platform] as Partial<MetricoolStats> | undefined
-    if (!p) continue
-    for (const key of numericKeys) {
-      const val = p[key] as number | undefined
-      if (val != null) {
-        (aggregated[key] as number) = ((aggregated[key] as number) ?? 0) + val
-      }
-    }
-    // engagement is usually a rate — average instead of sum
-    if (p.engagement != null || p.engagement_rate != null) {
-      aggregated.engagement_rate = p.engagement_rate ?? p.engagement
-    }
+  const agg: MetricoolStats = { posts: posts.length }
+  for (const p of posts) {
+    agg.reach       = (agg.reach       ?? 0) + Number(p.reach       ?? 0)
+    agg.impressions = (agg.impressions ?? 0) + Number(p.impressions ?? 0)
+    agg.likes       = (agg.likes       ?? 0) + Number(p.likes       ?? 0)
+    agg.comments    = (agg.comments    ?? 0) + Number(p.comments    ?? 0)
+    agg.shares      = (agg.shares      ?? 0) + Number(p.shares      ?? 0)
+    agg.saves       = (agg.saves       ?? 0) + Number(p.saves       ?? 0)
+    agg.clicks      = (agg.clicks      ?? 0) + Number(p.linkClicks  ?? p.clicks ?? 0)
   }
 
-  return aggregated
+  const ers = posts.map(p => Number(p.engagementRate ?? p.engagement_rate ?? p.engagement ?? 0)).filter(v => v > 0)
+  if (ers.length > 0) agg.engagement_rate = ers.reduce((a, b) => a + b, 0) / ers.length
+
+  return agg
+}
+
+/**
+ * Per-platform breakdown — groups the same posts list by network.
+ * Returns only platforms that have real data (reach > 0 or impressions > 0).
+ * Single API call covers all platforms in one shot.
+ */
+export async function getPlatformStats(
+  blogId: string | number,
+  startDate: string,
+  endDate: string
+): Promise<{ platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }[]> {
+  const allPosts = await fetchPostsList(blogId, startDate, endDate)
+  if (allPosts.length === 0) return []
+
+  type Acc = { reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; erSum: number; erN: number }
+  const map = new Map<string, Acc>()
+
+  for (const p of allPosts) {
+    const net = String(p.network ?? p.platform ?? 'unknown').toLowerCase()
+    if (!map.has(net)) map.set(net, { reach: 0, impressions: 0, likes: 0, comments: 0, shares: 0, saves: 0, posts: 0, erSum: 0, erN: 0 })
+    const a = map.get(net)!
+    a.reach       += Number(p.reach       ?? 0)
+    a.impressions += Number(p.impressions ?? 0)
+    a.likes       += Number(p.likes       ?? 0)
+    a.comments    += Number(p.comments    ?? 0)
+    a.shares      += Number(p.shares      ?? 0)
+    a.saves       += Number(p.saves       ?? 0)
+    a.posts       += 1
+    const er = Number(p.engagementRate ?? p.engagement_rate ?? p.engagement ?? 0)
+    if (er > 0) { a.erSum += er; a.erN++ }
+  }
+
+  return Array.from(map.entries())
+    .map(([platform, a]) => ({
+      platform,
+      reach:           a.reach,
+      impressions:     a.impressions,
+      likes:           a.likes,
+      comments:        a.comments,
+      shares:          a.shares,
+      saves:           a.saves,
+      posts:           a.posts,
+      engagement_rate: a.erN > 0 ? a.erSum / a.erN : 0,
+    }))
+    .filter(p => p.reach > 0 || p.impressions > 0)
 }

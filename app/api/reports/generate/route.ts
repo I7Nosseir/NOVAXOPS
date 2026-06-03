@@ -33,46 +33,16 @@ async function fetchMetricoolData(
     return { ...EMPTY, isMock: true, error: 'Metricool not configured — add METRICOOL_API_TOKEN and METRICOOL_USER_ID in Settings.' }
   }
 
-  const { getStats } = await import('@/lib/metricool')
-  const token  = process.env.METRICOOL_API_TOKEN!
-  const userId = process.env.METRICOOL_USER_ID!
-  const BASE   = 'https://app.metricool.com/api/v2'
+  const { getStats, getPlatformStats } = await import('@/lib/metricool')
 
   try {
-    const stats = await getStats(blogId, startDate, endDate) as Record<string, number>
+    // Both use /analytics/posts internally — run in parallel
+    const [stats, platforms] = await Promise.all([
+      getStats(blogId, startDate, endDate) as Promise<Record<string, number>>,
+      getPlatformStats(blogId, startDate, endDate),
+    ])
 
-    // Per-platform breakdown — only include platforms with real data
-    const platformList = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube']
-    const platformResults = await Promise.allSettled(
-      platformList.map(async (p) => {
-        const res = await fetch(
-          `${BASE}/analytics/summary?userId=${userId}&blogId=${blogId}&startDate=${startDate}&endDate=${endDate}&network=${p}`,
-          { headers: { 'X-Mc-Auth': token, Accept: 'application/json' }, cache: 'no-store' }
-        )
-        if (!res.ok) return null
-        const raw = await res.json() as Record<string, unknown>
-        const d = (raw.data ?? raw[p] ?? raw) as Record<string, number>
-        const reach = Number(d.reach ?? 0)
-        const impressions = Number(d.impressions ?? 0)
-        if (!reach && !impressions) return null
-        return {
-          platform: p, reach, impressions,
-          likes:           Number(d.likes ?? 0),
-          comments:        Number(d.comments ?? 0),
-          shares:          Number(d.shares ?? 0),
-          saves:           Number(d.saves ?? 0),
-          posts:           Number(d.posts ?? d.postsCount ?? 0),
-          engagement_rate: Number(d.engagement_rate ?? d.engagement ?? 0),
-        } satisfies PlatformRow
-      })
-    )
-    const platforms: PlatformRow[] = platformResults
-      .filter((r): r is PromiseFulfilledResult<PlatformRow> =>
-        r.status === 'fulfilled' && r.value !== null
-      )
-      .map(r => r.value)
-
-    // 5-month trend — one call per month, sequential to avoid rate limits
+    // 5-month trend — sequential to respect Metricool rate limits
     const trend: TrendPoint[] = []
     const endDt = new Date(endDate)
     for (let i = 4; i >= 0; i--) {
@@ -83,7 +53,7 @@ async function fetchMetricoolData(
       const e = `${y}-${String(m + 1).padStart(2, '0')}-${new Date(y, m + 1, 0).getDate()}`
       const ms = await getStats(blogId, s, e).catch(() => null) as Record<string, number> | null
       trend.push({
-        month: d.toLocaleString('en', { month: 'short' }),
+        month:       d.toLocaleString('en', { month: 'short' }),
         reach:       Number(ms?.reach ?? 0),
         impressions: Number(ms?.impressions ?? 0),
         er:          Number(ms?.engagement_rate ?? 0),
