@@ -4,22 +4,6 @@ import { getStats } from '@/lib/metricool'
 const HAS_DB = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
 const HAS_METRICOOL = !!(process.env.METRICOOL_API_TOKEN && process.env.METRICOOL_USER_ID)
 
-// Mock overview for dev when Metricool / DB not configured
-const MOCK_OVERVIEW = {
-  total_reach: 448200,
-  total_impressions: 621000,
-  avg_er: 6.1,
-  total_likes: 28400,
-  total_comments: 8640,
-  total_shares: 14200,
-  clients: [
-    { client_id: 'c1', name: 'Luxe Cosmetics',    reach: 168000, impressions: 234000, er: 6.8, posts: 18 },
-    { client_id: 'c2', name: 'TechNova Solutions', reach: 88400,  impressions: 124000, er: 4.2, posts: 12 },
-    { client_id: 'c3', name: 'Coastal Eats',       reach: 112000, impressions: 158000, er: 7.4, posts: 14 },
-    { client_id: 'c4', name: 'FitForge',           reach: 79800,  impressions: 105000, er: 5.9, posts: 10 },
-  ],
-  _mock: true,
-}
 
 /**
  * GET /api/metricool/overview?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
@@ -38,7 +22,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (!HAS_METRICOOL || !HAS_DB) {
-    return NextResponse.json(MOCK_OVERVIEW)
+    return NextResponse.json(
+      { error: 'Metricool or database not configured.' },
+      { status: 503 }
+    )
   }
 
   const { createClient } = await import('@supabase/supabase-js')

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy } from 'lucide-react'
 import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, type InviteResult } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
@@ -100,42 +100,105 @@ function MetricoolClientConfig() {
   const { clients } = useClients()
   const updateClient = useUpdateClient()
   const [localIds, setLocalIds] = useState<Record<string, string>>({})
-  const [saving, setSaving] = useState<string | null>(null)
+  const [saving, setSaving]     = useState<string | null>(null)
+  const [saved, setSaved]       = useState<string | null>(null)
+  const [blogs, setBlogs]       = useState<{ id: string; name: string }[]>([])
+  const [blogsLoading, setBlogsLoading] = useState(false)
+  const [blogsError, setBlogsError]     = useState<string | null>(null)
 
-  const handleSave = async (clientId: string) => {
+  useEffect(() => {
+    setBlogsLoading(true)
+    fetch('/api/metricool/blogs')
+      .then(r => r.json() as Promise<{ blogs?: { id: string; name: string }[]; error?: string }>)
+      .then(data => {
+        if (data.blogs?.length) setBlogs(data.blogs)
+        else setBlogsError(data.error ?? 'No blogs found in this Metricool account')
+      })
+      .catch(() => setBlogsError('Could not reach Metricool API'))
+      .finally(() => setBlogsLoading(false))
+  }, [])
+
+  const handleSave = (clientId: string) => {
+    const id = localIds[clientId]
+    if (!id) return
     setSaving(clientId)
-    updateClient.mutate({ id: clientId, metricool_blog_id: localIds[clientId] } as Parameters<typeof updateClient.mutate>[0], {
-      onSettled: () => setSaving(null),
-    })
+    updateClient.mutate(
+      { id: clientId, metricool_blog_id: id } as Parameters<typeof updateClient.mutate>[0],
+      {
+        onSuccess: () => { setSaved(clientId); setTimeout(() => setSaved(null), 2000) },
+        onSettled: () => setSaving(null),
+      }
+    )
   }
 
   return (
     <div className="mt-5 pt-5 border-t border-slate-100 space-y-3">
-      <p className="text-xs font-semibold text-slate-700">Metricool Blog ID per Client</p>
-      <p className="text-xs text-slate-400">Each client maps to a blogId in your Metricool workspace. Get IDs from Metricool → Settings → Accounts.</p>
-      {clients.map(client => (
-        <div key={client.id} className="flex items-center gap-3">
-          <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: client.color }}>
-            {client.initials}
-          </div>
-          <span className="text-xs font-medium text-slate-700 w-32 truncate">{client.name}</span>
-          <input
-            defaultValue={client.metricool_blog_id ?? ''}
-            placeholder="e.g. 123456"
-            onChange={e => setLocalIds(prev => ({ ...prev, [client.id]: e.target.value }))}
-            className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:border-novax-border"
-          />
-          <button
-            onClick={() => handleSave(client.id)}
-            disabled={saving === client.id}
-            className="px-2.5 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1"
-            style={{ background: '#1B3D38' }}
-          >
-            {saving === client.id ? <RefreshCw className="w-3 h-3 animate-spin"/> : null}
-            Save
-          </button>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold text-slate-700">Metricool Workspace per Client</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Each client must map to its own Metricool blog (workspace). Create one workspace per client in Metricool, connect its social profiles, then assign it here.
+          </p>
         </div>
-      ))}
+        {blogsLoading && <RefreshCw className="w-3.5 h-3.5 text-slate-400 animate-spin shrink-0"/>}
+      </div>
+
+      {blogsError && (
+        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0"/>
+          <p className="text-xs text-amber-700">{blogsError}</p>
+        </div>
+      )}
+
+      {!blogsLoading && !blogsError && blogs.length === 0 && (
+        <p className="text-xs text-slate-400 italic">No workspaces found — check Metricool credentials above.</p>
+      )}
+
+      {clients.map(client => {
+        const current = localIds[client.id] ?? client.metricool_blog_id ?? ''
+        return (
+          <div key={client.id} className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: client.color }}>
+              {client.initials}
+            </div>
+            <span className="text-xs font-medium text-slate-700 w-28 truncate">{client.name}</span>
+
+            {blogs.length > 0 ? (
+              <select
+                value={current}
+                onChange={e => setLocalIds(prev => ({ ...prev, [client.id]: e.target.value }))}
+                className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:border-novax-border bg-white"
+              >
+                <option value="">— select workspace —</option>
+                {blogs.map(b => (
+                  <option key={b.id} value={b.id}>{b.name} ({b.id})</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={current}
+                placeholder="Blog ID (e.g. 6276264)"
+                onChange={e => setLocalIds(prev => ({ ...prev, [client.id]: e.target.value }))}
+                className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:border-novax-border"
+              />
+            )}
+
+            <button
+              onClick={() => handleSave(client.id)}
+              disabled={saving === client.id || !current}
+              className="px-2.5 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1"
+              style={{ background: '#1B3D38' }}
+            >
+              {saving === client.id
+                ? <RefreshCw className="w-3 h-3 animate-spin"/>
+                : saved === client.id
+                  ? <Check className="w-3 h-3"/>
+                  : null}
+              {saved === client.id ? 'Saved' : 'Save'}
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

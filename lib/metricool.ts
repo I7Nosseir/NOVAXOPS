@@ -25,6 +25,7 @@ function qs(blogId: string | number, extra: Record<string, string> = {}): string
 async function mFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -186,6 +187,46 @@ async function normalizeMediaUrl(url: string): Promise<string> {
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
+
+// ─── Blog/workspace listing ───────────────────────────────────────────────────
+
+export interface MetricoolBlog {
+  id: string
+  name: string
+  url?: string
+  type?: string
+}
+
+/**
+ * List all blogs (client workspaces) for this Metricool account.
+ * GET /api/v2/user?userId=
+ *
+ * Metricool returns the user object which contains a `blogs` array.
+ * Each blog represents one client workspace with its own connected profiles.
+ */
+export async function getBlogs(): Promise<MetricoolBlog[]> {
+  const userId = requireUserId()
+  const raw = await mFetch<Record<string, unknown>>(`/user?userId=${userId}`)
+
+  // Response shape can be { data: { blogs: [...] } } or { blogs: [...] } or { data: [...] }
+  const inner = (raw.data ?? raw) as Record<string, unknown>
+  const blogs = (inner.blogs ?? raw.blogs ?? inner.workspaces ?? []) as Record<string, unknown>[]
+
+  if (!Array.isArray(blogs) || blogs.length === 0) {
+    // Fallback: some plans return a flat user object with id/name = the single blog
+    const id = String(inner.blogId ?? inner.id ?? raw.blogId ?? '')
+    const name = String(inner.blogName ?? inner.name ?? raw.name ?? 'Main account')
+    if (id) return [{ id, name }]
+    return []
+  }
+
+  return blogs.map(b => ({
+    id:   String(b.id ?? b.blogId ?? ''),
+    name: String(b.name ?? b.blogName ?? b.title ?? b.id ?? ''),
+    url:  b.url ? String(b.url) : undefined,
+    type: b.type ? String(b.type) : undefined,
+  })).filter(b => b.id)
+}
 
 /**
  * List all scheduled/published posts for a blog.

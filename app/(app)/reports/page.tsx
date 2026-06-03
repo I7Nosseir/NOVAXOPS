@@ -112,7 +112,6 @@ function ReportHeader({ title, subtitle, client, period }: { title: string; subt
             <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
             <p className="text-xs" style={{ color: B.border }}>{period}</p>
           </div>
-          <p className="text-[10px] mt-2 opacity-50 text-white">Prepared by NOVAX Ops · Confidential</p>
         </div>
       </div>
       <div className="h-1" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
@@ -147,8 +146,7 @@ function CoverPage({ title, subtitle, client, period, tag }: { title: string; su
           <p className="text-sm mt-0.5" style={{ color: B.border }}>{period}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs" style={{ color: B.border }}>Prepared by NOVAX Ops</p>
-          <p className="text-[10px] mt-0.5 text-white opacity-40">Confidential — Not for Distribution</p>
+          <p className="text-xs opacity-60" style={{ color: B.border }}>Prepared by NOVAX Ops</p>
         </div>
       </div>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.light}, ${B.border}, ${B.accent})` }}/>
@@ -156,8 +154,16 @@ function CoverPage({ title, subtitle, client, period, tag }: { title: string; su
   )
 }
 
-function Paragraph({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-slate-600 leading-7">{children}</p>
+function renderInline(text: string): React.ReactNode {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={i} className="font-semibold text-slate-800">{part.slice(2, -2)}</strong>
+      : <span key={i}>{part}</span>
+  )
+}
+
+function Paragraph({ children }: { children: string }) {
+  return <p className="text-sm text-slate-600 leading-7">{renderInline(children)}</p>
 }
 
 function InfoBanner({ children }: { children: React.ReactNode }) {
@@ -1111,7 +1117,7 @@ function AIBuilder() {
             title={TABS.find(t => t.id === reportType)?.label ?? 'Report'}
             subtitle="AI-generated from provided data and screenshots"
             client={clientName}
-            period={new Date().toLocaleString('en', { month: 'long', year: 'numeric' })}
+            period={TABS.find(t => t.id === reportType)?.label ?? reportType}
           />
           <div className="mt-6 space-y-1">
             {renderMarkdown(result)}
@@ -1171,7 +1177,7 @@ type AIReportNarrative = {
 }
 type AIReport = {
   narrative: AIReportNarrative
-  meta: { period: string; clientName: string; reportType: string; generatedAt: string; isMock: boolean }
+  meta: { period: string; clientName: string; reportType: string; isMock: boolean }
 }
 
 // ─── Main page ──────────────────────────────────────────────────────────────────
@@ -1187,7 +1193,8 @@ export default function ReportsPage() {
   const [prevStats, setPrevStats]     = useState<Record<string, number> | null>(null)
   const [livePlatforms, setLivePlatforms] = useState<LivePlatform[] | null>(null)
   const [liveTrend, setLiveTrend]     = useState<LiveTrendPoint[] | null>(null)
-  const [liveError, setLiveError]     = useState<string | null>(null)
+  const [dataError, setDataError]     = useState<string | null>(null)
+  const [aiError, setAiError]         = useState<string | null>(null)
   const [aiReport, setAiReport]       = useState<AIReport | null>(null)
   const [exportingPdf, setExportingPdf] = useState(false)
 
@@ -1203,48 +1210,64 @@ export default function ReportsPage() {
     setPrevStats(null)
     setLivePlatforms(null)
     setLiveTrend(null)
-    setLiveError(null)
+    setDataError(null)
+    setAiError(null)
     setAiReport(null)
 
     const range = parsePeriodToRange(period)
-    if (range) {
-      try {
-        const res = await fetch('/api/reports/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientId:   selectedClient,
-            reportType: activeTab,
-            startDate:  range.startDate,
-            endDate:    range.endDate,
-          }),
-        })
-        const data = await res.json() as {
-          narrative?: AIReportNarrative
-          stats?: Record<string, number>
-          prevStats?: Record<string, number>
-          platforms?: LivePlatform[]
-          trend?: LiveTrendPoint[]
-          meta?: AIReport['meta']
-          _mock?: boolean
-          _geminiError?: string
-          error?: string
-        }
-        if (res.ok) {
-          if (data.stats)             setLiveStats(data.stats)
-          if (data.prevStats)         setPrevStats(data.prevStats)
-          if (data.platforms?.length) setLivePlatforms(data.platforms)
-          if (data.trend?.length)     setLiveTrend(data.trend)
-          if (data._mock)             setLiveError('No Metricool data — configure the blog ID in Settings to enable live analytics')
-          if (data.narrative && data.meta) {
-            setAiReport({ narrative: data.narrative, meta: data.meta })
-          }
-        } else {
-          setLiveError(data.error ?? 'Report generation failed')
-        }
-      } catch {
-        setLiveError('Could not connect to report generation API')
+    if (!range) {
+      setDataError('Unrecognised period — select a valid month or quarter.')
+      setGenerating(false)
+      setGenerated(true)
+      return
+    }
+
+    try {
+      const res = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId:   selectedClient,
+          reportType: activeTab,
+          startDate:  range.startDate,
+          endDate:    range.endDate,
+        }),
+      })
+      const data = await res.json() as {
+        narrative?: AIReportNarrative
+        stats?: Record<string, number>
+        prevStats?: Record<string, number>
+        platforms?: LivePlatform[]
+        trend?: LiveTrendPoint[]
+        meta?: AIReport['meta']
+        _mock?: boolean
+        _geminiError?: string
+        error?: string
       }
+
+      if (!res.ok) {
+        setDataError(data.error ?? 'Report generation failed')
+      } else {
+        if (data._mock || data.error) {
+          setDataError(data.error ?? 'Metricool not configured — add the blog ID in Settings to enable live data')
+        } else {
+          // Only store data that actually has values — no empty arrays / zero-only stats
+          const stats = data.stats && Object.values(data.stats).some(v => Number(v) > 0) ? data.stats : null
+          const prevSt = data.prevStats && Object.values(data.prevStats).some(v => Number(v) > 0) ? data.prevStats : null
+          setLiveStats(stats)
+          setPrevStats(prevSt)
+          if (data.platforms?.length) setLivePlatforms(data.platforms)
+          if (data.trend?.some(t => t.reach > 0 || t.er > 0)) setLiveTrend(data.trend ?? null)
+        }
+        if (data._geminiError) {
+          setAiError(data._geminiError)
+        }
+        if (data.narrative && data.meta && !data._mock) {
+          setAiReport({ narrative: data.narrative, meta: data.meta })
+        }
+      }
+    } catch {
+      setDataError('Could not connect to the report generation API')
     }
 
     setGenerating(false)
@@ -1352,19 +1375,24 @@ export default function ReportsPage() {
                   ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Generating…</>
                   : <><FileText className="w-3.5 h-3.5"/> Generate Report</>}
               </button>
-              {generated && liveStats && !liveError && (
+              {generated && liveStats && !dataError && (
                 <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
                   <Activity className="w-3 h-3"/> Live Data
                 </span>
               )}
-              {generated && aiReport && (
+              {generated && aiReport && !aiError && (
                 <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg" style={{ background: B.light, color: B.primary }}>
                   <Sparkles className="w-3 h-3"/> AI Narrative
                 </span>
               )}
-              {generated && liveError && (
-                <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={liveError}>
-                  <AlertCircle className="w-3 h-3"/> {liveError.length > 40 ? 'No live data' : liveError}
+              {generated && aiError && (
+                <span className="flex items-center gap-1 text-xs text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg" title={aiError}>
+                  <AlertCircle className="w-3 h-3"/> No AI narrative
+                </span>
+              )}
+              {generated && dataError && (
+                <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={dataError}>
+                  <AlertCircle className="w-3 h-3"/> {(dataError?.length ?? 0) > 40 ? 'No live data' : dataError}
                 </span>
               )}
               {generated && (
@@ -1385,6 +1413,14 @@ export default function ReportsPage() {
       {/* Content area */}
       {activeTab === 'ai' ? (
         <AIBuilder/>
+      ) : generated && dataError ? (
+        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-amber-200">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 bg-amber-50">
+            <AlertCircle className="w-7 h-7 text-amber-500"/>
+          </div>
+          <h3 className="text-base font-semibold text-slate-800 mb-2">Data not available</h3>
+          <p className="text-sm text-slate-500 text-center max-w-md leading-relaxed">{dataError}</p>
+        </div>
       ) : generated ? (
         <div id="printable-report" className="space-y-5">
           {activeTab === 'monthly'   && <MonthlyReport   {...sharedProps}/>}
