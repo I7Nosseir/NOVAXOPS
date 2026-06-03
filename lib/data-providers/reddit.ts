@@ -278,7 +278,7 @@ async function getRedditToken(): Promise<string> {
     headers: {
       Authorization: `Basic ${credentials}`,
       'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'NOVAXAgencyOps/1.0',
+      'User-Agent': 'NOVAAgencyOps/1.0',
     },
     body: 'grant_type=client_credentials',
   })
@@ -304,7 +304,7 @@ async function fetchRisingFromSubreddit(
     {
       headers: {
         Authorization: `Bearer ${token}`,
-        'User-Agent': 'NOVAXAgencyOps/1.0',
+        'User-Agent': 'NOVAAgencyOps/1.0',
       },
     }
   )

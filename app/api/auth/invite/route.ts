@@ -92,7 +92,7 @@ export async function POST(req: Request) {
     toEmail: email,
     toName: name,
     role,
-    inviterName: (inviterProfile?.name as string | undefined) ?? 'The NOVAX Team',
+    inviterName: (inviterProfile?.name as string | undefined) ?? 'The NOVA Team',
     appUrl,
     tempPassword,
   })

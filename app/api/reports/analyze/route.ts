@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Provide at least one screenshot or a text description of the data.' }, { status: 400 })
   }
 
-  const systemPrompt = `You are a senior social media analyst at NOVAX, a creative marketing agency. The user has provided ${images.length > 0 ? `${images.length} analytics screenshot(s)` : 'text data'} for a ${reportLabel} report.
+  const systemPrompt = `You are a senior social media analyst at NOVA, a creative marketing agency. The user has provided ${images.length > 0 ? `${images.length} analytics screenshot(s)` : 'text data'} for a ${reportLabel} report.
 
 Your task:
 1. Extract every numeric metric visible in the screenshots or mentioned in the text — platform, period, reach, impressions, engagement rate, followers, likes, comments, shares, saves, ad spend, revenue, ROAS, CPM, CPC, CTR, CPA, conversions, etc.

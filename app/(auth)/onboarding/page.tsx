@@ -6,7 +6,7 @@ import { Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 
-function NovaxMark({ className }: { className?: string }) {
+function NovaLogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
       <circle cx="16" cy="16" r="16" fill="#1B3D38"/>
@@ -107,7 +107,7 @@ export default function OnboardingPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Header */}
         <div className="bg-[#1B3D38] px-8 py-6 flex items-center gap-3">
-          <NovaxMark className="w-9 h-9 shrink-0" />
+          <NovaLogoMark className="w-9 h-9 shrink-0" />
           <div>
             <p className="text-white font-bold text-base tracking-wide">NOVAX OPS</p>
             <p className="text-[#5BB4AE] text-xs">Complete your account setup</p>

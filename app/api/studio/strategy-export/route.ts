@@ -54,8 +54,8 @@ async function buildPptxBuffer(clientName: string, clientColor: string | undefin
   const pptx = new PptxGenJS()
   pptx.layout  = 'LAYOUT_WIDE'
   pptx.title   = `${clientName} — Social Media Strategy`
-  pptx.author  = 'NOVAX'
-  pptx.company = 'NOVAX Agency'
+  pptx.author  = 'NOVA'
+  pptx.company = 'NOVA Agency'
 
   const brand = hex(clientColor ?? '#1B3D38')
   const intel = metaData.intelligence
@@ -72,8 +72,8 @@ async function buildPptxBuffer(clientName: string, clientColor: string | undefin
     s.addShape(pptx.ShapeType.rect, { x: 0.3, y: 0.15, w: 0.07, h: 7.15, fill: { color: brand }, line: { type: 'none' } })
     s.addText('SOCIAL MEDIA STRATEGY', { x: 1, y: 2.85, w: 11.33, h: 0.45, fontSize: 14, color: '888888', align: 'center', fontFace: 'Helvetica Neue', charSpacing: 3 })
     s.addText(clientName, { x: 1, y: 1.35, w: 11.33, h: 1.3, fontSize: 52, color: TEXT_LIGHT, bold: false, fontFace: 'Helvetica Neue', align: 'center' })
-    s.addText(str(pos?.uvp) || 'Powered by NOVAX', { x: 1.5, y: 3.4, w: 10.33, h: 0.65, fontSize: 13, color: WARM_BROWN, align: 'center', fontFace: 'Helvetica Neue', italic: true, wrap: true })
-    s.addText('Prepared by NOVAX', { x: 1, y: 6.8, w: 11.33, h: 0.3, fontSize: 8.5, color: '444444', align: 'center', fontFace: 'Helvetica Neue' })
+    s.addText(str(pos?.uvp) || 'Powered by NOVA', { x: 1.5, y: 3.4, w: 10.33, h: 0.65, fontSize: 13, color: WARM_BROWN, align: 'center', fontFace: 'Helvetica Neue', italic: true, wrap: true })
+    s.addText('Prepared by NOVA', { x: 1, y: 6.8, w: 11.33, h: 0.3, fontSize: 8.5, color: '444444', align: 'center', fontFace: 'Helvetica Neue' })
   }
 
   // SLIDE 2: Market Intelligence
@@ -274,7 +274,7 @@ async function buildPptxBuffer(clientName: string, clientColor: string | undefin
     s.addShape(pptx.ShapeType.rect, { x: 0.3, y: 0.15, w: 0.07, h: 7.15, fill: { color: brand }, line: { type: 'none' } })
     s.addText('Strategy Ready.', { x: 1, y: 2.4, w: 11.33, h: 1.0, fontSize: 46, color: TEXT_LIGHT, bold: false, fontFace: 'Helvetica Neue', align: 'center' })
     s.addText('Time to Execute.', { x: 1, y: 3.5, w: 11.33, h: 0.65, fontSize: 18, color: WARM_BROWN, fontFace: 'Helvetica Neue', align: 'center' })
-    s.addText(`Prepared for ${clientName} by NOVAX`, { x: 1, y: 6.75, w: 11.33, h: 0.3, fontSize: 8.5, color: '444444', align: 'center', fontFace: 'Helvetica Neue' })
+    s.addText(`Prepared for ${clientName} by NOVA`, { x: 1, y: 6.75, w: 11.33, h: 0.3, fontSize: 8.5, color: '444444', align: 'center', fontFace: 'Helvetica Neue' })
   }
 
   return pptx.write({ outputType: 'nodebuffer' }) as Promise<Buffer>

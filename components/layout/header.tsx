@@ -56,7 +56,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 export function Header() {
   const pathname = usePathname()
   const base = '/' + (pathname.split('/')[1] || 'dashboard')
-  const title = PAGE_TITLES[base] ?? 'NOVAX Ops'
+  const title = PAGE_TITLES[base] ?? 'NOVA Ops'
   const { theme, toggle } = useTheme()
   const { user, realUser, previewRole, setPreviewRole, isPreviewMode } = useAuth()
   const { toggle: toggleSidebar } = useSidebar()

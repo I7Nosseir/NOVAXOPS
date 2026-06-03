@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   let upstream: Response
   try {
     upstream = await fetch(driveUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NOVAXOps/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NOVAOps/1.0)' },
       redirect: 'follow',
     })
   } catch {

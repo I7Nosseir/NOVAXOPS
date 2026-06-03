@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-const FROM = process.env.RESEND_FROM_ADDRESS ?? 'NOVAX Ops <noreply@novaxops.com>'
+const FROM = process.env.RESEND_FROM_ADDRESS ?? 'NOVA Ops <noreply@novaxops.com>'
 
 function client() {
   return new Resend(process.env.RESEND_API_KEY)
@@ -18,7 +18,7 @@ function htmlWrapper(bodyContent: string): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NOVAX Ops</title>
+  <title>NOVA Ops</title>
 </head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:sans-serif;color:#1e293b;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 0;">
@@ -41,7 +41,7 @@ function htmlWrapper(bodyContent: string): string {
           <tr>
             <td style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;">
               <p style="margin:0;font-size:12px;color:#94a3b8;">
-                This is an automated message from NOVAX Ops. Do not reply to this email.
+                This is an automated message from NOVA Ops. Do not reply to this email.
               </p>
             </td>
           </tr>
@@ -106,7 +106,7 @@ export async function sendTaskAssigned(params: TaskAssignedParams): Promise<Send
 
   const html = htmlWrapper(`
     ${h2('Task Assigned to You')}
-    ${p(`Hi ${assigneeName}, a task has been assigned to you in NOVAX Ops.`)}
+    ${p(`Hi ${assigneeName}, a task has been assigned to you in NOVA Ops.`)}
     ${p(`<strong style="color:#1e293b;">${taskTitle}</strong>`)}
     ${metaTable(rows)}
     ${ctaButton('View Task', `${appUrl}/pipeline?task=${taskId}`)}
@@ -197,7 +197,7 @@ export async function sendApprovalDecision(params: ApprovalDecisionParams): Prom
       ['Request', requestTitle],
       ['Decision', decisionSummary],
     ])}
-    ${ctaButton('View in NOVAX Ops', `${appUrl}/approval`)}
+    ${ctaButton('View in NOVA Ops', `${appUrl}/approval`)}
   `)
 
   try {
@@ -253,11 +253,11 @@ export async function sendTeamInvite(params: TeamInviteParams): Promise<SendResu
     .replace(/\b\w/g, (c) => c.toUpperCase())
 
   const html = htmlWrapper(`
-    ${h2('You Have Been Invited to NOVAX Ops')}
-    ${p(`Hi ${toName}, <strong style="color:#1e293b;">${inviterName}</strong> has added you to the NOVAX Ops platform as <strong style="color:#1B3D38;">${roleLabel}</strong>.`)}
+    ${h2('You Have Been Invited to NOVA Ops')}
+    ${p(`Hi ${toName}, <strong style="color:#1e293b;">${inviterName}</strong> has added you to the NOVA Ops platform as <strong style="color:#1B3D38;">${roleLabel}</strong>.`)}
     ${credentialsBox(toEmail, tempPassword)}
     ${p('Click the button below to log in. You will be asked to set a new password and complete your profile before accessing the platform.')}
-    ${ctaButton('Log In to NOVAX Ops', `${appUrl}/login`)}
+    ${ctaButton('Log In to NOVA Ops', `${appUrl}/login`)}
     ${p(`<span style="font-size:12px;color:#94a3b8;">If you were not expecting this invitation, you can safely ignore this email.</span>`)}
   `)
 
@@ -266,7 +266,7 @@ export async function sendTeamInvite(params: TeamInviteParams): Promise<SendResu
     const { error } = await resend.emails.send({
       from: FROM,
       to: toEmail,
-      subject: `You have been invited to NOVAX Ops`,
+      subject: `You have been invited to NOVA Ops`,
       html,
     })
     if (error) return { ok: false, error: error.message }
@@ -477,7 +477,7 @@ export async function sendDailyDigest(params: DailyDigestParams): Promise<SendRe
     ${stageActive.length > 0 ? `<div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 4px;">Pipeline Snapshot</div>${pipelineTable}` : ''}
     ${flagsSection}
     ${contributorsSection}
-    ${ctaButton('Open NOVAX Ops', appUrl)}
+    ${ctaButton('Open NOVA Ops', appUrl)}
     <p style="margin:20px 0 0;font-size:11px;color:#94a3b8;">This digest is sent daily at 8:00 AM. Replies to this email are not monitored.</p>
   `)
 
@@ -486,7 +486,7 @@ export async function sendDailyDigest(params: DailyDigestParams): Promise<SendRe
     const { error } = await resend.emails.send({
       from: FROM,
       to: ceoEmail,
-      subject: `NOVAX Ops Daily Brief — ${stats.date}`,
+      subject: `NOVA Ops Daily Brief — ${stats.date}`,
       html,
     })
     if (error) return { ok: false, error: error.message }

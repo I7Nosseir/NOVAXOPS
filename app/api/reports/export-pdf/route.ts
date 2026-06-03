@@ -241,7 +241,7 @@ function generateReportHTML(
       <div class="divider"></div>
       <div>
         <div class="report-title">${title}</div>
-        <div class="report-subtitle">Prepared by NOVAX Ops · Confidential</div>
+        <div class="report-subtitle">Prepared by NOVA Ops · Confidential</div>
       </div>
     </div>
     <div class="report-header-right">
@@ -268,7 +268,7 @@ function generateReportHTML(
 
     <!-- Footer -->
     <div class="footer">
-      <span class="footer-logo">NOVAX Ops</span>
+      <span class="footer-logo">NOVA Ops</span>
       <span>Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
       <span>${title} · ${clientName} · ${period}</span>
     </div>

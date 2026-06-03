@@ -181,7 +181,7 @@ export async function PATCH(req: NextRequest) {
       db.from('clients').select('name').eq('id', request.client_id).single(),
     ])
 
-    const teamEmail = createdByUser?.email ?? process.env.NOVAX_TEAM_EMAIL
+    const teamEmail = createdByUser?.email ?? process.env.NOVA_TEAM_EMAIL
     if (teamEmail) {
       const approvedCount = statuses.filter(s => s === 'approved').length
       const changesCount = statuses.filter(s => s === 'changes_requested').length

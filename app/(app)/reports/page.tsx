@@ -142,7 +142,7 @@ function CoverPage({ title, subtitle, client, period, tag }: { title: string; su
           <p className="text-sm mt-0.5" style={{ color: B.border }}>{period}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs opacity-60" style={{ color: B.border }}>Prepared by NOVAX Ops</p>
+          <p className="text-xs opacity-60" style={{ color: B.border }}>Prepared by NOVA Ops</p>
         </div>
       </div>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.light}, ${B.border}, ${B.accent})` }}/>
@@ -980,7 +980,7 @@ function AIBuilder() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `NOVAX_${clientName}_${reportType}_report.pptx`
+      a.download = `NOVA_${clientName}_${reportType}_report.pptx`
       a.click()
       URL.revokeObjectURL(url)
     } catch { /* silently fail */ } finally {

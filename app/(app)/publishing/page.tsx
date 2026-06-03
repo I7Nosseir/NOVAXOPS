@@ -1592,7 +1592,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
 
     // ── Instructions sheet ────────────────────────────────────────────────────
     const info = [
-      ['NOVAX Ops — Bulk Schedule Template'],
+      ['NOVA Ops — Bulk Schedule Template'],
       [''],
       ['Column', 'Format', 'Valid Values', 'Required'],
       ['Date', 'YYYY-MM-DD', 'e.g. 2026-06-01', 'Yes'],
@@ -1697,7 +1697,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
     ]
 
     XLSX.utils.book_append_sheet(wb, ws, 'Schedule')
-    XLSX.writeFile(wb, 'NOVAX_Bulk_Schedule_Template.xlsx')
+    XLSX.writeFile(wb, 'NOVA_Bulk_Schedule_Template.xlsx')
   }
 
   async function handleImportFile(file: File) {

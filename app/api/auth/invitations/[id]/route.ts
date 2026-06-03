@@ -84,7 +84,7 @@ export async function POST(
     toEmail: email,
     toName:  name,
     role,
-    inviterName: body.inviterName ?? 'The NOVAX Team',
+    inviterName: body.inviterName ?? 'The NOVA Team',
     appUrl,
     tempPassword,
   })

@@ -12,7 +12,7 @@ interface PublicDoc {
   updated_at: string
 }
 
-function NovaxLogoSmall() {
+function NovaLogoSmall() {
   return (
     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-6 h-6">
       <circle cx="12" cy="12" r="12" fill="#1B3D38"/>
@@ -62,10 +62,10 @@ export default function PublicDocPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
-        <NovaxLogoSmall/>
+        <NovaLogoSmall/>
         <div>
           <p className="text-xs text-slate-500">Shared document via</p>
-          <p className="text-sm font-semibold text-slate-900 leading-tight">NOVAX Ops</p>
+          <p className="text-sm font-semibold text-slate-900 leading-tight">NOVA Ops</p>
         </div>
       </header>
 

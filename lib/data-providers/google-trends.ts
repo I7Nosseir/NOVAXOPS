@@ -65,7 +65,7 @@ async function fetchViaRss(industry: string, geo = 'US'): Promise<TrendsData> {
   const url = `https://trends.google.com/trends/trendingsearches/daily/rss?geo=${geo}`
 
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NOVAXOps/1.0)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NOVAOps/1.0)' },
     next: { revalidate: 3600 }, // cache 1h
   })
 
