@@ -232,6 +232,25 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
         <KPICard icon={BarChart2}  label="Total Impressions"   value={liveStats?.impressions != null ? formatNumber(liveStats.impressions) : '—'}                           delta={deltaStr(liveStats?.impressions, prevStats?.impressions)}    positive={deltaPos(liveStats?.impressions, prevStats?.impressions)}/>
       </div>
 
+      {liveStats && ((liveStats.likes ?? 0) > 0 || (liveStats.comments ?? 0) > 0 || (liveStats.saves ?? 0) > 0 || (liveStats.shares ?? 0) > 0) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {([
+            { label: 'Likes',    key: 'likes' },
+            { label: 'Comments', key: 'comments' },
+            { label: 'Saves',    key: 'saves' },
+            { label: 'Shares',   key: 'shares' },
+          ] as const).filter(m => (liveStats[m.key] ?? 0) > 0).map(m => (
+            <div key={m.key} className="bg-white rounded-xl border border-slate-100 px-4 py-3">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{m.label}</p>
+              <p className="text-xl font-bold text-slate-900">{formatNumber(liveStats[m.key] ?? 0)}</p>
+              {prevStats && (prevStats[m.key] ?? 0) > 0 && (
+                <DeltaBadge delta={deltaStr(liveStats[m.key], prevStats[m.key])} positive={deltaPos(liveStats[m.key], prevStats[m.key])}/>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {trendData.length > 0 && (
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -297,14 +316,14 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Summary"/>
+          <SectionHeader title="Monthly Summary" subtitle="Data breakdown for the selected month"/>
           <div className="space-y-4">
             {aiReport.narrative.executive    && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
-            {aiReport.narrative.reach        && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
-            {aiReport.narrative.engagement   && <Paragraph>{aiReport.narrative.engagement}</Paragraph>}
-            {aiReport.narrative.platform     && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
-            {aiReport.narrative.trend        && <Paragraph>{aiReport.narrative.trend}</Paragraph>}
-            {aiReport.narrative.audience     && <Paragraph>{aiReport.narrative.audience}</Paragraph>}
+            {aiReport.narrative.reach        && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Reach &amp; Impressions</p><Paragraph>{aiReport.narrative.reach}</Paragraph></>}
+            {aiReport.narrative.engagement   && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Engagement</p><Paragraph>{aiReport.narrative.engagement}</Paragraph></>}
+            {aiReport.narrative.platform     && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Platform Performance</p><Paragraph>{aiReport.narrative.platform}</Paragraph></>}
+            {aiReport.narrative.trend        && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Trend</p><Paragraph>{aiReport.narrative.trend}</Paragraph></>}
+            {aiReport.narrative.audience     && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Audience Engagement</p><Paragraph>{aiReport.narrative.audience}</Paragraph></>}
           </div>
         </div>
       )}
@@ -380,7 +399,7 @@ function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiRep
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Summary"/>
+          <SectionHeader title="Channel Overview" subtitle="Organic performance data for the period"/>
           <div className="space-y-4">
             {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
@@ -499,7 +518,7 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Summary"/>
+          <SectionHeader title="Cross-Channel Overview" subtitle="Organic performance across all platforms"/>
           <div className="space-y-4">
             {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
@@ -537,7 +556,7 @@ function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: 
     <div className="space-y-5">
       <CoverPage
         title={`${platformLabel} Deep Dive Report`}
-        subtitle="Per-platform breakdown — reach, engagement rate, posts, and AI performance analysis"
+        subtitle="Platform-by-platform reach, engagement rate, posts, saves, and comment data"
         client={client} period={period} tag={`Platform Deep Dive — ${platformLabel}`}
       />
       <ReportHeader title={`${platformLabel} Deep Dive Report`} subtitle="Per-platform reach, engagement, and channel analysis" client={client} period={period}/>
@@ -636,7 +655,7 @@ function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: 
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Platform Summary"/>
+          <SectionHeader title="Platform Analysis" subtitle="Performance data by platform"/>
           <div className="space-y-4">
             {aiReport.narrative.executive  && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.follower   && <Paragraph>{aiReport.narrative.follower}</Paragraph>}
@@ -668,10 +687,10 @@ function QuarterlyReport({ client, period, liveStats, prevStats, liveTrend, aiRe
     <div className="space-y-5">
       <CoverPage
         title="Quarterly Performance Report"
-        subtitle="Quarter-level reach trend, engagement trajectory, and AI strategic assessment"
-        client={client} period={period} tag="Quarterly Strategy"
+        subtitle="Three-month reach and engagement data with a month-by-month performance breakdown"
+        client={client} period={period} tag="Quarterly Review"
       />
-      <ReportHeader title="Quarterly Performance Report" subtitle="Quarter performance — reach trend and AI analysis" client={client} period={period}/>
+      <ReportHeader title="Quarterly Performance Report" subtitle="Three-month performance — reach, engagement, and platform data" client={client} period={period}/>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -713,9 +732,36 @@ function QuarterlyReport({ client, period, liveStats, prevStats, liveTrend, aiRe
         </div>
       )}
 
+      {trendData.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <SectionHeader title="Month-by-Month Breakdown" subtitle="Performance data per month in the quarter"/>
+          <div className="overflow-hidden rounded-xl border border-slate-100">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: B.light }}>
+                  {['Month', 'Reach', 'Impressions', 'Eng. Rate'].map((h, i) => (
+                    <th key={h} className={cn('p-3 text-xs font-semibold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {trendData.map((t, i) => (
+                  <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
+                    <td className="p-3 font-semibold text-slate-800">{t.month}</td>
+                    <td className="p-3 text-right font-bold text-slate-800">{t.reach > 0 ? formatNumber(t.reach) : '—'}</td>
+                    <td className="p-3 text-right text-slate-600">{t.impressions > 0 ? formatNumber(t.impressions) : '—'}</td>
+                    <td className="p-3 text-right font-bold" style={{ color: B.primary }}>{t.er > 0 ? `${Number(t.er).toFixed(1)}%` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Quarterly Summary"/>
+          <SectionHeader title="Quarterly Review" subtitle="Three-month performance data"/>
           <div className="space-y-4">
             {aiReport.narrative.executive         && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.quarterly_overview && <Paragraph>{aiReport.narrative.quarterly_overview}</Paragraph>}
@@ -750,7 +796,7 @@ function ExecutiveReport({ client, period, liveStats, prevStats, livePlatforms, 
     <div className="space-y-5">
       <CoverPage
         title="Executive Summary"
-        subtitle="CEO-ready portfolio overview — key performance indicators, trend, platform mix, and AI strategic analysis"
+        subtitle="Consolidated key performance indicators — reach, impressions, engagement rate, and platform breakdown"
         client={client} period={period} tag="Executive Summary"
       />
       <ReportHeader title="Executive Summary" subtitle="CEO-ready portfolio overview" client={client} period={period}/>
@@ -833,7 +879,7 @@ function ExecutiveReport({ client, period, liveStats, prevStats, livePlatforms, 
 
       {hasNarrative && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Portfolio Summary"/>
+          <SectionHeader title="Portfolio Overview" subtitle="Consolidated view of the period"/>
           <div className="space-y-4">
             {aiReport.narrative.portfolio   && <Paragraph>{aiReport.narrative.portfolio}</Paragraph>}
             {aiReport.narrative.highlights  && <Paragraph>{aiReport.narrative.highlights}</Paragraph>}
