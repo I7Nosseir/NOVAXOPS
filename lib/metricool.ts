@@ -407,18 +407,48 @@ async function fetchNetworkPosts(
 }
 
 /**
- * Fetch posts across all connected networks for a date range.
- * Networks that return 400 (not connected) are skipped silently.
+ * Fetch posts across all (or a subset of) networks for a date range.
+ * Networks that return 400/403 (not connected) are skipped silently.
  */
 async function fetchPostsList(
   blogId: string | number,
   startDate: string,
-  endDate: string
+  endDate: string,
+  networks?: string[]
 ): Promise<MetricoolPostAnalytics[]> {
+  const toFetch = networks?.length ? networks : [...ANALYTICS_NETWORKS]
   const results = await Promise.all(
-    ANALYTICS_NETWORKS.map(net => fetchNetworkPosts(blogId, net, startDate, endDate))
+    toFetch.map(net => fetchNetworkPosts(blogId, net, startDate, endDate))
   )
   return results.flat()
+}
+
+/**
+ * Probe which networks are connected to a blog by testing each analytics endpoint.
+ * Uses yesterday's date for the probe — minimal data transfer.
+ * 403 = not connected; any other response = connected.
+ */
+export async function getConnectedNetworks(blogId: string | number): Promise<string[]> {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  const date = yesterday.toISOString().split('T')[0]
+  const from = `${date}T00:00:00`
+  const to   = `${date}T23:59:59`
+
+  const results = await Promise.all(
+    ANALYTICS_NETWORKS.map(async (network): Promise<string | null> => {
+      try {
+        const res = await fetch(`${BASE}/analytics/posts/${network}?${qs(blogId, { from, to })}`, {
+          cache: 'no-store',
+          headers: { 'X-Mc-Auth': requireToken() },
+        })
+        return res.status !== 403 ? network : null
+      } catch {
+        return null
+      }
+    })
+  )
+  return results.filter((n): n is string => n !== null)
 }
 
 /**
@@ -429,9 +459,10 @@ async function fetchPostsList(
 export async function getStats(
   blogId: string | number,
   startDate: string,
-  endDate: string
+  endDate: string,
+  networks?: string[]
 ): Promise<MetricoolStats> {
-  const posts = await fetchPostsList(blogId, startDate, endDate)
+  const posts = await fetchPostsList(blogId, startDate, endDate, networks)
   if (posts.length === 0) return {}
 
   const agg: MetricoolStats = { posts: posts.length }
@@ -459,9 +490,10 @@ export async function getStats(
 export async function getPlatformStats(
   blogId: string | number,
   startDate: string,
-  endDate: string
+  endDate: string,
+  networks?: string[]
 ): Promise<{ platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }[]> {
-  const allPosts = await fetchPostsList(blogId, startDate, endDate)
+  const allPosts = await fetchPostsList(blogId, startDate, endDate, networks)
   if (allPosts.length === 0) return []
 
   type Acc = { reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; erSum: number; erN: number }

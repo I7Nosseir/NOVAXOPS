@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   LineChart, Line, AreaChart, Area, ComposedChart,
@@ -13,7 +13,7 @@ import {
   FileText, TrendingUp, Eye,
   BarChart2, Globe, ArrowUpRight, ArrowDownRight,
   AlertCircle, ChevronRight, X, DollarSign, Activity,
-  Calendar, Star, RefreshCw, Sparkles, Printer, Info,
+  Calendar, Star, RefreshCw, Sparkles, Printer, Info, Check,
 } from 'lucide-react'
 
 // ─── Brand palette ─────────────────────────────────────────────────────────────
@@ -52,7 +52,64 @@ function deltaPos(cur: number | null | undefined, prv: number | null | undefined
 
 const PLATFORM_COLORS: Record<string, string> = {
   instagram: '#E1306C', facebook: '#1877F2', linkedin: '#0A66C2',
-  tiktok: '#2A2A2A', twitter: '#1DA1F2', youtube: '#FF0000',
+  tiktok: '#010101', twitter: '#000000', youtube: '#FF0000',
+}
+
+const ALL_PLATFORMS = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube']
+
+function PlatformLogo({ platform, size = 20 }: { platform: string; size?: number }) {
+  const p = platform.toLowerCase()
+  if (p === 'instagram') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="5" fill="#E1306C"/>
+      <rect x="6.5" y="6.5" width="11" height="11" rx="3" stroke="white" strokeWidth="1.5" fill="none"/>
+      <circle cx="12" cy="12" r="2.8" stroke="white" strokeWidth="1.5" fill="none"/>
+      <circle cx="16.3" cy="7.7" r="1.1" fill="white"/>
+    </svg>
+  )
+  if (p === 'facebook') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="5" fill="#1877F2"/>
+      <path d="M14.2 7H12.5C11.6 7 11 7.7 11 8.6V10.5H9V13H11V20.5H13.5V13H15.5L16 10.5H13.5V9C13.5 8.7 13.7 8.5 14 8.5H16V7H14.2Z" fill="white"/>
+    </svg>
+  )
+  if (p === 'linkedin') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="5" fill="#0A66C2"/>
+      <path d="M7 10h2.5v8H7v-8zm1.25-1.5a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z" fill="white"/>
+      <path d="M11.5 10H14v1.2h.1c.4-.7 1.3-1.4 2.6-1.4 2.7 0 3.3 1.8 3.3 4.1V18H17.5v-3.7c0-.9-.1-2-1.4-2-1.4 0-1.6 1.1-1.6 2V18H11.5v-8z" fill="white"/>
+    </svg>
+  )
+  if (p === 'tiktok') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="5" fill="#010101"/>
+      <path d="M17 8.5c-.9 0-1.6-.4-2.1-.9-.5-.6-.8-1.4-.8-2.1H12v9.8c0 1-.8 1.8-1.8 1.8S8.4 16.3 8.4 15.3s.8-1.8 1.8-1.8c.2 0 .4 0 .6.1V11c-.2 0-.4-.1-.6-.1C7.8 10.9 6 12.9 6 15.3s1.8 4.2 4.2 4.2 4.2-1.9 4.2-4.2V9.7c.8.5 1.7.8 2.6.8v-2z" fill="white"/>
+    </svg>
+  )
+  if (p === 'twitter' || p === 'x') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="5" fill="#000000"/>
+      <path d="M17.8 5.2h2.3l-5 5.7 5.9 7.9h-4.6L12.5 13 8 18.8H5.7l5.4-6.1L5.2 5.2h4.7l3.5 4.7 4.4-4.7z" fill="white"/>
+    </svg>
+  )
+  if (p === 'youtube') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="5" fill="#FF0000"/>
+      <path d="M10 15.5V8.5l6.5 3.5-6.5 3.5z" fill="white"/>
+    </svg>
+  )
+  const color = PLATFORM_COLORS[p] ?? '#94a3b8'
+  return <svg width={size} height={size} viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill={color}/></svg>
+}
+
+function ReportSection({ n, label }: { n: string; label: string }) {
+  return (
+    <div className="flex items-center gap-2.5 pt-1">
+      <span className="text-[10px] font-bold text-slate-300 tabular-nums shrink-0">{n}</span>
+      <div className="flex-1 h-px bg-slate-100"/>
+      <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-300 shrink-0">{label}</span>
+    </div>
+  )
 }
 
 // ─── Shared UI components ───────────────────────────────────────────────────────
@@ -226,6 +283,7 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
       />
       <ReportHeader title="Monthly Performance Report" subtitle="Organic social media performance across all platforms" client={client} period={period}/>
 
+      <ReportSection n="01" label="Key Metrics"/>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KPICard icon={Eye}       label="Total Reach"          value={liveStats?.reach != null ? formatNumber(liveStats.reach) : '—'}                                        delta={deltaStr(liveStats?.reach, prevStats?.reach)}               positive={deltaPos(liveStats?.reach, prevStats?.reach)}/>
         <KPICard icon={TrendingUp} label="Avg Engagement Rate" value={liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—'}        delta={deltaStr(liveStats?.engagement_rate, prevStats?.engagement_rate)} positive={deltaPos(liveStats?.engagement_rate, prevStats?.engagement_rate)}/>
@@ -252,6 +310,8 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
       )}
 
       {trendData.length > 0 && (
+        <>
+        <ReportSection n="02" label="Trend Analysis"/>
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
             <SectionHeader title="Reach & Impressions Trend" subtitle={`5-month data — ${vendorName(user?.role, 'Metricool')}`}/>
@@ -286,16 +346,19 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
             </ResponsiveContainer>
           </div>
         </div>
+        </>
       )}
 
       {platformData.length > 0 && (
+        <>
+        <ReportSection n="03" label="Platform Breakdown"/>
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <SectionHeader title="Platform Performance" subtitle={`Reach, posts, and engagement rate — ${vendorName(user?.role, 'Metricool')}`}/>
           <div className="space-y-4">
             {platformData.map(p => (
-              <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '120px 1fr 280px' }}>
+              <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '130px 1fr 280px' }}>
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }}/>
+                  <PlatformLogo platform={p.name.toLowerCase()} size={18}/>
                   <span className="text-sm font-semibold text-slate-700">{p.name}</span>
                 </div>
                 <div>
@@ -312,11 +375,14 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
             ))}
           </div>
         </div>
+        </>
       )}
 
       {hasNarrative && (
+        <>
+        <ReportSection n="04" label="AI Analysis"/>
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Monthly Summary" subtitle="Data breakdown for the selected month"/>
+          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of the data"/>
           <div className="space-y-4">
             {aiReport.narrative.executive    && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.reach        && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Reach &amp; Impressions</p><Paragraph>{aiReport.narrative.reach}</Paragraph></>}
@@ -326,6 +392,7 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
             {aiReport.narrative.audience     && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Audience Engagement</p><Paragraph>{aiReport.narrative.audience}</Paragraph></>}
           </div>
         </div>
+        </>
       )}
     </div>
   )
@@ -365,6 +432,7 @@ function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiRep
         Paid campaign data (ROAS, CPC, CPA, spend) is sourced directly from ad platforms — Meta Ads Manager, TikTok Ads Manager, LinkedIn Campaign Manager — and is not available via {vendorName(user?.role, 'Metricool')}. The metrics below reflect organic reach and engagement performance.
       </InfoBanner>
 
+      <ReportSection n="01" label="Key Metrics"/>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KPICard icon={Eye}       label="Organic Reach"        value={liveStats?.reach != null ? formatNumber(liveStats.reach) : '—'}                                      delta={deltaStr(liveStats?.reach, prevStats?.reach)}               positive={deltaPos(liveStats?.reach, prevStats?.reach)}/>
         <KPICard icon={TrendingUp} label="Avg Engagement Rate" value={liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—'}      delta={deltaStr(liveStats?.engagement_rate, prevStats?.engagement_rate)} positive={deltaPos(liveStats?.engagement_rate, prevStats?.engagement_rate)}/>
@@ -372,13 +440,15 @@ function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiRep
       </div>
 
       {platformData.length > 0 && (
+        <>
+        <ReportSection n="02" label="Platform Breakdown"/>
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <SectionHeader title="Organic Platform Performance" subtitle="Channel-level performance breakdown"/>
           <div className="space-y-4">
             {platformData.map(p => (
-              <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '120px 1fr 280px' }}>
+              <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '130px 1fr 280px' }}>
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }}/>
+                  <PlatformLogo platform={p.name.toLowerCase()} size={18}/>
                   <span className="text-sm font-semibold text-slate-700">{p.name}</span>
                 </div>
                 <div>
@@ -395,11 +465,14 @@ function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiRep
             ))}
           </div>
         </div>
+        </>
       )}
 
       {hasNarrative && (
+        <>
+        <ReportSection n="03" label="AI Analysis"/>
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Channel Overview" subtitle="Organic performance data for the period"/>
+          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of the data"/>
           <div className="space-y-4">
             {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
@@ -407,6 +480,7 @@ function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiRep
             {aiReport.narrative.platform  && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
           </div>
         </div>
+        </>
       )}
     </div>
   )
@@ -448,6 +522,7 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
         Paid campaign metrics (spend, ROAS, CPC, CPA) are sourced directly from ad platforms and are not available via {vendorName(user?.role, 'Metricool')}. Organic performance data from {vendorName(user?.role, 'Metricool')} is shown below.
       </InfoBanner>
 
+      <ReportSection n="01" label="Key Metrics"/>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Organic Reach',   value: totalReach > 0 ? formatNumber(totalReach) : '—',                                                    delta: deltaStr(liveStats?.reach, prevStats?.reach),               positive: deltaPos(liveStats?.reach, prevStats?.reach),               icon: Eye },
@@ -467,6 +542,8 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
       </div>
 
       {trendData.length > 0 && (
+        <>
+        <ReportSection n="02" label="Trend Analysis"/>
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <SectionHeader title="Organic Reach Trend" subtitle={`5-month trajectory — ${vendorName(user?.role, 'Metricool')}`}/>
           <ResponsiveContainer width="100%" height={220}>
@@ -485,9 +562,12 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
             </AreaChart>
           </ResponsiveContainer>
         </div>
+        </>
       )}
 
       {platformData.length > 0 && (
+        <>
+        <ReportSection n="03" label="Platform Breakdown"/>
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <SectionHeader title="Organic Channel Mix" subtitle="Platform-level contribution to total organic reach"/>
           <div className="space-y-3">
@@ -495,8 +575,8 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
               const pct = totalReach > 0 ? Math.round((p.reach / totalReach) * 100) : 0
               return (
                 <div key={p.name} className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 w-28 shrink-0">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }}/>
+                  <div className="flex items-center gap-2 w-32 shrink-0">
+                    <PlatformLogo platform={p.name.toLowerCase()} size={16}/>
                     <span className="text-sm font-semibold text-slate-700">{p.name}</span>
                   </div>
                   <div className="flex-1">
@@ -514,11 +594,14 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
             })}
           </div>
         </div>
+        </>
       )}
 
       {hasNarrative && (
+        <>
+        <ReportSection n="04" label="AI Analysis"/>
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Cross-Channel Overview" subtitle="Organic performance across all platforms"/>
+          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of the data"/>
           <div className="space-y-4">
             {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
@@ -527,6 +610,7 @@ function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, l
             {aiReport.narrative.platform  && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
           </div>
         </div>
+        </>
       )}
     </div>
   )
@@ -562,14 +646,15 @@ function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: 
       <ReportHeader title={`${platformLabel} Deep Dive Report`} subtitle="Per-platform reach, engagement, and channel analysis" client={client} period={period}/>
 
       {platformData.length > 0 ? (
+        <>
+        <ReportSection n="01" label="Platform Cards"/>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {platformData.map(p => {
-            const color = PLATFORM_COLORS[p.platform] ?? '#94a3b8'
             const name = p.platform.charAt(0).toUpperCase() + p.platform.slice(1)
             return (
               <div key={p.platform} className="bg-white rounded-2xl border border-slate-200 p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ background: color }}/>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <PlatformLogo platform={p.platform} size={22}/>
                   <span className="text-sm font-bold text-slate-800">{name}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -606,6 +691,7 @@ function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: 
             )
           })}
         </div>
+        </>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
           <p className="text-sm text-slate-400">No platform data available — configure {vendorName(user?.role, 'Metricool')} in Settings to enable per-platform analytics.</p>
@@ -613,6 +699,8 @@ function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: 
       )}
 
       {trendData.length > 0 && (
+        <>
+        <ReportSection n="02" label="Trend Analysis"/>
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
             <SectionHeader title="Reach Trend" subtitle="5-month organic reach trajectory"/>
@@ -651,11 +739,14 @@ function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: 
             </ResponsiveContainer>
           </div>
         </div>
+        </>
       )}
 
       {hasNarrative && (
+        <>
+        <ReportSection n="03" label="AI Analysis"/>
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Platform Analysis" subtitle="Performance data by platform"/>
+          <SectionHeader title="Platform Analysis" subtitle="AI-generated account health and format insights"/>
           <div className="space-y-4">
             {aiReport.narrative.executive  && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
             {aiReport.narrative.follower   && <Paragraph>{aiReport.narrative.follower}</Paragraph>}
@@ -664,6 +755,7 @@ function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: 
             {aiReport.narrative.formats    && <Paragraph>{aiReport.narrative.formats}</Paragraph>}
           </div>
         </div>
+        </>
       )}
     </div>
   )
@@ -680,7 +772,7 @@ function QuarterlyReport({ client, period, liveStats, prevStats, liveTrend, aiRe
   aiReport?: AIReport | null
 }) {
   const { user } = useAuth()
-  const trendData = (liveTrend ?? []).slice(-3).map(t => ({ month: t.month, reach: t.reach, er: t.er }))
+  const trendData = (liveTrend ?? []).slice(-3).map(t => ({ month: t.month, reach: t.reach, impressions: t.impressions, er: t.er }))
   const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
 
   return (
@@ -858,9 +950,11 @@ function ExecutiveReport({ client, period, liveStats, prevStats, livePlatforms, 
                   const name = p.platform.charAt(0).toUpperCase() + p.platform.slice(1)
                   return (
                     <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-                      <td className="p-3 font-semibold text-slate-800 flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }}/>
-                        {name}
+                      <td className="p-3 font-semibold text-slate-800">
+                        <div className="flex items-center gap-2">
+                          <PlatformLogo platform={p.platform} size={16}/>
+                          {name}
+                        </div>
                       </td>
                       <td className="p-3 text-right font-bold text-slate-800">{formatNumber(p.reach)}</td>
                       <td className="p-3 text-right text-slate-600">{formatNumber(p.impressions)}</td>
@@ -1241,10 +1335,29 @@ export default function ReportsPage() {
   const [aiError, setAiError]         = useState<string | null>(null)
   const [aiReport, setAiReport]       = useState<AIReport | null>(null)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(ALL_PLATFORMS)
+  const [selectedPlatforms, setSelectedPlatforms]   = useState<string[]>(ALL_PLATFORMS)
+  const [probingPlatforms, setProbingPlatforms]     = useState(false)
 
   const clientName = selectedClient
     ? (clients.find(c => c.id === selectedClient)?.name ?? 'Client')
     : 'Select a client'
+
+  useEffect(() => {
+    if (!selectedClient) return
+    setProbingPlatforms(true)
+    setConnectedPlatforms(ALL_PLATFORMS)
+    setSelectedPlatforms(ALL_PLATFORMS)
+    fetch(`/api/metricool/connected-platforms?client_id=${selectedClient}`)
+      .then(r => r.json())
+      .then((data: { connected?: string[]; disconnected?: string[] }) => {
+        const connected = data.connected ?? ALL_PLATFORMS
+        setConnectedPlatforms(connected)
+        setSelectedPlatforms(connected)
+      })
+      .catch(() => { /* keep all as available */ })
+      .finally(() => setProbingPlatforms(false))
+  }, [selectedClient])
 
   const handleGenerate = async () => {
     if (!selectedClient) return
@@ -1275,6 +1388,7 @@ export default function ReportsPage() {
           reportType: activeTab,
           startDate:  range.startDate,
           endDate:    range.endDate,
+          platforms:  selectedPlatforms,
         }),
       })
       const data = await res.json() as {
@@ -1388,67 +1502,119 @@ export default function ReportsPage() {
         </div>
 
         {activeTab !== 'ai' && (
-          <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <p className="text-xs text-slate-500 max-w-lg">{TABS.find(t => t.id === activeTab)?.description}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={selectedClient}
-                onChange={e => { setSelectedClient(e.target.value); setGenerated(false); setAiReport(null) }}
-                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
-              >
-                <option value="">Select client</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <select
-                value={period}
-                onChange={e => { setPeriod(e.target.value); setGenerated(false); setAiReport(null) }}
-                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
-              >
-                {['May 2026', 'April 2026', 'March 2026', 'Q1 2026', 'Q4 2025'].map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-              <button
-                onClick={handleGenerate}
-                disabled={generating || !selectedClient}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60 transition-colors"
-                style={{ background: generating ? B.muted : B.primary }}
-              >
-                {generating
-                  ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Generating…</>
-                  : <><FileText className="w-3.5 h-3.5"/> Generate Report</>}
-              </button>
-              {generated && liveStats && !dataError && (
-                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
-                  <Activity className="w-3 h-3"/> Live Data
-                </span>
-              )}
-              {generated && aiReport && !aiError && (
-                <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg" style={{ background: B.light, color: B.primary }}>
-                  <Sparkles className="w-3 h-3"/> AI Narrative
-                </span>
-              )}
-              {generated && aiError && (
-                <span className="flex items-center gap-1 text-xs text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg" title={aiError}>
-                  <AlertCircle className="w-3 h-3"/> No AI narrative
-                </span>
-              )}
-              {generated && dataError && (
-                <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={dataError}>
-                  <AlertCircle className="w-3 h-3"/> {(dataError?.length ?? 0) > 40 ? 'No live data' : dataError}
-                </span>
-              )}
-              {generated && (
-                <button
-                  onClick={handleExportPDF}
-                  disabled={exportingPdf}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          <div className="p-4 space-y-3">
+            {/* Row 1: description + controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p className="text-xs text-slate-500 max-w-lg">{TABS.find(t => t.id === activeTab)?.description}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={selectedClient}
+                  onChange={e => { setSelectedClient(e.target.value); setGenerated(false); setAiReport(null) }}
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
                 >
-                  <Printer className="w-3.5 h-3.5"/>
-                  {exportingPdf ? 'Preparing…' : 'Export PDF'}
+                  <option value="">Select client</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select
+                  value={period}
+                  onChange={e => { setPeriod(e.target.value); setGenerated(false); setAiReport(null) }}
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
+                >
+                  {['May 2026', 'April 2026', 'March 2026', 'Q1 2026', 'Q4 2025'].map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating || !selectedClient || selectedPlatforms.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60 transition-colors"
+                  style={{ background: generating ? B.muted : B.primary }}
+                >
+                  {generating
+                    ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Generating…</>
+                    : <><FileText className="w-3.5 h-3.5"/> Generate Report</>}
                 </button>
-              )}
+                {generated && liveStats && !dataError && (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
+                    <Activity className="w-3 h-3"/> Live Data
+                  </span>
+                )}
+                {generated && aiReport && !aiError && (
+                  <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg" style={{ background: B.light, color: B.primary }}>
+                    <Sparkles className="w-3 h-3"/> AI Narrative
+                  </span>
+                )}
+                {generated && aiError && (
+                  <span className="flex items-center gap-1 text-xs text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg" title={aiError}>
+                    <AlertCircle className="w-3 h-3"/> No AI narrative
+                  </span>
+                )}
+                {generated && dataError && (
+                  <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={dataError}>
+                    <AlertCircle className="w-3 h-3"/> {(dataError?.length ?? 0) > 40 ? 'No live data' : dataError}
+                  </span>
+                )}
+                {generated && (
+                  <button
+                    onClick={handleExportPDF}
+                    disabled={exportingPdf}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                  >
+                    <Printer className="w-3.5 h-3.5"/>
+                    {exportingPdf ? 'Preparing…' : 'Export PDF'}
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Row 2: platform selector — only when a client is selected */}
+            {selectedClient && (
+              <div className="border-t border-slate-100 pt-3">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-xs font-semibold text-slate-500">Include platforms</span>
+                  {probingPlatforms && (
+                    <span className="text-[10px] text-slate-400 animate-pulse">Checking connections…</span>
+                  )}
+                  {!probingPlatforms && selectedPlatforms.length > 0 && (
+                    <span className="text-[10px] text-slate-400">{selectedPlatforms.length} selected</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {ALL_PLATFORMS.map(platform => {
+                    const connected = connectedPlatforms.includes(platform)
+                    const selected  = selectedPlatforms.includes(platform)
+                    return (
+                      <button
+                        key={platform}
+                        disabled={!connected || probingPlatforms}
+                        title={!connected ? 'Not connected to this brand' : undefined}
+                        onClick={() => {
+                          setSelectedPlatforms(prev =>
+                            prev.includes(platform)
+                              ? prev.filter(p => p !== platform)
+                              : [...prev, platform]
+                          )
+                          setGenerated(false)
+                        }}
+                        className={cn(
+                          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                          probingPlatforms && 'opacity-50 cursor-wait',
+                          !connected && !probingPlatforms && 'opacity-35 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400',
+                          connected && !selected && 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                          connected && selected && 'text-white border-transparent shadow-sm',
+                        )}
+                        style={connected && selected ? { background: PLATFORM_COLORS[platform] ?? B.primary } : undefined}
+                      >
+                        <PlatformLogo platform={platform} size={14}/>
+                        <span className="capitalize">{platform}</span>
+                        {connected && selected && <Check className="w-3 h-3 opacity-80"/>}
+                        {!connected && !probingPlatforms && <span className="text-[9px] opacity-70 ml-0.5">Not connected</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

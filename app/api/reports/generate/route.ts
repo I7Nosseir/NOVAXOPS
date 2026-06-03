@@ -27,7 +27,8 @@ const EMPTY: MetricoolData = { stats: {}, platforms: [], trend: [], isMock: fals
 async function fetchMetricoolData(
   blogId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  networks?: string[]
 ): Promise<MetricoolData> {
   if (!HAS_METRICOOL) {
     return { ...EMPTY, isMock: true, error: 'Metricool not configured — add METRICOOL_API_TOKEN and METRICOOL_USER_ID in Settings.' }
@@ -36,10 +37,9 @@ async function fetchMetricoolData(
   const { getStats, getPlatformStats } = await import('@/lib/metricool')
 
   try {
-    // Both use /analytics/posts internally — run in parallel
     const [stats, platforms] = await Promise.all([
-      getStats(blogId, startDate, endDate) as Promise<Record<string, number>>,
-      getPlatformStats(blogId, startDate, endDate),
+      getStats(blogId, startDate, endDate, networks) as Promise<Record<string, number>>,
+      getPlatformStats(blogId, startDate, endDate, networks),
     ])
 
     // 5-month trend — sequential to respect Metricool rate limits
@@ -51,7 +51,7 @@ async function fetchMetricoolData(
       const m = d.getMonth()
       const s = `${y}-${String(m + 1).padStart(2, '0')}-01`
       const e = `${y}-${String(m + 1).padStart(2, '0')}-${new Date(y, m + 1, 0).getDate()}`
-      const ms = await getStats(blogId, s, e).catch(() => null) as Record<string, number> | null
+      const ms = await getStats(blogId, s, e, networks).catch(() => null) as Record<string, number> | null
       trend.push({
         month:       d.toLocaleString('en', { month: 'short' }),
         reach:       Number(ms?.reach ?? 0),
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { clientId, reportType = 'monthly', startDate, endDate } = body
+  const { clientId, reportType = 'monthly', startDate, endDate, platforms } = body as typeof body & { platforms?: string[] }
 
   if (!clientId || !startDate || !endDate) {
     return NextResponse.json(
@@ -249,11 +249,12 @@ export async function POST(req: NextRequest) {
   // 2. Determine blog ID
   const blogId = client.metricoolBlogId ?? clientId
 
-  // 3. Fetch current + previous period data in parallel
+  // 3. Fetch current + previous period data in parallel (filtered to selected platforms)
   const { prevStart, prevEnd } = prevPeriodDates(startDate, endDate, reportType)
+  const nets = platforms?.length ? platforms : undefined
   const [metricoolData, prevData] = await Promise.all([
-    fetchMetricoolData(blogId, startDate, endDate),
-    fetchMetricoolData(blogId, prevStart, prevEnd).catch(() => null),
+    fetchMetricoolData(blogId, startDate, endDate, nets),
+    fetchMetricoolData(blogId, prevStart, prevEnd, nets).catch(() => null),
   ])
 
   // 4. Build and run Gemini prompt (if API key configured)
