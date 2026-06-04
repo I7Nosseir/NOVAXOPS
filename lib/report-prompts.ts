@@ -2,6 +2,22 @@
 // Gemini prompt builders for each report template type.
 // All prompts strictly forbid recommendations, suggestions, or action items.
 
+// Plain-language format rule for the master monthly template (client-facing)
+const PLAIN_FORMAT = `
+FORMAT RULES — PLAIN LANGUAGE:
+- Write as if explaining to someone who has never read a social media report
+- When you first use a technical term, briefly explain it in parentheses:
+  e.g. "reach (how many different people saw your content)"
+  e.g. "engagement rate (the percentage of people who interacted with what they saw)"
+- Replace "impressions" with "times your content appeared on screens"
+- Avoid: "KPIs", "organic", "amplification", "trajectory", "benchmark", "synergy"
+- Bold (**text**) every key number and percentage
+- No hashtags, no emojis
+- Conversational tone — imagine explaining to a business owner with no marketing background
+- Each section: 2–4 clear, simple sentences that anyone can understand
+- If data for a section is unavailable or all zeros, skip that section entirely
+`.trim()
+
 const NO_RECS = `
 STRICT RULE — DO NOT INCLUDE:
 - Recommendations, suggestions, or action items of any kind
@@ -90,14 +106,14 @@ export function buildMonthlyPrompt(
   period: string,
   brand?: BrandContext
 ): string {
-  return `You are a senior social media analyst at NOVA, a creative marketing agency.
-Write a professional Monthly Organic Performance Report for ${clientName} covering ${period}.
+  return `You are a social media analyst at NOVAX, a creative marketing agency.
+Write a plain-language Monthly Performance Report for ${clientName} covering ${period}.
 ${brand?.industry ? `Industry: ${brand.industry}` : ''}
-${brand?.tone ? `Brand voice: ${brand.tone}` : ''}
+${brand?.tone ? `Brand tone: ${brand.tone}` : ''}
 
 ${data.isMock ? '⚠ DATA NOTE: Live analytics unavailable — analysis is based on sample data.' : ''}
 
-ORGANIC PERFORMANCE DATA — ${period}:
+PERFORMANCE DATA — ${period}:
 ${formatStats(data.stats)}
 
 PER-PLATFORM BREAKDOWN:
@@ -106,37 +122,35 @@ ${formatPlatforms(data.platforms)}
 5-MONTH TREND:
 ${formatTrend(data.trend)}
 
-BENCHMARKS FOR CONTEXT:
-- Instagram average organic ER: 1.5–3.5%
-- TikTok average organic ER: 5–9%
-- Facebook average organic ER: 0.5–1.5%
-- LinkedIn average organic ER: 2–4%
-- Saves-to-reach ratio (healthy): 2%+
-- Follower-to-reach multiplier (healthy): 300%+
+CONTEXT:
+- Good interaction rate on Instagram: 1.5–3.5% of viewers
+- Good interaction rate on TikTok: 5–9% of viewers
+- Good interaction rate on Facebook: 0.5–1.5% of viewers
+- Good interaction rate on LinkedIn: 2–4% of viewers
 
 ${NO_RECS}
 
-Write exactly these sections in order:
+Write exactly these sections in order. Use plain, simple language throughout — no jargon.
 
 ### Executive Summary
-3 key findings from the data. Each must cite a specific metric and number.
+A simple 3-sentence overview of the month. Lead with the most impressive number. Explain what it means in everyday language.
 
 ### Reach & Impressions Analysis
-Analyse reach and impression performance. Reference platform distribution if available.
+Explain in plain terms how many people the content reached and how many times it appeared on screens. Say whether this is more or less than before, if trend data is available.
 
 ### Engagement Analysis
-Analyse engagement rate, saves, comments, shares. Compare against benchmarks above.
+Explain how people reacted to the content — how many liked, commented, or shared. Put the interaction rate in plain language (e.g. "X out of every 100 people who saw the content interacted with it").
 
 ### Platform Performance
-Compare performance across the platforms with data. Call out the strongest and weakest performers with numbers.
+Describe which social media platforms performed best and worst, in simple terms. Reference specific numbers from each platform.
 
 ### Trend Analysis
-Describe the trajectory of key metrics across the 5-month trend. Identify acceleration or deceleration.
+Explain in simple terms whether the audience is growing, shrinking, or staying stable compared to previous months. Reference specific monthly figures.
 
 ### Audience Engagement
-State the save rate, comment rate, and share rate as percentages of total reach. Describe what the engagement composition shows with specific numbers.
+Summarise the quality of audience interaction — are people saving, sharing, or commenting? State the specific numbers. Explain what this shows about how the content is resonating.
 
-${FORMAT}`
+${PLAIN_FORMAT}`
 }
 
 // ─── Paid Ads ────────────────────────────────────────────────────────────────

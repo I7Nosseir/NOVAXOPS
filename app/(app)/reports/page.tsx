@@ -1,19 +1,18 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState } from 'react'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  LineChart, Line, AreaChart, Area, ComposedChart,
-  PieChart, Pie, Cell, Legend, ReferenceLine,
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell,
+  Legend, ReferenceLine,
 } from 'recharts'
 import { useClients } from '@/lib/hooks/use-clients'
 import { formatNumber, cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import {
-  FileText, TrendingUp, Eye,
-  BarChart2, Globe, ArrowUpRight, ArrowDownRight,
-  AlertCircle, ChevronRight, X, DollarSign, Activity,
-  Calendar, Star, RefreshCw, Sparkles, Printer, Info, Check,
+  FileText, TrendingUp, Eye, BarChart2, ArrowUpRight, ArrowDownRight,
+  AlertCircle, Activity, Calendar, RefreshCw, Sparkles, Printer, Check,
+  Heart, MessageCircle, Share2, Users, Link2,
 } from 'lucide-react'
 
 // ─── Brand palette ─────────────────────────────────────────────────────────────
@@ -25,20 +24,6 @@ const B = {
   light:   '#EBF4F3',
 }
 
-// ─── Tab definition ────────────────────────────────────────────────────────────
-type ReportTab = 'monthly' | 'paid' | 'combined' | 'platform' | 'quarterly' | 'executive' | 'ai'
-type IconProps = { className?: string }
-
-const TABS: { id: ReportTab; label: string; icon: (p: IconProps) => React.ReactElement; description: string }[] = [
-  { id: 'monthly',    label: 'Monthly Performance',  icon: (p) => <BarChart2  {...p}/>, description: 'Organic reach, impressions, engagement rate trend, and platform breakdown.' },
-  { id: 'paid',       label: 'Paid Ads',             icon: (p) => <DollarSign {...p}/>, description: 'Organic performance metrics — reach, engagement, and channel breakdown.' },
-  { id: 'combined',   label: 'Paid + Organic',       icon: (p) => <Activity   {...p}/>, description: 'Organic trend and platform mix across all active channels.' },
-  { id: 'platform',   label: 'Platform Deep Dive',   icon: (p) => <Globe      {...p}/>, description: 'Per-platform breakdown — reach, ER, and posts across all active channels.' },
-  { id: 'quarterly',  label: 'Quarterly Report',     icon: (p) => <Calendar   {...p}/>, description: 'Quarter performance — reach trend and engagement rate trajectory.' },
-  { id: 'executive',  label: 'Executive Summary',    icon: (p) => <Star       {...p}/>, description: 'CEO-ready: top KPIs, trend, and platform breakdown.' },
-  { id: 'ai',         label: 'AI Report Builder',    icon: (p) => <Sparkles   {...p}/>, description: 'Upload analytics screenshots or paste data — AI extracts and formats a branded report.' },
-]
-
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function deltaStr(cur: number | null | undefined, prv: number | null | undefined): string {
   if (cur == null || prv == null || prv === 0) return '—'
@@ -49,7 +34,14 @@ function deltaPos(cur: number | null | undefined, prv: number | null | undefined
   if (cur == null || prv == null || prv === 0) return null
   return cur >= prv
 }
+function formatPostDate(dateStr?: string): string {
+  if (!dateStr) return ''
+  try {
+    return new Date(dateStr).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch { return '' }
+}
 
+// ─── Platform support ───────────────────────────────────────────────────────────
 const PLATFORM_COLORS: Record<string, string> = {
   instagram: '#E1306C', facebook: '#1877F2', linkedin: '#0A66C2',
   tiktok: '#010101', twitter: '#000000', youtube: '#FF0000',
@@ -102,17 +94,7 @@ function PlatformLogo({ platform, size = 20 }: { platform: string; size?: number
   return <svg width={size} height={size} viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill={color}/></svg>
 }
 
-function ReportSection({ n, label }: { n: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2.5 pt-1">
-      <span className="text-[10px] font-bold text-slate-300 tabular-nums shrink-0">{n}</span>
-      <div className="flex-1 h-px bg-slate-100"/>
-      <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-300 shrink-0">{label}</span>
-    </div>
-  )
-}
-
-// ─── Shared UI components ───────────────────────────────────────────────────────
+// ─── Shared UI ─────────────────────────────────────────────────────────────────
 
 function DeltaBadge({ delta, positive }: { delta: string; positive: boolean | null }) {
   if (delta === '—' || positive === null) {
@@ -129,58 +111,31 @@ function DeltaBadge({ delta, positive }: { delta: string; positive: boolean | nu
   )
 }
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+function SectionLabel({ n, label }: { n: string; label: string }) {
   return (
-    <div className="flex items-center gap-3 mb-5">
-      <div className="w-1 h-7 rounded-full shrink-0" style={{ background: B.primary }}/>
-      <div>
-        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
-      </div>
+    <div className="flex items-center gap-2.5 mb-5">
+      <span className="text-[10px] font-bold text-slate-300 tabular-nums shrink-0">{n}</span>
+      <div className="flex-1 h-px bg-slate-100"/>
+      <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-300 shrink-0">{label}</span>
     </div>
   )
 }
 
-function ReportHeader({ title, subtitle, client, period }: { title: string; subtitle: string; client: string; period: string }) {
+function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="rounded-2xl overflow-hidden mb-1" style={{ background: B.primary }}>
-      <div className="px-8 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2.5">
-            <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-6 w-auto">
-              <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
-              <path fillRule="evenodd" d="M82,10 A26,26 0 0 1 82,62 A26,26 0 0 1 82,10 Z M82,22 A14,14 0 0 1 82,50 A14,14 0 0 1 82,22 Z" fill="white"/>
-              <line x1="60" y1="68" x2="104" y2="4" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
-              <path d="M114,10 L124,10 L151,58 L178,10 L188,10 L151,64 L141,64 Z" fill="white"/>
-              <path fillRule="evenodd" d="M194,62 L218,10 L228,10 L252,62 L243,62 L237,50 L209,50 L203,62 Z M215,42 L223,18 L235,42 Z" fill="white"/>
-              <text x="250" y="18" fill="white" fontSize="9" fontFamily="system-ui,Arial,sans-serif">™</text>
-            </svg>
-          </div>
-          <div className="w-px h-10 bg-white/20"/>
-          <div>
-            <p className="text-white font-bold text-lg leading-tight">{title}</p>
-            <p className="text-xs mt-0.5" style={{ color: B.border }}>{subtitle}</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-white font-semibold text-sm">{client}</p>
-          <div className="flex items-center gap-1.5 justify-end mt-1">
-            <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
-            <p className="text-xs" style={{ color: B.border }}>{period}</p>
-          </div>
-        </div>
-      </div>
-      <div className="h-1" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
+    <div className="mb-6">
+      <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+      <p className="text-sm text-slate-500 mt-1 leading-relaxed">{subtitle}</p>
     </div>
   )
 }
 
-function CoverPage({ title, subtitle, client, period, tag }: { title: string; subtitle: string; client: string; period: string; tag: string }) {
+function CoverPage({ client, period }: { client: string; period: string }) {
   return (
-    <div className="report-cover-page rounded-2xl overflow-hidden flex flex-col" style={{ background: B.primary }}>
+    <div className="rounded-2xl overflow-hidden flex flex-col min-h-[320px]" style={{ background: B.primary }}>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
-      <div className="px-12 pt-12 flex items-center gap-4">
-        <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-9 w-auto">
+      <div className="px-10 pt-10 flex items-center gap-4">
+        <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-8 w-auto">
           <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
           <path fillRule="evenodd" d="M82,10 A26,26 0 0 1 82,62 A26,26 0 0 1 82,10 Z M82,22 A14,14 0 0 1 82,50 A14,14 0 0 1 82,22 Z" fill="white"/>
           <line x1="60" y1="68" x2="104" y2="4" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
@@ -189,22 +144,52 @@ function CoverPage({ title, subtitle, client, period, tag }: { title: string; su
           <text x="250" y="18" fill="white" fontSize="9" fontFamily="system-ui,Arial,sans-serif">™</text>
         </svg>
       </div>
-      <div className="flex-1 flex flex-col justify-center px-12 py-20">
-        <div className="w-16 h-0.5 rounded-full mb-8" style={{ background: B.accent }}/>
-        <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: B.border }}>{tag}</p>
-        <h1 className="text-5xl font-bold text-white leading-tight mb-6">{title}</h1>
-        <p className="text-lg leading-relaxed" style={{ color: B.border }}>{subtitle}</p>
+      <div className="flex-1 flex flex-col justify-center px-10 py-12">
+        <div className="w-12 h-0.5 rounded-full mb-6" style={{ background: B.accent }}/>
+        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: B.border }}>Monthly Performance Report</p>
+        <h1 className="text-4xl font-bold text-white leading-tight mb-4">{client}</h1>
+        <p className="text-base" style={{ color: B.border }}>{period} — Full Platform Analytics Report</p>
       </div>
-      <div className="px-12 pb-10 flex items-end justify-between">
-        <div>
-          <p className="font-bold text-white text-lg">{client}</p>
-          <p className="text-sm mt-0.5" style={{ color: B.border }}>{period}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs opacity-60" style={{ color: B.border }}>Prepared by NOVAX Ops</p>
+      <div className="px-10 pb-8 flex items-end justify-between">
+        <p className="text-xs" style={{ color: B.border }}>Prepared by NOVAX</p>
+        <div className="flex items-center gap-1.5">
+          <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
+          <p className="text-xs" style={{ color: B.border }}>{period}</p>
         </div>
       </div>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.light}, ${B.border}, ${B.accent})` }}/>
+    </div>
+  )
+}
+
+function ReportPageHeader({ client, period }: { client: string; period: string }) {
+  return (
+    <div className="rounded-2xl overflow-hidden mb-5" style={{ background: B.primary }}>
+      <div className="px-7 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-5 w-auto">
+            <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
+            <path fillRule="evenodd" d="M82,10 A26,26 0 0 1 82,62 A26,26 0 0 1 82,10 Z M82,22 A14,14 0 0 1 82,50 A14,14 0 0 1 82,22 Z" fill="white"/>
+            <line x1="60" y1="68" x2="104" y2="4" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+            <path d="M114,10 L124,10 L151,58 L178,10 L188,10 L151,64 L141,64 Z" fill="white"/>
+            <path fillRule="evenodd" d="M194,62 L218,10 L228,10 L252,62 L243,62 L237,50 L209,50 L203,62 Z M215,42 L223,18 L235,42 Z" fill="white"/>
+            <text x="250" y="18" fill="white" fontSize="9" fontFamily="system-ui,Arial,sans-serif">™</text>
+          </svg>
+          <div className="w-px h-8 bg-white/20"/>
+          <div>
+            <p className="text-white font-bold text-sm leading-tight">Monthly Performance Report</p>
+            <p className="text-[11px] mt-0.5" style={{ color: B.border }}>Full platform analytics — all channels</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-white font-semibold text-sm">{client}</p>
+          <div className="flex items-center gap-1.5 justify-end mt-0.5">
+            <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
+            <p className="text-xs" style={{ color: B.border }}>{period}</p>
+          </div>
+        </div>
+      </div>
+      <div className="h-1" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
     </div>
   )
 }
@@ -217,119 +202,227 @@ function renderInline(text: string): React.ReactNode {
   )
 }
 
-function Paragraph({ children }: { children: string }) {
-  return <p className="text-sm text-slate-600 leading-7">{renderInline(children)}</p>
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+type LivePlatform = {
+  platform: string; reach: number; impressions: number; likes: number
+  comments: number; shares: number; saves: number; posts: number; engagement_rate: number
+}
+type LiveTrendPoint = { month: string; reach: number; impressions: number; er: number }
+type AIReportNarrative = {
+  executive?: string; reach?: string; engagement?: string; platform?: string
+  trend?: string; audience?: string; follower?: string; formats?: string
+}
+type AIReport = {
+  narrative: AIReportNarrative
+  meta: { period: string; clientName: string; reportType: string; isMock: boolean }
+}
+type TopPost = {
+  id?: string; network?: string; publishDate?: string; url?: string
+  text?: string; reach: number; impressions: number
+  likes: number; comments: number; shares: number; saves: number
 }
 
-function InfoBanner({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50">
-      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5"/>
-      <p className="text-xs text-amber-800 leading-relaxed">{children}</p>
-    </div>
-  )
-}
+// ─── Custom tooltip ────────────────────────────────────────────────────────────
 
-function KPICard({ icon: Icon, label, value, delta, positive }: {
-  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
-  label: string
-  value: string
-  delta: string
-  positive: boolean | null
-}) {
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: {name: string; value: number; color?: string}[]; label?: string }) {
+  if (!active || !payload?.length) return null
   return (
-    <div className="rounded-2xl border border-novax-border p-5" style={{ background: B.light }}>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="p-2 rounded-lg" style={{ background: 'rgba(27,61,56,0.12)' }}>
-          <Icon className="w-4 h-4" style={{ color: B.primary }}/>
+    <div className="bg-white border border-slate-200 rounded-xl shadow-lg px-4 py-3 text-xs">
+      <p className="font-semibold text-slate-700 mb-2">{label}</p>
+      {payload.map((p, i) => (
+        <div key={i} className="flex items-center gap-2 mb-0.5">
+          {p.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }}/>}
+          <span className="text-slate-500">{p.name}:</span>
+          <span className="font-bold text-slate-800">{formatNumber(p.value)}</span>
         </div>
-        <span className="text-xs font-semibold" style={{ color: B.muted }}>{label}</span>
-      </div>
-      <p className="text-3xl font-bold text-slate-900 mb-1">{value}</p>
-      {delta !== '—' && <DeltaBadge delta={`${delta} vs prior period`} positive={positive}/>}
+      ))}
     </div>
   )
 }
 
-// ─── Monthly Report ─────────────────────────────────────────────────────────────
+// ─── Master Monthly Report ──────────────────────────────────────────────────────
 
-function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, liveTrend, aiReport }: {
+function MasterMonthlyReport({
+  client, period, liveStats, prevStats, livePlatforms, liveTrend, topPosts, aiReport,
+}: {
   client: string
   period: string
   liveStats?: Record<string, number> | null
   prevStats?: Record<string, number> | null
   livePlatforms?: LivePlatform[] | null
   liveTrend?: LiveTrendPoint[] | null
+  topPosts?: TopPost[] | null
   aiReport?: AIReport | null
 }) {
-  const { user } = useAuth()
   const platformData = (livePlatforms ?? [])
-    .filter(p => p.reach > 0 || p.impressions > 0)
+    .filter(p => p.reach > 0 || p.impressions > 0 || p.likes > 0 || p.comments > 0)
+    .sort((a, b) => (b.reach + b.impressions) - (a.reach + a.impressions))
     .map(p => ({
+      ...p,
       name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
-      reach: p.reach, posts: p.posts, er: p.engagement_rate,
       color: PLATFORM_COLORS[p.platform] ?? '#94a3b8',
+      engagement: (p.likes ?? 0) + (p.comments ?? 0),
     }))
+
   const trendData = liveTrend ?? []
-  const maxReach = Math.max(...platformData.map(p => p.reach), 1)
-  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
+  const maxReach = Math.max(...platformData.map(p => p.reach + p.impressions), 1)
+  const totalReach = liveStats?.reach ?? 0
+  const hasNarrative = !!(aiReport && Object.values(aiReport.narrative).some(Boolean))
+  const hasTopPosts = !!(topPosts && topPosts.length > 0)
+
+  const pieData = platformData
+    .filter(p => p.reach > 0 || p.impressions > 0)
+    .map(p => ({ name: p.name, value: p.reach || p.impressions, color: p.color }))
+
+  // Section counter
+  let sectionN = 1
+  const sec = () => String(sectionN++).padStart(2, '0')
 
   return (
-    <div className="space-y-5">
-      <CoverPage
-        title="Monthly Performance Report"
-        subtitle="Organic social media performance across all active platforms — reach, engagement, and trend analysis"
-        client={client} period={period} tag="Organic Social — Monthly"
-      />
-      <ReportHeader title="Monthly Performance Report" subtitle="Organic social media performance across all platforms" client={client} period={period}/>
+    <div className="space-y-6">
 
-      <ReportSection n="01" label="Key Metrics"/>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <KPICard icon={Eye}       label="Total Reach"          value={liveStats?.reach != null ? formatNumber(liveStats.reach) : '—'}                                        delta={deltaStr(liveStats?.reach, prevStats?.reach)}               positive={deltaPos(liveStats?.reach, prevStats?.reach)}/>
-        <KPICard icon={TrendingUp} label="Avg Engagement Rate" value={liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—'}        delta={deltaStr(liveStats?.engagement_rate, prevStats?.engagement_rate)} positive={deltaPos(liveStats?.engagement_rate, prevStats?.engagement_rate)}/>
-        <KPICard icon={BarChart2}  label="Total Impressions"   value={liveStats?.impressions != null ? formatNumber(liveStats.impressions) : '—'}                           delta={deltaStr(liveStats?.impressions, prevStats?.impressions)}    positive={deltaPos(liveStats?.impressions, prevStats?.impressions)}/>
+      {/* ── Cover ─────────────────────────────────────────── */}
+      <CoverPage client={client} period={period}/>
+
+      {/* ── Section: The Numbers That Matter ─────────────── */}
+      <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
+        <ReportPageHeader client={client} period={period}/>
+        <SectionLabel n={sec()} label="Overview"/>
+        <SectionTitle
+          title="The Numbers That Matter"
+          subtitle={`Here is a clear summary of how your social media performed in ${period}, compared to the previous month.`}
+        />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {([
+            {
+              key: 'reach', label: 'People Reached', icon: Users,
+              explanation: 'How many different people saw at least one of your posts — each person counted once',
+              format: (v: number) => formatNumber(v),
+            },
+            {
+              key: 'impressions', label: 'Times Content Was Seen', icon: Eye,
+              explanation: 'Total times your posts appeared on someone\'s screen — one person can count multiple times',
+              format: (v: number) => formatNumber(v),
+            },
+            {
+              key: 'likes', label: 'Total Likes', icon: Heart,
+              explanation: 'People who liked or positively reacted to your posts',
+              format: (v: number) => formatNumber(v),
+            },
+            {
+              key: 'comments', label: 'Total Comments', icon: MessageCircle,
+              explanation: 'Conversations started on your posts — a strong sign people care about your content',
+              format: (v: number) => formatNumber(v),
+            },
+            {
+              key: 'shares', label: 'Total Shares', icon: Share2,
+              explanation: 'Times people shared your content with their own followers',
+              format: (v: number) => formatNumber(v),
+            },
+            {
+              key: 'posts', label: 'Posts Published', icon: FileText,
+              explanation: 'Number of posts published across all platforms this month',
+              format: (v: number) => String(Math.round(v)),
+            },
+          ] as const).map(({ key, label, icon: Icon, explanation, format }) => {
+            const val = liveStats?.[key]
+            const prv = prevStats?.[key]
+            const delta = deltaStr(val, prv)
+            const positive = deltaPos(val, prv)
+            return (
+              <div key={key} className="rounded-2xl border border-slate-100 p-5" style={{ background: B.light }}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-2 rounded-lg" style={{ background: 'rgba(27,61,56,0.1)' }}>
+                    <Icon className="w-4 h-4" style={{ color: B.primary }}/>
+                  </div>
+                  {delta !== '—' && (
+                    <DeltaBadge delta={`${delta} vs last month`} positive={positive}/>
+                  )}
+                </div>
+                <p className="text-3xl font-bold text-slate-900 mb-1 tabular-nums">
+                  {val != null ? format(val) : '—'}
+                </p>
+                <p className="text-xs font-semibold mb-2" style={{ color: B.muted }}>{label}</p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">{explanation}</p>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Engagement rate callout */}
+        {liveStats?.engagement_rate != null && (
+          <div className="mt-4 rounded-2xl border border-slate-100 px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg" style={{ background: B.light }}>
+                <TrendingUp className="w-4 h-4" style={{ color: B.primary }}/>
+              </div>
+              <div>
+                <p className="text-2xl font-bold tabular-nums" style={{ color: B.primary }}>
+                  {Number(liveStats.engagement_rate).toFixed(1)}%
+                </p>
+                <p className="text-xs font-semibold text-slate-500">Interaction Rate</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed sm:ml-6 max-w-lg">
+              Out of every 100 people who saw your content,{' '}
+              <strong className="text-slate-700">{Number(liveStats.engagement_rate).toFixed(1)} of them</strong>{' '}
+              liked, commented, or shared it. This measures how much your content is connecting with your audience.
+              {prevStats?.engagement_rate != null && deltaStr(liveStats.engagement_rate, prevStats.engagement_rate) !== '—' && (
+                <span> That is <strong className="text-slate-700">{deltaStr(liveStats.engagement_rate, prevStats.engagement_rate)}</strong> compared to last month.</span>
+              )}
+            </p>
+          </div>
+        )}
       </div>
 
-      {liveStats && ((liveStats.likes ?? 0) > 0 || (liveStats.comments ?? 0) > 0 || (liveStats.saves ?? 0) > 0 || (liveStats.shares ?? 0) > 0) && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {([
-            { label: 'Likes',    key: 'likes' },
-            { label: 'Comments', key: 'comments' },
-            { label: 'Saves',    key: 'saves' },
-            { label: 'Shares',   key: 'shares' },
-          ] as const).filter(m => (liveStats[m.key] ?? 0) > 0).map(m => (
-            <div key={m.key} className="bg-white rounded-xl border border-slate-100 px-4 py-3">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{m.label}</p>
-              <p className="text-xl font-bold text-slate-900">{formatNumber(liveStats[m.key] ?? 0)}</p>
-              {prevStats && (prevStats[m.key] ?? 0) > 0 && (
-                <DeltaBadge delta={deltaStr(liveStats[m.key], prevStats[m.key])} positive={deltaPos(liveStats[m.key], prevStats[m.key])}/>
+      {/* ── Section: Are You Reaching More People ─────────── */}
+      {trendData.length > 0 && (
+        <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
+          <ReportPageHeader client={client} period={period}/>
+          <SectionLabel n={sec()} label="Growth"/>
+          <SectionTitle
+            title="Are You Reaching More People?"
+            subtitle="These charts show how your audience reach and content interactions have changed over the last 5 months. A rising line is a great sign."
+          />
+
+          {/* Reach trend */}
+          <div className="rounded-2xl border border-slate-100 p-5 mb-5">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-bold text-slate-800">People Reached Per Month</p>
+              {totalReach > 0 && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: B.light, color: B.primary }}>
+                  {formatNumber(totalReach)} this month
+                </span>
               )}
             </div>
-          ))}
-        </div>
-      )}
-
-      {trendData.length > 0 && (
-        <>
-        <ReportSection n="02" label="Trend Analysis"/>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <SectionHeader title="Reach & Impressions Trend" subtitle={`5-month data — ${vendorName(user?.role, 'Metricool')}`}/>
-            <ResponsiveContainer width="100%" height={200}>
-              <ComposedChart data={trendData}>
+            <p className="text-xs text-slate-400 mb-5">How many different people saw your content each month</p>
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={trendData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="reachGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={B.primary} stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor={B.primary} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-                <Tooltip formatter={(v, n) => [formatNumber(Number(v)), n === 'reach' ? 'Reach' : 'Impressions']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-                <Bar dataKey="impressions" fill={B.light} stroke={B.border} radius={[3, 3, 0, 0]} name="Impressions"/>
-                <Line type="monotone" dataKey="reach" stroke={B.primary} strokeWidth={2.5} dot={{ fill: B.primary, r: 3 }} name="Reach"/>
-              </ComposedChart>
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))} width={55}/>
+                <Tooltip content={<ChartTooltip/>}/>
+                <Area type="monotone" dataKey="reach" name="People Reached" stroke={B.primary} strokeWidth={2.5} fill="url(#reachGrad)" dot={{ fill: B.primary, r: 4, strokeWidth: 0 }}/>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <SectionHeader title="Engagement Rate Trend" subtitle="Monthly average"/>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={trendData}>
+
+          {/* Interaction rate trend */}
+          <div className="rounded-2xl border border-slate-100 p-5">
+            <p className="text-sm font-bold text-slate-800 mb-1">Interaction Rate Per Month</p>
+            <p className="text-xs text-slate-400 mb-5">
+              What percentage of people who saw your content actually liked, commented, or shared?
+              The dotted line shows the average for most brands (2%). Being above it is excellent.
+            </p>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={trendData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="erGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={B.accent} stopOpacity={0.3}/>
@@ -338,935 +431,290 @@ function MonthlyReport({ client, period, liveStats, prevStats, livePlatforms, li
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
-                <Tooltip formatter={v => [`${v}%`, 'Eng. Rate']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-                <ReferenceLine y={4} stroke="#cbd5e1" strokeDasharray="4 4" label={{ value: 'Benchmark 4%', position: 'insideTopRight', fontSize: 10, fill: '#94a3b8' }}/>
-                <Area type="monotone" dataKey="er" stroke={B.accent} strokeWidth={2.5} fill="url(#erGrad)" dot={{ fill: B.accent, r: 3 }}/>
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%" width={40}/>
+                <Tooltip content={(props) => {
+                  if (!props.active || !props.payload?.length) return null
+                  return (
+                    <div className="bg-white border border-slate-200 rounded-xl shadow-lg px-4 py-3 text-xs">
+                      <p className="font-semibold text-slate-700 mb-1">{props.label}</p>
+                      <p className="text-slate-800"><strong>{props.payload[0].value}%</strong> interaction rate</p>
+                    </div>
+                  )
+                }}/>
+                <ReferenceLine y={2} stroke="#cbd5e1" strokeDasharray="5 3" label={{ value: 'Average: 2%', position: 'insideTopRight', fontSize: 10, fill: '#94a3b8' }}/>
+                <Area type="monotone" dataKey="er" name="Interaction Rate" stroke={B.accent} strokeWidth={2.5} fill="url(#erGrad)" dot={{ fill: B.accent, r: 4, strokeWidth: 0 }}/>
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
-        </>
-      )}
 
-      {platformData.length > 0 && (
-        <>
-        <ReportSection n="03" label="Platform Breakdown"/>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Platform Performance" subtitle={`Reach, posts, and engagement rate — ${vendorName(user?.role, 'Metricool')}`}/>
-          <div className="space-y-4">
-            {platformData.map(p => (
-              <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '130px 1fr 280px' }}>
-                <div className="flex items-center gap-2">
-                  <PlatformLogo platform={p.name.toLowerCase()} size={18}/>
-                  <span className="text-sm font-semibold text-slate-700">{p.name}</span>
-                </div>
-                <div>
-                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${(p.reach / maxReach) * 100}%`, background: p.color }}/>
-                  </div>
-                </div>
-                <div className="flex items-center gap-5 text-xs">
-                  <div className="text-right w-20"><span className="font-bold text-slate-800">{formatNumber(p.reach)}</span><span className="text-slate-400 ml-1">reach</span></div>
-                  <div className="text-right w-14"><span className="font-bold text-slate-800">{p.posts}</span><span className="text-slate-400 ml-1">posts</span></div>
-                  <div className="text-right w-16"><span className="font-bold text-slate-800">{Number(p.er).toFixed(1)}%</span><span className="text-slate-400 ml-1">ER</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        </>
-      )}
-
-      {hasNarrative && (
-        <>
-        <ReportSection n="04" label="AI Analysis"/>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of the data"/>
-          <div className="space-y-4">
-            {aiReport.narrative.executive    && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
-            {aiReport.narrative.reach        && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Reach &amp; Impressions</p><Paragraph>{aiReport.narrative.reach}</Paragraph></>}
-            {aiReport.narrative.engagement   && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Engagement</p><Paragraph>{aiReport.narrative.engagement}</Paragraph></>}
-            {aiReport.narrative.platform     && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Platform Performance</p><Paragraph>{aiReport.narrative.platform}</Paragraph></>}
-            {aiReport.narrative.trend        && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Trend</p><Paragraph>{aiReport.narrative.trend}</Paragraph></>}
-            {aiReport.narrative.audience     && <><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-4 mb-1">Audience Engagement</p><Paragraph>{aiReport.narrative.audience}</Paragraph></>}
-          </div>
-        </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Paid Ads Report ────────────────────────────────────────────────────────────
-
-function PaidReport({ client, period, liveStats, prevStats, livePlatforms, aiReport }: {
-  client: string
-  period: string
-  liveStats?: Record<string, number> | null
-  prevStats?: Record<string, number> | null
-  livePlatforms?: LivePlatform[] | null
-  aiReport?: AIReport | null
-}) {
-  const { user } = useAuth()
-  const platformData = (livePlatforms ?? [])
-    .filter(p => p.reach > 0 || p.impressions > 0)
-    .map(p => ({
-      name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
-      reach: p.reach, posts: p.posts, er: p.engagement_rate,
-      color: PLATFORM_COLORS[p.platform] ?? '#94a3b8',
-    }))
-  const maxReach = Math.max(...platformData.map(p => p.reach), 1)
-  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
-
-  return (
-    <div className="space-y-5">
-      <CoverPage
-        title="Paid Media Performance Report"
-        subtitle="Organic reach, engagement, and channel performance"
-        client={client} period={period} tag="Paid Media — Monthly"
-      />
-      <ReportHeader title="Paid Media Performance Report" subtitle="Organic reach and engagement performance" client={client} period={period}/>
-
-      <InfoBanner>
-        Paid campaign data (ROAS, CPC, CPA, spend) is sourced directly from ad platforms — Meta Ads Manager, TikTok Ads Manager, LinkedIn Campaign Manager — and is not available via {vendorName(user?.role, 'Metricool')}. The metrics below reflect organic reach and engagement performance.
-      </InfoBanner>
-
-      <ReportSection n="01" label="Key Metrics"/>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <KPICard icon={Eye}       label="Organic Reach"        value={liveStats?.reach != null ? formatNumber(liveStats.reach) : '—'}                                      delta={deltaStr(liveStats?.reach, prevStats?.reach)}               positive={deltaPos(liveStats?.reach, prevStats?.reach)}/>
-        <KPICard icon={TrendingUp} label="Avg Engagement Rate" value={liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—'}      delta={deltaStr(liveStats?.engagement_rate, prevStats?.engagement_rate)} positive={deltaPos(liveStats?.engagement_rate, prevStats?.engagement_rate)}/>
-        <KPICard icon={BarChart2}  label="Total Impressions"   value={liveStats?.impressions != null ? formatNumber(liveStats.impressions) : '—'}                         delta={deltaStr(liveStats?.impressions, prevStats?.impressions)}    positive={deltaPos(liveStats?.impressions, prevStats?.impressions)}/>
-      </div>
-
-      {platformData.length > 0 && (
-        <>
-        <ReportSection n="02" label="Platform Breakdown"/>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Organic Platform Performance" subtitle="Channel-level performance breakdown"/>
-          <div className="space-y-4">
-            {platformData.map(p => (
-              <div key={p.name} className="grid items-center gap-4" style={{ gridTemplateColumns: '130px 1fr 280px' }}>
-                <div className="flex items-center gap-2">
-                  <PlatformLogo platform={p.name.toLowerCase()} size={18}/>
-                  <span className="text-sm font-semibold text-slate-700">{p.name}</span>
-                </div>
-                <div>
-                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${(p.reach / maxReach) * 100}%`, background: p.color }}/>
-                  </div>
-                </div>
-                <div className="flex items-center gap-5 text-xs">
-                  <div className="text-right w-20"><span className="font-bold text-slate-800">{formatNumber(p.reach)}</span><span className="text-slate-400 ml-1">reach</span></div>
-                  <div className="text-right w-14"><span className="font-bold text-slate-800">{p.posts}</span><span className="text-slate-400 ml-1">posts</span></div>
-                  <div className="text-right w-16"><span className="font-bold text-slate-800">{Number(p.er).toFixed(1)}%</span><span className="text-slate-400 ml-1">ER</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        </>
-      )}
-
-      {hasNarrative && (
-        <>
-        <ReportSection n="03" label="AI Analysis"/>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of the data"/>
-          <div className="space-y-4">
-            {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
-            {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
-            {aiReport.narrative.engagement && <Paragraph>{aiReport.narrative.engagement}</Paragraph>}
-            {aiReport.narrative.platform  && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
-          </div>
-        </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Combined Report ────────────────────────────────────────────────────────────
-
-function CombinedReport({ client, period, liveStats, prevStats, livePlatforms, liveTrend, aiReport }: {
-  client: string
-  period: string
-  liveStats?: Record<string, number> | null
-  prevStats?: Record<string, number> | null
-  livePlatforms?: LivePlatform[] | null
-  liveTrend?: LiveTrendPoint[] | null
-  aiReport?: AIReport | null
-}) {
-  const { user } = useAuth()
-  const platformData = (livePlatforms ?? [])
-    .filter(p => p.reach > 0 || p.impressions > 0)
-    .map(p => ({
-      name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
-      reach: p.reach, posts: p.posts, er: p.engagement_rate,
-      color: PLATFORM_COLORS[p.platform] ?? '#94a3b8',
-    }))
-  const trendData = liveTrend ?? []
-  const totalReach = liveStats?.reach ?? 0
-  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
-
-  return (
-    <div className="space-y-5">
-      <CoverPage
-        title="Paid + Organic Combined Report"
-        subtitle="Organic channel performance across all active platforms"
-        client={client} period={period} tag="Paid + Organic — Monthly"
-      />
-      <ReportHeader title="Paid + Organic Combined Report" subtitle="Organic performance across all active platforms" client={client} period={period}/>
-
-      <InfoBanner>
-        Paid campaign metrics (spend, ROAS, CPC, CPA) are sourced directly from ad platforms and are not available via {vendorName(user?.role, 'Metricool')}. Organic performance data from {vendorName(user?.role, 'Metricool')} is shown below.
-      </InfoBanner>
-
-      <ReportSection n="01" label="Key Metrics"/>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Organic Reach',   value: totalReach > 0 ? formatNumber(totalReach) : '—',                                                    delta: deltaStr(liveStats?.reach, prevStats?.reach),               positive: deltaPos(liveStats?.reach, prevStats?.reach),               icon: Eye },
-          { label: 'Engagement Rate', value: liveStats?.engagement_rate != null ? `${Number(liveStats.engagement_rate).toFixed(1)}%` : '—',      delta: deltaStr(liveStats?.engagement_rate, prevStats?.engagement_rate), positive: deltaPos(liveStats?.engagement_rate, prevStats?.engagement_rate), icon: TrendingUp },
-          { label: 'Total Impressions', value: liveStats?.impressions != null ? formatNumber(liveStats.impressions) : '—',                       delta: deltaStr(liveStats?.impressions, prevStats?.impressions),    positive: deltaPos(liveStats?.impressions, prevStats?.impressions),    icon: BarChart2 },
-          { label: 'Posts Published', value: liveStats?.posts != null ? String(Math.round(liveStats.posts)) : '—',                              delta: deltaStr(liveStats?.posts, prevStats?.posts),               positive: deltaPos(liveStats?.posts, prevStats?.posts),               icon: Activity },
-        ].map(({ label, value, delta, positive, icon: Icon }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 p-4">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-3" style={{ background: B.light }}>
-              <Icon className="w-4 h-4" style={{ color: B.primary }}/>
+          {/* Month-by-month table */}
+          {trendData.length > 0 && (
+            <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ background: B.light }}>
+                    {['Month', 'People Reached', 'Times Seen', 'Interaction Rate'].map((h, i) => (
+                      <th key={h} className={cn('p-3 text-xs font-bold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {trendData.map((t, i) => (
+                    <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
+                      <td className="p-3 font-semibold text-slate-800">{t.month}</td>
+                      <td className="p-3 text-right font-bold text-slate-800">{t.reach > 0 ? formatNumber(t.reach) : '—'}</td>
+                      <td className="p-3 text-right text-slate-600">{t.impressions > 0 ? formatNumber(t.impressions) : '—'}</td>
+                      <td className="p-3 text-right font-bold" style={{ color: B.primary }}>{t.er > 0 ? `${Number(t.er).toFixed(1)}%` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <p className="text-lg font-bold text-slate-900">{value}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 mb-1">{label}</p>
-            {delta !== '—' && <DeltaBadge delta={`${delta} vs prior period`} positive={positive}/>}
-          </div>
-        ))}
-      </div>
-
-      {trendData.length > 0 && (
-        <>
-        <ReportSection n="02" label="Trend Analysis"/>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Organic Reach Trend" subtitle={`5-month trajectory — ${vendorName(user?.role, 'Metricool')}`}/>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={trendData}>
-              <defs>
-                <linearGradient id="orgGrad2" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={B.accent} stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor={B.accent} stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-              <Tooltip formatter={v => [formatNumber(Number(v)), 'Organic Reach']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-              <Area type="monotone" dataKey="reach" stroke={B.accent} strokeWidth={2} fill="url(#orgGrad2)" name="Organic Reach"/>
-            </AreaChart>
-          </ResponsiveContainer>
+          )}
         </div>
-        </>
       )}
 
+      {/* ── Section: Where Is Your Audience ──────────────── */}
       {platformData.length > 0 && (
-        <>
-        <ReportSection n="03" label="Platform Breakdown"/>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Organic Channel Mix" subtitle="Platform-level contribution to total organic reach"/>
-          <div className="space-y-3">
-            {platformData.map(p => {
-              const pct = totalReach > 0 ? Math.round((p.reach / totalReach) * 100) : 0
-              return (
-                <div key={p.name} className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 w-32 shrink-0">
-                    <PlatformLogo platform={p.name.toLowerCase()} size={16}/>
-                    <span className="text-sm font-semibold text-slate-700">{p.name}</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: p.color }}/>
+        <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
+          <ReportPageHeader client={client} period={period}/>
+          <SectionLabel n={sec()} label="Platforms"/>
+          <SectionTitle
+            title="Where Is Your Audience?"
+            subtitle="This shows which social media platforms your audience uses most. Every platform that had at least one post this month is shown here."
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* Pie chart */}
+            {pieData.length > 1 && (
+              <div className="lg:col-span-2 rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
+                <p className="text-sm font-bold text-slate-800 mb-1">Audience Distribution</p>
+                <p className="text-xs text-slate-400 mb-3">Share of total reach by platform</p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={2}>
+                      {pieData.map((entry, i) => <Cell key={i} fill={entry.color}/>)}
+                    </Pie>
+                    <Tooltip formatter={(v) => [formatNumber(Number(v)), 'People Reached']} contentStyle={{ fontSize: 12, borderRadius: 10 }}/>
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Platform bars */}
+            <div className={cn('space-y-4', pieData.length > 1 ? 'lg:col-span-3' : 'lg:col-span-5')}>
+              {platformData.map(p => {
+                const barWidth = Math.max((p.reach + p.impressions) / maxReach * 100, 1)
+                return (
+                  <div key={p.platform} className="rounded-xl border border-slate-100 p-4">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <PlatformLogo platform={p.platform} size={20}/>
+                        <span className="text-sm font-bold text-slate-800">{p.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span className="font-bold text-slate-800 text-sm">{formatNumber(p.reach || p.impressions)}</span>
+                        <span>people reached</span>
+                      </div>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full mb-3">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: p.color }}/>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                      <div className="flex items-center gap-1 text-slate-500">
+                        <Heart className="w-3.5 h-3.5 text-slate-400"/>
+                        <span className="font-semibold text-slate-700">{formatNumber(p.likes)}</span>
+                        <span>likes</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-slate-500">
+                        <MessageCircle className="w-3.5 h-3.5 text-slate-400"/>
+                        <span className="font-semibold text-slate-700">{formatNumber(p.comments)}</span>
+                        <span>comments</span>
+                      </div>
+                      {p.shares > 0 && (
+                        <div className="flex items-center gap-1 text-slate-500">
+                          <Share2 className="w-3.5 h-3.5 text-slate-400"/>
+                          <span className="font-semibold text-slate-700">{formatNumber(p.shares)}</span>
+                          <span>shares</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 text-slate-500 ml-auto">
+                        <span className="font-semibold" style={{ color: B.primary }}>{Number(p.engagement_rate).toFixed(1)}%</span>
+                        <span>interaction rate</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 text-xs shrink-0">
-                    <span className="font-bold text-slate-800 w-16 text-right">{formatNumber(p.reach)}</span>
-                    <span className="text-slate-500 w-10 text-right">{pct}%</span>
-                    <span className="font-semibold text-slate-700 w-12 text-right">{Number(p.er).toFixed(1)}% ER</span>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Engagement comparison bar chart */}
+          {platformData.length > 1 && (
+            <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
+              <p className="text-sm font-bold text-slate-800 mb-1">How People Reacted — Platform Comparison</p>
+              <p className="text-xs text-slate-400 mb-5">
+                Total likes and comments per platform. Taller bars mean more audience interaction on that platform.
+              </p>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={platformData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))} width={50}/>
+                  <Tooltip content={<ChartTooltip/>}/>
+                  <Bar dataKey="likes" name="Likes" stackId="eng" fill={B.accent} radius={[0, 0, 0, 0]}/>
+                  <Bar dataKey="comments" name="Comments" stackId="eng" fill={B.primary} radius={[3, 3, 0, 0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Section: Top Posts ─────────────────────────────── */}
+      {hasTopPosts && (
+        <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
+          <ReportPageHeader client={client} period={period}/>
+          <SectionLabel n={sec()} label="Top Content"/>
+          <SectionTitle
+            title="Your Best Content This Month"
+            subtitle={`The top ${topPosts!.length} posts ranked by the most likes, comments, and shares they received. Click "View Post" to see the original.`}
+          />
+
+          <div className="space-y-3">
+            {topPosts!.map((post, i) => {
+              const rankColor = i === 0 ? '#F59E0B' : i === 1 ? '#9CA3AF' : i === 2 ? '#CD7C2F' : B.border
+              const views = (post.impressions ?? 0) > 0 ? post.impressions : post.reach
+              return (
+                <div key={i} className="flex items-start gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                  {/* Rank */}
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm font-bold text-white mt-0.5" style={{ background: rankColor }}>
+                    {i + 1}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    {/* Meta row */}
+                    <div className="flex items-center gap-2.5 mb-2.5">
+                      {post.network && (
+                        <>
+                          <PlatformLogo platform={post.network} size={16}/>
+                          <span className="text-xs font-semibold text-slate-500 capitalize">{post.network}</span>
+                        </>
+                      )}
+                      {post.publishDate && (
+                        <span className="text-xs text-slate-400 ml-auto">{formatPostDate(post.publishDate)}</span>
+                      )}
+                    </div>
+
+                    {/* Post text */}
+                    {post.text ? (
+                      <p className="text-sm text-slate-700 leading-relaxed mb-3 line-clamp-2">
+                        {post.text.length > 140 ? post.text.slice(0, 140) + '…' : post.text}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-slate-400 italic mb-3">No caption available</p>
+                    )}
+
+                    {/* Metrics row */}
+                    <div className="flex flex-wrap items-center gap-4">
+                      {views > 0 && (
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <Eye className="w-3.5 h-3.5 text-slate-400"/>
+                          <span className="font-bold text-slate-700">{formatNumber(views)}</span>
+                          <span className="text-slate-400">views</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <Heart className="w-3.5 h-3.5 text-slate-400"/>
+                        <span className="font-bold text-slate-700">{formatNumber(post.likes)}</span>
+                        <span className="text-slate-400">likes</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <MessageCircle className="w-3.5 h-3.5 text-slate-400"/>
+                        <span className="font-bold text-slate-700">{formatNumber(post.comments)}</span>
+                        <span className="text-slate-400">comments</span>
+                      </div>
+                      {post.shares > 0 && (
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <Share2 className="w-3.5 h-3.5 text-slate-400"/>
+                          <span className="font-bold text-slate-700">{formatNumber(post.shares)}</span>
+                          <span className="text-slate-400">shares</span>
+                        </div>
+                      )}
+                      {post.url && (
+                        <a
+                          href={post.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs font-semibold ml-auto rounded-lg px-3 py-1.5 transition-colors hover:opacity-80"
+                          style={{ background: B.light, color: B.primary }}
+                        >
+                          <Link2 className="w-3.5 h-3.5"/>
+                          View Post
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
             })}
           </div>
         </div>
-        </>
       )}
 
+      {/* ── Section: What This Data Tells Us ──────────────── */}
       {hasNarrative && (
-        <>
-        <ReportSection n="04" label="AI Analysis"/>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Performance Analysis" subtitle="AI-generated interpretation of the data"/>
-          <div className="space-y-4">
-            {aiReport.narrative.executive && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
-            {aiReport.narrative.reach     && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
-            {aiReport.narrative.synergy   && <Paragraph>{aiReport.narrative.synergy}</Paragraph>}
-            {aiReport.narrative.channel   && <Paragraph>{aiReport.narrative.channel}</Paragraph>}
-            {aiReport.narrative.platform  && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
-          </div>
-        </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Platform Deep Dive ─────────────────────────────────────────────────────────
-
-function PlatformReport({ client, period, livePlatforms, liveTrend, aiReport }: {
-  client: string
-  period: string
-  livePlatforms?: LivePlatform[] | null
-  liveTrend?: LiveTrendPoint[] | null
-  aiReport?: AIReport | null
-}) {
-  const { user } = useAuth()
-  const platformData = (livePlatforms ?? [])
-    .filter(p => p.reach > 0 || p.impressions > 0)
-    .sort((a, b) => b.reach - a.reach)
-  const trendData = liveTrend ?? []
-  const topPlatform = platformData[0]
-  const platformLabel = topPlatform
-    ? topPlatform.platform.charAt(0).toUpperCase() + topPlatform.platform.slice(1)
-    : 'Primary Platform'
-  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
-
-  return (
-    <div className="space-y-5">
-      <CoverPage
-        title={`${platformLabel} Deep Dive Report`}
-        subtitle="Platform-by-platform reach, engagement rate, posts, saves, and comment data"
-        client={client} period={period} tag={`Platform Deep Dive — ${platformLabel}`}
-      />
-      <ReportHeader title={`${platformLabel} Deep Dive Report`} subtitle="Per-platform reach, engagement, and channel analysis" client={client} period={period}/>
-
-      {platformData.length > 0 ? (
-        <>
-        <ReportSection n="01" label="Platform Cards"/>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {platformData.map(p => {
-            const name = p.platform.charAt(0).toUpperCase() + p.platform.slice(1)
-            return (
-              <div key={p.platform} className="bg-white rounded-2xl border border-slate-200 p-5">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <PlatformLogo platform={p.platform} size={22}/>
-                  <span className="text-sm font-bold text-slate-800">{name}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Reach</p>
-                    <p className="text-xl font-bold text-slate-900 mt-0.5">{formatNumber(p.reach)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Eng. Rate</p>
-                    <p className="text-xl font-bold mt-0.5" style={{ color: B.primary }}>{Number(p.engagement_rate).toFixed(1)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Impressions</p>
-                    <p className="text-base font-semibold text-slate-700 mt-0.5">{formatNumber(p.impressions)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Posts</p>
-                    <p className="text-base font-semibold text-slate-700 mt-0.5">{p.posts}</p>
-                  </div>
-                  {p.saves > 0 && (
-                    <div>
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Saves</p>
-                      <p className="text-base font-semibold text-slate-700 mt-0.5">{formatNumber(p.saves)}</p>
-                    </div>
-                  )}
-                  {p.comments > 0 && (
-                    <div>
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Comments</p>
-                      <p className="text-base font-semibold text-slate-700 mt-0.5">{formatNumber(p.comments)}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        </>
-      ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
-          <p className="text-sm text-slate-400">No platform data available — configure {vendorName(user?.role, 'Metricool')} in Settings to enable per-platform analytics.</p>
-        </div>
-      )}
-
-      {trendData.length > 0 && (
-        <>
-        <ReportSection n="02" label="Trend Analysis"/>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <SectionHeader title="Reach Trend" subtitle="5-month organic reach trajectory"/>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="platReachGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={B.primary} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={B.primary} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-                <Tooltip formatter={v => [formatNumber(Number(v)), 'Reach']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-                <Area type="monotone" dataKey="reach" stroke={B.primary} strokeWidth={2.5} fill="url(#platReachGrad)" dot={{ fill: B.primary, r: 3 }}/>
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <SectionHeader title="Engagement Rate Trend" subtitle="Monthly ER trajectory"/>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="platErGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={B.accent} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={B.accent} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
-                <Tooltip formatter={v => [`${v}%`, 'Eng. Rate']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-                <Area type="monotone" dataKey="er" stroke={B.accent} strokeWidth={2.5} fill="url(#platErGrad)" dot={{ fill: B.accent, r: 3 }}/>
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        </>
-      )}
-
-      {hasNarrative && (
-        <>
-        <ReportSection n="03" label="AI Analysis"/>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Platform Analysis" subtitle="AI-generated account health and format insights"/>
-          <div className="space-y-4">
-            {aiReport.narrative.executive  && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
-            {aiReport.narrative.follower   && <Paragraph>{aiReport.narrative.follower}</Paragraph>}
-            {aiReport.narrative.reach      && <Paragraph>{aiReport.narrative.reach}</Paragraph>}
-            {aiReport.narrative.engagement && <Paragraph>{aiReport.narrative.engagement}</Paragraph>}
-            {aiReport.narrative.formats    && <Paragraph>{aiReport.narrative.formats}</Paragraph>}
-          </div>
-        </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Quarterly Report ───────────────────────────────────────────────────────────
-
-function QuarterlyReport({ client, period, liveStats, prevStats, liveTrend, aiReport }: {
-  client: string
-  period: string
-  liveStats?: Record<string, number> | null
-  prevStats?: Record<string, number> | null
-  liveTrend?: LiveTrendPoint[] | null
-  aiReport?: AIReport | null
-}) {
-  const { user } = useAuth()
-  const trendData = (liveTrend ?? []).slice(-3).map(t => ({ month: t.month, reach: t.reach, impressions: t.impressions, er: t.er }))
-  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
-
-  return (
-    <div className="space-y-5">
-      <CoverPage
-        title="Quarterly Performance Report"
-        subtitle="Three-month reach and engagement data with a month-by-month performance breakdown"
-        client={client} period={period} tag="Quarterly Review"
-      />
-      <ReportHeader title="Quarterly Performance Report" subtitle="Three-month performance — reach, engagement, and platform data" client={client} period={period}/>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Reach',       key: 'reach',           format: (v: number) => formatNumber(v),                              icon: Eye },
-          { label: 'Avg Eng. Rate',     key: 'engagement_rate', format: (v: number) => `${Number(v).toFixed(1)}%`,                   icon: TrendingUp },
-          { label: 'Total Impressions', key: 'impressions',     format: (v: number) => formatNumber(v),                              icon: BarChart2 },
-          { label: 'Posts Published',   key: 'posts',           format: (v: number) => String(Math.round(v)),                        icon: Activity },
-        ].map(({ label, key, format, icon: Icon }) => {
-          const val = liveStats?.[key]
-          const prv = prevStats?.[key]
-          return (
-            <div key={label} className="bg-white rounded-2xl border border-slate-200 p-4">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-3" style={{ background: B.light }}>
-                <Icon className="w-4 h-4" style={{ color: B.primary }}/>
-              </div>
-              <p className="text-xl font-bold text-slate-900">{val != null ? format(val) : '—'}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5 mb-1">{label}</p>
-              {deltaStr(val, prv) !== '—' && <DeltaBadge delta={`${deltaStr(val, prv)} vs prior quarter`} positive={deltaPos(val, prv)}/>}
-            </div>
-          )
-        })}
-      </div>
-
-      {trendData.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Quarter Trend" subtitle={`Reach and engagement — ${vendorName(user?.role, 'Metricool')}`}/>
-          <ResponsiveContainer width="100%" height={240}>
-            <ComposedChart data={trendData as object[]}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis yAxisId="left"  tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-              <Legend wrapperStyle={{ fontSize: 12 }}/>
-              <Bar yAxisId="left" dataKey="reach" fill={B.light} stroke={B.border} radius={[4, 4, 0, 0]} name="Reach"/>
-              <Line yAxisId="right" type="monotone" dataKey="er" stroke={B.primary} strokeWidth={2.5} dot={{ fill: B.primary, r: 4 }} name="ER (%)"/>
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {trendData.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Month-by-Month Breakdown" subtitle="Performance data per month in the quarter"/>
-          <div className="overflow-hidden rounded-xl border border-slate-100">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ background: B.light }}>
-                  {['Month', 'Reach', 'Impressions', 'Eng. Rate'].map((h, i) => (
-                    <th key={h} className={cn('p-3 text-xs font-semibold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {trendData.map((t, i) => (
-                  <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-                    <td className="p-3 font-semibold text-slate-800">{t.month}</td>
-                    <td className="p-3 text-right font-bold text-slate-800">{t.reach > 0 ? formatNumber(t.reach) : '—'}</td>
-                    <td className="p-3 text-right text-slate-600">{t.impressions > 0 ? formatNumber(t.impressions) : '—'}</td>
-                    <td className="p-3 text-right font-bold" style={{ color: B.primary }}>{t.er > 0 ? `${Number(t.er).toFixed(1)}%` : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {hasNarrative && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Quarterly Review" subtitle="Three-month performance data"/>
-          <div className="space-y-4">
-            {aiReport.narrative.executive         && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
-            {aiReport.narrative.quarterly_overview && <Paragraph>{aiReport.narrative.quarterly_overview}</Paragraph>}
-            {aiReport.narrative.monthly_breakdown  && <Paragraph>{aiReport.narrative.monthly_breakdown}</Paragraph>}
-            {aiReport.narrative.trend              && <Paragraph>{aiReport.narrative.trend}</Paragraph>}
-            {aiReport.narrative.platform           && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Executive Summary ──────────────────────────────────────────────────────────
-
-function ExecutiveReport({ client, period, liveStats, prevStats, livePlatforms, liveTrend, aiReport }: {
-  client: string
-  period: string
-  liveStats?: Record<string, number> | null
-  prevStats?: Record<string, number> | null
-  livePlatforms?: LivePlatform[] | null
-  liveTrend?: LiveTrendPoint[] | null
-  aiReport?: AIReport | null
-}) {
-  const platformData = (livePlatforms ?? [])
-    .filter(p => p.reach > 0 || p.impressions > 0)
-    .sort((a, b) => b.reach - a.reach)
-  const trendSlice = (liveTrend ?? []).slice(-3)
-  const hasNarrative = aiReport && Object.values(aiReport.narrative).some(Boolean)
-
-  return (
-    <div className="space-y-5">
-      <CoverPage
-        title="Executive Summary"
-        subtitle="Consolidated key performance indicators — reach, impressions, engagement rate, and platform breakdown"
-        client={client} period={period} tag="Executive Summary"
-      />
-      <ReportHeader title="Executive Summary" subtitle="CEO-ready portfolio overview" client={client} period={period}/>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Reach',       key: 'reach',           format: (v: number) => formatNumber(v) },
-          { label: 'Avg Eng. Rate',     key: 'engagement_rate', format: (v: number) => `${Number(v).toFixed(1)}%` },
-          { label: 'Total Impressions', key: 'impressions',     format: (v: number) => formatNumber(v) },
-          { label: 'Posts Published',   key: 'posts',           format: (v: number) => String(Math.round(v)) },
-        ].map(({ label, key, format }) => {
-          const val = liveStats?.[key]
-          const prv = prevStats?.[key]
-          return (
-            <div key={label} className="bg-white rounded-2xl border-2 border-slate-100 p-6 text-center hover:border-novax-border transition-colors">
-              <p className="text-4xl font-bold mb-2" style={{ color: B.primary }}>{val != null ? format(val) : '—'}</p>
-              <p className="text-xs font-semibold text-slate-500 mb-3">{label}</p>
-              {deltaStr(val, prv) !== '—' && <DeltaBadge delta={`${deltaStr(val, prv)}`} positive={deltaPos(val, prv)}/>}
-            </div>
-          )
-        })}
-      </div>
-
-      {trendSlice.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Reach Trend" subtitle="Recent monthly trajectory"/>
-          <ResponsiveContainer width="100%" height={140}>
-            <AreaChart data={trendSlice}>
-              <defs>
-                <linearGradient id="execGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={B.primary} stopOpacity={0.25}/>
-                  <stop offset="95%" stopColor={B.primary} stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(Number(v))}/>
-              <Tooltip formatter={v => [formatNumber(Number(v)), 'Total Reach']} contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}/>
-              <Area type="monotone" dataKey="reach" stroke={B.primary} strokeWidth={2.5} fill="url(#execGrad)" dot={{ fill: B.primary, r: 4 }}/>
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {platformData.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <SectionHeader title="Platform Breakdown" subtitle="Organic reach and ER across all active channels"/>
-          <div className="overflow-hidden rounded-xl border border-slate-100">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ background: B.light }}>
-                  {['Platform', 'Reach', 'Impressions', 'Eng. Rate', 'Posts', 'Saves', 'Comments'].map((h, i) => (
-                    <th key={h} className={cn('p-3 text-xs font-semibold', i === 0 ? 'text-left' : 'text-right')} style={{ color: B.primary }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {platformData.map((p, i) => {
-                  const color = PLATFORM_COLORS[p.platform] ?? '#94a3b8'
-                  const name = p.platform.charAt(0).toUpperCase() + p.platform.slice(1)
-                  return (
-                    <tr key={i} className={cn('border-t border-slate-50', i % 2 === 1 && 'bg-slate-50/50')}>
-                      <td className="p-3 font-semibold text-slate-800">
-                        <div className="flex items-center gap-2">
-                          <PlatformLogo platform={p.platform} size={16}/>
-                          {name}
-                        </div>
-                      </td>
-                      <td className="p-3 text-right font-bold text-slate-800">{formatNumber(p.reach)}</td>
-                      <td className="p-3 text-right text-slate-600">{formatNumber(p.impressions)}</td>
-                      <td className="p-3 text-right font-bold" style={{ color: B.primary }}>{Number(p.engagement_rate).toFixed(1)}%</td>
-                      <td className="p-3 text-right text-slate-600">{p.posts}</td>
-                      <td className="p-3 text-right text-slate-500">{p.saves > 0 ? formatNumber(p.saves) : '—'}</td>
-                      <td className="p-3 text-right text-slate-500">{p.comments > 0 ? formatNumber(p.comments) : '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {hasNarrative && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <SectionHeader title="Portfolio Overview" subtitle="Consolidated view of the period"/>
-          <div className="space-y-4">
-            {aiReport.narrative.portfolio   && <Paragraph>{aiReport.narrative.portfolio}</Paragraph>}
-            {aiReport.narrative.highlights  && <Paragraph>{aiReport.narrative.highlights}</Paragraph>}
-            {aiReport.narrative.executive   && <Paragraph>{aiReport.narrative.executive}</Paragraph>}
-            {aiReport.narrative.platform    && <Paragraph>{aiReport.narrative.platform}</Paragraph>}
-            {aiReport.narrative.audience    && <Paragraph>{aiReport.narrative.audience}</Paragraph>}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── AI Builder ─────────────────────────────────────────────────────────────────
-
-type ReportStructuredData = {
-  kpis: { label: string; value: string; change: string }[]
-  platforms: { name: string; reach: number; er: number }[]
-  trend: { period: string; value: number }[]
-}
-
-function renderMarkdown(text: string): React.ReactNode[] {
-  return text.split('\n').map((line, i) => {
-    if (!line.trim()) return <div key={i} className="h-3"/>
-    const parts = line.split(/(\*\*[^*]+\*\*)/g)
-    const rendered = parts.map((p, j) =>
-      p.startsWith('**') && p.endsWith('**')
-        ? <strong key={j} className="font-semibold text-slate-900">{p.slice(2, -2)}</strong>
-        : <span key={j}>{p}</span>
-    )
-    if (line.match(/^[-*] /)) {
-      return (
-        <div key={i} className="flex items-start gap-2 py-0.5">
-          <div className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ background: B.accent }}/>
-          <p className="text-sm text-slate-700 leading-relaxed">{rendered}</p>
-        </div>
-      )
-    }
-    if (line.startsWith('### ') || line.startsWith('## ')) {
-      const txt = line.replace(/^#{2,3}\s*/, '').replace(/\*/g, '')
-      return <h4 key={i} className="text-sm font-bold text-slate-900 mt-5 mb-2" style={{ color: B.primary }}>{txt}</h4>
-    }
-    if (line.match(/^\d+\. /)) {
-      const num = line.match(/^(\d+)\. /)?.[1]
-      return (
-        <div key={i} className="flex items-start gap-3 py-1">
-          <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5" style={{ background: B.primary }}>{num}</span>
-          <p className="text-sm text-slate-700 leading-relaxed">{rendered}</p>
-        </div>
-      )
-    }
-    return <p key={i} className="text-sm text-slate-700 leading-relaxed py-0.5">{rendered}</p>
-  }).filter(Boolean) as React.ReactNode[]
-}
-
-function AIBuilder() {
-  const { clients } = useClients()
-  const { user } = useAuth()
-  const [files, setFiles]           = useState<File[]>([])
-  const [prompt, setPrompt]         = useState('')
-  const [reportType, setReportType] = useState<Exclude<ReportTab, 'ai'>>('monthly')
-  const [selectedClient, setSelectedClient] = useState('all')
-  const [loading, setLoading]       = useState(false)
-  const [exporting, setExporting]   = useState(false)
-  const [result, setResult]         = useState<string | null>(null)
-  const [structuredData, setStructuredData] = useState<ReportStructuredData | null>(null)
-  const [error, setError]           = useState<string | null>(null)
-  const fileInputRef                = useRef<HTMLInputElement>(null)
-
-  const clientName = selectedClient === 'all'
-    ? 'Client'
-    : (clients.find(c => c.id === selectedClient)?.name ?? 'Client')
-
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/') || f.type === 'application/pdf')
-    setFiles(prev => [...prev, ...dropped].slice(0, 5))
-  }, [])
-
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setFiles(prev => [...prev, ...Array.from(e.target.files!)].slice(0, 5))
-  }
-
-  const removeFile = (i: number) => setFiles(prev => prev.filter((_, idx) => idx !== i))
-
-  const pullLiveData = async () => {
-    if (selectedClient === 'all') return
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-    const end = now.toISOString().split('T')[0]
-    try {
-      const res = await fetch(`/api/metricool/analytics?client_id=${selectedClient}&startDate=${start}&endDate=${end}`)
-      const data = await res.json() as { stats?: Record<string, unknown>; error?: string }
-      if (res.ok && data.stats) {
-        const s = data.stats
-        setPrompt(prev => `${prev}\n\nLive ${vendorName(user?.role, 'Metricool')} data (${start} to ${end}):\nReach: ${s.reach}\nImpressions: ${s.impressions}\nEngagement rate: ${s.engagement_rate}%\nLikes: ${s.likes}  Comments: ${s.comments}  Shares: ${s.shares}  Saves: ${s.saves}`.trim())
-      }
-    } catch { /* ignore */ }
-  }
-
-  const handleGenerate = async () => {
-    if (!prompt.trim() && files.length === 0) return
-    setLoading(true)
-    setError(null)
-    setResult(null)
-    setStructuredData(null)
-    try {
-      const form = new FormData()
-      form.append('prompt', prompt)
-      form.append('reportType', reportType)
-      files.forEach((f, i) => form.append(`file_${i}`, f))
-      const res  = await fetch('/api/reports/analyze', { method: 'POST', body: form })
-      const data = await res.json() as { text?: string; data?: ReportStructuredData; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Analysis failed')
-      setResult(data.text ?? '')
-      setStructuredData(data.data ?? null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handlePrintPDF = () => {
-    const el = document.getElementById('ai-report-preview')
-    if (el) {
-      el.style.minWidth = '740px'
-      window.dispatchEvent(new Event('resize'))
-      setTimeout(() => { window.print(); setTimeout(() => { el.style.minWidth = '' }, 800) }, 350)
-    } else {
-      window.print()
-    }
-  }
-
-  const handleExportPptx = async () => {
-    if (!result) return
-    setExporting(true)
-    try {
-      const res = await fetch('/api/reports/export-pptx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: result, data: structuredData ?? {}, client_name: clientName, report_type: TABS.find(t => t.id === reportType)?.label ?? reportType }),
-      })
-      if (!res.ok) throw new Error('Export failed')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `NOVA_${clientName}_${reportType}_report.pptx`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch { /* silently fail */ } finally {
-      setExporting(false)
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: B.light }}>
-            <Sparkles className="w-4 h-4" style={{ color: B.primary }}/>
-          </div>
-          <div>
-            <h3 className="font-semibold text-slate-900">AI Report Builder</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Upload analytics screenshots or paste raw data — AI extracts and formats a branded report</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-          <div>
-            <label className="text-xs font-semibold text-slate-600 mb-2 block">Client</label>
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedClient}
-                onChange={e => setSelectedClient(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
-              >
-                <option value="all">Select a client</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <button
-                onClick={pullLiveData}
-                disabled={selectedClient === 'all'}
-                className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors whitespace-nowrap"
-              >
-                Pull live data
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-600 mb-2 block">Report Type</label>
-            <select
-              value={reportType}
-              onChange={e => setReportType(e.target.value as Exclude<ReportTab, 'ai'>)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
-            >
-              {TABS.filter(t => t.id !== 'ai').map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <label className="text-xs font-semibold text-slate-600 mb-2 block">Paste raw data or context</label>
-          <textarea
-            value={prompt}
-            onChange={e => setPrompt(e.target.value)}
-            rows={5}
-            placeholder="Paste analytics data, numbers, campaign context, or anything you'd like the AI to include in the report..."
-            className="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-novax-border resize-none bg-slate-50 focus:bg-white transition-colors"
+        <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
+          <ReportPageHeader client={client} period={period}/>
+          <SectionLabel n={sec()} label="Analysis"/>
+          <SectionTitle
+            title="What This Month's Data Tells Us"
+            subtitle="Here is what the numbers mean for your brand — written in plain language without any marketing jargon."
           />
-        </div>
 
-        <div
-          onDrop={onDrop}
-          onDragOver={e => e.preventDefault()}
-          className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-novax-border transition-colors mb-4"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <input ref={fileInputRef} type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={onFileChange}/>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: B.light }}>
-            <FileText className="w-5 h-5" style={{ color: B.primary }}/>
-          </div>
-          <p className="text-sm text-slate-500">Drop screenshots or PDFs here, or click to upload</p>
-          <p className="text-xs text-slate-400 mt-1">PNG, JPG, PDF · Max 5 files</p>
-        </div>
-
-        {files.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {files.map((f, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-700">
-                <FileText className="w-3 h-3 text-slate-400"/>
-                <span className="max-w-[140px] truncate">{f.name}</span>
-                <button onClick={() => removeFile(i)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-3 h-3"/>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {error && (
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-100 mb-4">
-            <AlertCircle className="w-4 h-4 text-red-500 shrink-0"/>
-            <p className="text-xs text-red-700">{error}</p>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleGenerate}
-            disabled={loading || (!prompt.trim() && files.length === 0)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60 transition-colors"
-            style={{ background: B.primary }}
-          >
-            {loading ? <><RefreshCw className="w-4 h-4 animate-spin"/> Analysing…</> : <><Sparkles className="w-4 h-4"/> Generate Report</>}
-          </button>
-          {result && (
-            <>
-              <button onClick={handlePrintPDF} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
-                <Printer className="w-3.5 h-3.5"/> Print PDF
-              </button>
-              <button
-                onClick={handleExportPptx}
-                disabled={exporting}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-              >
-                {exporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <FileText className="w-3.5 h-3.5"/>}
-                {exporting ? 'Exporting…' : 'Export PPTX'}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {result && (
-        <div id="ai-report-preview" className="bg-white rounded-2xl border border-slate-200 p-8">
-          <ReportHeader
-            title={TABS.find(t => t.id === reportType)?.label ?? 'Report'}
-            subtitle="AI-generated from provided data and screenshots"
-            client={clientName}
-            period={TABS.find(t => t.id === reportType)?.label ?? reportType}
-          />
-          <div className="mt-6 space-y-1">
-            {renderMarkdown(result)}
+          <div className="space-y-6">
+            {([
+              { key: 'executive',  heading: 'Month Overview' },
+              { key: 'reach',      heading: 'How Your Content Spread' },
+              { key: 'engagement', heading: 'How People Reacted' },
+              { key: 'platform',   heading: 'Which Platforms Worked Best' },
+              { key: 'trend',      heading: 'Are You Growing?' },
+              { key: 'audience',   heading: 'About Your Audience' },
+              { key: 'follower',   heading: 'Follower Growth' },
+            ] as { key: keyof AIReportNarrative; heading: string }[])
+              .filter(({ key }) => !!aiReport!.narrative[key])
+              .map(({ key, heading }) => (
+                <div key={key} className="rounded-xl border border-slate-100 p-5">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-1 h-5 rounded-full shrink-0" style={{ background: B.accent }}/>
+                    <h3 className="text-sm font-bold text-slate-800">{heading}</h3>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-7">
+                    {renderInline(aiReport!.narrative[key]!)}
+                  </p>
+                </div>
+              ))
+            }
           </div>
         </div>
       )}
+
+      {/* Footer bar */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: B.primary }}>
+        <div className="h-1" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
+        <div className="px-7 py-4 flex items-center justify-between">
+          <p className="text-sm font-bold text-white">NOVAX</p>
+          <p className="text-xs" style={{ color: B.border }}>{client} · {period}</p>
+        </div>
+      </div>
+
     </div>
   )
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
+// ─── Period parser ──────────────────────────────────────────────────────────────
 
 function parsePeriodToRange(period: string): { startDate: string; endDate: string } | null {
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -1288,53 +736,24 @@ function parsePeriodToRange(period: string): { startDate: string; endDate: strin
   return null
 }
 
-// ─── Main page types ─────────────────────────────────────────────────────────────
-
-type LivePlatform = { platform: string; reach: number; impressions: number; likes: number; comments: number; shares: number; saves: number; posts: number; engagement_rate: number }
-type LiveTrendPoint = { month: string; reach: number; impressions: number; er: number }
-
-type AIReportNarrative = {
-  executive?: string
-  reach?: string
-  engagement?: string
-  platform?: string
-  trend?: string
-  audience?: string
-  follower?: string
-  formats?: string
-  hashtags?: string
-  synergy?: string
-  channel?: string
-  efficiency?: string
-  creative?: string
-  quarterly_overview?: string
-  monthly_breakdown?: string
-  highlights?: string
-  portfolio?: string
-  clients?: string
-}
-type AIReport = {
-  narrative: AIReportNarrative
-  meta: { period: string; clientName: string; reportType: string; isMock: boolean }
-}
-
 // ─── Main page ──────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
-  const { clients }                   = useClients()
-  const [activeTab, setActiveTab]     = useState<ReportTab>('monthly')
-  const [selectedClient, setSelectedClient] = useState('')
-  const [period, setPeriod]           = useState('May 2026')
-  const [generating, setGenerating]   = useState(false)
-  const [generated, setGenerated]     = useState(false)
-  const [liveStats, setLiveStats]     = useState<Record<string, number> | null>(null)
-  const [prevStats, setPrevStats]     = useState<Record<string, number> | null>(null)
-  const [livePlatforms, setLivePlatforms] = useState<LivePlatform[] | null>(null)
-  const [liveTrend, setLiveTrend]     = useState<LiveTrendPoint[] | null>(null)
-  const [dataError, setDataError]     = useState<string | null>(null)
-  const [aiError, setAiError]         = useState<string | null>(null)
-  const [aiReport, setAiReport]       = useState<AIReport | null>(null)
-  const [exportingPdf, setExportingPdf] = useState(false)
+  const { clients }                               = useClients()
+  const { user }                                  = useAuth()
+  const [selectedClient, setSelectedClient]       = useState('')
+  const [period, setPeriod]                       = useState('May 2026')
+  const [generating, setGenerating]               = useState(false)
+  const [generated, setGenerated]                 = useState(false)
+  const [liveStats, setLiveStats]                 = useState<Record<string, number> | null>(null)
+  const [prevStats, setPrevStats]                 = useState<Record<string, number> | null>(null)
+  const [livePlatforms, setLivePlatforms]         = useState<LivePlatform[] | null>(null)
+  const [liveTrend, setLiveTrend]                 = useState<LiveTrendPoint[] | null>(null)
+  const [topPosts, setTopPosts]                   = useState<TopPost[] | null>(null)
+  const [dataError, setDataError]                 = useState<string | null>(null)
+  const [aiError, setAiError]                     = useState<string | null>(null)
+  const [aiReport, setAiReport]                   = useState<AIReport | null>(null)
+  const [exportingPdf, setExportingPdf]           = useState(false)
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(ALL_PLATFORMS)
   const [selectedPlatforms, setSelectedPlatforms]   = useState<string[]>(ALL_PLATFORMS)
   const [probingPlatforms, setProbingPlatforms]     = useState(false)
@@ -1343,21 +762,24 @@ export default function ReportsPage() {
     ? (clients.find(c => c.id === selectedClient)?.name ?? 'Client')
     : 'Select a client'
 
-  useEffect(() => {
-    if (!selectedClient) return
+  const handleClientChange = (id: string) => {
+    setSelectedClient(id)
+    setGenerated(false)
+    setAiReport(null)
+    if (!id) return
     setProbingPlatforms(true)
     setConnectedPlatforms(ALL_PLATFORMS)
     setSelectedPlatforms(ALL_PLATFORMS)
-    fetch(`/api/metricool/connected-platforms?client_id=${selectedClient}`)
+    fetch(`/api/metricool/connected-platforms?client_id=${id}`)
       .then(r => r.json())
-      .then((data: { connected?: string[]; disconnected?: string[] }) => {
+      .then((data: { connected?: string[] }) => {
         const connected = data.connected ?? ALL_PLATFORMS
         setConnectedPlatforms(connected)
         setSelectedPlatforms(connected)
       })
-      .catch(() => { /* keep all as available */ })
+      .catch(() => {})
       .finally(() => setProbingPlatforms(false))
-  }, [selectedClient])
+  }
 
   const handleGenerate = async () => {
     if (!selectedClient) return
@@ -1367,6 +789,7 @@ export default function ReportsPage() {
     setPrevStats(null)
     setLivePlatforms(null)
     setLiveTrend(null)
+    setTopPosts(null)
     setDataError(null)
     setAiError(null)
     setAiReport(null)
@@ -1385,7 +808,7 @@ export default function ReportsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId:   selectedClient,
-          reportType: activeTab,
+          reportType: 'monthly',
           startDate:  range.startDate,
           endDate:    range.endDate,
           platforms:  selectedPlatforms,
@@ -1397,6 +820,7 @@ export default function ReportsPage() {
         prevStats?: Record<string, number>
         platforms?: LivePlatform[]
         trend?: LiveTrendPoint[]
+        topPosts?: TopPost[]
         meta?: AIReport['meta']
         _mock?: boolean
         _geminiError?: string
@@ -1409,33 +833,25 @@ export default function ReportsPage() {
         if (data._mock || data.error) {
           setDataError(data.error ?? 'Metricool not configured — add the blog ID in Settings to enable live data')
         } else {
-          // Only store data that actually has values — no empty arrays / zero-only stats
           const stats = data.stats && Object.values(data.stats).some(v => Number(v) > 0) ? data.stats : null
           const prevSt = data.prevStats && Object.values(data.prevStats).some(v => Number(v) > 0) ? data.prevStats : null
           setLiveStats(stats)
           setPrevStats(prevSt)
           if (data.platforms?.length) setLivePlatforms(data.platforms)
           if (data.trend?.some(t => t.reach > 0 || t.er > 0)) setLiveTrend(data.trend ?? null)
+          if (data.topPosts?.length) setTopPosts(data.topPosts)
         }
-        if (data._geminiError) {
-          setAiError(data._geminiError)
-        }
+        if (data._geminiError) setAiError(data._geminiError)
         if (data.narrative && data.meta && !data._mock) {
           setAiReport({ narrative: data.narrative, meta: data.meta })
         }
       }
     } catch {
-      setDataError('Could not connect to the report generation API')
+      setDataError('Could not connect to the report generation service')
     }
 
     setGenerating(false)
     setGenerated(true)
-  }
-
-  const handleTabChange = (tab: ReportTab) => {
-    setActiveTab(tab)
-    setGenerated(false)
-    setAiReport(null)
   }
 
   const handleExportPDF = async () => {
@@ -1445,7 +861,7 @@ export default function ReportsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tab:       activeTab,
+          tab:       'monthly',
           clientName,
           period,
           stats:     liveStats     ?? undefined,
@@ -1455,12 +871,12 @@ export default function ReportsPage() {
           narrative: aiReport?.narrative ?? undefined,
         }),
       })
-      if (!res.ok) { console.error('PDF export failed', res.status); return }
+      if (!res.ok) return
       const blob = await res.blob()
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      a.download = `NOVAX_${clientName.replace(/\s+/g, '_')}_${activeTab}_${period.replace(/\s+/g, '_')}.pdf`
+      a.download = `NOVAX_${clientName.replace(/\s+/g, '_')}_${period.replace(/\s+/g, '_')}.pdf`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
@@ -1470,159 +886,141 @@ export default function ReportsPage() {
     }
   }
 
-  const sharedProps = { client: clientName, period, liveStats, prevStats, livePlatforms, liveTrend, aiReport }
-
   return (
     <div className="space-y-5">
-      {/* Tab bar + controls */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <div className="flex min-w-max border-b border-slate-100">
-            {TABS.map(tab => {
-              const Icon   = tab.icon
-              const active = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={cn(
-                    'flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors',
-                    active
-                      ? 'border-b-2 text-novax bg-novax-light'
-                      : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50',
-                  )}
-                  style={active ? { borderBottomColor: B.primary } : {}}
-                >
-                  <Icon className="w-4 h-4 shrink-0"/>
-                  {tab.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
 
-        {activeTab !== 'ai' && (
-          <div className="p-4 space-y-3">
-            {/* Row 1: description + controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <p className="text-xs text-slate-500 max-w-lg">{TABS.find(t => t.id === activeTab)?.description}</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={selectedClient}
-                  onChange={e => { setSelectedClient(e.target.value); setGenerated(false); setAiReport(null) }}
-                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
-                >
-                  <option value="">Select client</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <select
-                  value={period}
-                  onChange={e => { setPeriod(e.target.value); setGenerated(false); setAiReport(null) }}
-                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
-                >
-                  {['May 2026', 'April 2026', 'March 2026', 'Q1 2026', 'Q4 2025'].map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={handleGenerate}
-                  disabled={generating || !selectedClient || selectedPlatforms.length === 0}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60 transition-colors"
-                  style={{ background: generating ? B.muted : B.primary }}
-                >
-                  {generating
-                    ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Generating…</>
-                    : <><FileText className="w-3.5 h-3.5"/> Generate Report</>}
-                </button>
-                {generated && liveStats && !dataError && (
-                  <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
-                    <Activity className="w-3 h-3"/> Live Data
-                  </span>
-                )}
-                {generated && aiReport && !aiError && (
-                  <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg" style={{ background: B.light, color: B.primary }}>
-                    <Sparkles className="w-3 h-3"/> AI Narrative
-                  </span>
-                )}
-                {generated && aiError && (
-                  <span className="flex items-center gap-1 text-xs text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg" title={aiError}>
-                    <AlertCircle className="w-3 h-3"/> No AI narrative
-                  </span>
-                )}
-                {generated && dataError && (
-                  <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={dataError}>
-                    <AlertCircle className="w-3 h-3"/> {(dataError?.length ?? 0) > 40 ? 'No live data' : dataError}
-                  </span>
-                )}
-                {generated && (
-                  <button
-                    onClick={handleExportPDF}
-                    disabled={exportingPdf}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-                  >
-                    <Printer className="w-3.5 h-3.5"/>
-                    {exportingPdf ? 'Preparing…' : 'Export PDF'}
-                  </button>
-                )}
+      {/* ── Controls ──────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="p-5">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            {/* Title */}
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: B.light }}>
+                  <BarChart2 className="w-4 h-4" style={{ color: B.primary }}/>
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Monthly Performance Report</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Full analytics report across all connected social media channels
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Row 2: platform selector — only when a client is selected */}
-            {selectedClient && (
-              <div className="border-t border-slate-100 pt-3">
-                <div className="flex items-center gap-2 mb-2.5">
-                  <span className="text-xs font-semibold text-slate-500">Include platforms</span>
-                  {probingPlatforms && (
-                    <span className="text-[10px] text-slate-400 animate-pulse">Checking connections…</span>
-                  )}
-                  {!probingPlatforms && selectedPlatforms.length > 0 && (
-                    <span className="text-[10px] text-slate-400">{selectedPlatforms.length} selected</span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {ALL_PLATFORMS.map(platform => {
-                    const connected = connectedPlatforms.includes(platform)
-                    const selected  = selectedPlatforms.includes(platform)
-                    return (
-                      <button
-                        key={platform}
-                        disabled={!connected || probingPlatforms}
-                        title={!connected ? 'Not connected to this brand' : undefined}
-                        onClick={() => {
-                          setSelectedPlatforms(prev =>
-                            prev.includes(platform)
-                              ? prev.filter(p => p !== platform)
-                              : [...prev, platform]
-                          )
-                          setGenerated(false)
-                        }}
-                        className={cn(
-                          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all',
-                          probingPlatforms && 'opacity-50 cursor-wait',
-                          !connected && !probingPlatforms && 'opacity-35 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400',
-                          connected && !selected && 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700',
-                          connected && selected && 'text-white border-transparent shadow-sm',
-                        )}
-                        style={connected && selected ? { background: PLATFORM_COLORS[platform] ?? B.primary } : undefined}
-                      >
-                        <PlatformLogo platform={platform} size={14}/>
-                        <span className="capitalize">{platform}</span>
-                        {connected && selected && <Check className="w-3 h-3 opacity-80"/>}
-                        {!connected && !probingPlatforms && <span className="text-[9px] opacity-70 ml-0.5">Not connected</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+            {/* Controls row */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={selectedClient}
+                onChange={e => handleClientChange(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
+              >
+                <option value="">Select client</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+
+              <select
+                value={period}
+                onChange={e => { setPeriod(e.target.value); setGenerated(false); setAiReport(null) }}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
+              >
+                {['May 2026', 'April 2026', 'March 2026', 'February 2026', 'January 2026', 'Q1 2026', 'Q4 2025'].map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+
+              <button
+                onClick={handleGenerate}
+                disabled={generating || !selectedClient || selectedPlatforms.length === 0}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60 transition-colors"
+                style={{ background: generating ? B.muted : B.primary }}
+              >
+                {generating
+                  ? <><RefreshCw className="w-3.5 h-3.5 animate-spin"/> Generating…</>
+                  : <><FileText className="w-3.5 h-3.5"/> Generate Report</>}
+              </button>
+
+              {/* Status badges */}
+              {generated && liveStats && !dataError && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
+                  <Activity className="w-3 h-3"/> Live Data
+                </span>
+              )}
+              {generated && aiReport && !aiError && (
+                <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg" style={{ background: B.light, color: B.primary }}>
+                  <Sparkles className="w-3 h-3"/> AI Analysis
+                </span>
+              )}
+              {generated && aiError && (
+                <span className="flex items-center gap-1 text-xs text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg" title={aiError}>
+                  <AlertCircle className="w-3 h-3"/> No AI analysis
+                </span>
+              )}
+              {generated && dataError && (
+                <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg" title={dataError}>
+                  <AlertCircle className="w-3 h-3"/> {(dataError.length > 40) ? 'No live data' : dataError}
+                </span>
+              )}
+              {generated && (
+                <button
+                  onClick={handleExportPDF}
+                  disabled={exportingPdf}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5"/>
+                  {exportingPdf ? 'Preparing…' : 'Export PDF'}
+                </button>
+              )}
+            </div>
           </div>
-        )}
+
+          {/* Platform selector */}
+          {selectedClient && (
+            <div className="border-t border-slate-100 pt-3 mt-4">
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="text-xs font-semibold text-slate-500">Include platforms</span>
+                {probingPlatforms && <span className="text-[10px] text-slate-400 animate-pulse">Checking connections…</span>}
+                {!probingPlatforms && <span className="text-[10px] text-slate-400">{selectedPlatforms.length} selected</span>}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ALL_PLATFORMS.map(platform => {
+                  const connected = connectedPlatforms.includes(platform)
+                  const selected  = selectedPlatforms.includes(platform)
+                  return (
+                    <button
+                      key={platform}
+                      disabled={!connected || probingPlatforms}
+                      title={!connected ? `${platform} is not connected` : undefined}
+                      onClick={() => {
+                        setSelectedPlatforms(prev =>
+                          prev.includes(platform) ? prev.filter(p => p !== platform) : [...prev, platform]
+                        )
+                        setGenerated(false)
+                      }}
+                      className={cn(
+                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                        probingPlatforms && 'opacity-50 cursor-wait',
+                        !connected && !probingPlatforms && 'opacity-30 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400',
+                        connected && !selected && 'bg-white border-slate-200 text-slate-500 hover:border-slate-300',
+                        connected && selected && 'text-white border-transparent shadow-sm',
+                      )}
+                      style={connected && selected ? { background: PLATFORM_COLORS[platform] ?? B.primary } : undefined}
+                    >
+                      <PlatformLogo platform={platform} size={14}/>
+                      <span className="capitalize">{platform}</span>
+                      {connected && selected && <Check className="w-3 h-3 opacity-80"/>}
+                      {!connected && !probingPlatforms && <span className="text-[9px] opacity-70 ml-0.5">Not connected</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Content area */}
-      {activeTab === 'ai' ? (
-        <AIBuilder/>
-      ) : generated && dataError ? (
+      {/* ── Content ───────────────────────────────────────── */}
+      {generated && dataError ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-amber-200">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 bg-amber-50">
             <AlertCircle className="w-7 h-7 text-amber-500"/>
@@ -1631,26 +1029,28 @@ export default function ReportsPage() {
           <p className="text-sm text-slate-500 text-center max-w-md leading-relaxed">{dataError}</p>
         </div>
       ) : generated ? (
-        <div id="printable-report" className="space-y-5">
-          {activeTab === 'monthly'   && <MonthlyReport   {...sharedProps}/>}
-          {activeTab === 'paid'      && <PaidReport       {...sharedProps}/>}
-          {activeTab === 'combined'  && <CombinedReport   {...sharedProps}/>}
-          {activeTab === 'platform'  && <PlatformReport   client={clientName} period={period} livePlatforms={livePlatforms} liveTrend={liveTrend} aiReport={aiReport}/>}
-          {activeTab === 'quarterly' && <QuarterlyReport  client={clientName} period={period} liveStats={liveStats} prevStats={prevStats} liveTrend={liveTrend} aiReport={aiReport}/>}
-          {activeTab === 'executive' && <ExecutiveReport  {...sharedProps}/>}
+        <div id="printable-report">
+          <MasterMonthlyReport
+            client={clientName}
+            period={period}
+            liveStats={liveStats}
+            prevStats={prevStats}
+            livePlatforms={livePlatforms}
+            liveTrend={liveTrend}
+            topPosts={topPosts}
+            aiReport={aiReport}
+          />
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ background: B.light }}>
             <BarChart2 className="w-8 h-8" style={{ color: B.primary }}/>
           </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-2">
-            {TABS.find(t => t.id === activeTab)?.label}
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-2">Monthly Performance Report</h3>
           <p className="text-sm text-slate-400 text-center max-w-sm mb-6 leading-relaxed">
             {selectedClient
-              ? TABS.find(t => t.id === activeTab)?.description
-              : 'Select a client from the dropdown above, then click Generate Report.'}
+              ? 'Select a period above and click Generate Report to build your report.'
+              : 'Select a client and period above, then click Generate Report.'}
           </p>
           <button
             onClick={handleGenerate}

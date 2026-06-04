@@ -233,7 +233,7 @@ Each stage has a fixed color scheme defined in `lib/utils.ts` → `STAGE_CONFIG`
 
 **Important Respond.io constraint:** Instagram public comment replies are NOT supported via API (Instagram restriction) — only DM replies to commenters. Facebook public comment replies work fine. Respond.io does NOT support Google Reviews replies.
 
-## Currently Built (frontend with mock data — no DB connected)
+## Currently Built (Supabase connected — `.env.local` has URL + anon + service role keys)
 
 ### Core Shell
 - [x] Full app shell (sidebar, header, layout) with ThemeProvider (dark/light mode, localStorage)

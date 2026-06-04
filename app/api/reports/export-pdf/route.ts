@@ -542,7 +542,7 @@ function ReportDocument({
             React.createElement(View, { style: s.coverDivider }),
             React.createElement(View, null,
               React.createElement(Text, { style: s.coverTitle }, title),
-              React.createElement(Text, { style: s.coverSubtitle }, 'Prepared by NOVA Ops · Confidential'),
+              React.createElement(Text, { style: s.coverSubtitle }, 'Prepared by NOVAX · Confidential'),
             ),
           ),
           React.createElement(View, { style: { alignItems: 'flex-end' } },
@@ -592,9 +592,8 @@ function ReportDocument({
 
       // ── Footer ──────────────────────────────────────────────────────────────
       React.createElement(View, { style: s.footer, fixed: true },
-        React.createElement(Text, { style: s.footerBrand }, 'NOVA Ops'),
+        React.createElement(Text, { style: s.footerBrand }, 'NOVAX'),
         React.createElement(Text, { style: s.footerText }, `${title} · ${clientName ?? 'Client'} · ${period ?? ''}`),
-        React.createElement(Text, { style: s.footerText }, `Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`),
       ),
     )
   )

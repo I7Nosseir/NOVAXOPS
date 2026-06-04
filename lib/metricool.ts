@@ -375,6 +375,17 @@ export interface MetricoolPostAnalytics {
   engagementRate?: number
   engagement?: number
   engagement_rate?: number
+  // TikTok/YouTube use "views"/"videoViews" instead of impressions
+  views?: number
+  videoViews?: number
+  // Post URL fields — varies by platform / API version
+  url?: string
+  link?: string
+  permalink?: string
+  // Post content
+  thumbnail?: string
+  text?: string
+  title?: string
 }
 
 const ANALYTICS_NETWORKS = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube'] as const
@@ -403,7 +414,26 @@ async function fetchNetworkPosts(
     throw err
   }
   const items = Array.isArray(raw.data) ? raw.data : Array.isArray(raw) ? raw : []
-  return (items as MetricoolPostAnalytics[]).map(p => ({ ...p, network: p.network ?? network }))
+  return (items as MetricoolPostAnalytics[]).map(p => {
+    const raw = p as MetricoolPostAnalytics & Record<string, unknown>
+    // TikTok and YouTube report "views"/"videoViews" instead of reach/impressions
+    const videoViews = Number(raw.videoViews ?? raw.views ?? 0)
+    const impressions = Number(p.impressions ?? 0) > 0 ? Number(p.impressions)
+      : (network === 'tiktok' || network === 'youtube') ? videoViews : 0
+    const reach = Number(p.reach ?? 0) > 0 ? Number(p.reach) : impressions
+    const postUrl = String(p.url ?? p.link ?? p.permalink ?? raw.postUrl ?? raw.postLink ?? '')
+    return {
+      ...p,
+      network: String(p.network ?? network),
+      impressions,
+      reach,
+      likes:    Number(p.likes    ?? raw.likesCount    ?? raw.likeCount    ?? 0),
+      comments: Number(p.comments ?? raw.commentsCount ?? raw.commentCount ?? 0),
+      shares:   Number(p.shares   ?? raw.sharesCount   ?? raw.shareCount   ?? raw.retweets ?? 0),
+      views:    videoViews,
+      url:      postUrl.startsWith('http') ? postUrl : undefined,
+    }
+  })
 }
 
 /**
@@ -526,5 +556,27 @@ export async function getPlatformStats(
       posts:           a.posts,
       engagement_rate: a.erN > 0 ? a.erSum / a.erN : 0,
     }))
-    .filter(p => p.reach > 0 || p.impressions > 0)
+    .filter(p => p.reach > 0 || p.impressions > 0 || p.likes > 0 || p.comments > 0)
+}
+
+/**
+ * Return the top N posts for a period, ranked by total engagement (likes + comments + shares).
+ * Tiebreak: higher views/reach wins.
+ */
+export async function getTopPosts(
+  blogId: string | number,
+  startDate: string,
+  endDate: string,
+  networks?: string[],
+  limit = 5
+): Promise<MetricoolPostAnalytics[]> {
+  const posts = await fetchPostsList(blogId, startDate, endDate, networks)
+  return posts
+    .sort((a, b) => {
+      const engA = (a.likes ?? 0) + (a.comments ?? 0) + (a.shares ?? 0)
+      const engB = (b.likes ?? 0) + (b.comments ?? 0) + (b.shares ?? 0)
+      if (engB !== engA) return engB - engA
+      return ((b.impressions ?? 0) + (b.reach ?? 0)) - ((a.impressions ?? 0) + (a.reach ?? 0))
+    })
+    .slice(0, limit)
 }

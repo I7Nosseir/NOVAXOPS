@@ -24,6 +24,20 @@ type MetricoolData = {
 
 const EMPTY: MetricoolData = { stats: {}, platforms: [], trend: [], isMock: false }
 
+type TopPost = {
+  id?: string
+  network?: string
+  publishDate?: string
+  url?: string
+  text?: string
+  reach: number
+  impressions: number
+  likes: number
+  comments: number
+  shares: number
+  saves: number
+}
+
 async function fetchMetricoolData(
   blogId: string,
   startDate: string,
@@ -252,9 +266,31 @@ export async function POST(req: NextRequest) {
   // 3. Fetch current + previous period data in parallel (filtered to selected platforms)
   const { prevStart, prevEnd } = prevPeriodDates(startDate, endDate, reportType)
   const nets = platforms?.length ? platforms : undefined
-  const [metricoolData, prevData] = await Promise.all([
+
+  const topPostsPromise: Promise<TopPost[]> = HAS_METRICOOL
+    ? (async (): Promise<TopPost[]> => {
+        const { getTopPosts } = await import('@/lib/metricool')
+        const posts = await getTopPosts(blogId, startDate, endDate, nets ?? undefined).catch(() => [])
+        return posts.map(p => ({
+          id: p.id,
+          network: p.network,
+          publishDate: p.publishDate,
+          url: p.url,
+          text: p.text ?? p.title,
+          reach: p.reach ?? 0,
+          impressions: p.impressions ?? 0,
+          likes: p.likes ?? 0,
+          comments: p.comments ?? 0,
+          shares: p.shares ?? 0,
+          saves: p.saves ?? 0,
+        }))
+      })()
+    : Promise.resolve([])
+
+  const [metricoolData, prevData, topPosts] = await Promise.all([
     fetchMetricoolData(blogId, startDate, endDate, nets),
     fetchMetricoolData(blogId, prevStart, prevEnd, nets).catch(() => null),
+    topPostsPromise,
   ])
 
   // 4. Build and run Gemini prompt (if API key configured)
@@ -286,6 +322,7 @@ export async function POST(req: NextRequest) {
     prevStats: prevData?.stats ?? null,
     platforms: metricoolData.platforms,
     trend: metricoolData.trend,
+    topPosts,
     meta: {
       period: `${startDate} to ${endDate}`,
       prevPeriod: `${prevStart} to ${prevEnd}`,
