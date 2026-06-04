@@ -17,6 +17,8 @@ interface NavItem {
   icon: React.ElementType
   label: string
   badge?: number
+  /** If set, the user must have this key in page_permissions to see this item */
+  permKey?: string
 }
 
 interface NavSection {
@@ -31,39 +33,39 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
       { href: '/pipeline',    icon: Kanban,           label: 'Pipeline' },
       { href: '/tasks',       icon: ListTodo,         label: 'Tasks' },
-      { href: '/clients',     icon: Building2,        label: 'Clients' },
-      { href: '/projects',    icon: FolderKanban,     label: 'Projects' },
-      { href: '/publishing',  icon: Send,             label: 'Publishing' },
-      { href: '/approval',    icon: CheckSquare,      label: 'Approval', badge: 4 },
-      { href: '/moderation',  icon: MessageSquare,    label: 'Moderation', badge: 3 },
+      { href: '/clients',     icon: Building2,        label: 'Clients',    permKey: 'clients' },
+      { href: '/projects',    icon: FolderKanban,     label: 'Projects',   permKey: 'projects' },
+      { href: '/publishing',  icon: Send,             label: 'Publishing', permKey: 'publishing' },
+      { href: '/approval',    icon: CheckSquare,      label: 'Approval',   badge: 4, permKey: 'approval' },
+      { href: '/moderation',  icon: MessageSquare,    label: 'Moderation', badge: 3, permKey: 'moderation' },
     ],
   },
   {
     label: 'Studio',
     items: [
-      { href: '/studio',         icon: Zap,       label: 'Studio' },
-      { href: '/studio/content', icon: Sparkles,  label: 'Content Studio' },
-      { href: '/studio/hooks',   icon: Wand2,     label: 'Hook Lab' },
-      { href: '/studio/strategy',icon: Brain,     label: 'Strategy' },
+      { href: '/studio',          icon: Zap,      label: 'Studio' },
+      { href: '/studio/content',  icon: Sparkles, label: 'Content Studio' },
+      { href: '/studio/hooks',    icon: Wand2,    label: 'Hook Lab' },
+      { href: '/studio/strategy', icon: Brain,    label: 'Strategy' },
     ],
   },
   {
     label: 'Creative',
     items: [
-      { href: '/assets',         icon: Image,      label: 'Assets' },
-      { href: '/ai-image',       icon: Wand2,      label: 'AI Image' },
-      { href: '/tools/resize',   icon: ScanSearch, label: 'Smart Resize' },
-      { href: '/creative-eval',  icon: Sparkles,   label: 'Creative Eval' },
-      { href: '/docs',           icon: FileText,   label: 'Documents' },
+      { href: '/assets',        icon: Image,      label: 'Assets',        permKey: 'assets' },
+      { href: '/ai-image',      icon: Wand2,      label: 'AI Image',      permKey: 'ai-image' },
+      { href: '/tools/resize',  icon: ScanSearch, label: 'Smart Resize',  permKey: 'resize' },
+      { href: '/creative-eval', icon: Sparkles,   label: 'Creative Eval', permKey: 'creative-eval' },
+      { href: '/docs',          icon: FileText,   label: 'Documents',     permKey: 'docs' },
     ],
   },
   {
     label: 'Intelligence',
     items: [
-      { href: '/performance', icon: TrendingUp, label: 'Performance' },
-      { href: '/workload',    icon: Users,      label: 'Workload' },
-      { href: '/library',     icon: BookMarked, label: 'Content Library' },
-      { href: '/reports',     icon: BarChart2,  label: 'Reports' },
+      { href: '/performance', icon: TrendingUp, label: 'Performance',     permKey: 'performance' },
+      { href: '/workload',    icon: Users,      label: 'Workload',        permKey: 'workload' },
+      { href: '/library',     icon: BookMarked, label: 'Content Library', permKey: 'library' },
+      { href: '/reports',     icon: BarChart2,  label: 'Reports',         permKey: 'reports' },
     ],
   },
   {
@@ -95,6 +97,16 @@ export function Sidebar() {
   const { open, setOpen } = useSidebar()
   const isAdmin = user?.role === 'admin'
   const isCeoOrAdmin = user?.role === 'ceo' || user?.role === 'admin'
+
+  // Returns true if the user is allowed to see an optional page.
+  // Admins always see everything. null permissions = all pages visible.
+  const canSee = (permKey?: string) => {
+    if (!permKey) return true
+    if (isAdmin) return true
+    const perms = user?.page_permissions
+    if (perms == null) return true
+    return perms.includes(permKey)
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -186,13 +198,18 @@ export function Sidebar() {
               </div>
             )
           })()}
-          {NAV_SECTIONS.filter(s => s.label !== 'Studio' || isAdmin).map((section, si) => (
+          {NAV_SECTIONS
+            .filter(s => s.label !== 'Studio' || isAdmin)
+            .map((section, si) => {
+              const visibleItems = section.items.filter(item => canSee(item.permKey))
+              if (visibleItems.length === 0) return null
+              return (
             <div key={section.label} className={si > 0 ? 'mt-4' : ''}>
               <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-1.5" style={{ color: 'rgba(91,180,174,0.5)' }}>
                 {section.label}
               </p>
               <div className="space-y-0.5">
-                {section.items.map(({ href, icon: Icon, label, badge }) => {
+                {visibleItems.map(({ href, icon: Icon, label, badge }) => {
                   const active = pathname === href || (href !== '/dashboard' && href !== '/studio' && pathname.startsWith(href))
                     || (href === '/studio' && pathname === '/studio')
                   return (
@@ -228,7 +245,8 @@ export function Sidebar() {
                 })}
               </div>
             </div>
-          ))}
+              )
+            })}
         </nav>
 
         {/* User profile */}

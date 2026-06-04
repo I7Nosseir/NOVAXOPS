@@ -26,6 +26,7 @@ function mapUser(row: Record<string, unknown>): User {
     department: row.department as User['department'],
     initials: row.initials as string,
     color: row.color as string,
+    page_permissions: (row.page_permissions as string[] | null) ?? null,
   }
 }
 
@@ -35,7 +36,7 @@ export function useUsers() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, email, role, department, initials, color')
+        .select('id, name, email, role, department, initials, color, page_permissions')
         .order('name')
       if (error) throw error
       return (data ?? []).map(mapUser)
@@ -61,11 +62,11 @@ export function usePendingInvitations() {
 export function useInviteUser() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ email, name, role }: { email: string; name: string; role: UserRole }): Promise<InviteResult> => {
+    mutationFn: async ({ email, name, role, page_permissions }: { email: string; name: string; role: UserRole; page_permissions?: string[] | null }): Promise<InviteResult> => {
       const res = await fetch('/api/auth/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, role }),
+        body: JSON.stringify({ email, name, role, page_permissions }),
       })
       const data = await res.json() as InviteResult & { error?: string }
       if (!res.ok) throw new Error(data.error ?? 'Invite failed')
@@ -107,6 +108,24 @@ export function useResendInvitation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-invitations'] })
+    },
+  })
+}
+
+export function useUpdateUserPermissions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, page_permissions }: { userId: string; page_permissions: string[] | null }) => {
+      const res = await fetch(`/api/users/${userId}/permissions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page_permissions }),
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Update failed')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
     },
   })
 }

@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy } from 'lucide-react'
-import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, type InviteResult } from '@/lib/hooks/use-users'
+import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, useUpdateUserPermissions, type InviteResult } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
 import { cn, hasRole, vendorName } from '@/lib/utils'
 import { InviteUserModal } from '@/components/settings/invite-user-modal'
-import type { UserRole } from '@/lib/types'
+import type { UserRole, User } from '@/lib/types'
+import { PAGE_DEFS, ALL_PAGE_KEYS, PAGE_GROUPS, type PageKey } from '@/lib/page-permissions'
 
 const INTEGRATIONS_REAL = [
   {
@@ -352,6 +353,139 @@ function RolePreviewTab() {
   )
 }
 
+// ─── Edit Permissions Modal ─────────────────────────────────────────────────────
+
+function EditPermissionsModal({ user, onClose }: { user: User; onClose: () => void }) {
+  const updatePermissions = useUpdateUserPermissions()
+  const initial = user.page_permissions ?? ALL_PAGE_KEYS
+  const [pages, setPages] = useState<PageKey[]>(initial as PageKey[])
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const allSelected = pages.length === ALL_PAGE_KEYS.length
+
+  const toggle = (key: PageKey) =>
+    setPages(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const page_permissions: string[] | null = allSelected ? null : pages
+      await updatePermissions.mutateAsync({ userId: user.id, page_permissions })
+      setSaved(true)
+      setTimeout(onClose, 800)
+    } catch { /* error surfaced by mutation */ }
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: user.color }}>
+              {user.initials}
+            </div>
+            <div>
+              <p className="font-semibold text-slate-900 text-sm">{user.name}</p>
+              <p className="text-[11px] text-slate-500 capitalize">{user.role.replace(/_/g, ' ')} · {user.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+            <XCircle className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Page Access</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Dashboard, Pipeline, Tasks and Settings are always visible.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPages([...ALL_PAGE_KEYS])} className="text-[11px] font-semibold text-novax-muted hover:text-novax">
+                Grant all
+              </button>
+              <span className="text-slate-300">·</span>
+              <button onClick={() => setPages([])} className="text-[11px] font-semibold text-slate-400 hover:text-red-500">
+                Revoke all
+              </button>
+            </div>
+          </div>
+
+          {PAGE_GROUPS.map(group => (
+            <div key={group}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{group}</p>
+              <div className="flex flex-wrap gap-2">
+                {PAGE_DEFS.filter(p => p.group === group).map(({ key, label }) => {
+                  const checked = pages.includes(key)
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => toggle(key)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                        checked
+                          ? 'bg-novax-light border-novax-border text-novax'
+                          : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600',
+                      )}
+                    >
+                      <span className={cn('w-3 h-3 rounded flex items-center justify-center border shrink-0', checked ? 'bg-novax border-novax' : 'border-slate-300')}>
+                        {checked && (
+                          <svg viewBox="0 0 10 8" className="w-2 h-2" fill="none">
+                            <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </span>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
+          <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>
+              {allSelected
+                ? 'Full access — all optional pages enabled'
+                : pages.length === 0
+                  ? 'Restricted — only required pages visible'
+                  : `${pages.length} of ${ALL_PAGE_KEYS.length} optional pages enabled`}
+            </span>
+          </div>
+
+          {updatePermissions.isError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+              <p className="text-xs text-red-600">{(updatePermissions.error as Error)?.message ?? 'Update failed'}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={saving || saved}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors',
+                saved ? 'bg-emerald-500 text-white' : 'bg-novax hover:bg-novax-hover disabled:opacity-50 text-white',
+              )}
+            >
+              {saved ? <><Check className="w-3.5 h-3.5"/> Saved</> : saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const { user: currentUser } = useAuth()
   const { users } = useUsers()
@@ -364,6 +498,7 @@ export default function SettingsPage() {
   const canSeeVendorNames = hasRole(currentUser, ['admin', 'ceo'])
   const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview'>(isAdmin ? 'integrations' : 'team')
   const [showInvite, setShowInvite] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
 
   const tabs = [
     ...(isAdmin ? [{ id: 'integrations' as const, label: 'Integrations', icon: Zap }] : []),
@@ -376,6 +511,12 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl space-y-5">
       {showInvite && <InviteUserModal onClose={() => setShowInvite(false)} />}
+      {editingUser && (
+        <EditPermissionsModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+        />
+      )}
       {/* Tab navigation */}
       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 overflow-x-auto">
         {tabs.map(({ id, label, icon: Icon }) => (
@@ -441,42 +582,56 @@ export default function SettingsPage() {
               <table className="w-full min-w-[560px]">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    {['Member', 'Role', 'Department', 'Access Level', ''].map(h => (
+                    {['Member', 'Role', 'Department', 'Page Access', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {users.map(user => (
-                    <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                  {users.map(u => {
+                    const perms = u.page_permissions
+                    const isRestricted = perms != null
+                    const permLabel = !isRestricted
+                      ? 'All pages'
+                      : perms.length === 0
+                        ? 'Required only'
+                        : `${perms.length} of ${ALL_PAGE_KEYS.length} pages`
+                    return (
+                    <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: user.color }}>
-                            {user.initials}
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: u.color }}>
+                            {u.initials}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-slate-900">{user.name}</p>
-                            <p className="text-[11px] text-slate-400">{user.email}</p>
+                            <p className="text-sm font-medium text-slate-900">{u.name}</p>
+                            <p className="text-[11px] text-slate-400">{u.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-600">{user.role.replace(/_/g, ' ')}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600">{user.department}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 capitalize">{u.role.replace(/_/g, ' ')}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 capitalize">{u.department}</td>
                       <td className="px-4 py-3">
-                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                          user.role === 'admin' || user.role === 'creative_director'
-                            ? 'bg-novax-light text-novax'
-                            : 'bg-slate-100 text-slate-600')}>
-                          {user.role === 'admin' || user.role === 'creative_director' ? 'Full Access' : 'Standard'}
+                        <span className={cn(
+                          'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                          !isRestricted ? 'bg-novax-light text-novax' : 'bg-amber-50 text-amber-700',
+                        )}>
+                          {permLabel}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {isAdmin && (
-                          <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Edit</button>
+                        {isAdmin && u.id !== currentUser?.id && (
+                          <button
+                            onClick={() => setEditingUser(u)}
+                            className="text-xs text-slate-400 hover:text-novax font-medium transition-colors"
+                          >
+                            Edit access
+                          </button>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

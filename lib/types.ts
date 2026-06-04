@@ -29,6 +29,8 @@ export interface User {
   color: string
   phone_number?: string | null
   needs_onboarding?: boolean
+  /** Optional page keys this user can access. null = all pages. Set by admin. */
+  page_permissions?: string[] | null
 }
 
 export interface BrandIdentity {

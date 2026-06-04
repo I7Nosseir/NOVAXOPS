@@ -50,8 +50,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Only admins can invite team members' }, { status: 403 })
   }
 
-  const body = await req.json() as { email: string; name: string; role: UserRole }
-  const { email, name, role } = body
+  const body = await req.json() as { email: string; name: string; role: UserRole; page_permissions?: string[] | null }
+  const { email, name, role, page_permissions = null } = body
 
   if (!email || !name || !role) {
     return NextResponse.json({ error: 'email, name, and role are required' }, { status: 400 })
@@ -73,6 +73,8 @@ export async function POST(req: Request) {
       role,
       department: DEPT_BY_ROLE[role] ?? 'creative',
       needs_onboarding: true,
+      // stored here so the onboarding step can apply it to the users table row
+      page_permissions,
     },
   })
 

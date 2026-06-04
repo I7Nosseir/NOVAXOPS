@@ -80,12 +80,15 @@ export default function OnboardingPage() {
 
       // 2. Upsert the users table row with completed profile data
       const userId = session!.user.id
+      // Apply page_permissions set by the admin at invite time (stored in user_metadata)
+      const pagePerms = (meta.page_permissions as string[] | null | undefined) ?? null
       const { error: profileErr } = await supabase
         .from('users')
         .update({
           name: name.trim(),
           phone_number: phone.trim() || null,
           needs_onboarding: false,
+          page_permissions: pagePerms,
         })
         .eq('auth_id', userId)
 
