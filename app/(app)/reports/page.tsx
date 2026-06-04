@@ -7,8 +7,7 @@ import {
   Legend, ReferenceLine,
 } from 'recharts'
 import { useClients } from '@/lib/hooks/use-clients'
-import { formatNumber, cn, vendorName } from '@/lib/utils'
-import { useAuth } from '@/lib/auth-context'
+import { formatNumber, cn } from '@/lib/utils'
 import {
   FileText, TrendingUp, Eye, BarChart2, ArrowUpRight, ArrowDownRight,
   AlertCircle, Activity, Calendar, RefreshCw, Sparkles, Printer, Check,
@@ -740,7 +739,6 @@ function parsePeriodToRange(period: string): { startDate: string; endDate: strin
 
 export default function ReportsPage() {
   const { clients }                               = useClients()
-  const { user }                                  = useAuth()
   const [selectedClient, setSelectedClient]       = useState('')
   const [period, setPeriod]                       = useState('May 2026')
   const [generating, setGenerating]               = useState(false)
