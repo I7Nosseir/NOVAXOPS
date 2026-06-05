@@ -6,10 +6,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { StudioSession, StudioTool } from '@/lib/studio-types'
-import {
-  createMockSession,
-  listMockSessions,
-} from '@/lib/studio-session-store'
 
 // ─── DB helpers ──────────────────────────────────────────────
 
@@ -35,8 +31,7 @@ export async function GET(req: NextRequest) {
   const limit      = Math.min(parseInt(searchParams.get('limit') ?? '20', 10), 100)
 
   if (!HAS_DB) {
-    const sessions = listMockSessions({ tool, client_id, created_by }).slice(0, limit)
-    return NextResponse.json({ sessions, total: sessions.length, _mock: true })
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   }
 
   const db = adminSupabase()
@@ -53,9 +48,7 @@ export async function GET(req: NextRequest) {
   const { data, error, count } = await query
 
   if (error) {
-    // Graceful fallback — table may not exist yet
-    const sessions = listMockSessions({ tool, client_id, created_by }).slice(0, limit)
-    return NextResponse.json({ sessions, total: sessions.length, _mock: true, _db_error: error.message })
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   return NextResponse.json({ sessions: data ?? [], total: count ?? 0 })
@@ -98,8 +91,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!HAS_DB) {
-    const session = createMockSession(payload)
-    return NextResponse.json(session, { status: 201 })
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   }
 
   const db = adminSupabase()
@@ -110,9 +102,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) {
-    // Table not ready — fall back to mock
-    const session = createMockSession(payload)
-    return NextResponse.json({ ...session, _mock: true }, { status: 201 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   return NextResponse.json(data as StudioSession, { status: 201 })

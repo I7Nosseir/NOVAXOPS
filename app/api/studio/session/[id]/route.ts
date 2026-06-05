@@ -7,11 +7,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { StudioSession } from '@/lib/studio-types'
-import {
-  getMockSession,
-  updateMockSession,
-  deleteMockSession,
-} from '@/lib/studio-session-store'
 
 // ─── DB helpers ──────────────────────────────────────────────
 
@@ -37,9 +32,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params
 
   if (!HAS_DB) {
-    const session = getMockSession(id)
-    if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(session)
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   }
 
   const db = adminSupabase()
@@ -50,9 +43,6 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
     .single()
 
   if (error || !data) {
-    // Try mock store as fallback
-    const session = getMockSession(id)
-    if (session) return NextResponse.json({ ...session, _mock: true })
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
@@ -84,24 +74,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
     Object.keys(body).length === 2
 
   if (!HAS_DB) {
-    let updates: Partial<StudioSession>
-
-    if (isPhaseShape) {
-      const existing = getMockSession(id)
-      if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      updates = {
-        outputs: {
-          ...existing.outputs,
-          [body.phase as string]: body.output,
-        },
-      }
-    } else {
-      updates = body as Partial<StudioSession>
-    }
-
-    const updated = updateMockSession(id, updates)
-    if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(updated)
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   }
 
   // ─── DB mode ─────────────────────────────────────────────
@@ -116,13 +89,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       .single()
 
     if (fetchErr || !existing) {
-      // Fallback to mock
-      const mockSession = getMockSession(id)
-      if (!mockSession) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      const updated = updateMockSession(id, {
-        outputs: { ...mockSession.outputs, [body.phase as string]: body.output },
-      })
-      return NextResponse.json({ ...updated, _mock: true })
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     const mergedOutputs = {
@@ -162,9 +129,7 @@ export async function DELETE(_req: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params
 
   if (!HAS_DB) {
-    const existed = deleteMockSession(id)
-    if (!existed) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   }
 
   const db = adminSupabase()

@@ -76,14 +76,7 @@ export async function PATCH(
   const verdict = computeVerdict(body.vs_client_average)
 
   if (!HAS_DB) {
-    // Mock mode — return the computed result without persisting
-    return NextResponse.json({
-      id,
-      performance,
-      performance_verdict: verdict,
-      updated_at: new Date().toISOString(),
-      _mock: true,
-    })
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   }
 
   const db = adminSupabase()
@@ -100,18 +93,6 @@ export async function PATCH(
     .single()
 
   if (error) {
-    // Table schema may not yet have these columns — return graceful fallback
-    if (error.code === '42703' || error.code === '42P01') {
-      return NextResponse.json({
-        id,
-        performance,
-        performance_verdict: verdict,
-        updated_at: new Date().toISOString(),
-        _mock: true,
-        _db_error: 'column_or_table_missing',
-      })
-    }
-
     console.error('[session/performance] DB update failed:', error)
     return NextResponse.json(
       { error: 'Failed to update session performance', detail: error.message },
