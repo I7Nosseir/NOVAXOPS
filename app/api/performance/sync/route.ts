@@ -48,9 +48,8 @@ export async function POST(req: NextRequest) {
   const { client_id } = body
   if (!client_id) return NextResponse.json({ error: 'client_id required' }, { status: 400 })
 
-  if (!HAS_METRICOOL || !HAS_DB) {
-    return NextResponse.json({ synced: 0, skipped: 0, errors: [], _mock: true })
-  }
+  if (!HAS_METRICOOL) return NextResponse.json({ error: 'Metricool not configured' }, { status: 503 })
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const { createClient } = await import('@supabase/supabase-js')
   const supabase = createClient(

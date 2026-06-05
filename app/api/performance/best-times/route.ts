@@ -4,22 +4,6 @@ const HAS_DB = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_S
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-// Realistic mock heatmap — peaks Tue/Thu mornings and evenings
-const MOCK_HEATMAP = [
-  { day: 'Tue', hour: 10, avg_er: 8.4, count: 6 },
-  { day: 'Thu', hour: 10, avg_er: 7.9, count: 5 },
-  { day: 'Sun', hour: 19, avg_er: 7.6, count: 4 },
-  { day: 'Wed', hour: 13, avg_er: 7.1, count: 5 },
-  { day: 'Fri', hour: 15, avg_er: 6.8, count: 4 },
-  { day: 'Tue', hour: 18, avg_er: 6.5, count: 3 },
-  { day: 'Thu', hour: 20, avg_er: 6.2, count: 4 },
-  { day: 'Sat', hour: 12, avg_er: 5.9, count: 3 },
-  { day: 'Mon', hour: 9,  avg_er: 5.4, count: 4 },
-  { day: 'Wed', hour: 18, avg_er: 5.1, count: 3 },
-  { day: 'Mon', hour: 8,  avg_er: 3.8, count: 3 },
-  { day: 'Fri', hour: 8,  avg_er: 3.2, count: 2 },
-]
-
 /**
  * GET /api/performance/best-times?client_id=&platform=
  *
@@ -33,14 +17,7 @@ export async function GET(req: NextRequest) {
 
   if (!client_id) return NextResponse.json({ error: 'client_id required' }, { status: 400 })
 
-  if (!HAS_DB) {
-    return NextResponse.json({
-      heatmap: MOCK_HEATMAP,
-      best: MOCK_HEATMAP[0],
-      total_posts: 32,
-      _mock: true,
-    })
-  }
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const { createClient } = await import('@supabase/supabase-js')
   const supabase = createClient(
@@ -48,7 +25,7 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  let query = supabase
+  const query = supabase
     .from('scheduled_posts')
     .select(`
       scheduled_at,
