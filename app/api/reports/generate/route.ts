@@ -1,6 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { buildReportPrompt } from '@/lib/report-prompts'
-import { CLIENTS } from '@/lib/mock-data'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const HAS_METRICOOL = !!(process.env.METRICOOL_API_TOKEN && process.env.METRICOOL_USER_ID)
@@ -197,20 +196,7 @@ async function resolveClient(clientId: string): Promise<{
           },
         }
       }
-    } catch { /* fall through to mock lookup */ }
-  }
-
-  // Mock data fallback
-  const mock = CLIENTS.find(c => c.id === clientId)
-  if (mock) {
-    return {
-      name: mock.name,
-      metricoolBlogId: (mock as unknown as Record<string, unknown>).metricool_blog_id as string | null ?? null,
-      brand: {
-        industry: mock.brand_identity?.industry,
-        tone:     mock.brand_identity?.tone_of_voice,
-      },
-    }
+    } catch { /* fall through */ }
   }
 
   return { name: 'Client', metricoolBlogId: null }

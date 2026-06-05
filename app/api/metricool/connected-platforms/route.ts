@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { CLIENTS } from '@/lib/mock-data'
+﻿import { NextRequest, NextResponse } from 'next/server'
 
 const ALL_NETWORKS = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube']
 
@@ -19,8 +18,7 @@ async function resolveBlogId(clientId: string): Promise<string | null> {
       if (data?.metricool_blog_id) return String(data.metricool_blog_id)
     } catch { /* fall through */ }
   }
-  const mock = CLIENTS.find(c => c.id === clientId)
-  return (mock as unknown as Record<string, unknown>)?.metricool_blog_id as string | null ?? null
+  return null
 }
 
 export async function GET(req: NextRequest) {
