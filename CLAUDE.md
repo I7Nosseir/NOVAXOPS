@@ -4,7 +4,7 @@
 
 A unified operations platform for a social media/creative agency called **NOVAX**. Replaces ClickUp. Centralises the full content pipeline (Strategy → Publishing → Reporting) with AI assistance at every stage, client management, social publishing via Metricool, comment moderation via Respond.io, and asset management.
 
-The system is **fully owned and self-hosted** by the agency. There is no white-labelling concern — this is an internal tool.
+The system is **fully owned and self-hosted** by the agency. There is no white-labelling concern — this is an internal tool. Live at **https://perfumeexhibition.com** (Vercel).
 
 ## Owner / Developer
 
@@ -43,7 +43,7 @@ This means:
 | TypeScript | ^5 | Strict mode |
 | Tailwind CSS | ^4 | New CSS-native config, no tailwind.config.ts |
 | shadcn/ui | CLI v4 | Tailwind v4 compatible |
-| TanStack Query | v5.100+ | v4 is legacy, do not use |
+| TanStack Query | ^5.100.7 | v4 is legacy, do not use |
 | @dnd-kit/core | ^6.3.1 | Pipeline drag-and-drop |
 | @dnd-kit/sortable | ^10.0.0 | |
 | Recharts | ^3.8.1 | Charts on dashboard + reports |
@@ -52,13 +52,20 @@ This means:
 | date-fns | ^4.1.0 | v4 adds timezone support |
 | pptxgenjs | ^4.0.1 | Presentation generation |
 | clsx + tailwind-merge | latest | Use `cn()` from lib/utils.ts |
+| @anthropic-ai/sdk | ^0.96.0 | Claude API (primary AI) |
+| @supabase/supabase-js | ^2.105.1 | Database + Auth |
+| @supabase/ssr | ^0.10.2 | SSR-compatible Supabase client |
+| @tiptap/react | ^3.23.6 | Rich text editor (Documents page) |
+| @react-pdf/renderer | ^4.5.1 | PDF export |
+| resend | ^6.12.3 | Email (invites, digests, reminders) |
+| sonner | ^2.0.7 | Toast notifications |
+| sharp | ^0.34.5 | Server-side image processing |
+| xlsx | ^0.18.5 | Spreadsheet import/export |
+| @googleapis/drive | ^20.1.0 | Google Drive OAuth + file browser |
 
-**Planned additions (not yet installed):**
-- `@supabase/supabase-js` v2 — when database is connected
+**Not yet installed (planned):**
 - `fal-ai/client` — Flux 2 image generation ($0.03/image)
-- `@ideogram/api` or fetch — Ideogram 3.0 image generation ($0.03/image, best for text-in-image)
-- `googleapis` — Google Drive OAuth + file browser
-- `docx` or `jsPDF` — if document export is added alongside pptxgenjs
+- `@ideogram/api` — Ideogram 3.0 image generation (best for text-in-image)
 - Higgsfield SDK / fetch — AI video generation (cinematic, character-consistent)
 
 **Do NOT add (production):**
@@ -66,85 +73,189 @@ This means:
 - Vercel Edge Functions (`export const runtime = 'edge'`) — deprecated, use Node.js Vercel Functions
 
 **AI model strategy:**
-- Development/testing: Gemini (cost) via `@google/generative-ai` or REST — env var: `GEMINI_API_KEY`
-- Production: Switch all AI routes to Claude (`claude-sonnet-4-6` / `claude-opus-4-7`) — env var: `ANTHROPIC_API_KEY`
-- Keep model provider abstracted behind a single `lib/ai-client.ts` so the swap is one config change
+- Primary: Claude via `@anthropic-ai/sdk` — `claude-sonnet-4-6` (standard), `claude-opus-4-7` (complex/strategy)
+- Fallback: Gemini via REST — `gemini-3-flash-preview` (always use this exact string — never change)
+- `ANTHROPIC_API_KEY` is currently **empty in .env.local** — system falls back to Gemini. Set this for production.
+- Model provider abstracted in `lib/ai-client.ts` — one config change to swap
 
-## Database (Supabase — not yet connected)
+## Database (Supabase — fully connected)
 
-SQL migrations are written and ready at `sql/001_initial_schema.sql`. Run this in the Supabase SQL editor when connecting the database. Do not run it again — it is a one-time migration.
+**Project:** `jvilhgyatwhgcahmwzgd.supabase.co`
+Keys are set in `.env.local` and Vercel. `lib/supabase.ts` has browser + admin clients.
 
-**13 tables:**
+**SQL migrations** — all files in `sql/`. Run in sequence in Supabase SQL editor:
+
 ```
-users               Core user profiles (mirrors auth.users)
-clients             Client brands with brand_identity_json
-projects            Campaigns per client
-tasks               The core unit — lives in one pipeline_stage
-ai_responses        Cached AI outputs (keyed by prompt_hash)
-assets              Higgsfield + uploaded + Drive-imported files
-scheduled_posts     Content scheduled via Metricool
-moderation_items    Comments/DMs from Respond.io
-presentations       Generated .pptx files
-integrations        Encrypted third-party credentials
-api_usage           Per-call cost tracking (Claude, Higgsfield, etc.)
-reports             Generated performance reports
-audit_log           Every action logged with user + timestamp
+001_initial_schema.sql          Core schema (users, clients, projects, tasks, etc.)
+002_crisis_mode_approvals.sql   Crisis mode + approval_requests tables
+002_new_clients_2026_05_21.sql  Seed client data
+002_page_permissions.sql        page_permissions column on users
+002_performance_tables.sql      post_performance_snapshots, competitor_tracking tables
+003_remove_freepik.sql          Drop Freepik integration
+003_approval_notes_notify.sql   Approval notes + notifications column
+003_privea_dent.sql             Client-specific schema patch
+004_metricool_blog_ids.sql      metricool_blog_id per client
+005_schema_patches.sql          General patches
+006_storage_assets_bucket.sql   Supabase Storage bucket (assets — public, 500MB limit)
+007_task_subtypes.sql           Task sub_type column (copy_variant, design_brief, etc.)
+008_design_brief.sql            Per-client design brief JSON
+009_documents.sql               Documents table (Tiptap-backed)
+010_task_comments_and_templates Task comments + content templates
+011_doc_type.sql                Document type column
+012_studio.sql                  Studio sessions table v1
+013_onboarding.sql              Onboarding checklist
+014_arabic_knowledge_base.sql   Arabic dialect rules + banned phrases
+015_omranion_client.sql         Omranion client (id: b4d2340e, blogId: 6329305)
+015_studio_sessions.sql         Studio sessions v2
+016_inspiration_board.sql       Inspiration board table
+016_studio_sessions_v4.sql      Studio sessions v4 schema upgrade
+017_studio_unified.sql          Unified studio + inspiration (idempotent — safe to re-run)
 ```
 
-**RLS is enabled on all tables.** Policies are role-based. See `sql/001_initial_schema.sql` for full policy definitions.
+**Key tables:**
+```
+users                       Core profiles (mirrors auth.users)
+clients                     Client brands with brand_identity_json + metricool_blog_id
+projects                    Campaigns per client
+tasks                       Core work unit — lives in one pipeline_stage
+scheduled_posts             Content scheduled via Metricool
+moderation_items            Comments/DMs from Respond.io
+approval_requests           Client approval workflows
+approval_post_statuses      Per-post approval decisions
+assets                      Uploaded + Drive-imported files
+documents                   Rich-text docs (Tiptap)
+studio_sessions             All studio tool sessions (unified)
+inspiration_board           Per-client saved inspiration items
+post_performance_snapshots  Synced Metricool analytics per post
+competitor_tracking         Competitor account performance data
+arabic_knowledge_base       Dialect rules + banned phrases per client
+ai_responses                Cached AI outputs (keyed by prompt_hash)
+api_usage                   Per-call cost tracking
+audit_log                   Every action with user + timestamp
+task_comments               Comment threads on tasks
+```
 
-**Realtime** is enabled for: `tasks`, `moderation_items`, `scheduled_posts`, `ai_responses`
+**Storage buckets:** `assets` (public, 500MB/file)
+
+**RLS is enabled on all tables.** Policies are role-based.
 
 ## Project File Structure
 
 ```
 agency-ops/
 ├── app/
-│   ├── layout.tsx                  Root layout (Geist font, globals.css, title: "NOVAX Ops")
-│   ├── page.tsx                    Redirects to /dashboard
-│   ├── globals.css                 Tailwind v4 + shadcn CSS vars + NOVAX palette + sidebar vars
-│   ├── approval/
-│   │   └── [token]/page.tsx        PUBLIC client-facing approval portal (no auth, no sidebar)
-│   └── (app)/                      Route group — all authenticated pages
-│       ├── layout.tsx              App shell: ThemeProvider + Sidebar + Header + main wrapper
-│       ├── dashboard/page.tsx      Stats, charts, recent tasks, client health
-│       ├── pipeline/page.tsx       10-stage Kanban board (drag-and-drop)
-│       ├── clients/page.tsx        Client cards + detail modal (Overview/Intelligence/Tasks tabs) + Crisis Mode
-│       ├── projects/page.tsx       Project cards with progress
-│       ├── publishing/page.tsx     Post grid + Calendar view + Compose dialog + Generate Calendar dialog
-│       ├── approval/page.tsx       Internal approval portal — manage + share approval requests
-│       ├── moderation/page.tsx     Comment queue with AI reply
-│       ├── assets/page.tsx         Asset library + Higgsfield video generation
-│       ├── creative-eval/page.tsx  Upload image/video → AI scoring + suggestions
-│       ├── workload/page.tsx       Team workload view — per-member load bars + task lists
-│       ├── library/page.tsx        Content library — published posts as reusable templates
-│       ├── reports/page.tsx        KPI charts + report builder
-│       └── settings/page.tsx       Integrations (admin only) + Team + Notifications + Security
+│   ├── layout.tsx                      Root layout (Geist font, globals.css)
+│   ├── page.tsx                        Redirects to /dashboard
+│   ├── globals.css                     Tailwind v4 + shadcn CSS vars + NOVAX palette
+│   ├── approval/[token]/page.tsx       PUBLIC client-facing approval portal (no auth)
+│   ├── (auth)/
+│   │   ├── login/page.tsx              Email/password login with intro animation
+│   │   └── onboarding/page.tsx         First-login: set name, phone, password
+│   └── (app)/                          Authenticated route group
+│       ├── layout.tsx                  App shell: AuthGuard + Sidebar + Header
+│       ├── dashboard/page.tsx          Live KPI summaries, activity, Metricool widget
+│       ├── pipeline/page.tsx           10-stage Kanban (drag-and-drop, real Supabase)
+│       ├── tasks/page.tsx              My Tasks — assigned to current user
+│       ├── clients/page.tsx            Client cards + detail modal + Crisis Mode
+│       ├── projects/page.tsx           Project cards with real progress
+│       ├── publishing/page.tsx         Grid + Calendar, Compose (EN/AR), Generate Calendar
+│       ├── approval/page.tsx           Internal approval management + shareable tokens
+│       ├── moderation/page.tsx         Comment queue + AI reply (Claude/Gemini)
+│       ├── assets/page.tsx             Asset library + Drive import + Higgsfield (stub)
+│       ├── creative-eval/page.tsx      Upload → Claude AI scoring (brand/hook/CTA/visual)
+│       ├── workload/page.tsx           Per-member load bars + task lists
+│       ├── library/page.tsx            Published posts as reusable templates
+│       ├── reports/page.tsx            KPI charts + Claude narrative + PPTX/PDF export
+│       ├── settings/page.tsx           Integrations (admin) + Team + Permissions
+│       ├── performance/page.tsx        Post analytics, competitor tracking, AI intelligence
+│       ├── ceo/page.tsx                CEO Hub: strategy, crisis override, second opinion
+│       ├── ai-image/page.tsx           AI Image Creation (UI shell — FAL/Ideogram pending)
+│       ├── docs/page.tsx               Document list (create, search, delete)
+│       ├── docs/[id]/page.tsx          Tiptap rich text editor + share + templates
+│       ├── tools/resize/page.tsx       Smart Resize tool (partial)
+│       └── studio/
+│           ├── page.tsx                Studio hub — recent sessions, tool links
+│           ├── content/page.tsx        Flagship: Signal → Brief → Boss Brief → Script
+│           ├── hooks/page.tsx          Hook Lab: 20 divergent → 3C scoring → convergent
+│           ├── strategy/page.tsx       Strategy Command Center (double diamond, Claude)
+│           ├── campaign/page.tsx       Campaign Igniter: tensions → 5 execution briefs
+│           └── inspiration/page.tsx    Live trends (Apify) → per-client boards
+├── app/api/                            79 API routes — see API Routes section
 ├── components/
 │   ├── layout/
-│   │   ├── sidebar.tsx             Dark sidebar, nav items, NOVAX logo mark SVG, user profile
-│   │   ├── header.tsx              Search, New Task, notifications bell (→ NotificationsPanel), theme toggle
-│   │   └── notifications-panel.tsx Bell dropdown — 7 mock notifications, unread count, click-outside-close
+│   │   ├── sidebar.tsx                 Dark sidebar, live badge counts from Supabase
+│   │   ├── header.tsx                  Search, New Task, notifications bell, theme toggle
+│   │   ├── notifications-panel.tsx     Real notifications from audit_log (useNotifications)
+│   │   ├── auth-guard.tsx              Route protection by page_permissions
+│   │   ├── role-preview-banner.tsx     Admin role-preview mode indicator
+│   │   ├── mobile-nav.tsx              Mobile navigation
+│   │   └── preview-aware-main.tsx      Main wrapper for preview mode
 │   ├── pipeline/
-│   │   ├── pipeline-board.tsx      DndContext wrapper, state management
-│   │   ├── pipeline-column.tsx     useDroppable, SortableContext
-│   │   └── task-card.tsx           useSortable, priority/client/due date display
+│   │   ├── pipeline-board.tsx          DndContext wrapper + state
+│   │   ├── pipeline-column.tsx         useDroppable, SortableContext
+│   │   ├── task-card.tsx               useSortable, priority/client/due date
+│   │   ├── task-list.tsx               List view of tasks
+│   │   ├── filter-chips.tsx            Quick filter toggles
+│   │   └── filter-panel.tsx            Advanced filter UI
 │   ├── tasks/
-│   │   └── task-detail-panel.tsx   Slide-over: task meta + 5 AI agents + Copy Versioning (3 variants)
+│   │   ├── task-detail-panel.tsx       Slide-over: meta + 5 AI agents + copy versioning
+│   │   ├── create-task-dialog.tsx      New task modal
+│   │   ├── task-comments.tsx           Comment thread on tasks
+│   │   └── my-tasks-float.tsx          Floating My Tasks panel
+│   ├── studio/
+│   │   ├── studio-session-list.tsx     Recent session cards
+│   │   ├── studio-brief-confirm.tsx    Brief confirmation + AI questions
+│   │   ├── studio-document.tsx         Boss Brief + script renderer
+│   │   ├── studio-chatbot.tsx          In-studio chat interface
+│   │   ├── studio-loading.tsx          Multi-step loading indicator
+│   │   ├── inspiration-board-panel.tsx Inspiration side panel
+│   │   └── inspiration-card.tsx        Individual trend card
 │   ├── clients/
-│   │   └── new-client-wizard.tsx   9-step client onboarding modal (Identity→Social→Competitors→Brand→Tone→Audience→Strategy→Goals→Resources)
+│   │   ├── new-client-wizard.tsx       9-step onboarding modal
+│   │   └── design-brief-form.tsx       Canvas sizes, fonts, colors, motion, AI video notes
+│   ├── docs/
+│   │   ├── doc-editor.tsx              Tiptap rich text editor
+│   │   ├── doc-share-dialog.tsx        Share dialog
+│   │   └── sheet-editor.tsx            Spreadsheet-like editor
 │   ├── settings/
-│   │   └── invite-user-modal.tsx   Invite team member modal — role grid + email + success state
+│   │   └── invite-user-modal.tsx       Invite modal (role grid + email + page permissions)
+│   ├── tools/
+│   │   └── role-tools-panel.tsx        Role-specific tool shortcuts
 │   └── ui/
-│       └── platform-icon.tsx       Custom branded platform icon (replaces missing lucide brand icons)
+│       └── platform-icon.tsx           Custom branded platform icon (no lucide brand icons)
 ├── lib/
-│   ├── types.ts                    All TypeScript interfaces and union types
-│   ├── mock-data.ts                4 clients, 6 users, 5 projects, 21 tasks, 12 posts, 5 moderation items
-│   ├── utils.ts                    cn(), STAGE_CONFIG, PRIORITY_CONFIG, PLATFORM_CONFIG, formatters
-│   └── theme-context.tsx           ThemeProvider — dark/light toggle, localStorage persistence
-├── sql/
-│   └── 001_initial_schema.sql      Full schema + RLS + triggers + indexes — ready to run
-└── next.config.ts                  Turbopack root set to resolve workspace warning
+│   ├── types.ts                        All TypeScript interfaces + union types (21 types)
+│   ├── utils.ts                        cn(), STAGE_CONFIG, PRIORITY_CONFIG, PLATFORM_CONFIG
+│   ├── supabase.ts                     Browser client + createAdminClient()
+│   ├── auth-context.tsx                Supabase Auth provider + role preview mode
+│   ├── ai-client.ts                    Claude + Gemini abstraction layer
+│   ├── metricool.ts                    Metricool API client (mFetch, schedule, analytics)
+│   ├── google-drive.ts                 Google Drive OAuth + file browser
+│   ├── email.ts                        Resend email templates
+│   ├── gemini.ts                       Gemini REST client (fallback AI)
+│   ├── arabic-dialect.ts               Arabic tone rules + banned phrases
+│   ├── report-prompts.ts               Report generation prompt templates
+│   ├── page-permissions.ts             Page ACL (role → visible pages)
+│   ├── studio-types.ts                 StudioSession, BossBrief, SignalReport, HookTier, etc.
+│   ├── studio-campaign-domains.ts      Campaign niche definitions
+│   ├── studio-export.ts                Export session to document
+│   ├── strategy-export.ts              Export strategy to PPTX
+│   ├── sidebar-context.tsx             Mobile sidebar open/close state
+│   └── hooks/
+│       ├── use-tasks.ts                CRUD + filters (client, stage, priority, assignee)
+│       ├── use-clients.ts              CRUD clients
+│       ├── use-projects.ts             CRUD projects
+│       ├── use-users.ts                Query users + invite/cancel/permissions mutations
+│       ├── use-posts.ts                Query + mutate scheduled posts
+│       ├── use-moderation.ts           Query items + send reply + usePendingModerationCount
+│       ├── use-approvals.ts            Query requests + create + usePendingApprovalCount
+│       ├── use-assets.ts               Query + upload + delete assets
+│       ├── use-notifications.ts        Real notifications from audit_log (refetch 60s)
+│       ├── use-task-comments.ts        Comment threads per task
+│       └── use-dashboard.ts            Weekly activity + AI cost + Metricool overview
+├── sql/                                17 migration files (see Database section)
+├── middleware.ts                       Supabase session refresh + auth redirect
+└── next.config.ts                      Turbopack root + image domains
 ```
 
 ## Role System
@@ -161,13 +272,15 @@ type UserRole =
   | 'social_manager'      // Publishing + moderation access
 ```
 
+**Page-level permissions:** Admin can restrict which optional pages each user sees via `users.page_permissions TEXT[]`. `NULL` = all pages visible (default). Empty array = only required pages. Enforced in `components/layout/auth-guard.tsx`.
+
 **UI visibility rules by role:**
 - Integrations tab in Settings: `admin` only
-- Metricool/Respond.io/Higgsfield labels: `admin` + `ceo` only. Everyone else sees "Scheduling Platform", "Messaging Platform", "Video Studio"
+- Metricool/Respond.io/Higgsfield labels: `admin` + `ceo` only. Everyone else sees masked vendor names
 - Audit log: `admin` + `ceo` only
 - API cost data: `admin` + `ceo` + `creative_director`
 - Team management: `admin` only
-- Client edit/create: `admin` + `creative_director` + `account_manager`
+- Studio tools: `admin` only (others via page_permissions)
 
 ## Pipeline Stages (fixed — do not add or rename without updating DB enum)
 
@@ -175,7 +288,7 @@ type UserRole =
 strategy → ideas → calendar → copy → design → review → approval → scheduled → published → reporting
 ```
 
-Each stage has a fixed color scheme defined in `lib/utils.ts` → `STAGE_CONFIG`. When adding new UI that references stages, always use `STAGE_CONFIG[stage].label/color/bg/border` — never hardcode stage display values.
+Each stage has a fixed color scheme in `lib/utils.ts` → `STAGE_CONFIG`. Always use `STAGE_CONFIG[stage].label/color/bg/border` — never hardcode stage display values.
 
 ## AI Architecture
 
@@ -186,163 +299,225 @@ Each stage has a fixed color scheme defined in `lib/utils.ts` → `STAGE_CONFIG`
 2. Check `ai_responses` table for a matching hash with `is_cached = true`
 3. If cache hit → return saved response instantly, zero API cost
 4. If miss → build context-injected prompt → call Claude API → save response → return
-5. After generation → run Reflection Agent (checks brand compliance, flags hallucinations)
 
 **Context injected into every prompt:**
-- Task title + description
-- Pipeline stage
+- Task title + description + pipeline stage
 - Client brand identity (tone, audience, key messages, colors)
 - Last 3 relevant AI outputs for this client
 - Current user role (affects output formality)
+- Arabic dialect rules if client uses Arabic (from `arabic_knowledge_base` table)
 
-**Agent types:**
+**Agent types (`/api/ai`):**
 - `task_analyzer` — Breaks down brief, flags missing info, suggests approach
-- `copywriter` — Stage-aware copy generation with brand voice. Returns 3 variants (Aspirational / Benefit-led / Conversational) for user to select
-- `researcher` — Market context, competitor gaps, trending hashtags
-- `asset_finder` — Extracts keywords → prepares Higgsfield/Drive query
-- `presentation_builder` — Generates slide structure → passes to pptxgenjs
+- `copywriter` — Stage-aware copy. Returns 3 variants (Aspirational / Benefit-led / Conversational)
+- `researcher` — Market context, competitor gaps, trending angles
+- `asset_finder` — Extracts keywords → prepares Drive query
+- `post_caption` — Image-aware caption via Claude Vision
+- `presentation_builder` — Generates slide structure → pptxgenjs
+
+**Studio AI calls (separate routes):**
+- `/api/studio/content/[id]/research` — Signal grounding + market intelligence
+- `/api/studio/content/[id]/script` — Full Boss Brief + script generation (Claude Opus)
+- `/api/studio/hooks/generate` — 20 hooks → 3C scoring → SCAMPER filtering
+- `/api/studio/strategy` — Double-diamond strategy (17 phases, Claude)
+- `/api/studio/campaign/generate` — Cultural tensions → 5 execution briefs
+- `/api/studio/chat` — In-session chat + content editing (Claude Sonnet)
+- `/api/studio/postmortem` — Post-mortem diagnosis (Claude)
 
 **Output rules:**
 - No hashtags or emojis in any AI output by default
-- Only include hashtags/emojis when the task description explicitly requests them
+- Only include when task description explicitly requests them
 
 **Claude models:**
 - Primary: `claude-sonnet-4-6` (most tasks)
-- Complex/strategy: `claude-opus-4-7` (quarterly planning, research)
+- Complex/strategy: `claude-opus-4-7` (strategy, Boss Brief, research)
 - Always use versioned model strings — never aliases
+- Gemini fallback: `gemini-3-flash-preview` — always this exact string
 
 **Rate limit:** 10 AI requests per user per minute (enforced in API route middleware)
 
 ## Integrations Map
 
-| Integration | Purpose | Auth method | Who configures |
+| Integration | Purpose | Status | Auth method |
 |---|---|---|---|
-| Metricool | Publish + schedule + fetch performance | API token + blogId per client | Admin only |
-| Respond.io | Receive comments/DMs, send replies | API key + webhook secret | Admin only |
-| Higgsfield | AI video generation (cinematic, character-consistent) | API key | Admin only |
-| Claude API (Anthropic) | All AI agents | API key | Admin only |
-| Google Drive | Asset browser (planned) | OAuth 2.0 per user | Admin only |
-| Flux 2 via fal.ai | AI image generation (planned) | API key | Admin only |
-| Ideogram 3.0 | AI image gen with text (planned) | API key | Admin only |
+| Metricool | Publish + schedule + fetch analytics | **Live** | API token + blogId per client |
+| Respond.io | Receive comments/DMs, send replies | Webhook only (reply sender incomplete) | API key + webhook secret |
+| Apify | Instagram, TikTok, YouTube, Reddit scraping | **Live** | API key |
+| YouTube Data API | Video trends + analytics | **Live** | API key |
+| Google Drive | Asset browser + file import | **Live** (OAuth) | OAuth 2.0 per user |
+| Resend | Email (invites, digests, reminders) | **Live** | API key |
+| Claude API | All AI agents (primary) | **ANTHROPIC_API_KEY not set** | API key |
+| Gemini | AI fallback | **Live** | API key |
+| Higgsfield | AI video generation | Stub only | API key (missing) |
+| Flux 2 / fal.ai | AI image generation | Stub only | API key (missing) |
+| Ideogram 3.0 | Text-in-image generation | Stub only | API key (missing) |
 
 **Webhook endpoints (configure in vendor dashboards):**
-- Respond.io → `/api/webhooks/respond-io`
-- Metricool publish confirmation → `/api/webhooks/metricool`
+- Respond.io → `POST /api/webhooks/respond-io`
+- Metricool publish confirmation → `POST /api/webhooks/metricool`
 
-**Important Metricool constraint:** No OAuth flow — token only. Each client is a `blogId` under one agency Metricool account. Store the mapping in `clients.metricool_blog_id`.
+**Important Metricool constraint:** No OAuth — token only. Each client is a `blogId` under one agency account. Map stored in `clients.metricool_blog_id`.
 
-**Important Respond.io constraint:** Instagram public comment replies are NOT supported via API (Instagram restriction) — only DM replies to commenters. Facebook public comment replies work fine. Respond.io does NOT support Google Reviews replies.
+**Important Respond.io constraint:** Instagram public comment replies not supported via API — DM only. Facebook public comment replies work. Google Reviews not supported.
 
-## Currently Built (Supabase connected — `.env.local` has URL + anon + service role keys)
+## Currently Built & Live
+
+### Auth
+- [x] Login page — NOVAX-branded, email/password, Supabase Auth
+- [x] Onboarding — first-login: set name, phone, password; clears `needs_onboarding` flag
+- [x] `middleware.ts` — protects all `/(app)/*` routes, redirects unauthenticated to `/login`
+- [x] `lib/auth-context.tsx` — AuthProvider, `onAuthStateChange`, fetches profile from `public.users`
+- [x] Role preview mode (admin only) — impersonate any role without switching accounts
 
 ### Core Shell
-- [x] Full app shell (sidebar, header, layout) with ThemeProvider (dark/light mode, localStorage)
-- [x] NOVAX branding: dark teal `#1B3D38`, NOVAX logo mark SVG in sidebar, `/public/icon.svg` favicon
-- [x] Notifications bell dropdown — 7 mock notifications, 5 types, unread count, click-outside-close
+- [x] Full app shell (sidebar, header, layout) with dark/light ThemeProvider
+- [x] NOVAX branding: dark teal `#1B3D38`, NOVAX logo mark SVG
+- [x] Sidebar live badge counts — pending approvals + moderation from Supabase (not hardcoded)
+- [x] Notifications panel — real data from `audit_log` via `useNotifications()` hook
+- [x] Page permissions system — admin restricts pages per user, enforced at route level
+- [x] Mobile sidebar + responsive layout
 
-### Main Pages
-- [x] Dashboard (stats, charts, activity, client health)
-- [x] Pipeline Kanban board (drag-and-drop, all 10 stages)
-- [x] Task detail slide-over (5 AI agents, mock generation, cache indicator, **copy versioning — 3 selectable variants**)
-- [x] Clients page (cards + **Crisis Mode per-client toggle**, detail modal with **Overview/Intelligence/Tasks tabs**, **SWOT analysis + market position + key insights**)
-- [x] New Client Wizard — 9-step modal (Identity, Social profiles, Competitors, Brand, Tone/Voice, Audience, Content Strategy, Goals/KPIs, Resources)
-- [x] Projects page (progress bars, stage distribution, quarter strategy)
-- [x] Publishing page (**Grid view + Calendar view toggle**, Compose dialog with **EN/AR/Both language toggle**, **Generate Calendar dialog** — brief → AI content calendar)
-- [x] Approval Portal — internal (`/approval`) approval request management + shareable links
-- [x] Public Approval Portal (`/approval/[token]`) — client-facing review page, per-post approve/request-changes, notes, submit
-- [x] Moderation page (comment queue, AI reply, send/escalate/ignore)
-- [x] Assets page (library + Higgsfield video generation + AI keyword extraction)
-- [x] Creative Evaluation page (`/creative-eval`) — upload image/video, AI scoring (brand fit, hook strength, visual quality, CTA clarity), engagement prediction, strengths/improvements/suggestions
-- [x] Team Workload page (`/workload`) — per-member load bars, overloaded/at-capacity/healthy badges, overdue + high-priority counts, task list preview
-- [x] Content Library page (`/library`) — published posts as reusable templates, filter by client/tag, star-save, one-click copy
-- [x] Reports page (KPI charts, platform breakdown, report builder)
-- [x] Settings page (integrations config, **team table + Invite Member modal**, notifications toggles, security)
-- [x] SQL migrations file (all 13 tables, RLS, triggers, indexes)
+### Main Pages (all on real Supabase data)
+- [x] **Dashboard** — live KPI stats, weekly activity chart, Metricool overview widget
+- [x] **Pipeline** — 10-stage Kanban, drag-and-drop, real task CRUD
+- [x] **Tasks** — My Tasks: assigned to current user, search + filter
+- [x] **Clients** — cards + detail modal (Overview/Intelligence/Tasks tabs) + Crisis Mode + Design Brief
+- [x] **New Client Wizard** — 9-step modal (Identity → Social → Competitors → Brand → Tone → Audience → Strategy → Goals → Resources)
+- [x] **Projects** — progress bars, stage distribution, real data
+- [x] **Publishing** — Grid + Calendar view, Compose (EN/AR/Both), Generate Calendar, Metricool scheduling
+- [x] **Approval** — internal management + shareable token links + client email notification
+- [x] **Public Approval Portal** (`/approval/[token]`) — per-post approve/request-changes/notes, submit
+- [x] **Moderation** — comment queue, AI reply (Claude/Gemini), send/escalate/ignore
+- [x] **Assets** — library + Google Drive import + Supabase Storage upload
+- [x] **Creative Eval** — upload image/video → Claude AI scoring (brand fit, hook, visual, CTA, engagement prediction)
+- [x] **Workload** — per-member load bars, overloaded/healthy badges, task list preview
+- [x] **Content Library** — published posts as reusable templates, filter, save
+- [x] **Reports** — KPI charts, Claude narrative, Metricool data, PPTX + PDF export
+- [x] **Settings** — integrations config (admin), team + invite, page permissions per user
+- [x] **Performance** — post analytics, competitor tracking, AI pattern intelligence, best posting times
+- [x] **CEO Hub** — strategy analysis, crisis override, second opinion (Claude)
+- [x] **Documents** — Tiptap rich text editor, templates, public sharing via token
+- [x] **Studio Hub** — links to all studio tools, recent session list
 
-### Mock Data
-- 4 clients (Luxe Cosmetics, TechNova, Coastal Eats, FitForge)
-- 6 users across all roles
-- 5 projects
-- 21 tasks across all pipeline stages
-- 12 scheduled posts (updated to 2026 dates, May 2026 for calendar demo)
-- 5 moderation items
+### Studio Tools (all on real Supabase + Claude)
+- [x] **Content Studio** (`/studio/content`) — Signal report → Brief confirmation → Boss Brief + Script (Claude Opus)
+- [x] **Hook Lab** (`/studio/hooks`) — 20 divergent hooks → 3C scoring + SCAMPER → convergent top 3
+- [x] **Strategy** (`/studio/strategy`) — Double-diamond, 17 phases, PPTX export (Claude)
+- [x] **Campaign Igniter** (`/studio/campaign`) — Cultural tensions + constraint inversion → 5 execution briefs
+- [x] **Inspiration Board** (`/studio/inspiration`) — Live YouTube/TikTok/Reddit trends (Apify), save to client boards
 
-## Planned (not yet built)
+### API Routes (79 total — 68 fully functional, 11 stubs)
+All routes use Node.js runtime. No edge functions.
 
-- [ ] Per-client pipeline view (`/pipeline?client=id` or `/clients/:id/pipeline`)
-- [ ] Client profile inline editor + Knowledge Base (notes + file uploads per client)
-- [ ] Role-based vendor name masking (`admin`/`ceo` only see real names — currently all roles see vendor names)
-- [ ] Integrations tab hidden from all roles except `admin` (currently always visible)
-- [ ] Reference document upload per client (feeds into report generation context)
-- [ ] Report template upload + matching
-- [ ] Google Drive OAuth + file browser in assets tab
-- [ ] "Import from Drive" → Supabase Storage
-- [ ] AI Image Creation page (Flux 2 for photos, Ideogram 3.0 for text-graphics)
-- [ ] AI Video Creation page (Higgsfield — prompt/image → cinematic video)
-- [ ] Studio / Gamma-style Presentation Builder (text → Claude → pptxgenjs → .pptx)
-- [ ] Supabase client setup + replace mock data with real queries
-- [ ] Auth flow (login, session management)
-- [ ] Real AI API route handlers (Vercel Functions, Node.js runtime)
-- [ ] Metricool API routes (schedule post, fetch analytics)
-- [ ] Respond.io webhook handler + reply sender
-- [ ] Higgsfield API route (generate video, poll job status, download to Storage)
-- [ ] Crisis Mode persistence (currently local state in ClientsPage — needs to propagate to publishing queue)
-- [ ] Approval Portal real link generation + email notification to client
+### Background Jobs (Cron)
+- `GET /api/cron/sync-performance` — Daily Metricool analytics sync to DB
+- `GET /api/cron/sync-status` — Sync scheduled post statuses from Metricool
+- `GET /api/cron/task-reminders` — Email reminders for overdue tasks
+- `GET /api/cron/daily-digest` — Daily digest email via Resend
+- `GET /api/cron/cleanup-storage` — Remove old assets from Supabase Storage
+All cron routes are protected by `CRON_SECRET` header.
+
+### Data Layer
+- **Zero mock data** — `lib/mock-data.ts` deleted. `lib/studio-session-store.ts` deleted.
+- All pages query Supabase via TanStack Query v5 hooks
+- All `_mock: true` fallbacks removed from API routes — misconfiguration now surfaces as explicit `503`
+
+## Still Incomplete / Pending
+
+| Feature | Status | Notes |
+|---|---|---|
+| **ANTHROPIC_API_KEY** | **CRITICAL** | Not set in `.env.local`. All AI falls back to Gemini. Set this for production. |
+| Respond.io reply sender | Partial | Webhook receives items. `/api/respond-io/reply` route exists but not fully wired. |
+| AI Image page (`/ai-image`) | UI shell | FAL_API_KEY + IDEOGRAM_API_KEY not set. Routes return 503. |
+| Higgsfield video generation | Stub | HIGGSFIELD_API_KEY not set. Asset page shows UI but no generation. |
+| Smart Resize (`/tools/resize`) | Partial | Routes exist; UI not fully wired end-to-end. |
+| Studio Postmortem | UI only | `/api/studio/postmortem` route exists and works; page UI not wired. |
+| Error handling sweep | In progress | 35+ silent catch blocks across API routes need `console.error` + proper error returns. See audit. |
+| Real-time subscriptions | Not built | No Supabase `realtime().on()` subscriptions. Updates require page refresh. |
+| Crisis Mode → Publishing queue | Partial | Crisis state persists in DB but doesn't block scheduled posts in all flows. |
+| Per-client pipeline view | Not built | `/pipeline?client=id` filter works but no dedicated page. |
 
 ## Key Conventions
 
-**Client Components:** Any file using hooks, event handlers, browser APIs, or lucide-react icons must have `'use client'` at the top. lucide-react v1 icons are Client Components and cannot be used in Server Components.
+**Client Components:** Any file using hooks, event handlers, browser APIs, or lucide-react icons must have `'use client'` at the top. lucide-react v1 icons cannot be used in Server Components.
 
-**Styling:** Use `cn()` from `@/lib/utils` for conditional classes. Never use inline style for colors that are in the design system — use Tailwind classes. Use inline style only for dynamic values (like `client.color`).
+**Styling:** Use `cn()` from `@/lib/utils` for conditional classes. Never inline style for design-system colors. Inline style only for dynamic values (e.g. `client.color`).
 
-**Stage config:** Always reference `STAGE_CONFIG[stage]` from `lib/utils.ts`. Never hardcode stage display strings.
+**Stage config:** Always use `STAGE_CONFIG[stage]` from `lib/utils.ts`. Never hardcode stage strings.
 
-**Platform icons:** Use `<PlatformIcon platform={p} size="xs|sm"/>` from `@/components/ui/platform-icon.tsx`. Do not import Instagram/Facebook/Linkedin/Youtube from lucide-react — they were removed in v1.
+**Platform icons:** Use `<PlatformIcon platform={p} size="xs|sm"/>` from `@/components/ui/platform-icon.tsx`. Do not import Instagram/Facebook/Linkedin/Youtube from lucide-react — removed in v1.
 
-**Mock data:** All data lives in `lib/mock-data.ts`. When connecting to Supabase, replace imports from mock-data with TanStack Query hooks. Do not mix mock and real data in the same component.
+**No mock data:** `lib/mock-data.ts` is deleted. If you need test data, seed the real Supabase DB. Never recreate a mock-data file.
 
-**API routes:** All routes go in `app/api/`. Use Node.js runtime (no `export const runtime = 'edge'` — deprecated). AI routes must check rate limit before calling Claude.
+**API routes:** All in `app/api/`. Node.js runtime only. AI routes must check rate limit. Use `createAdminClient()` from `lib/supabase.ts` for server-side Supabase access. Always destructure `{ data, error }` from Supabase calls and check `error` before proceeding.
 
-**Type safety:** Import types with `import type { ... }` when the import is only used as a type. This enables better tree-shaking.
+**Error handling pattern:**
+```ts
+// Always do this:
+const { data, error } = await supabase.from('table').select(...)
+if (error) {
+  console.error('[route-name] Context:', error.message)
+  return NextResponse.json({ error: error.message }, { status: 500 })
+}
+// Never do this:
+catch { } // silent swallow
+```
 
-**No emojis:** Never add emojis to any UI text, labels, buttons, or AI output. Icons only.
+**Type safety:** Import types with `import type { ... }` when import is type-only.
 
-## Supabase Setup (when ready)
+**No emojis:** Never add emojis to UI text, labels, buttons, or AI output. Icons only.
 
-1. Create project at supabase.com
-2. Run `sql/001_initial_schema.sql` in the SQL editor
-3. Create storage buckets: `assets` (public), `presentations` (private), `uploads` (private)
-4. Enable Realtime for: tasks, moderation_items, scheduled_posts, ai_responses
-5. Install: `npm install @supabase/supabase-js`
-6. Add env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-7. Create `lib/supabase.ts` with client + server client setup
-8. Replace mock data imports with real queries using TanStack Query v5
+**User creation:** Never create users via raw SQL — always use Supabase Dashboard UI. Raw SQL breaks GoTrue password hashing → 500 on login.
 
-## Environment Variables (to be set in Vercel + .env.local)
+## Environment Variables
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-ANTHROPIC_API_KEY=
-GEMINI_API_KEY=
-METRICOOL_API_TOKEN=
+# Supabase (configured)
+NEXT_PUBLIC_SUPABASE_URL=https://jvilhgyatwhgcahmwzgd.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+
+# AI — CRITICAL: ANTHROPIC_API_KEY is empty, falls back to Gemini
+ANTHROPIC_API_KEY=          ← SET THIS FOR PRODUCTION
+GEMINI_API_KEY=...          (configured)
+
+# Metricool (configured)
+METRICOOL_API_TOKEN=...
+METRICOOL_USER_ID=4837620
+
+# Email (configured)
+RESEND_API_KEY=...
+RESEND_FROM_ADDRESS=NOVAX Ops <noreply@perfumeexhibition.com>
+
+# Google Drive (configured)
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+
+# Apify / trends (configured)
+APIFY_API_KEY=...
+YOUTUBE_API_KEY=...
+TRENDSMCP_API_KEY=...
+
+# App
+NEXT_PUBLIC_APP_URL=https://perfumeexhibition.com
+CEO_EMAIL=novaaxone@gmail.com
+CRON_SECRET=novax-cron-2026
+
+# Not configured (stubs only)
 RESPOND_IO_API_KEY=
 RESPOND_IO_WEBHOOK_SECRET=
 HIGGSFIELD_API_KEY=
-
 FAL_API_KEY=
 IDEOGRAM_API_KEY=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
 ```
 
 ## Deployment
 
-- Platform: Vercel
-- Runtime: Node.js (NOT Edge Functions — deprecated)
-- Environment: Production env vars set in Vercel dashboard
-- Auth: Supabase Auth (handles sessions, tokens, RLS automatically)
+- **Platform:** Vercel
+- **URL:** https://perfumeexhibition.com
+- **Runtime:** Node.js (NOT Edge Functions)
+- **Auth:** Supabase Auth (handles sessions, tokens, RLS automatically)
+- **Cron:** Vercel Cron Jobs configured in `vercel.json` — use `CRON_SECRET` for auth
 
 ## Dev Commands
 
