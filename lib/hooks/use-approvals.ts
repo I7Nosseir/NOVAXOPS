@@ -53,6 +53,22 @@ function mapRequest(row: RawApprovalRow): ApprovalRequest {
   }
 }
 
+export function usePendingApprovalCount() {
+  return useQuery({
+    queryKey: ['approval-requests', 'pending-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('approval_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+      if (error) return 0
+      return count ?? 0
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  })
+}
+
 export function useApprovalRequests() {
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ['approval-requests'],

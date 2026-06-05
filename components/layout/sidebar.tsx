@@ -11,12 +11,13 @@ import {
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useSidebar } from '@/lib/sidebar-context'
+import { usePendingApprovalCount } from '@/lib/hooks/use-approvals'
+import { usePendingModerationCount } from '@/lib/hooks/use-moderation'
 
 interface NavItem {
   href: string
   icon: React.ElementType
   label: string
-  badge?: number
   /** If set, the user must have this key in page_permissions to see this item */
   permKey?: string
 }
@@ -36,8 +37,8 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/clients',     icon: Building2,        label: 'Clients',    permKey: 'clients' },
       { href: '/projects',    icon: FolderKanban,     label: 'Projects',   permKey: 'projects' },
       { href: '/publishing',  icon: Send,             label: 'Publishing', permKey: 'publishing' },
-      { href: '/approval',    icon: CheckSquare,      label: 'Approval',   badge: 4, permKey: 'approval' },
-      { href: '/moderation',  icon: MessageSquare,    label: 'Moderation', badge: 3, permKey: 'moderation' },
+      { href: '/approval',    icon: CheckSquare,      label: 'Approval',   permKey: 'approval' },
+      { href: '/moderation',  icon: MessageSquare,    label: 'Moderation', permKey: 'moderation' },
     ],
   },
   {
@@ -97,6 +98,13 @@ export function Sidebar() {
   const { open, setOpen } = useSidebar()
   const isAdmin = user?.role === 'admin'
   const isCeoOrAdmin = user?.role === 'ceo' || user?.role === 'admin'
+  const { data: pendingApprovals = 0 } = usePendingApprovalCount()
+  const { data: pendingModeration = 0 } = usePendingModerationCount()
+
+  const liveBadges: Record<string, number> = {
+    '/approval':   pendingApprovals,
+    '/moderation': pendingModeration,
+  }
 
   // Returns true if the user is allowed to see an optional page.
   // Admins always see everything. null permissions = all pages visible.
@@ -209,9 +217,10 @@ export function Sidebar() {
                 {section.label}
               </p>
               <div className="space-y-0.5">
-                {visibleItems.map(({ href, icon: Icon, label, badge }) => {
+                {visibleItems.map(({ href, icon: Icon, label }) => {
                   const active = pathname === href || (href !== '/dashboard' && href !== '/studio' && pathname.startsWith(href))
                     || (href === '/studio' && pathname === '/studio')
+                  const badge = liveBadges[href] ?? 0
                   return (
                     <Link
                       key={href}
@@ -233,7 +242,7 @@ export function Sidebar() {
                         <Icon className={cn('w-4 h-4 shrink-0', active ? 'text-novax-accent' : 'text-slate-500 group-hover:text-slate-300')} />
                         <span>{label}</span>
                       </div>
-                      {badge ? (
+                      {badge > 0 ? (
                         <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-novax text-white text-[10px] font-bold">
                           {badge}
                         </span>

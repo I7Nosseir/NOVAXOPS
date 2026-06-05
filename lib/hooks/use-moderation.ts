@@ -18,6 +18,22 @@ function mapItem(row: Record<string, unknown>): ModerationItem {
   }
 }
 
+export function usePendingModerationCount() {
+  return useQuery({
+    queryKey: ['moderation', 'pending-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('moderation_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+      if (error) return 0
+      return count ?? 0
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  })
+}
+
 export function useModerationItems(clientId?: string) {
   const { data: items = [], isLoading, error } = useQuery({
     queryKey: ['moderation', clientId],
