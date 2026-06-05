@@ -6,14 +6,8 @@ import { Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 function NovaLogoMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      <circle cx="16" cy="16" r="16" fill="#1B3D38"/>
-      <path d="M7 23V9l5.5 9L18 9v14" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M20 9l5 7-5 7" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14 16.5l3.5-3" stroke="#5BB4AE" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/icon.svg" alt="NOVA" className={className} />
 }
 
 export default function OnboardingPage() {

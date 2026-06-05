@@ -81,13 +81,8 @@ const CEO_NAV_ITEM: NavItem = { href: '/ceo', icon: Crown, label: 'CEO Hub' }
 
 function NovaLogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      <rect width="36" height="36" rx="7" fill="#0C2724"/>
-      {/* N — bold filled */}
-      <path d="M4,28 L4,8 L8,8 L20,22 L20,8 L24,8 L24,28 L20,28 L8,14 L8,28 Z" fill="white"/>
-      {/* Diagonal slash — NOVA signature mark */}
-      <line x1="19" y1="31" x2="32" y2="5" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/icon.svg" alt="NOVA" className={className} />
   )
 }
 

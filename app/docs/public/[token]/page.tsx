@@ -13,13 +13,8 @@ interface PublicDoc {
 }
 
 function NovaLogoSmall() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-6 h-6">
-      <circle cx="12" cy="12" r="12" fill="#1B3D38"/>
-      <path d="M5 17V7l4 7 4-7v10" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M15 7l3.5 5-3.5 5" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/icon.svg" alt="NOVA" className="w-7 h-7 rounded" />
 }
 
 export default function PublicDocPage() {

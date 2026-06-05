@@ -7,17 +7,8 @@ import { useAuth } from '@/lib/auth-context'
 import { IntroAnimation } from '@/components/intro-animation'
 
 function NovaLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      <path d="M12 56V16h7.5l18 26.4V16H45v40h-7.5L19.5 29.6V56H12z" fill="white"/>
-      <path d="M52 36c0-12.2 8.6-21 20-21s20 8.8 20 21-8.6 21-20 21S52 48.2 52 36zm31.4 0c0-8.4-4.8-14-11.4-14S60.6 27.6 60.6 36s4.8 14 11.4 14 11.4-5.6 11.4-14z" fill="white"/>
-      <line x1="94" y1="62" x2="148" y2="10" stroke="white" strokeWidth="3.5" strokeLinecap="round"
-        style={{ strokeDasharray: 80, animation: 'login-slash-draw 0.6s cubic-bezier(.4,0,.2,1) 0.7s both' }}/>
-      <path d="M148 16h8.6l11.4 30.8L179.4 16H188l-16 40h-8z" fill="white"/>
-      <path d="M195.6 56l16-40h8.4l16 40h-8.2l-3.4-8.8H207l-3.4 8.8h-8zm14-15.2h10.8L215.8 24l-6.2 16.8z" fill="white"/>
-      <text x="238" y="20" fontFamily="system-ui,sans-serif" fontSize="8" fontWeight="600" fill="white" opacity="0.6">TM</text>
-    </svg>
-  )
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/nova-logo.svg" alt="NOVA" className={className} />
 }
 
 export default function LoginPage() {

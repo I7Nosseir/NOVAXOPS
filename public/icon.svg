@@ -1,15 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <circle cx="32" cy="32" r="32" fill="#1B3D38"/>
-  <!-- N -->
-  <path d="M10 48V16l10 18V16" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- O -->
-  <path d="M28 16 Q22 16 22 24 L22 40 Q22 48 28 48 Q34 48 34 40 L34 24 Q34 16 28 16Z" stroke="white" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
-  <!-- V -->
-  <path d="M36 16 L41 40 L46 16" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- A with slash -->
-  <path d="M48 48 L52 24 L56 48" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M49.5 40 L54.5 40" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M55 16 L50 32" stroke="#5BB4AE" stroke-width="2" stroke-linecap="round"/>
-  <!-- X mark -->
-  <text x="58" y="22" font-size="8" fill="white" font-family="system-ui" font-weight="bold">™</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#1B3D38"/>
+  <!-- NOVA wordmark -->
+  <text
+    x="100" y="122"
+    text-anchor="middle"
+    font-family="'Arial Black', Impact, 'Helvetica Neue', Arial, sans-serif"
+    font-weight="900"
+    font-size="58"
+    letter-spacing="3"
+    fill="white"
+  >NOVA</text>
+  <!-- Diagonal slash through the V — signature brand mark -->
+  <line x1="152" y1="52" x2="128" y2="158" stroke="white" stroke-width="8" stroke-linecap="round"/>
+  <!-- TM -->
+  <text x="170" y="58" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="white" opacity="0.60">TM</text>
 </svg>
