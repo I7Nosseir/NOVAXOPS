@@ -36,6 +36,7 @@ type TopPost = {
   shares: number
   saves: number
 }
+type TopPostGroup = { platform: string; posts: TopPost[] }
 
 async function fetchMetricoolData(
   blogId: string,
@@ -171,6 +172,7 @@ function parseSections(text: string): Record<string, string> {
 async function resolveClient(clientId: string): Promise<{
   name: string
   metricoolBlogId: string | null
+  logoUrl?: string
   brand?: { industry?: string; tone?: string }
 }> {
   if (HAS_DB) {
@@ -190,6 +192,7 @@ async function resolveClient(clientId: string): Promise<{
         return {
           name: client.name as string,
           metricoolBlogId: (client.metricool_blog_id as string | null) ?? null,
+          logoUrl: brand.logo_url as string | undefined,
           brand: {
             industry: brand.industry as string | undefined,
             tone:     (brand.tone ?? brand.brand_voice) as string | undefined,
@@ -253,30 +256,26 @@ export async function POST(req: NextRequest) {
   const { prevStart, prevEnd } = prevPeriodDates(startDate, endDate, reportType)
   const nets = platforms?.length ? platforms : undefined
 
-  const topPostsPromise: Promise<TopPost[]> = HAS_METRICOOL
-    ? (async (): Promise<TopPost[]> => {
-        const { getTopPosts } = await import('@/lib/metricool')
-        const posts = await getTopPosts(blogId, startDate, endDate, nets ?? undefined).catch(() => [])
-        return posts.map(p => ({
-          id: p.id,
-          network: p.network,
-          publishDate: p.publishDate,
-          url: p.url,
-          text: p.text ?? p.title,
-          reach: p.reach ?? 0,
-          impressions: p.impressions ?? 0,
-          likes: p.likes ?? 0,
-          comments: p.comments ?? 0,
-          shares: p.shares ?? 0,
-          saves: p.saves ?? 0,
-        }))
+  const mapPost = (p: { id?: string; network?: string; publishDate?: string; url?: string; text?: string; title?: string; reach?: number; impressions?: number; likes?: number; comments?: number; shares?: number; saves?: number }): TopPost => ({
+    id: p.id, network: p.network, publishDate: p.publishDate,
+    url: p.url, text: p.text ?? p.title,
+    reach: p.reach ?? 0, impressions: p.impressions ?? 0,
+    likes: p.likes ?? 0, comments: p.comments ?? 0,
+    shares: p.shares ?? 0, saves: p.saves ?? 0,
+  })
+
+  const topGroupsPromise: Promise<TopPostGroup[]> = HAS_METRICOOL
+    ? (async (): Promise<TopPostGroup[]> => {
+        const { getTopPostsByPlatform } = await import('@/lib/metricool')
+        const groups = await getTopPostsByPlatform(blogId, startDate, endDate, nets ?? undefined, 3).catch(() => [])
+        return groups.map(g => ({ platform: g.platform, posts: g.posts.map(mapPost) }))
       })()
     : Promise.resolve([])
 
-  const [metricoolData, prevData, topPosts] = await Promise.all([
+  const [metricoolData, prevData, topPostGroups] = await Promise.all([
     fetchMetricoolData(blogId, startDate, endDate, nets),
     fetchMetricoolData(blogId, prevStart, prevEnd, nets).catch(() => null),
-    topPostsPromise,
+    topGroupsPromise,
   ])
 
   // 4. Build and run Gemini prompt (if API key configured)
@@ -308,7 +307,8 @@ export async function POST(req: NextRequest) {
     prevStats: prevData?.stats ?? null,
     platforms: metricoolData.platforms,
     trend: metricoolData.trend,
-    topPosts,
+    topPostGroups,
+    logoUrl: client.logoUrl ?? null,
     meta: {
       period: `${startDate} to ${endDate}`,
       prevPeriod: `${prevStart} to ${prevEnd}`,

@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import Link from 'next/link'
-import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, RefreshCw } from 'lucide-react'
+import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, RefreshCw, ImagePlus } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
+import { supabase } from '@/lib/supabase'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useProjects } from '@/lib/hooks/use-projects'
@@ -50,8 +51,10 @@ function ClientCard({ client, onSelect, isCrisis, onToggleCrisis, userRole }: {
       )}
       {/* Header */}
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-base font-bold shrink-0" style={{ background: client.color }}>
-          {client.initials}
+        <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center text-white text-base font-bold shrink-0" style={{ background: client.brand_identity?.logo_url ? '#f8fafc' : client.color }}>
+          {client.brand_identity?.logo_url
+            ? <img src={client.brand_identity.logo_url} alt={client.name} className="w-full h-full object-contain p-1"/>
+            : client.initials}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
@@ -163,6 +166,30 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const posts = allPosts.filter(p => p.client_id === client.id && p.status === 'published')
   const intel = localIntel
 
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+
+  const handleLogoUpload = async (file: File) => {
+    if (!file.type.startsWith('image/') || file.size > 3 * 1024 * 1024 || !supabase) return
+    setLogoUploading(true)
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
+      const path = `clients/${client.id}/logo.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('assets')
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (!upErr) {
+        const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
+        await supabase
+          .from('clients')
+          .update({ brand_identity_json: { ...client.brand_identity, logo_url: publicUrl } })
+          .eq('id', client.id)
+        updateClient.mutate({ id: client.id } as Parameters<typeof updateClient.mutate>[0])
+      }
+    } catch { /* non-critical */ }
+    setLogoUploading(false)
+  }
+
   const runAnalysis = async () => {
     setAnalyzing(true)
     try {
@@ -200,9 +227,38 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center gap-4 px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-bold shrink-0" style={{ background: client.color }}>
-            {client.initials}
-          </div>
+          {/* Logo / avatar — click to upload */}
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f) }}
+          />
+          <button
+            onClick={() => logoInputRef.current?.click()}
+            disabled={logoUploading}
+            title={client.brand_identity.logo_url ? 'Change logo' : 'Upload logo'}
+            className="relative w-14 h-14 rounded-2xl overflow-hidden shrink-0 group border-2 border-transparent hover:border-novax-border transition-colors"
+            style={{ background: client.brand_identity.logo_url ? '#f8fafc' : client.color }}
+          >
+            {client.brand_identity.logo_url ? (
+              <img
+                src={client.brand_identity.logo_url}
+                alt={`${client.name} logo`}
+                className="w-full h-full object-contain p-1"
+              />
+            ) : (
+              <span className="text-white text-xl font-bold">{client.initials}</span>
+            )}
+            {/* Hover overlay */}
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+              {logoUploading
+                ? <RefreshCw className="w-4 h-4 text-white animate-spin"/>
+                : <ImagePlus className="w-4 h-4 text-white"/>}
+            </div>
+          </button>
+
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-bold text-slate-900">{client.name}</h2>
             <p className="text-sm text-slate-500">{client.brand_identity.industry} · Since {formatDate(client.created_at)}</p>

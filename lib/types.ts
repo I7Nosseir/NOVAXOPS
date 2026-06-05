@@ -40,6 +40,7 @@ export interface BrandIdentity {
   target_audience: string
   key_messages: string[]
   industry: string
+  logo_url?: string
 }
 
 export interface Client {

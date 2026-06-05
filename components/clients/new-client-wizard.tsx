@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { X, ChevronRight, ChevronLeft, Check, Loader2, Building2, Mic2, Send } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { X, ChevronRight, ChevronLeft, Check, Loader2, Building2, Mic2, Send, ImagePlus, Trash2 } from 'lucide-react'
 import { cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useCreateClient } from '@/lib/hooks/use-clients'
 import type { CreateClientInput } from '@/lib/hooks/use-clients'
 import type { Client } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 const STEPS = [
   { id: 1, label: 'Core',      icon: Building2 },
@@ -87,6 +88,9 @@ export function NewClientWizard({
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<FormState>(INIT)
   const [error, setError] = useState<string | null>(null)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
   const createClient = useCreateClient()
   const { realUser } = useAuth()
   const schedPlatform = vendorName(realUser?.role, 'Metricool')
@@ -112,6 +116,13 @@ export function NewClientWizard({
     return true
   }
 
+  const handleLogoSelect = (file: File) => {
+    if (!file.type.startsWith('image/')) return
+    if (file.size > 3 * 1024 * 1024) { setError('Logo must be under 3MB'); return }
+    setLogoFile(file)
+    setLogoPreview(URL.createObjectURL(file))
+  }
+
   async function handleCreate() {
     setError(null)
     const input: CreateClientInput = {
@@ -131,6 +142,23 @@ export function NewClientWizard({
     }
     try {
       const client = await createClient.mutateAsync(input)
+
+      // Upload logo if provided (fire after creation so we have the client ID)
+      if (logoFile && supabase) {
+        const ext = logoFile.name.split('.').pop()?.toLowerCase() ?? 'png'
+        const path = `clients/${client.id}/logo.${ext}`
+        const { error: upErr } = await supabase.storage
+          .from('assets')
+          .upload(path, logoFile, { upsert: true, contentType: logoFile.type })
+        if (!upErr) {
+          const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
+          await supabase
+            .from('clients')
+            .update({ brand_identity_json: { ...client.brand_identity, logo_url: publicUrl } })
+            .eq('id', client.id)
+        }
+      }
+
       onSave(client)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create client')
@@ -182,6 +210,53 @@ export function NewClientWizard({
           {/* ── Step 1: Core ── */}
           {step === 1 && (
             <>
+              {/* Logo upload */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Client Logo <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoSelect(f) }}
+                />
+                {logoPreview ? (
+                  <div className="flex items-center gap-3">
+                    <img src={logoPreview} alt="Logo preview" className="h-14 w-14 rounded-xl object-contain border border-slate-200 bg-slate-50 p-1"/>
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        className="text-xs font-semibold text-novax-muted hover:text-novax"
+                      >
+                        Change logo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setLogoFile(null); setLogoPreview(null) }}
+                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-400"
+                      >
+                        <Trash2 className="w-3 h-3"/> Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleLogoSelect(f) }}
+                    className="w-full flex flex-col items-center gap-2 py-5 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 hover:border-novax-border hover:text-novax-muted transition-colors"
+                  >
+                    <ImagePlus className="w-5 h-5"/>
+                    <span className="text-xs">Drop logo here or <span className="font-semibold text-novax-muted">browse</span></span>
+                    <span className="text-[10px] text-slate-400">PNG, JPG, SVG or WebP · max 3MB</span>
+                  </button>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Brand Name <span className="text-red-400">*</span></label>
                 <input value={form.name} onChange={e => set('name', e.target.value)}

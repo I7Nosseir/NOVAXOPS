@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell,
@@ -12,6 +12,7 @@ import {
   FileText, TrendingUp, Eye, BarChart2, ArrowUpRight, ArrowDownRight,
   AlertCircle, Activity, Calendar, RefreshCw, Sparkles, Printer, Check,
   Heart, MessageCircle, Share2, Users, Link2,
+  Folder, FolderOpen, ChevronDown, ChevronRight, ChevronUp, Trash2,
 } from 'lucide-react'
 
 // ─── Brand palette ─────────────────────────────────────────────────────────────
@@ -35,6 +36,12 @@ function deltaPos(cur: number | null | undefined, prv: number | null | undefined
 }
 function formatPostDate(dateStr?: string): string {
   if (!dateStr) return ''
+  try {
+    return new Date(dateStr).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch { return '' }
+}
+
+function formatReportDate(dateStr: string): string {
   try {
     return new Date(dateStr).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
   } catch { return '' }
@@ -129,7 +136,7 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) 
   )
 }
 
-function CoverPage({ client, period }: { client: string; period: string }) {
+function CoverPage({ client, period, logoUrl }: { client: string; period: string; logoUrl?: string | null }) {
   return (
     <div className="rounded-2xl overflow-hidden flex flex-col min-h-[320px]" style={{ background: B.primary }}>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
@@ -151,9 +158,18 @@ function CoverPage({ client, period }: { client: string; period: string }) {
       </div>
       <div className="px-10 pb-8 flex items-end justify-between">
         <p className="text-xs" style={{ color: B.border }}>Prepared by NOVAX</p>
-        <div className="flex items-center gap-1.5">
-          <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
-          <p className="text-xs" style={{ color: B.border }}>{period}</p>
+        <div className="flex items-center gap-3">
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt={`${client} logo`}
+              className="h-8 max-w-[120px] object-contain opacity-90"
+            />
+          )}
+          <div className="flex items-center gap-1.5">
+            <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
+            <p className="text-xs" style={{ color: B.border }}>{period}</p>
+          </div>
         </div>
       </div>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.light}, ${B.border}, ${B.accent})` }}/>
@@ -161,7 +177,7 @@ function CoverPage({ client, period }: { client: string; period: string }) {
   )
 }
 
-function ReportPageHeader({ client, period }: { client: string; period: string }) {
+function ReportPageHeader({ client, period, logoUrl }: { client: string; period: string; logoUrl?: string | null }) {
   return (
     <div className="rounded-2xl overflow-hidden mb-5" style={{ background: B.primary }}>
       <div className="px-7 py-4 flex items-center justify-between">
@@ -180,11 +196,20 @@ function ReportPageHeader({ client, period }: { client: string; period: string }
             <p className="text-[11px] mt-0.5" style={{ color: B.border }}>Full platform analytics — all channels</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-white font-semibold text-sm">{client}</p>
-          <div className="flex items-center gap-1.5 justify-end mt-0.5">
-            <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
-            <p className="text-xs" style={{ color: B.border }}>{period}</p>
+        <div className="flex items-center gap-3 text-right">
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt={`${client} logo`}
+              className="h-7 max-w-[80px] object-contain opacity-80"
+            />
+          )}
+          <div>
+            <p className="text-white font-semibold text-sm">{client}</p>
+            <div className="flex items-center gap-1.5 justify-end mt-0.5">
+              <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
+              <p className="text-xs" style={{ color: B.border }}>{period}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -223,6 +248,30 @@ type TopPost = {
 }
 type TopPostGroup = { platform: string; posts: TopPost[] }
 
+type SavedReport = {
+  id: string
+  client_id: string
+  client_name: string
+  period: string
+  period_start: string
+  period_end: string
+  generated_at: string
+  preview: { reach: number; likes: number; posts: number }
+}
+
+type ReportDataJson = {
+  period?: string
+  clientName?: string
+  logoUrl?: string | null
+  stats?: Record<string, number>
+  prevStats?: Record<string, number>
+  platforms?: LivePlatform[]
+  trend?: LiveTrendPoint[]
+  topPostGroups?: TopPostGroup[]
+  narrative?: AIReportNarrative
+  aiMeta?: AIReport['meta']
+}
+
 // ─── Custom tooltip ────────────────────────────────────────────────────────────
 
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: {name: string; value: number; color?: string}[]; label?: string }) {
@@ -244,10 +293,11 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 // ─── Master Monthly Report ──────────────────────────────────────────────────────
 
 function MasterMonthlyReport({
-  client, period, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport,
+  client, period, logoUrl, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport,
 }: {
   client: string
   period: string
+  logoUrl?: string | null
   liveStats?: Record<string, number> | null
   prevStats?: Record<string, number> | null
   livePlatforms?: LivePlatform[] | null
@@ -283,7 +333,7 @@ function MasterMonthlyReport({
     <div className="space-y-6">
 
       {/* ── Cover ─────────────────────────────────────────── */}
-      <CoverPage client={client} period={period}/>
+      <CoverPage client={client} period={period} logoUrl={logoUrl}/>
 
       {/* ── Section: The Numbers That Matter ─────────────── */}
       <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
@@ -379,7 +429,7 @@ function MasterMonthlyReport({
       {/* ── Section: Are You Reaching More People ─────────── */}
       {trendData.length > 0 && (
         <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
-          <ReportPageHeader client={client} period={period}/>
+          <ReportPageHeader client={client} period={period} logoUrl={logoUrl}/>
           <SectionLabel n={sec()} label="Growth"/>
           <SectionTitle
             title="Are You Reaching More People?"
@@ -477,7 +527,7 @@ function MasterMonthlyReport({
       {/* ── Section: Where Is Your Audience ──────────────── */}
       {platformData.length > 0 && (
         <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
-          <ReportPageHeader client={client} period={period}/>
+          <ReportPageHeader client={client} period={period} logoUrl={logoUrl}/>
           <SectionLabel n={sec()} label="Platforms"/>
           <SectionTitle
             title="Where Is Your Audience?"
@@ -596,7 +646,7 @@ function MasterMonthlyReport({
       {/* ── Section: Top Posts (per platform) ─────────────── */}
       {hasTopPosts && (
         <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
-          <ReportPageHeader client={client} period={period}/>
+          <ReportPageHeader client={client} period={period} logoUrl={logoUrl}/>
           <SectionLabel n={sec()} label="Top Content"/>
           <SectionTitle
             title="Your Best Content This Month"
@@ -696,7 +746,7 @@ function MasterMonthlyReport({
       {/* ── Section: What This Data Tells Us ──────────────── */}
       {hasNarrative && (
         <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
-          <ReportPageHeader client={client} period={period}/>
+          <ReportPageHeader client={client} period={period} logoUrl={logoUrl}/>
           <SectionLabel n={sec()} label="Analysis"/>
           <SectionTitle
             title="What This Month's Data Tells Us"
@@ -781,8 +831,16 @@ export default function ReportsPage() {
   const [dataError, setDataError]                 = useState<string | null>(null)
   const [aiError, setAiError]                     = useState<string | null>(null)
   const [aiReport, setAiReport]                   = useState<AIReport | null>(null)
+  const [reportLogoUrl, setReportLogoUrl]         = useState<string | null>(null)
   const [exportingPdf, setExportingPdf]           = useState(false) // unused but kept for future
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(ALL_PLATFORMS)
+
+  // ── Library ──────────────────────────────────────────
+  const [savedReports, setSavedReports]           = useState<SavedReport[]>([])
+  const [libraryLoading, setLibraryLoading]       = useState(false)
+  const [libraryOpen, setLibraryOpen]             = useState(true)
+  const [expandedClients, setExpandedClients]     = useState<Set<string>>(new Set())
+  const [loadingReportId, setLoadingReportId]     = useState<string | null>(null)
   const [selectedPlatforms, setSelectedPlatforms]   = useState<string[]>(ALL_PLATFORMS)
   const [probingPlatforms, setProbingPlatforms]     = useState(false)
 
@@ -790,10 +848,82 @@ export default function ReportsPage() {
     ? (clients.find(c => c.id === selectedClient)?.name ?? 'Client')
     : 'Select a client'
 
+  // ── Library helpers ───────────────────────────────────
+  const fetchLibrary = useCallback(async () => {
+    setLibraryLoading(true)
+    try {
+      const res = await fetch('/api/reports/saved')
+      if (res.ok) {
+        const data = await res.json() as { reports: SavedReport[] }
+        setSavedReports(data.reports ?? [])
+      }
+    } catch { /* non-critical */ }
+    setLibraryLoading(false)
+  }, [])
+
+  useEffect(() => { fetchLibrary() }, [fetchLibrary])
+
+  const clientFolders = useMemo(() => {
+    const map = new Map<string, { client_id: string; client_name: string; reports: SavedReport[] }>()
+    for (const r of savedReports) {
+      if (!map.has(r.client_id)) map.set(r.client_id, { client_id: r.client_id, client_name: r.client_name, reports: [] })
+      map.get(r.client_id)!.reports.push(r)
+    }
+    return Array.from(map.values())
+  }, [savedReports])
+
+  const toggleFolder = (clientId: string) => {
+    setExpandedClients(prev => {
+      const next = new Set(prev)
+      next.has(clientId) ? next.delete(clientId) : next.add(clientId)
+      return next
+    })
+  }
+
+  const loadSavedReport = async (report: SavedReport) => {
+    setLoadingReportId(report.id)
+    try {
+      const res = await fetch(`/api/reports/saved/${report.id}`)
+      if (!res.ok) return
+      const { data } = await res.json() as { data: ReportDataJson }
+
+      setSelectedClient(report.client_id)
+      setPeriod(report.period)
+      setLiveStats(data.stats ?? null)
+      setPrevStats(data.prevStats ?? null)
+      setLivePlatforms(data.platforms ?? null)
+      setLiveTrend(data.trend ?? null)
+      setTopPostGroups(data.topPostGroups ?? null)
+      setDataError(null)
+      setAiError(null)
+      if (data.logoUrl) setReportLogoUrl(data.logoUrl)
+      if (data.narrative) {
+        setAiReport({
+          narrative: data.narrative,
+          meta: data.aiMeta ?? { period: report.period, clientName: report.client_name, reportType: 'monthly', isMock: false },
+        })
+      } else {
+        setAiReport(null)
+      }
+      setGenerated(true)
+
+      setTimeout(() => document.getElementById('printable-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    } catch { /* non-critical */ }
+    setLoadingReportId(null)
+  }
+
+  const deleteSavedReport = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSavedReports(prev => prev.filter(r => r.id !== id))
+    try { await fetch(`/api/reports/saved/${id}`, { method: 'DELETE' }) } catch { /* non-critical */ }
+  }
+
   const handleClientChange = (id: string) => {
     setSelectedClient(id)
     setGenerated(false)
     setAiReport(null)
+    // Auto-expand this client's folder in the library
+    if (id) setExpandedClients(prev => new Set([...prev, id]))
     if (!id) return
     setProbingPlatforms(true)
     setConnectedPlatforms(ALL_PLATFORMS)
@@ -818,6 +948,7 @@ export default function ReportsPage() {
     setLivePlatforms(null)
     setLiveTrend(null)
     setTopPostGroups(null)
+    setReportLogoUrl(null)
     setDataError(null)
     setAiError(null)
     setAiReport(null)
@@ -849,6 +980,7 @@ export default function ReportsPage() {
         platforms?: LivePlatform[]
         trend?: LiveTrendPoint[]
         topPostGroups?: TopPostGroup[]
+        logoUrl?: string | null
         meta?: AIReport['meta']
         _mock?: boolean
         _geminiError?: string
@@ -868,10 +1000,37 @@ export default function ReportsPage() {
           if (data.platforms?.length) setLivePlatforms(data.platforms)
           if (data.trend?.some(t => t.reach > 0 || t.er > 0)) setLiveTrend(data.trend ?? null)
           if (data.topPostGroups?.some((g: TopPostGroup) => g.posts.length > 0)) setTopPostGroups(data.topPostGroups)
+          if (data.logoUrl) setReportLogoUrl(data.logoUrl)
         }
         if (data._geminiError) setAiError(data._geminiError)
         if (data.narrative && data.meta && !data._mock) {
           setAiReport({ narrative: data.narrative, meta: data.meta })
+        }
+
+        // Auto-save to library (fire and forget — non-blocking)
+        if (!data._mock && data.stats && Object.values(data.stats).some(v => Number(v) > 0)) {
+          fetch('/api/reports/saved', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              client_id:    selectedClient,
+              period,
+              period_start: range.startDate,
+              period_end:   range.endDate,
+              data_json: {
+                period,
+                clientName,
+                logoUrl:        data.logoUrl,
+                stats:          data.stats,
+                prevStats:      data.prevStats,
+                platforms:      data.platforms,
+                trend:          data.trend,
+                topPostGroups:  data.topPostGroups,
+                narrative:      data.narrative,
+                aiMeta:         data.meta,
+              },
+            }),
+          }).then(() => fetchLibrary()).catch(() => {})
         }
       }
     } catch {
@@ -1019,6 +1178,116 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* ── Reports Library ───────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        {/* Header */}
+        <button
+          onClick={() => setLibraryOpen(!libraryOpen)}
+          className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-slate-50/50 transition-colors"
+        >
+          <div className="p-2 rounded-xl shrink-0" style={{ background: B.light }}>
+            <FolderOpen className="w-4 h-4" style={{ color: B.primary }}/>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-slate-800">Reports Library</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {savedReports.length > 0
+                ? `${savedReports.length} saved report${savedReports.length !== 1 ? 's' : ''} — click to open without regenerating`
+                : 'Generated reports are automatically saved here'}
+            </p>
+          </div>
+          {libraryLoading && <RefreshCw className="w-3.5 h-3.5 text-slate-400 animate-spin shrink-0"/>}
+          {libraryOpen
+            ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0"/>
+            : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0"/>}
+        </button>
+
+        {libraryOpen && (
+          <div className="border-t border-slate-100">
+            {savedReports.length === 0 && !libraryLoading ? (
+              <div className="py-10 text-center">
+                <FolderOpen className="w-9 h-9 text-slate-200 mx-auto mb-2.5"/>
+                <p className="text-sm font-medium text-slate-400">No reports saved yet</p>
+                <p className="text-xs text-slate-400 mt-0.5">Generate a report to save it here automatically</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {clientFolders.map(folder => {
+                  const isOpen = expandedClients.has(folder.client_id)
+                  return (
+                    <div key={folder.client_id}>
+                      {/* Folder header */}
+                      <button
+                        onClick={() => toggleFolder(folder.client_id)}
+                        className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-slate-50 transition-colors"
+                      >
+                        <Folder className="w-4 h-4 shrink-0" style={{ color: B.accent }}/>
+                        <span className="text-sm font-semibold text-slate-800 flex-1">
+                          {folder.client_name} — Reports
+                        </span>
+                        <span className="text-xs text-slate-400 mr-2 font-medium">
+                          {folder.reports.length}
+                        </span>
+                        {isOpen
+                          ? <ChevronDown className="w-3.5 h-3.5 text-slate-400"/>
+                          : <ChevronRight className="w-3.5 h-3.5 text-slate-400"/>}
+                      </button>
+
+                      {/* Report rows */}
+                      {isOpen && (
+                        <div className="px-5 pb-2">
+                          <div className="pl-7 space-y-0.5">
+                            {folder.reports.map(report => (
+                              <div
+                                key={report.id}
+                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 group transition-colors"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0"/>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-slate-800 leading-tight">{report.period}</p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    Saved {formatReportDate(report.generated_at)}
+                                    {report.preview.reach > 0 && (
+                                      <> · <span className="text-slate-500">{formatNumber(report.preview.reach)} reach</span></>
+                                    )}
+                                    {report.preview.likes > 0 && (
+                                      <> · <span className="text-slate-500">{formatNumber(report.preview.likes)} likes</span></>
+                                    )}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                  <button
+                                    onClick={() => loadSavedReport(report)}
+                                    disabled={loadingReportId === report.id}
+                                    className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors hover:opacity-80 disabled:opacity-50"
+                                    style={{ background: B.light, color: B.primary }}
+                                  >
+                                    {loadingReportId === report.id
+                                      ? <><RefreshCw className="w-3 h-3 animate-spin"/> Loading…</>
+                                      : 'Open'}
+                                  </button>
+                                  <button
+                                    onClick={(e) => deleteSavedReport(report.id, e)}
+                                    className="p-1.5 rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                                    title="Delete this report"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5"/>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── Content ───────────────────────────────────────── */}
       {generated && dataError ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-amber-200">
@@ -1033,6 +1302,7 @@ export default function ReportsPage() {
           <MasterMonthlyReport
             client={clientName}
             period={period}
+            logoUrl={reportLogoUrl}
             liveStats={liveStats}
             prevStats={prevStats}
             livePlatforms={livePlatforms}

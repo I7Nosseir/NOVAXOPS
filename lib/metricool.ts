@@ -580,3 +580,31 @@ export async function getTopPosts(
     })
     .slice(0, limit)
 }
+
+export type TopPostsByPlatform = { platform: string; posts: MetricoolPostAnalytics[] }
+
+/** Top N posts per platform, ranked by engagement score (likes + comments×2 + shares×3). */
+export async function getTopPostsByPlatform(
+  blogId: string | number,
+  startDate: string,
+  endDate: string,
+  networks?: string[],
+  perPlatform = 3
+): Promise<TopPostsByPlatform[]> {
+  const allPosts = await fetchPostsList(blogId, startDate, endDate, networks)
+
+  const byPlatform = new Map<string, MetricoolPostAnalytics[]>()
+  for (const post of allPosts) {
+    const net = String(post.network ?? post.platform ?? 'unknown').toLowerCase()
+    if (!byPlatform.has(net)) byPlatform.set(net, [])
+    byPlatform.get(net)!.push(post)
+  }
+
+  const score = (p: MetricoolPostAnalytics) =>
+    (p.likes ?? 0) + (p.comments ?? 0) * 2 + (p.shares ?? 0) * 3
+
+  return Array.from(byPlatform.entries()).map(([platform, posts]) => ({
+    platform,
+    posts: posts.sort((a, b) => score(b) - score(a)).slice(0, perPlatform),
+  }))
+}
