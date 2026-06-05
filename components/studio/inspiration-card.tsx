@@ -1,6 +1,6 @@
 'use client'
 
-import { ExternalLink, Star, Play, Hash, TrendingUp, Globe } from 'lucide-react'
+import { ExternalLink, Star, Play, Hash, TrendingUp, Globe, Bookmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TrendingContentItem } from '@/app/api/studio/trending-content/route'
 
@@ -17,6 +17,7 @@ const PLATFORM_CONFIG: Record<TrendingContentItem['platform'], { label: string }
   instagram: { label: 'Instagram'      },
   reddit:    { label: 'Reddit'         },
   trendsmcp: { label: 'Cross-platform' },
+  pinterest: { label: 'Pinterest'      },
 }
 
 const FORMAT_COLORS: Record<string, string> = {
@@ -34,8 +35,11 @@ const FORMAT_COLORS: Record<string, string> = {
   General:        'bg-slate-100 text-slate-500',
 }
 
-function formatViewCount(n: number, type: TrendingContentItem['content_type']): string {
-  const label = type === 'hashtag' ? 'videos' : 'views'
+function formatViewCount(n: number, type: TrendingContentItem['content_type'], platform?: TrendingContentItem['platform']): string {
+  const label =
+    type === 'hashtag' ? 'videos' :
+    type === 'pin'     ? 'saves'  :
+    platform === 'pinterest' ? 'saves' : 'views'
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B ${label}`
   if (n >= 1_000_000)     return `${(n / 1_000_000).toFixed(1)}M ${label}`
   if (n >= 1_000)         return `${Math.round(n / 1_000)}K ${label}`
@@ -46,6 +50,7 @@ function PlatformPlaceholderIcon({ platform }: { platform: TrendingContentItem['
   if (platform === 'youtube')   return <Play       className="w-8 h-8 text-white/60" />
   if (platform === 'tiktok')    return <Hash       className="w-8 h-8 text-white/60" />
   if (platform === 'instagram') return <Globe      className="w-8 h-8 text-white/60" />
+  if (platform === 'pinterest') return <Bookmark   className="w-8 h-8 text-white/60" />
   if (platform === 'trendsmcp') return <TrendingUp className="w-8 h-8 text-white/60" />
   return                               <Globe      className="w-8 h-8 text-white/60" />
 }
@@ -127,9 +132,9 @@ export function InspirationCard({ item, isSaved, onSave, onUnsave, onUseAsInspir
               {item.channel ?? `#${item.hashtag}`}
             </p>
           )}
-          {item.view_count != null && item.view_count > 0 && (
+          {(item.view_count != null && item.view_count > 0 || item.save_count != null && item.save_count > 0) && (
             <p className="text-xs text-slate-400 shrink-0">
-              {formatViewCount(item.view_count, item.content_type)}
+              {formatViewCount(item.view_count ?? item.save_count ?? 0, item.content_type, item.platform)}
             </p>
           )}
         </div>

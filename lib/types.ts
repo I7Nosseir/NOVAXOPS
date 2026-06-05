@@ -54,6 +54,7 @@ export interface Client {
   reference_links: string[]
   metricool_blog_id?: string
   respond_io_channel_id?: string
+  chatwoot_inbox_id?: number
   crisis_mode?: boolean
   is_in_crisis?: boolean
   performance_intel?: PerformanceIntel
@@ -178,6 +179,9 @@ export interface ModerationItem {
   final_reply?: string
   status: 'pending' | 'replied' | 'ignored' | 'escalated'
   created_at: string
+  chatwoot_conversation_id?: number
+  chatwoot_message_id?: number
+  chatwoot_inbox_id?: number
 }
 
 export interface DashboardStats {

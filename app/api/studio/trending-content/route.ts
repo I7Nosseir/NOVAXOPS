@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchTikTokVideos, fetchTikTokTrends } from '@/lib/data-providers/tiktok-creative-center'
 import { fetchInstagramPosts }  from '@/lib/data-providers/instagram'
+import { fetchPinterestPins }   from '@/lib/data-providers/pinterest'
 import { fetchTrendsMcpForced } from '@/lib/data-providers/trendsmcp'
 import { geminiJson }           from '@/lib/gemini'
 import { generateSearchQueries, getNicheKeywords, ARABIC_REGIONS, INDIAN_EXCLUSIONS } from '@/lib/studio/query-generator'
@@ -19,22 +20,26 @@ import { createHash }           from 'crypto'
 export const revalidate = 0
 
 export interface TrendingContentItem {
-  id:             string
-  platform:       'youtube' | 'tiktok' | 'instagram' | 'reddit' | 'trendsmcp'
-  content_type:   'video' | 'hashtag' | 'post' | 'trend'
-  title:          string
-  url:            string
-  thumbnail_url?: string
-  view_count?:    number
-  channel?:       string
-  hashtag?:       string
-  industry:       string
-  velocity:       'rising_fast' | 'rising' | 'peaking' | 'stable'
-  why_trending:   string
-  content_format?: string   // AI-classified: Tutorial, Review, Vlog, etc.
-  ai_score?:       number   // 0-10 country+niche fit
-  ai_insight?:     string   // 1-sentence explanation from Gemini
-  fetched_at:     string
+  id:               string
+  platform:         'youtube' | 'tiktok' | 'instagram' | 'reddit' | 'trendsmcp' | 'pinterest'
+  content_type:     'video' | 'hashtag' | 'post' | 'trend' | 'pin'
+  title:            string
+  url:              string
+  thumbnail_url?:   string
+  view_count?:      number
+  like_count?:      number    // raw like count
+  save_count?:      number    // Pinterest saves / repins
+  engagement_rate?: number    // 0–100 (%)
+  published_at?:    string    // ISO date when content was published
+  channel?:         string
+  hashtag?:         string
+  industry:         string
+  velocity:         'rising_fast' | 'rising' | 'peaking' | 'stable'
+  why_trending:     string
+  content_format?:  string    // AI-classified: Tutorial, Review, Vlog, etc.
+  ai_score?:        number    // 0-10 country+niche fit
+  ai_insight?:      string    // 1-sentence explanation from Gemini
+  fetched_at:       string
 }
 
 // ── Static config maps ────────────────────────────────────────
@@ -80,8 +85,9 @@ const EN_QUERIES: Record<string, string[]> = {
   travel:           ['travel vlog destination', 'budget travel tips 2025', 'hidden gems travel guide'],
   education:        ['learn skill tutorial 2025', 'study tips productivity', 'explained for beginners'],
   real_estate:      ['real estate investing 2025', 'property buying guide', 'house tour renovation'],
-  marketing:        ['social media marketing strategy 2025', 'content marketing tips creator', 'digital marketing tutorial explained'],
-  marketing_agency: ['marketing agency client results', 'how to run marketing agency', 'agency content strategy case study'],
+  marketing:        ['viral social media marketing case study results 2025', 'content that got 1 million views marketing strategy breakdown', 'digital marketing growth hack campaign results proof'],
+  marketing_agency: ['how I scaled social media agency 6 figures case study 2025', 'marketing agency getting clients cold outreach strategy results', 'agency viral content case study client before after results'],
+  social_media_tips: ['viral content formula social media growth 2025', 'content creator strategy 1 million followers breakdown', 'instagram algorithm growth hack results 2025'],
 }
 
 const AR_QUERIES: Record<string, Record<string, string[]>> = {
@@ -159,6 +165,21 @@ function parseDuration(iso: string): number {
   return (parseInt(m[1] ?? '0') * 3600) + (parseInt(m[2] ?? '0') * 60) + parseInt(m[3] ?? '0')
 }
 
+// Maps user-selected time period to an ISO publishedAfter date string for YouTube
+function periodToPublishedAfter(period: string): string {
+  const durations: Record<string, number> = {
+    '1h':   3_600_000,
+    '24h':  86_400_000,
+    '48h':  172_800_000,
+    '7d':   7   * 86_400_000,
+    '30d':  30  * 86_400_000,
+    '90d':  90  * 86_400_000,
+    '180d': 180 * 86_400_000,
+    '365d': 365 * 86_400_000,
+  }
+  return new Date(Date.now() - (durations[period] ?? 30 * 86_400_000)).toISOString()
+}
+
 // ── Phase 1: Seed search ──────────────────────────────────────
 
 interface SeedItem {
@@ -208,7 +229,7 @@ async function seedSearch(
       url.searchParams.set('order', 'viewCount')
       url.searchParams.set('q', q)
       url.searchParams.set('publishedAfter', publishedAfter)
-      url.searchParams.set('maxResults', '8')
+      url.searchParams.set('maxResults', '15')
       url.searchParams.set('regionCode', ytConf.regionCode)
       if (ytConf.relevanceLanguage) url.searchParams.set('relevanceLanguage', ytConf.relevanceLanguage)
       url.searchParams.set('key', key)
@@ -468,42 +489,58 @@ async function aiRankVideos(
     return `${i}. title="${v.title}" channel="${v.channelTitle}" views=${formatCount(v.viewCount)} dur=${durationMin}m engagement=${engagement}% tags=[${v.tags.slice(0, 5).join(',')}]`
   }).join('\n')
 
-  const prompt = `You are a strict content gatekeeper for a social media agency. Your job is to surface only videos that are DIRECTLY about the target niche.
+  const prompt = `You are a senior content strategist and strict quality gatekeeper for a social media agency.
 
-━━━ CONTEXT ━━━
+Your sole job: surface videos that are DIRECTLY about the niche AND highly adaptable for a brand to replicate.
+
+━━━ EVALUATION CONTEXT ━━━
 Niche: "${industry}"
 Target market: ${regionName}
-Language: ${langNote}
+Language rule: ${langNote}
 
-━━━ NICHE MATCH — THIS IS THE PRIMARY GATE ━━━
-A video is ON-NICHE only if its MAIN TOPIC is "${industry}".
-Adjacent topics do not count. Examples:
-• Niche = "dental clinic" → ON-NICHE: tooth whitening, dental implants, dentist advice | OFF-NICHE: general health, diet, hospital
-• Niche = "fitness" → ON-NICHE: specific workouts, gym exercises, nutrition for athletes | OFF-NICHE: general wellness, mental health, lifestyle vlogs
-• Niche = "marketing agency" → ON-NICHE: running a marketing agency, client acquisition, campaign strategies | OFF-NICHE: general entrepreneurship, motivational content
+━━━ STEP 1 — NICHE GATE (primary filter, applied before scoring) ━━━
+Classify: is this video's MAIN TOPIC "${industry}"?
+YES → continue to Step 2.
+NO  → score 0-2 regardless of view count, virality, or quality. No exceptions.
 
-OFF-NICHE videos MUST score 0-2 regardless of view count, virality, or quality. No exceptions.
+Niche gate examples:
+• "marketing agency" → PASS: agency scaling, SMMA case study, client acquisition, retainer strategies, agency results | FAIL: general entrepreneurship, dropshipping, motivation, side hustles
+• "marketing" → PASS: specific campaign results, viral content breakdowns, social media growth strategy with proof | FAIL: general business advice, finance tips, productivity
+• "dental clinic" → PASS: dental procedures, teeth whitening, implants, smile transformation, dental practice growth | FAIL: general health, diet, hospital tours
+• "fitness" → PASS: specific training programs, gym exercises, body transformation with method | FAIL: wellness vlog, mental health, general lifestyle
+• "beauty" → PASS: skincare routine, product review, makeup tutorial, transformation | FAIL: general health, fashion, diet
 
-━━━ SCORING FOR ON-NICHE VIDEOS ━━━
-9-10: Directly on-niche, strong structure, could be adapted for ${regionName} — rare, reserve for exceptional
-7-8:  Clearly on-niche, good quality, culturally appropriate for ${regionName}
-5-6:  On-niche but generic, surface-level, or weak cultural fit
-3-4:  Barely on-niche or very poor quality
-0-2:  Off-niche OR Indian/Bollywood content OR shock-value content with no adaptable structure
+━━━ STEP 2 — QUALITY + CULTURAL SCORING ━━━
+9-10: Exceptional — powerful hook, structured method, strong engagement signals, directly replicable for ${regionName}
+7-8:  Strong — clearly on-niche, good production, culturally appropriate, adaptable format
+5-6:  Acceptable — on-niche but surface-level, generic, or weak cultural fit for ${regionName}
+3-4:  Poor — barely on-niche, very low quality, no replicable structure
+0-2:  Reject — see Step 1 or hard rejects below
 
-━━━ ADDITIONAL HARD PENALTIES (0-2) ━━━
-- Indian regional language content (Hindi, Telugu, Tamil, etc.)
-- Not primarily about "${industry}"
-- Spam, clickbait with misleading titles
+Scoring adjustments:
++1  Title uses a strong, replicable hook (number list, "how I", before/after, specific measurable result, case study with proof)
++1  Format is Tutorial, Case Study, Transformation, or Product Demo (most replicable for brands)
++1  High engagement signals suggest strong audience connection
+-2  Indian regional language (Hindi, Telugu, Tamil, Kannada, Marathi, etc.) regardless of topic
+-1  Pure inspirational/motivational with no tactical method or replicable structure
+-1  Generic advice applicable to any niche, not specific to "${industry}"
 
-━━━ VIDEOS TO SCORE ━━━
+━━━ HARD REJECTS (always score 0-2) ━━━
+- Indian/South Asian regional language content
+- Primary topic is NOT "${industry}"
+- Clickbait title with no substantive content
+- Pure entertainment with zero brand adaptability
+
+━━━ VIDEOS TO EVALUATE ━━━
 ${videoList}
 
-━━━ OUTPUT ━━━
-Return ONLY a valid JSON array, same order as input. For the insight field: if OFF-NICHE write why it doesn't fit; if ON-NICHE write specifically how a ${regionName} brand in "${industry}" could adapt this format.
+━━━ OUTPUT FORMAT ━━━
+Return ONLY a valid JSON array in the exact same order as the input list. No markdown.
+insight: ON-NICHE → one precise sentence on HOW a ${regionName} ${industry} brand can adapt this specific format (be concrete). OFF-NICHE → one sentence on why rejected.
+
 [{"score":8,"format":"Tutorial","insight":"..."},...]
 
-Formats: Tutorial | Review | Educational | Vlog | Transformation | Product Demo | Comparison | Challenge | Entertainment | News | Ranking | General`
+Formats: Tutorial | Review | Educational | Vlog | Transformation | Product Demo | Comparison | Challenge | Case Study | Behind-the-Scenes | Entertainment | Ranking | General`
 
   try {
     const ranked = await geminiJson<Array<{ score: number; format: string; insight: string }>>(
@@ -532,13 +569,13 @@ Formats: Tutorial | Review | Educational | Vlog | Transformation | Product Demo 
 
 // ── Full YouTube pipeline ─────────────────────────────────────
 
-async function getYouTubeItems(industry: string, region: string): Promise<TrendingContentItem[]> {
+async function getYouTubeItems(industry: string, region: string, period = '30d'): Promise<TrendingContentItem[]> {
   const KEY = process.env.YOUTUBE_API_KEY
   if (!KEY) return []
 
   const ytConf        = REGION_YT[region] ?? REGION_YT.US
   const now           = new Date().toISOString()
-  const publishedAfter = new Date(Date.now() - 60 * 86_400_000).toISOString() // 60 days
+  const publishedAfter = periodToPublishedAfter(period)
 
   // Phase 1 + Phase 2 in parallel (independent)
   const [seedItems, chartIds] = await Promise.all([
@@ -556,7 +593,7 @@ async function getYouTubeItems(industry: string, region: string): Promise<Trendi
     ...seedItems.map(s => s.videoId),
     ...chartIds,
     ...expandedIds,
-  ])].slice(0, 50) // cap at 50 to stay within videos.list limit
+  ])].slice(0, 75) // cap at 75 (YouTube videos.list supports up to 50/call, we batch)
 
   // Phase 4: enrich
   const enriched = await enrichVideos(allIds, seedMap, KEY)
@@ -587,22 +624,29 @@ async function getYouTubeItems(industry: string, region: string): Promise<Trendi
       v.ai_score >= 6   ? 'rising'      :
       v.ai_score >= 4   ? 'peaking'     : 'stable'
 
+    const er = views > 0
+      ? parseFloat(((v.likeCount + v.commentCount) / views * 100).toFixed(2))
+      : undefined
+
     return {
-      id:             makeId(url),
-      platform:       'youtube'  as const,
-      content_type:   'video'    as const,
-      title:          v.title,
+      id:              makeId(url),
+      platform:        'youtube'  as const,
+      content_type:    'video'    as const,
+      title:           v.title,
       url,
-      thumbnail_url:  v.thumbnail,
-      view_count:     views || undefined,
-      channel:        v.channelTitle,
+      thumbnail_url:   v.thumbnail,
+      view_count:      views || undefined,
+      like_count:      v.likeCount || undefined,
+      engagement_rate: er,
+      published_at:    v.publishedAt || undefined,
+      channel:         v.channelTitle,
       industry,
       velocity,
-      why_trending:   v.ai_insight || `${v.content_format} performing well in the ${industry} space.`,
-      content_format: v.content_format,
-      ai_score:       v.ai_score,
-      ai_insight:     v.ai_insight,
-      fetched_at:     now,
+      why_trending:    v.ai_insight || `${v.content_format} performing well in the ${industry} space.`,
+      content_format:  v.content_format,
+      ai_score:        v.ai_score,
+      ai_insight:      v.ai_insight,
+      fetched_at:      now,
     }
   })
 }
@@ -727,6 +771,39 @@ async function getTrendsMcpItems(industry: string): Promise<TrendingContentItem[
   })
 }
 
+// ── Pinterest ─────────────────────────────────────────────────
+
+async function getPinterestItems(industry: string, region: string): Promise<TrendingContentItem[]> {
+  const now = new Date().toISOString()
+  try {
+    const pins = await fetchPinterestPins(industry, region)
+    return pins.map(p => {
+      const velocity: TrendingContentItem['velocity'] =
+        p.saveCount > 10_000 ? 'rising_fast' :
+        p.saveCount > 1_000  ? 'rising'      :
+        p.saveCount > 100    ? 'peaking'     : 'stable'
+
+      return {
+        id:            makeId(p.url),
+        platform:      'pinterest' as const,
+        content_type:  'pin'       as const,
+        title:         p.title || 'Pinterest pin',
+        url:           p.url,
+        thumbnail_url: p.imageUrl || undefined,
+        save_count:    p.saveCount || undefined,
+        channel:       p.authorName || p.authorHandle || undefined,
+        published_at:  p.createdAt || undefined,
+        industry,
+        velocity,
+        why_trending:  `${formatCount(p.saveCount)} saves${p.authorName ? ` · by ${p.authorName}` : ''}`,
+        fetched_at:    now,
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
 // ── AI filter (for non-YouTube items) ────────────────────────
 
 async function aiFilterItems(
@@ -746,6 +823,7 @@ async function aiFilterItems(
   const prompt = `Filter content for a social media agency.
 Niche: ${industry} | Region: ${region}
 Rule: ${langRule}
+Niche gate: anything NOT primarily about "${industry}" scores 0-3 regardless of other factors.
 
 Score each 0-10:
 ${items.map((it, i) => `${i}. "${it.title}" [${it.platform}]`).join('\n')}
@@ -753,7 +831,7 @@ ${items.map((it, i) => `${i}. "${it.title}" [${it.platform}]`).join('\n')}
 Return ONLY a JSON array of integers. Example: [8,2,7]`
 
   try {
-    const scores = await geminiJson<number[]>(prompt, undefined, { temperature: 0, maxOutputTokens: 100 })
+    const scores = await geminiJson<number[]>(prompt, undefined, { temperature: 0, maxOutputTokens: 200 })
     if (!Array.isArray(scores) || scores.length !== items.length) return { filtered: items, removedCount: 0 }
     const filtered = items.filter((_, i) => (scores[i] ?? 0) >= threshold)
     return { filtered, removedCount: items.length - filtered.length }
@@ -773,27 +851,30 @@ export async function GET(req: NextRequest) {
   const industry  = searchParams.get('industry')  ?? 'beauty'
   const platform  = searchParams.get('platform')  ?? 'all'
   const region    = searchParams.get('region')    ?? 'global'
+  const period    = searchParams.get('period')    ?? '30d'
   const aiFilter_ = searchParams.get('ai_filter') === 'true'
-  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '24', 10), 50)
+  const minViews  = parseInt(searchParams.get('min_views') ?? '0', 10)
+  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '36', 10), 60)
 
   try {
-    // Run YouTube pipeline + TikTok + TrendsMCP in parallel where possible
-    const [youtubeItems, tiktokItems, instagramItems, trendsmcpItems] = await Promise.all([
-      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region)   : Promise.resolve([]),
-      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry, region)    : Promise.resolve([]),
-      platform === 'all' || platform === 'instagram' ? getInstagramItems(industry, region) : Promise.resolve([]),
-      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)         : Promise.resolve([]),
+    // Run all platform fetchers in parallel
+    const [youtubeItems, tiktokItems, instagramItems, pinterestItems, trendsmcpItems] = await Promise.all([
+      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region, period)   : Promise.resolve([]),
+      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry, region)             : Promise.resolve([]),
+      platform === 'all' || platform === 'instagram' ? getInstagramItems(industry, region)          : Promise.resolve([]),
+      platform === 'all' || platform === 'pinterest' ? getPinterestItems(industry, region)          : Promise.resolve([]),
+      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)                  : Promise.resolve([]),
     ])
 
     // YouTube items are already AI-ranked — insert them first
     const seen  = new Set<string>()
-    let nonYT   = [...tiktokItems, ...instagramItems, ...trendsmcpItems].filter(item => {
+    let nonYT   = [...tiktokItems, ...instagramItems, ...pinterestItems, ...trendsmcpItems].filter(item => {
       if (seen.has(item.url)) return false
       seen.add(item.url)
       return true
     })
 
-    // AI filter TikTok + TrendsMCP if requested
+    // AI filter non-YouTube items if requested
     let removedCount = 0
     if (aiFilter_) {
       const result = await aiFilterItems(nonYT, industry, region)
@@ -801,20 +882,33 @@ export async function GET(req: NextRequest) {
       removedCount = result.removedCount
     }
 
-    // Merge: YouTube (AI-ranked) first, then TikTok/TrendsMCP sorted by velocity
+    // Merge: YouTube (AI-ranked) first, then the rest sorted by velocity
     youtubeItems.forEach(it => seen.add(it.url))
     nonYT.sort((a, b) => VELOCITY_ORDER[a.velocity] - VELOCITY_ORDER[b.velocity])
 
-    const items = [...youtubeItems, ...nonYT].slice(0, limit)
+    let merged = [...youtubeItems, ...nonYT]
+
+    // Apply min_views filter (skip items with no view/save count if threshold > 0)
+    if (minViews > 0) {
+      merged = merged.filter(it => {
+        const count = it.view_count ?? it.save_count ?? 0
+        // Hashtags and trends don't have reliable view counts — keep them
+        if (it.content_type === 'hashtag' || it.content_type === 'trend') return true
+        return count >= minViews
+      })
+    }
+
+    const items = merged.slice(0, limit)
 
     return NextResponse.json(
       {
         items,
         generated_at:  new Date().toISOString(),
         region,
+        period,
         ai_filtered:   aiFilter_,
         removed_count: removedCount,
-        pipeline:      'v2-5phase',
+        pipeline:      'v3-multiplatform',
       },
       { headers: { 'Cache-Control': 'no-store' } },
     )

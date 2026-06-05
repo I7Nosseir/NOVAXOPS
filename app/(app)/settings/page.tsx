@@ -19,13 +19,15 @@ const INTEGRATIONS_REAL = [
     color: '#ff4f5a',
   },
   {
-    id: 'respond_io', realName: 'Respond.io', maskedName: 'Messaging Platform', status: 'connected',
-    description: 'Comment moderation and DM management via webhooks',
+    id: 'chatwoot', realName: 'Chatwoot', maskedName: 'Messaging Platform', status: 'connected',
+    description: 'Comment moderation and DM management via self-hosted Chatwoot',
     fields: [
-      { label: 'API Key', key: 'api_key', type: 'password', placeholder: 'rio_xxxxxxxxxx' },
-      { label: 'Webhook Secret', key: 'webhook_secret', type: 'password', placeholder: 'whsec_xxxxxxxxxx' },
+      { label: 'Base URL', key: 'base_url', type: 'text', placeholder: 'https://chatwoot.yourdomain.com' },
+      { label: 'API Token', key: 'api_token', type: 'password', placeholder: 'user access token' },
+      { label: 'Account ID', key: 'account_id', type: 'text', placeholder: '2' },
+      { label: 'Webhook Secret', key: 'webhook_secret', type: 'password', placeholder: 'novax-chatwoot-2026' },
     ],
-    color: '#5865f2',
+    color: '#1f93ff',
   },
   {
     id: 'claude', realName: 'Claude API (Anthropic)', maskedName: 'AI Engine', status: 'connected',
@@ -547,10 +549,10 @@ export default function SettingsPage() {
 
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
             <p className="text-sm font-semibold text-amber-800">Webhook endpoints</p>
-            <p className="text-xs text-amber-700 mt-1">Configure these URLs in your Respond.io and Metricool dashboards:</p>
+            <p className="text-xs text-amber-700 mt-1">Configure these URLs in your Chatwoot and Metricool dashboards:</p>
             <div className="space-y-1 mt-2">
               {[
-                { label: 'Moderation Webhook', url: '/api/webhooks/respond-io' },
+                { label: 'Moderation Webhook', url: '/api/webhooks/chatwoot' },
                 { label: 'Metricool Publish', url: '/api/webhooks/metricool' },
               ].map(({ label, url }) => (
                 <div key={url} className="flex items-center gap-2">

@@ -143,17 +143,17 @@ export async function fetchTikTokVideos(
   if (isArabic) {
     const predefined = TIKTOK_QUERIES[region]?.[niche] ?? TIKTOK_QUERIES.SA?.[niche]
     queries = predefined?.length
-      ? predefined.slice(0, 2)
-      : (await generateSearchQueries(industry, region, 'tiktok')).slice(0, 2)
+      ? predefined.slice(0, 3)
+      : (await generateSearchQueries(industry, region, 'tiktok')).slice(0, 3)
   } else {
     const predefined = EN_TIKTOK_QUERIES[niche]
     queries = predefined?.length
-      ? predefined.slice(0, 2)
-      : (await generateSearchQueries(industry, region, 'tiktok')).slice(0, 2)
+      ? predefined.slice(0, 3)
+      : (await generateSearchQueries(industry, region, 'tiktok')).slice(0, 3)
   }
 
   // Run queries in parallel
-  const batches = await Promise.all(queries.map(q => searchTikWM(q, 8)))
+  const batches = await Promise.all(queries.map(q => searchTikWM(q, 12)))
 
   // Deduplicate, filter ads + Indian + very short
   const seen  = new Set<string>()
@@ -190,7 +190,7 @@ export async function fetchTikTokVideos(
       const erB = b.play_count > 0 ? b.like_count / b.play_count : 0
       return erB - erA || b.play_count - a.play_count
     })
-    .slice(0, 10)
+    .slice(0, 18)
 }
 
 // ── Hashtag fallback (ogohogo GitHub) ─────────────────────────

@@ -5,7 +5,7 @@
 // No OAuth. One API key. Free tier included.
 // ============================================================
 
-import { generateSearchQueries, ARABIC_REGIONS } from '@/lib/studio/query-generator'
+import { ARABIC_REGIONS } from '@/lib/studio/query-generator'
 
 // ── Niche → hashtag banks ─────────────────────────────────────
 
@@ -182,26 +182,27 @@ export async function fetchInstagramPosts(
   if (!hashtags.length) return []
 
   try {
-    // run-sync-get-dataset-items blocks until the run completes
+    // 25s Apify run timeout + 512MB memory for faster actor startup
+    // run-sync-get-dataset-items blocks until run completes or timeout
     const res = await fetch(
-      `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items?token=${key}&timeout=50`,
+      `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items?token=${key}&timeout=25&memory=512`,
       {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           hashtags:          hashtags,
-          resultsLimit:      20,
+          resultsLimit:      10,
           resultsType:       'posts',
           addParentData:     false,
           isUserReelFeedURL: false,
           isUserTaggedFeedURL: false,
         }),
-        signal: AbortSignal.timeout(55_000), // 55s client timeout
+        signal: AbortSignal.timeout(30_000), // 30s client-side hard timeout
       }
     )
 
     if (!res.ok) {
-      console.warn(`[instagram] Apify returned ${res.status}`)
+      console.error(`[instagram] Apify returned ${res.status} — hashtags: ${hashtags.join(', ')}`)
       return []
     }
 

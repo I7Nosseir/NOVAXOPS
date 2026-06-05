@@ -29,7 +29,7 @@ function ModerationCard({ item }: { item: ModerationItem }) {
     if (!reply.trim()) return
     setSending(true)
     try {
-      await fetch('/api/respond-io/reply', {
+      await fetch('/api/chatwoot/reply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moderation_item_id: item.id, reply_text: reply }),
@@ -230,7 +230,7 @@ export default function ModerationPage() {
         ))}
         <div className="ml-auto text-xs text-slate-400 flex items-center gap-1">
           <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"/>
-          Synced via {vendorName(user?.role, 'Respond.io')}
+          Synced via {vendorName(user?.role, 'Chatwoot')}
         </div>
       </div>
 
