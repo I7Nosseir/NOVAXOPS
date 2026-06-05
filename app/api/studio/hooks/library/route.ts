@@ -36,9 +36,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'hook_text required' }, { status: 400 })
   }
 
-  if (!HAS_DB) {
-    return NextResponse.json({ ok: true, _mock: true })
-  }
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const db = adminSupabase()
   const { data, error } = await db
@@ -71,9 +69,7 @@ export async function GET(req: NextRequest) {
   const hook_type = searchParams.get('hook_type')
   const tier      = searchParams.get('tier')
 
-  if (!HAS_DB) {
-    return NextResponse.json({ hooks: [], _mock: true })
-  }
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const db = adminSupabase()
   let query = db
@@ -101,7 +97,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  if (!HAS_DB) return NextResponse.json({ ok: true, _mock: true })
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const db = adminSupabase()
   const { error } = await db

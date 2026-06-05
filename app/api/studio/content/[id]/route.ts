@@ -16,7 +16,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  if (!HAS_DB) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const db = adminSupabase()
   const { data, error } = await db
@@ -42,7 +42,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  if (!HAS_DB) return NextResponse.json({ ok: true, _mock: true })
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const allowed = ['title', 'phase', 'phase_1_data', 'phase_2_data', 'phase_3_data',
                    'phase_4_data', 'phase_5_data', 'phase_6_data', 'status']

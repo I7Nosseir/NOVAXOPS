@@ -48,22 +48,6 @@ Valid targets: hook | script_hook | script_body | script_cta | caption | broll_l
 GENERATION CONTEXT:
 {{CONTEXT_JSON}}`
 
-// ─── Mock response (no API key) ───────────────────────────────
-
-function mockResponse(message: string): string {
-  const lower = message.toLowerCase()
-  const editKeywords = ['change', 'rewrite', 'improve', 'shorten', 'lengthen', 'translate', 'modify', 'make it', 'rephrase']
-  if (editKeywords.some((kw) => lower.includes(kw))) {
-    return JSON.stringify({
-      type: 'edit',
-      target: 'hook',
-      new_content: 'This is a mock rewrite of the requested content.',
-      reasoning: 'Mock mode — no API key configured.',
-    })
-  }
-  return 'The hook uses a curiosity trigger (Cialdini) calibrated for peripheral processing (ELM). The challenge framing opens a knowledge gap the audience needs to close — that is the mechanism driving saves and follows.'
-}
-
 // ─── Try to parse edit JSON from response ────────────────────
 
 function tryParseEdit(text: string): EditPayload | null {
@@ -118,6 +102,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'message is required' }, { status: 400 })
   }
 
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: 'AI provider not configured' }, { status: 503 })
+  }
+
   const history: ChatMessage[] = body.chat_history ?? []
   const sessionContext = body.session_context ?? {}
 
@@ -126,24 +114,6 @@ export async function POST(req: NextRequest) {
     role: 'user',
     content: body.message,
     timestamp: new Date().toISOString(),
-  }
-
-  if (!process.env.GEMINI_API_KEY) {
-    const responseText = mockResponse(body.message)
-    const edit = tryParseEdit(responseText)
-
-    const assistantMessage: ChatMessage = {
-      role: 'assistant',
-      content: responseText,
-      timestamp: new Date().toISOString(),
-    }
-
-    return NextResponse.json({
-      response: responseText,
-      ...(edit ? { edit } : {}),
-      updated_history: [...history, newUserMessage, assistantMessage],
-      _mock: true,
-    })
   }
 
   const systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace(

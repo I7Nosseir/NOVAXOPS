@@ -36,63 +36,6 @@ interface PostMortemBody {
   }
 }
 
-// ─── Mock fallback ────────────────────────────────────────────
-
-function buildMockDiagnosis(body: PostMortemBody): PostMortemDiagnosis {
-  const { performance, client_context, session_data } = body
-  const isBelow = performance.vs_client_avg < 0
-
-  return {
-    session_name:    body.session_id ?? 'Unknown Session',
-    platform:        session_data.platform,
-    published_at:    session_data.publish_time,
-    engagement_rate: performance.engagement_rate,
-    vs_client_avg:   performance.vs_client_avg,
-    analyses: {
-      hook: {
-        verdict: isBelow ? 'likely_cause' : 'not_issue',
-        finding: isBelow
-          ? `${session_data.hook_type} hooks are not in this client's top performing types (${client_context.top_hook_types.join(', ')}).`
-          : `${session_data.hook_type} hook aligns with this client's top performing types.`,
-        fix: isBelow
-          ? `Switch to ${client_context.top_hook_types[0] ?? 'curiosity'} framing on the next run.`
-          : undefined,
-      },
-      format: {
-        verdict:
-          session_data.format === client_context.best_format ? 'not_issue' : 'contributing',
-        finding:
-          session_data.format === client_context.best_format
-            ? `${session_data.format} is this client's best performing format — not a factor.`
-            : `${session_data.format} underperforms ${client_context.best_format} for this client.`,
-        fix:
-          session_data.format !== client_context.best_format
-            ? `Move this topic to ${client_context.best_format} format.`
-            : undefined,
-      },
-      timing: {
-        verdict: 'not_issue',
-        finding: `Publish time ${session_data.publish_time} is within expected window — timing not the primary factor.`,
-      },
-      caption: {
-        verdict: 'contributing',
-        finding:
-          'Caption CTA requests high-ability action. Save or share CTAs outperform link CTAs 3x for awareness content.',
-        fix: 'Change CTA to "Save this for later" on the next run.',
-      },
-    },
-    verdict:
-      `Primary cause: ${isBelow ? `${session_data.hook_type} hook type underperforms for this client` : 'performance was on target'}. ` +
-      `Rerun with ${client_context.top_hook_types[0] ?? 'curiosity'} hook and ${client_context.best_format} format for estimated 2-3x uplift.`,
-    rerun_constraints: {
-      hook_type:    client_context.top_hook_types[0] ?? 'curiosity',
-      format:       client_context.best_format,
-      posting_time: client_context.best_posting_time,
-      cta_style:    'low-friction (save/share only)',
-    },
-  }
-}
-
 // ─── AI analysis helpers ──────────────────────────────────────
 
 async function analyzeHook(
@@ -255,7 +198,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!process.env.GEMINI_API_KEY) {
-    return NextResponse.json({ ...buildMockDiagnosis(body), _mock: true })
+    return NextResponse.json({ error: 'AI provider not configured' }, { status: 503 })
   }
 
   // ── 4 parallel Gemini analyses ─────────────────────────────

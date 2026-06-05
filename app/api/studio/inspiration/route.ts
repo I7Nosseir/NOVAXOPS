@@ -44,10 +44,6 @@ export interface InspirationBoardItem {
 
 type CreateInput = Omit<InspirationBoardItem, 'id' | 'created_at'>
 
-// ─── In-memory mock store ─────────────────────────────────────
-
-const MOCK_STORE = new Map<string, InspirationBoardItem>()
-
 // ─── GET /api/studio/inspiration ─────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -55,13 +51,7 @@ export async function GET(req: NextRequest) {
   const client_id = searchParams.get('client_id') ?? undefined
   const saved_by  = searchParams.get('saved_by')  ?? undefined
 
-  if (!HAS_DB) {
-    let items = Array.from(MOCK_STORE.values())
-    if (client_id) items = items.filter(i => i.client_id === client_id)
-    if (saved_by)  items = items.filter(i => i.saved_by  === saved_by)
-    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    return NextResponse.json({ items, _mock: true })
-  }
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const db = adminSupabase()
   let query = db
@@ -74,12 +64,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query
 
-  if (error) {
-    // Graceful fallback
-    let items = Array.from(MOCK_STORE.values())
-    if (client_id) items = items.filter(i => i.client_id === client_id)
-    return NextResponse.json({ items, _mock: true, _db_error: error.message })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ items: data ?? [] })
 }
@@ -102,6 +87,8 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+
   const now  = new Date().toISOString()
   const item: InspirationBoardItem = {
     id:            randomUUID(),
@@ -121,11 +108,6 @@ export async function POST(req: NextRequest) {
     created_at:    now,
   }
 
-  if (!HAS_DB) {
-    MOCK_STORE.set(item.id, item)
-    return NextResponse.json(item, { status: 201 })
-  }
-
   const db = adminSupabase()
   const { data, error } = await db
     .from('inspiration_board')
@@ -133,10 +115,7 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) {
-    MOCK_STORE.set(item.id, item)
-    return NextResponse.json({ ...item, _mock: true }, { status: 201 })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json(data as InspirationBoardItem, { status: 201 })
 }
@@ -151,11 +130,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 })
   }
 
-  if (!HAS_DB) {
-    const existed = MOCK_STORE.has(id)
-    MOCK_STORE.delete(id)
-    return NextResponse.json({ success: existed, _mock: true })
-  }
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const db = adminSupabase()
   const { error } = await db
@@ -163,10 +138,7 @@ export async function DELETE(req: NextRequest) {
     .delete()
     .eq('id', id)
 
-  if (error) {
-    MOCK_STORE.delete(id)
-    return NextResponse.json({ success: true, _mock: true, _db_error: error.message })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })
 }
