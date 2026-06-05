@@ -452,59 +452,6 @@ Return ONLY valid JSON — no markdown, no extra text:
   })
 }
 
-// ─── Mock fallback ────────────────────────────────────────────
-
-function buildMockDocument(body: CampaignGenerateBody): CampaignDocument & { boss_brief: BossBrief } {
-  const domains = pickRandomDomains(3)
-  const concept: CampaignConcept = {
-    campaign_name:         'Proof Not Promise',
-    tagline:               'Stop claiming. Start proving. In public.',
-    core_idea:             `${body.client_name} invites critics to test the product live and document exactly what happens.`,
-    why_it_works:          'Cialdini social proof — third-party validation outperforms brand claims 7x in purchase intent studies.',
-    cultural_tension:      `Consumers in ${body.industry} are tired of unverifiable brand claims`,
-    platform:              body.current_platforms[0] ?? 'Instagram',
-    execution_steps: [
-      'Identify 10 known skeptics or critics in the niche',
-      'Send the product with a one-line brief: document your honest experience',
-      'Publish their content unedited alongside the brand response',
-      'Invite audience to vote on whether the brand earned it',
-      'Run 30 days — publish a results summary',
-    ],
-    participation_mechanic: 'Audience nominates the next skeptic to receive the product',
-    shareable_moment:       'The moment a known critic changes their mind — or doesn\'t',
-    scoring: { boldness: 8, implementability: 7, virality: 9 },
-    budget:   'Low',
-    timeline: 'Weeks',
-    risk:        'A critic\'s negative experience becomes the story',
-    mitigation:  'Brief is "honest experience" not "positive review" — negative outcomes are part of the mechanic',
-  }
-
-  return {
-    cultural_tensions: [
-      {
-        tension:     `People in ${body.industry} want evidence but only receive marketing`,
-        evidence:    'Review platform data shows "where\'s the proof?" as a top comment type',
-        opportunity: 'A brand that provides verifiable, public proof instead of claims',
-      },
-    ],
-    inverted_rules: [
-      {
-        rule:      `Every ${body.industry} brand shows only success stories`,
-        inversion: 'Show the failure, the skeptic, the doubt — document what actually goes wrong',
-      },
-    ],
-    creative_domains: domains,
-    concepts: [concept],
-    boss_brief: {
-      what_we_made:  `Campaign framework for ${body.client_name} that turns skeptics into proof.`,
-      why_it_works:  'Third-party validation drives 7x higher purchase intent than brand-direct claims.',
-      the_one_thing: 'Find one known critic. Send the product. Publish what happens.',
-      do_this_now:   'Identify three critics this week. Send them the product next week.',
-      watch_out_for: 'A hostile review becomes the headline — brief for honesty, not positivity.',
-    },
-  }
-}
-
 // ─── Handler ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -523,7 +470,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!process.env.GEMINI_API_KEY) {
-    return NextResponse.json({ ...buildMockDocument(body), _mock: true })
+    return NextResponse.json({ error: 'AI provider not configured' }, { status: 503 })
   }
 
   const domains = pickRandomDomains(3)
