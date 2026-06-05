@@ -28,6 +28,9 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
   if (url.origin !== location.origin) return
 
+  // Skip auth pages — they require valid session state the SW cannot guarantee
+  if (url.pathname.startsWith('/login') || url.pathname.startsWith('/onboarding')) return
+
   // Network-first for API routes
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(

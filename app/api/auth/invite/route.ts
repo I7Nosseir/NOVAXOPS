@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
   const tempPassword = generateTempPassword()
 
-  const { error } = await adminClient.auth.admin.createUser({
+  const { data: newAuthUser, error } = await adminClient.auth.admin.createUser({
     email,
     password: tempPassword,
     email_confirm: true,
@@ -73,12 +73,32 @@ export async function POST(req: Request) {
       role,
       department: DEPT_BY_ROLE[role] ?? 'creative',
       needs_onboarding: true,
-      // stored here so the onboarding step can apply it to the users table row
       page_permissions,
     },
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  // Pre-create the users row so fetchProfile never 406s during onboarding
+  if (newAuthUser?.user) {
+    const initials = name.trim().split(' ').slice(0, 2).map((s: string) => s[0].toUpperCase()).join('')
+    const colors = ['#1B3D38', '#2A6B62', '#5BB4AE', '#7B5EA7', '#C45C2A', '#2563EB']
+    const color = colors[Math.floor(Math.random() * colors.length)]
+    await adminClient.from('users').upsert(
+      {
+        auth_id: newAuthUser.user.id,
+        email,
+        name: name.trim(),
+        role,
+        department: DEPT_BY_ROLE[role] ?? 'creative',
+        initials,
+        color,
+        needs_onboarding: true,
+        page_permissions: page_permissions ?? null,
+      },
+      { onConflict: 'auth_id', ignoreDuplicates: false },
+    )
+  }
 
   // Look up inviter's display name for the email
   const { data: inviterProfile } = await adminClient

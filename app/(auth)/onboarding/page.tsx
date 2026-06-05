@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 
 function NovaLogoMark({ className }: { className?: string }) {
@@ -67,35 +66,16 @@ export default function OnboardingPage() {
     if (!name.trim()) { setError('Please enter your full name.'); return }
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
     if (password !== confirmPassword) { setError('Passwords do not match.'); return }
-    if (!supabase) { setError('Auth not configured.'); return }
 
     setSaving(true)
     try {
-      // 1. Update password + clear needs_onboarding flag in auth metadata
-      const { error: pwErr } = await supabase.auth.updateUser({
-        password,
-        data: { needs_onboarding: false, name: name.trim() },
+      const res = await fetch('/api/auth/complete-onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, name: name.trim(), phone: phone.trim() || undefined }),
       })
-      if (pwErr) { setError(pwErr.message); setSaving(false); return }
-
-      // 2. Upsert the users table row with completed profile data
-      const userId = session!.user.id
-      // Apply page_permissions set by the admin at invite time (stored in user_metadata)
-      const pagePerms = (meta.page_permissions as string[] | null | undefined) ?? null
-      const { error: profileErr } = await supabase
-        .from('users')
-        .update({
-          name: name.trim(),
-          phone_number: phone.trim() || null,
-          needs_onboarding: false,
-          page_permissions: pagePerms,
-        })
-        .eq('auth_id', userId)
-
-      // A missing row is not a fatal error — the DB trigger creates it on first sign-in
-      if (profileErr && profileErr.code !== 'PGRST116') {
-        setError(profileErr.message); setSaving(false); return
-      }
+      const json = await res.json()
+      if (!res.ok) { setError(json.error ?? 'Something went wrong'); setSaving(false); return }
 
       setDone(true)
       setTimeout(() => router.replace('/dashboard'), 1500)

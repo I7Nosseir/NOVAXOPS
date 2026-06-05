@@ -221,6 +221,7 @@ type TopPost = {
   text?: string; reach: number; impressions: number
   likes: number; comments: number; shares: number; saves: number
 }
+type TopPostGroup = { platform: string; posts: TopPost[] }
 
 // ─── Custom tooltip ────────────────────────────────────────────────────────────
 
@@ -243,7 +244,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 // ─── Master Monthly Report ──────────────────────────────────────────────────────
 
 function MasterMonthlyReport({
-  client, period, liveStats, prevStats, livePlatforms, liveTrend, topPosts, aiReport,
+  client, period, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport,
 }: {
   client: string
   period: string
@@ -251,7 +252,7 @@ function MasterMonthlyReport({
   prevStats?: Record<string, number> | null
   livePlatforms?: LivePlatform[] | null
   liveTrend?: LiveTrendPoint[] | null
-  topPosts?: TopPost[] | null
+  topPostGroups?: TopPostGroup[] | null
   aiReport?: AIReport | null
 }) {
   const platformData = (livePlatforms ?? [])
@@ -268,7 +269,7 @@ function MasterMonthlyReport({
   const maxReach = Math.max(...platformData.map(p => p.reach + p.impressions), 1)
   const totalReach = liveStats?.reach ?? 0
   const hasNarrative = !!(aiReport && Object.values(aiReport.narrative).some(Boolean))
-  const hasTopPosts = !!(topPosts && topPosts.length > 0)
+  const hasTopPosts = !!(topPostGroups && topPostGroups.some(g => g.posts.length > 0))
 
   const pieData = platformData
     .filter(p => p.reach > 0 || p.impressions > 0)
@@ -489,15 +490,36 @@ function MasterMonthlyReport({
               <div className="lg:col-span-2 rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
                 <p className="text-sm font-bold text-slate-800 mb-1">Audience Distribution</p>
                 <p className="text-xs text-slate-400 mb-3">Share of total reach by platform</p>
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={2}>
+                    <Pie
+                      data={pieData}
+                      cx="50%" cy="50%"
+                      innerRadius={55} outerRadius={90}
+                      dataKey="value"
+                      paddingAngle={2}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      labelLine={false}
+                    >
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color}/>)}
                     </Pie>
                     <Tooltip formatter={(v) => [formatNumber(Number(v)), 'People Reached']} contentStyle={{ fontSize: 12, borderRadius: 10 }}/>
-                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }}/>
                   </PieChart>
                 </ResponsiveContainer>
+                {/* Legend below */}
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
+                  {pieData.map(entry => {
+                    const total = pieData.reduce((s, d) => s + d.value, 0)
+                    const pct = total > 0 ? ((entry.value / total) * 100).toFixed(0) : '0'
+                    return (
+                      <div key={entry.name} className="flex items-center gap-1.5 text-xs text-slate-600">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: entry.color }}/>
+                        <span className="font-medium">{entry.name}</span>
+                        <span className="text-slate-400">{pct}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
@@ -571,94 +593,102 @@ function MasterMonthlyReport({
         </div>
       )}
 
-      {/* ── Section: Top Posts ─────────────────────────────── */}
+      {/* ── Section: Top Posts (per platform) ─────────────── */}
       {hasTopPosts && (
         <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
           <ReportPageHeader client={client} period={period}/>
           <SectionLabel n={sec()} label="Top Content"/>
           <SectionTitle
             title="Your Best Content This Month"
-            subtitle={`The top ${topPosts!.length} posts ranked by the most likes, comments, and shares they received. Click "View Post" to see the original.`}
+            subtitle='The top 3 posts on each platform, ranked by likes, comments and shares. Click "View Post" to open the original.'
           />
 
-          <div className="space-y-3">
-            {topPosts!.map((post, i) => {
-              const rankColor = i === 0 ? '#F59E0B' : i === 1 ? '#9CA3AF' : i === 2 ? '#CD7C2F' : B.border
-              const views = (post.impressions ?? 0) > 0 ? post.impressions : post.reach
-              return (
-                <div key={i} className="flex items-start gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                  {/* Rank */}
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm font-bold text-white mt-0.5" style={{ background: rankColor }}>
-                    {i + 1}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    {/* Meta row */}
-                    <div className="flex items-center gap-2.5 mb-2.5">
-                      {post.network && (
-                        <>
-                          <PlatformLogo platform={post.network} size={16}/>
-                          <span className="text-xs font-semibold text-slate-500 capitalize">{post.network}</span>
-                        </>
-                      )}
-                      {post.publishDate && (
-                        <span className="text-xs text-slate-400 ml-auto">{formatPostDate(post.publishDate)}</span>
-                      )}
-                    </div>
-
-                    {/* Post text */}
-                    {post.text ? (
-                      <p className="text-sm text-slate-700 leading-relaxed mb-3 line-clamp-2">
-                        {post.text.length > 140 ? post.text.slice(0, 140) + '…' : post.text}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-slate-400 italic mb-3">No caption available</p>
-                    )}
-
-                    {/* Metrics row */}
-                    <div className="flex flex-wrap items-center gap-4">
-                      {views > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Eye className="w-3.5 h-3.5 text-slate-400"/>
-                          <span className="font-bold text-slate-700">{formatNumber(views)}</span>
-                          <span className="text-slate-400">views</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <Heart className="w-3.5 h-3.5 text-slate-400"/>
-                        <span className="font-bold text-slate-700">{formatNumber(post.likes)}</span>
-                        <span className="text-slate-400">likes</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <MessageCircle className="w-3.5 h-3.5 text-slate-400"/>
-                        <span className="font-bold text-slate-700">{formatNumber(post.comments)}</span>
-                        <span className="text-slate-400">comments</span>
-                      </div>
-                      {post.shares > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Share2 className="w-3.5 h-3.5 text-slate-400"/>
-                          <span className="font-bold text-slate-700">{formatNumber(post.shares)}</span>
-                          <span className="text-slate-400">shares</span>
-                        </div>
-                      )}
-                      {post.url && (
-                        <a
-                          href={post.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-xs font-semibold ml-auto rounded-lg px-3 py-1.5 transition-colors hover:opacity-80"
-                          style={{ background: B.light, color: B.primary }}
-                        >
-                          <Link2 className="w-3.5 h-3.5"/>
-                          View Post
-                        </a>
-                      )}
-                    </div>
-                  </div>
+          <div className="space-y-8">
+            {topPostGroups!.filter(g => g.posts.length > 0).map(group => (
+              <div key={group.platform}>
+                {/* Platform header */}
+                <div className="flex items-center gap-2.5 mb-3 pb-2 border-b border-slate-100">
+                  <PlatformLogo platform={group.platform} size={18}/>
+                  <span className="text-sm font-bold text-slate-800 capitalize">{group.platform}</span>
+                  <span className="text-xs text-slate-400">· {group.posts.length} top post{group.posts.length !== 1 ? 's' : ''}</span>
                 </div>
-              )
-            })}
+
+                <div className="space-y-2.5">
+                  {group.posts.map((post, i) => {
+                    const rankColor = i === 0 ? '#F59E0B' : i === 1 ? '#94A3B8' : '#CD7C2F'
+                    const views = (post.impressions ?? 0) > 0 ? post.impressions : post.reach
+                    return (
+                      <div key={i} className="flex items-start gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50/40 hover:bg-slate-50 transition-colors">
+                        {/* Rank badge */}
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold text-white mt-0.5" style={{ background: rankColor }}>
+                          {i + 1}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          {/* Date */}
+                          {post.publishDate && (
+                            <p className="text-[10px] text-slate-400 mb-1.5">{formatPostDate(post.publishDate)}</p>
+                          )}
+
+                          {/* Caption */}
+                          {post.text ? (
+                            <p className="text-sm text-slate-700 leading-relaxed mb-2.5 line-clamp-2">
+                              {post.text.length > 150 ? post.text.slice(0, 150) + '…' : post.text}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic mb-2.5">No caption available</p>
+                          )}
+
+                          {/* Metrics + link */}
+                          <div className="flex flex-wrap items-center gap-3">
+                            {views > 0 && (
+                              <div className="flex items-center gap-1 text-xs text-slate-500">
+                                <Eye className="w-3 h-3 text-slate-400"/>
+                                <span className="font-bold text-slate-700">{formatNumber(views)}</span>
+                                <span>views</span>
+                              </div>
+                            )}
+                            {post.likes > 0 && (
+                              <div className="flex items-center gap-1 text-xs text-slate-500">
+                                <Heart className="w-3 h-3 text-slate-400"/>
+                                <span className="font-bold text-slate-700">{formatNumber(post.likes)}</span>
+                                <span>likes</span>
+                              </div>
+                            )}
+                            {post.comments > 0 && (
+                              <div className="flex items-center gap-1 text-xs text-slate-500">
+                                <MessageCircle className="w-3 h-3 text-slate-400"/>
+                                <span className="font-bold text-slate-700">{formatNumber(post.comments)}</span>
+                                <span>comments</span>
+                              </div>
+                            )}
+                            {post.shares > 0 && (
+                              <div className="flex items-center gap-1 text-xs text-slate-500">
+                                <Share2 className="w-3 h-3 text-slate-400"/>
+                                <span className="font-bold text-slate-700">{formatNumber(post.shares)}</span>
+                                <span>shares</span>
+                              </div>
+                            )}
+                            {post.url && (
+                              <a
+                                href={post.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs font-semibold ml-auto rounded-lg px-2.5 py-1 transition-colors hover:opacity-80"
+                                style={{ background: B.light, color: B.primary }}
+                              >
+                                <Link2 className="w-3 h-3"/>
+                                View Post
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -747,11 +777,11 @@ export default function ReportsPage() {
   const [prevStats, setPrevStats]                 = useState<Record<string, number> | null>(null)
   const [livePlatforms, setLivePlatforms]         = useState<LivePlatform[] | null>(null)
   const [liveTrend, setLiveTrend]                 = useState<LiveTrendPoint[] | null>(null)
-  const [topPosts, setTopPosts]                   = useState<TopPost[] | null>(null)
+  const [topPostGroups, setTopPostGroups]           = useState<TopPostGroup[] | null>(null)
   const [dataError, setDataError]                 = useState<string | null>(null)
   const [aiError, setAiError]                     = useState<string | null>(null)
   const [aiReport, setAiReport]                   = useState<AIReport | null>(null)
-  const [exportingPdf, setExportingPdf]           = useState(false)
+  const [exportingPdf, setExportingPdf]           = useState(false) // unused but kept for future
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(ALL_PLATFORMS)
   const [selectedPlatforms, setSelectedPlatforms]   = useState<string[]>(ALL_PLATFORMS)
   const [probingPlatforms, setProbingPlatforms]     = useState(false)
@@ -787,7 +817,7 @@ export default function ReportsPage() {
     setPrevStats(null)
     setLivePlatforms(null)
     setLiveTrend(null)
-    setTopPosts(null)
+    setTopPostGroups(null)
     setDataError(null)
     setAiError(null)
     setAiReport(null)
@@ -818,7 +848,7 @@ export default function ReportsPage() {
         prevStats?: Record<string, number>
         platforms?: LivePlatform[]
         trend?: LiveTrendPoint[]
-        topPosts?: TopPost[]
+        topPostGroups?: TopPostGroup[]
         meta?: AIReport['meta']
         _mock?: boolean
         _geminiError?: string
@@ -837,7 +867,7 @@ export default function ReportsPage() {
           setPrevStats(prevSt)
           if (data.platforms?.length) setLivePlatforms(data.platforms)
           if (data.trend?.some(t => t.reach > 0 || t.er > 0)) setLiveTrend(data.trend ?? null)
-          if (data.topPosts?.length) setTopPosts(data.topPosts)
+          if (data.topPostGroups?.some((g: TopPostGroup) => g.posts.length > 0)) setTopPostGroups(data.topPostGroups)
         }
         if (data._geminiError) setAiError(data._geminiError)
         if (data.narrative && data.meta && !data._mock) {
@@ -852,36 +882,8 @@ export default function ReportsPage() {
     setGenerated(true)
   }
 
-  const handleExportPDF = async () => {
-    setExportingPdf(true)
-    try {
-      const res = await fetch('/api/reports/export-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tab:       'monthly',
-          clientName,
-          period,
-          stats:     liveStats     ?? undefined,
-          prevStats: prevStats     ?? undefined,
-          platforms: livePlatforms ?? undefined,
-          trend:     liveTrend     ?? undefined,
-          narrative: aiReport?.narrative ?? undefined,
-        }),
-      })
-      if (!res.ok) return
-      const blob = await res.blob()
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a')
-      a.href     = url
-      a.download = `NOVAX_${clientName.replace(/\s+/g, '_')}_${period.replace(/\s+/g, '_')}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setExportingPdf(false)
-    }
+  const handleExportPDF = () => {
+    window.print()
   }
 
   return (
@@ -966,7 +968,7 @@ export default function ReportsPage() {
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                 >
                   <Printer className="w-3.5 h-3.5"/>
-                  {exportingPdf ? 'Preparing…' : 'Export PDF'}
+                  Print / Save as PDF
                 </button>
               )}
             </div>
@@ -1035,7 +1037,7 @@ export default function ReportsPage() {
             prevStats={prevStats}
             livePlatforms={livePlatforms}
             liveTrend={liveTrend}
-            topPosts={topPosts}
+            topPostGroups={topPostGroups}
             aiReport={aiReport}
           />
         </div>
