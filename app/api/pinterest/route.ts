@@ -53,7 +53,7 @@ async function scrapePinterest(query: string): Promise<PinterestPin[]> {
         const orig = images?.orig ?? images?.['736x'] ?? images?.['474x']
         if (!orig?.url) continue
         results.push({
-          id: String(pin.id ?? Math.random()),
+          id: String(pin.id ?? crypto.randomUUID()),
           title: pin.grid_title ?? pin.title ?? '',
           description: pin.description ?? '',
           imageUrl: orig.url,
@@ -104,7 +104,7 @@ function extractPinsFromHtml(html: string): PinterestPin[] {
         const img = images?.orig ?? images?.['736x'] ?? images?.['474x']
         if (!img?.url) continue
         results.push({
-          id: String(pin.id ?? Math.random()),
+          id: String(pin.id ?? crypto.randomUUID()),
           title: pin.grid_title ?? pin.title ?? '',
           description: pin.description ?? '',
           imageUrl: img.url,
