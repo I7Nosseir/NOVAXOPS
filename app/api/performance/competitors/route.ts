@@ -15,9 +15,7 @@ export async function GET(req: NextRequest) {
   const client_id = searchParams.get('client_id')
   if (!client_id) return NextResponse.json({ error: 'client_id required' }, { status: 400 })
 
-  if (!HAS_DB) {
-    return NextResponse.json({ competitors: [], _mock: true })
-  }
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const { createClient } = await import('@supabase/supabase-js')
   const supabase = createClient(
@@ -55,9 +53,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'client_id, competitor_handle, and platform are required' }, { status: 400 })
   }
 
-  if (!HAS_DB) {
-    return NextResponse.json({ saved: true, _mock: true })
-  }
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const { createClient } = await import('@supabase/supabase-js')
   const supabase = createClient(
@@ -88,9 +84,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  if (!HAS_DB) {
-    return NextResponse.json({ deleted: true, _mock: true })
-  }
+  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
   const { createClient } = await import('@supabase/supabase-js')
   const supabase = createClient(
