@@ -218,39 +218,6 @@ function buildColdStartContext(clientId: string, industry = 'default', existingD
   }
 }
 
-// ── Rich mock context ─────────────────────────────────────────
-
-function buildMockContext(clientId: string): MetricoolContext {
-  const now = new Date().toISOString()
-  return {
-    client_id: clientId,
-    data_available: true,
-    days_of_history: 90,
-    best_format: 'reel',
-    best_posting_time: 'Thursday 7pm',
-    avg_engagement_rate: 5.2,
-    industry_avg_er: 3.2,
-    top_posts: [
-      { post_id: 'mock-post-1', format: 'reel', hook_type: 'curiosity', er: 8.4, posted_at: '2026-05-15T19:00:00Z' },
-      { post_id: 'mock-post-2', format: 'reel', hook_type: 'contradiction', er: 7.1, posted_at: '2026-05-08T19:00:00Z' },
-      { post_id: 'mock-post-3', format: 'carousel', hook_type: 'educational', er: 6.8, posted_at: '2026-05-01T19:00:00Z' },
-      { post_id: 'mock-post-4', format: 'reel', hook_type: 'curiosity', er: 6.2, posted_at: '2026-04-24T19:00:00Z' },
-      { post_id: 'mock-post-5', format: 'reel', hook_type: 'transformation', er: 5.9, posted_at: '2026-04-17T19:00:00Z' },
-    ],
-    worst_posts: [
-      { post_id: 'mock-post-18', format: 'static', hook_type: 'authority', er: 1.2, posted_at: '2026-04-20T10:00:00Z' },
-      { post_id: 'mock-post-17', format: 'static', hook_type: 'authority', er: 1.5, posted_at: '2026-04-13T10:00:00Z' },
-      { post_id: 'mock-post-16', format: 'carousel', hook_type: 'authority', er: 1.8, posted_at: '2026-04-06T11:00:00Z' },
-      { post_id: 'mock-post-15', format: 'static', hook_type: 'statement', er: 2.1, posted_at: '2026-03-30T09:00:00Z' },
-      { post_id: 'mock-post-14', format: 'static', hook_type: 'statement', er: 2.3, posted_at: '2026-03-23T09:00:00Z' },
-    ],
-    observed_pattern:
-      'Curiosity and contradiction hooks on Reel format outperform static posts with authority hooks 3.1x for this client. Thursday 7pm is the consistent peak window.',
-    cold_start: false,
-    cache_hit: false,
-    fetched_at: now,
-  }
-}
 
 // ── Route handler ─────────────────────────────────────────────
 
@@ -271,9 +238,7 @@ export async function GET(
   }
 
   if (!HAS_DB) {
-    const mock = buildMockContext(clientId)
-    setCache(clientId, mock)
-    return NextResponse.json({ ...mock, _mock: true })
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   }
 
   try {
@@ -282,7 +247,8 @@ export async function GET(
     return NextResponse.json(context)
   } catch (err) {
     console.error('[metricool-context] Error:', err)
-    const fallback = buildMockContext(clientId)
-    return NextResponse.json({ ...fallback, _error: 'fetch_failed', _mock: true })
+    const fallback = buildColdStartContext(clientId)
+    setCache(clientId, fallback)
+    return NextResponse.json({ ...fallback, _error: 'fetch_failed' })
   }
 }
