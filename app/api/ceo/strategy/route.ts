@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
+
+const HAS_DB = !!(
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
+function adminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
+const MONTH_NAMES = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+]
 
 async function callGemini(prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY!
@@ -16,6 +34,21 @@ async function callGemini(prompt: string): Promise<string> {
   }
   const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+}
+
+interface QuarterlyStrategy {
+  goals: string
+  themes: string
+  kpis: string
+  notes: string
+}
+
+interface MonthlyUpdate {
+  content_summary: string
+  what_worked: string
+  what_didnt: string
+  posts_published: number
+  notes: string
 }
 
 interface StrategyRequest {
@@ -47,6 +80,41 @@ interface StrategyRequest {
   }
   brief?: string
   period?: string
+  quarterly_strategy?: QuarterlyStrategy
+  monthly_update?: MonthlyUpdate
+  context_year?: number
+  context_quarter?: number
+  context_month?: number
+}
+
+function buildContextBlock(
+  qs: QuarterlyStrategy | undefined,
+  mu: MonthlyUpdate | undefined,
+  year?: number,
+  quarter?: number,
+  month?: number,
+): string {
+  if (!qs && !mu) return ''
+  const lines: string[] = []
+  if (qs) {
+    const qLabel = quarter && year ? `Q${quarter} ${year}` : 'Current Quarter'
+    lines.push(`QUARTERLY STRATEGIC CONTEXT (${qLabel}):`)
+    if (qs.goals)  lines.push(`Goals: ${qs.goals}`)
+    if (qs.themes) lines.push(`Content Themes: ${qs.themes}`)
+    if (qs.kpis)   lines.push(`KPIs / Success Metrics: ${qs.kpis}`)
+    if (qs.notes)  lines.push(`Additional Context: ${qs.notes}`)
+  }
+  if (mu) {
+    const mLabel = month && year ? `${MONTH_NAMES[month - 1]} ${year}` : 'Current Month'
+    if (lines.length) lines.push('')
+    lines.push(`MOST RECENT MONTH PERFORMANCE (${mLabel}):`)
+    if (mu.content_summary)  lines.push(`Content Published: ${mu.content_summary}`)
+    if (mu.what_worked)      lines.push(`What Worked: ${mu.what_worked}`)
+    if (mu.what_didnt)       lines.push(`What Underperformed: ${mu.what_didnt}`)
+    if (mu.posts_published)  lines.push(`Posts Published: ${mu.posts_published}`)
+    if (mu.notes)            lines.push(`Additional Observations: ${mu.notes}`)
+  }
+  return lines.join('\n')
 }
 
 export async function POST(req: NextRequest) {
@@ -61,7 +129,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
   }
 
-  const { tool, client_name, client_data, brief, period } = body
+  const {
+    tool, client_name, client_data, brief, period,
+    quarterly_strategy, monthly_update,
+    context_year, context_quarter, context_month,
+  } = body
 
   const clientName = client_name ?? 'the client'
   const industry = client_data?.brand_identity?.industry ?? client_data?.industry ?? 'unspecified'
@@ -71,13 +143,19 @@ export async function POST(req: NextRequest) {
   const competitors = client_data?.competitor_context?.join(', ') ?? 'not specified'
   const perf = client_data?.performance_intel
 
+  const contextBlock = buildContextBlock(
+    quarterly_strategy, monthly_update,
+    context_year, context_quarter, context_month,
+  )
+
   let prompt = ''
 
   switch (tool) {
     case 'market_position':
       prompt = `You are a senior strategic marketing consultant with 20+ years of experience advising category-leading brands. You think with the precision of McKinsey and the creative intuition of a seasoned CMO.
 
-CLIENT INTELLIGENCE BRIEF
+## Client Intelligence Brief
+
 Client: ${clientName}
 Industry: ${industry}
 Target Audience: ${audience}
@@ -91,27 +169,34 @@ Strengths: ${perf?.strengths?.join('; ') ?? 'not assessed'}
 Weaknesses: ${perf?.weaknesses?.join('; ') ?? 'not assessed'}
 Opportunities: ${perf?.opportunities?.join('; ') ?? 'not assessed'}
 Threats: ${perf?.threats?.join('; ') ?? 'not assessed'}
+${contextBlock ? '\n' + contextBlock : ''}
 
 Deliver a rigorous market position analysis structured as follows:
 
-**COMPETITIVE POSITION ASSESSMENT**
+## Competitive Position Assessment
+
 Where does ${clientName} sit on the Value vs. Perception matrix right now? Be precise — name the quadrant and the specific evidence from the data above that places them there.
 
-**STRATEGIC DIFFERENTIATION ANALYSIS**
+## Strategic Differentiation Analysis
+
 Apply the Blue Ocean Strategy framework. What do all competitors in the ${industry} space compete on identically? What is the one axis none of them own? How does ${clientName} currently exploit or miss this whitespace?
 
-**BRAND EQUITY AUDIT**
+## Brand Equity Audit
+
 Assess ${clientName}'s brand equity across three dimensions: Awareness Architecture (how known vs. how understood), Preference Driver (why audiences choose them over competitors), and Loyalty Depth (signals of repeat vs. transactional relationships). Rate each Low / Medium / High and explain why.
 
-**POSITIONING GAP ANALYSIS**
+## Positioning Gap Analysis
+
 Identify the single most significant positioning gap — the space between who ${clientName} says they are and who their audience perceives them to be. Quantify the risk of this gap if left unaddressed.
 
-**STRATEGIC POSITIONING STATEMENT (Internal)**
+## Strategic Positioning Statement
+
 Draft a one-paragraph internal positioning statement using the format:
 "For [specific audience segment], [client name] is the only [category] brand that [unique benefit] because [single reason to believe]."
 This is a strategic tool, not ad copy — it must be defensible, specific, and based on evidence in this brief.
 
-**THE CEO TAKE**
+## The CEO Take
+
 One paragraph. No hedging. What is the single most important thing the CEO needs to know about where this brand stands right now, and what happens if the current trajectory continues unchanged?
 
 Rules: No hashtags. No emojis. No bullet-point padding. Write in executive prose.`
@@ -123,54 +208,58 @@ Rules: No hashtags. No emojis. No bullet-point padding. Write in executive prose
       }
       prompt = `You are a Creative Director and Brand Strategist at a world-class social media agency. You have built award-winning campaigns for brands across the ${industry} sector. You think in cultural tension, not just messaging.
 
-CAMPAIGN BRIEF
+## Campaign Brief
+
 ${brief}
 
-TARGET AUDIENCE: ${audience}
-BRAND VOICE: ${brandVoice}
-KEY MESSAGES: ${keyMessages}
-CLIENT: ${clientName}
-INDUSTRY: ${industry}
+Target Audience: ${audience}
+Brand Voice: ${brandVoice}
+Key Messages: ${keyMessages}
+Client: ${clientName}
+Industry: ${industry}
+${contextBlock ? '\n' + contextBlock : ''}
 
 Generate three distinctly different campaign concepts. Each concept must be strategically grounded, culturally intelligent, and immediately executable. They must differ not just in tone but in fundamental strategic logic.
 
 ---
 
-CONCEPT 1 — [GIVE THIS CONCEPT A POWERFUL 3-5 WORD CAMPAIGN NAME]
+## Concept 1 — [Give This Concept a Powerful 3–5 Word Campaign Name]
 
-**Strategic Logic**
+### Strategic Logic
 What cultural tension, human truth, or market whitespace does this concept exploit? Name the insight precisely — not a category observation, but a specific human behaviour or belief that this campaign leverages.
 
-**Campaign Platform**
+### Campaign Platform
 One sentence: the single idea that everything else hangs off. This is the thought, not the tagline.
 
-**Narrative Architecture**
+### Narrative Architecture
 How does the campaign unfold across a 4-week content arc? What happens in Week 1 (attention), Week 2 (engagement), Week 3 (conversion), Week 4 (loyalty)? Be specific about the type of content and the emotional journey.
 
-**Hero Content Concept**
+### Hero Content Concept
 Describe the single piece of content that would anchor this campaign — the one asset that, if it went viral, would define the campaign. Platform, format, opening scene, and the moment that makes people stop scrolling.
 
-**Why This Will Work**
+### Why This Will Work
 The specific psychological mechanism (Cialdini principle, Berger STEPPS element, Kahneman system) this concept activates, and why that mechanism is particularly powerful for ${audience}.
 
 ---
 
-CONCEPT 2 — [GIVE THIS CONCEPT A POWERFUL 3-5 WORD CAMPAIGN NAME]
+## Concept 2 — [Give This Concept a Powerful 3–5 Word Campaign Name]
 
 [Same structure as Concept 1]
 
 ---
 
-CONCEPT 3 — [GIVE THIS CONCEPT A POWERFUL 3-5 WORD CAMPAIGN NAME]
+## Concept 3 — [Give This Concept a Powerful 3–5 Word Campaign Name]
 
 [Same structure as Concept 1]
 
 ---
 
-**CONCEPT COMPARISON MATRIX**
-Brief table comparing the three concepts across: Risk Level (1-5), Cultural Resonance (1-5), Production Complexity (1-5), Expected Reach, Expected Engagement.
+## Concept Comparison Matrix
 
-**CEO RECOMMENDATION**
+Brief table comparing the three concepts across: Risk Level (1–5), Cultural Resonance (1–5), Production Complexity (1–5), Expected Reach, Expected Engagement.
+
+## CEO Recommendation
+
 Which concept to greenlight, and the single most important reason why. No hedging.
 
 Rules: No hashtags. No emojis. Executive-grade writing throughout.`
@@ -179,7 +268,8 @@ Rules: No hashtags. No emojis. Executive-grade writing throughout.`
     case 'content_audit':
       prompt = `You are a Chief Content Officer conducting a quarterly content strategy performance review. You apply data science, behavioural psychology, and platform algorithm expertise to audit content strategy effectiveness.
 
-CLIENT INTELLIGENCE
+## Client Intelligence
+
 Client: ${clientName}
 Industry: ${industry}
 Audience: ${audience}
@@ -189,29 +279,36 @@ Period Under Review: ${period ?? 'last quarter'}
 Viral Patterns Observed: ${perf?.viral_patterns?.join('; ') ?? 'not assessed'}
 Failure Patterns Observed: ${perf?.failure_patterns?.join('; ') ?? 'not assessed'}
 Engagement Trend: ${perf?.engagement_trend ?? 'not assessed'}
-Content Gaps Identified: ${Array.isArray(perf) ? '' : (perf as typeof perf & { content_gap?: string[] })?.content_gap?.join('; ') ?? 'not assessed'}
+${contextBlock ? '\n' + contextBlock : ''}
 
 Deliver a rigorous content strategy audit structured as follows:
 
-**STRATEGY ALIGNMENT SCORE**
-Rate how well the content strategy is aligned to the stated brand positioning. Score 0-100 with a calibrated verdict: 85+ = highly aligned, 60-85 = partially aligned, below 60 = misaligned. Support the score with specific evidence from the patterns above.
+## Strategy Alignment Score
 
-**CONTENT PILLAR PERFORMANCE ANALYSIS**
+Rate how well the content strategy is aligned to the stated brand positioning and quarterly goals. Score 0–100 with a calibrated verdict: 85+ = highly aligned, 60–85 = partially aligned, below 60 = misaligned. Support the score with specific evidence from the data above.
+
+## Content Pillar Performance Analysis
+
 Break down performance across the three standard pillars: Value/Education, Brand/Storytelling, Direct Promotion. Which pillar is overrepresented? Which is underperforming relative to its strategic purpose? What is the ideal rebalance for ${clientName}?
 
-**AUDIENCE RESONANCE AUDIT**
+## Audience Resonance Audit
+
 Based on the patterns observed, which audience segment is ${clientName} actually reaching versus the intended target (${audience})? If there is a gap, what is causing it and what content shift would close it?
 
-**CONTENT FORMAT EFFECTIVENESS**
+## Content Format Effectiveness
+
 Which formats are driving the highest engagement per impression? Which formats are consuming production resource without proportional return? Specific recommendation on format mix for the next quarter.
 
-**MESSAGE PENETRATION ASSESSMENT**
+## Message Penetration Assessment
+
 Are the key messages (${keyMessages}) actually being communicated through the content? Which messages are landing? Which are absent or diluted? What is the strategic risk of continued message dilution?
 
-**90-DAY STRATEGIC PIVOT RECOMMENDATIONS**
+## 90-Day Strategic Pivot Recommendations
+
 Three specific, prioritised recommendations. Each must include: the change, the reasoning, the expected metric impact, and the implementation timeline. Prioritised by highest expected ROI.
 
-**WHAT TO STOP IMMEDIATELY**
+## What to Stop Immediately
+
 The single content type, theme, or approach that should be discontinued now, with the reason why continuing it is actively harmful to the brand.
 
 Rules: No hashtags. No emojis. No vague observations — every statement must be evidence-based or clearly marked as an inference.`
@@ -220,7 +317,8 @@ Rules: No hashtags. No emojis. No vague observations — every statement must be
     case 'quarterly_narrative':
       prompt = `You are a strategic communications advisor to the CEO of a social media agency. You have written executive narratives for Fortune 500 brands. You understand that a CEO narrative must be simultaneously honest, forward-looking, and confidence-instilling.
 
-CLIENT CONTEXT
+## Client Context
+
 Client: ${clientName}
 Industry: ${industry}
 Audience: ${audience}
@@ -232,22 +330,28 @@ Strategic Opportunities: ${perf?.opportunities?.join('; ') ?? 'not assessed'}
 Active Challenges: ${perf?.threats?.join('; ') ?? 'not assessed'}
 Brand Strengths: ${perf?.strengths?.join('; ') ?? 'not assessed'}
 Client Status: ${client_data?.status ?? 'active'}${client_data?.is_in_crisis ? ' (IN CRISIS MODE)' : ''}
+${contextBlock ? '\n' + contextBlock : ''}
 
-Produce a CEO-ready quarterly narrative for the ${clientName} account. This is a strategic communication tool — it will be used by the CEO to brief senior stakeholders, frame the quarterly results, and set direction for the next quarter.
+Produce a CEO-ready quarterly narrative for the ${clientName} account.
 
-**QUARTERLY EXECUTIVE SUMMARY**
+## Quarterly Executive Summary
+
 Three paragraphs. Paragraph 1: Where we started this quarter and what the strategic intent was. Paragraph 2: What the data tells us — what worked, what did not, and the honest interpretation (no spin). Paragraph 3: What this means for where we go next — the one insight that changes how we approach this account.
 
-**THE HEADLINE RESULT**
+## The Headline Result
+
 One sentence. The single most important thing that happened this quarter for ${clientName}, expressed as a strategic outcome, not a metric. This is the sentence the CEO reads at the top of a board slide.
 
-**STRATEGIC NARRATIVE FOR CLIENT COMMUNICATION**
+## Strategic Narrative for Client Communication
+
 A polished 2-paragraph narrative the CEO can use directly in a client-facing quarterly review. Tone: confident, transparent, forward-looking. Acknowledges where performance fell short of targets without being defensive. Frame challenges as informed pivots, not failures.
 
-**THE 90-DAY STRATEGIC COMMITMENT**
+## The 90-Day Strategic Commitment
+
 Three specific strategic commitments for the next quarter — not tactics, not KPIs, but the directional choices the team is committing to. Each should be a single clear sentence that could appear on a strategy slide.
 
-**RISK DISCLOSURE (INTERNAL ONLY)**
+## Risk Disclosure (Internal Only)
+
 One paragraph, maximum 4 sentences. The honest assessment of the biggest risk to ${clientName}'s growth trajectory next quarter and what the team needs to watch. This section is for internal CEO use only — direct, no softening.
 
 Rules: No hashtags. No emojis. Executive prose only — no bullet points except where explicitly structured above. This must read like a McKinsey partner wrote it.`
@@ -259,6 +363,18 @@ Rules: No hashtags. No emojis. Executive prose only — no bullet points except 
 
   try {
     const result = await callGemini(prompt)
+
+    // Persist to ai_generation_cache (fire-and-forget)
+    if (HAS_DB) {
+      const db = adminSupabase()
+      void db.from('ai_generation_cache').insert({
+        generation_type: 'ceo_strategy',
+        context_id: body.client_id ?? null,
+        meta: body.tool,
+        output_json: { result, client_name: body.client_name, tool: body.tool },
+      })
+    }
+
     return NextResponse.json({ result })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'AI generation failed.'

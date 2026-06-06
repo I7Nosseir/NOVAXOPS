@@ -269,7 +269,7 @@ export default function InspirationLibraryPage() {
         platform,
         region,
         period,
-        limit:    '36',
+        limit:    '48',
         min_views: minViews,
         ...(aiFilter ? { ai_filter: 'true' } : {}),
       })
@@ -627,7 +627,7 @@ export default function InspirationLibraryPage() {
         <div className="flex-1 min-w-0">
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 9 }).map((_, i) => (
+              {Array.from({ length: 12 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
             </div>

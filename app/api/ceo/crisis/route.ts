@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
+
+const HAS_DB = !!(
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
+function adminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 async function callGemini(prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY!
@@ -64,9 +77,10 @@ export async function POST(req: NextRequest) {
 
   switch (tool) {
     case 'situation_assessment':
-      prompt = `You are a crisis communications specialist with 25 years of experience managing brand crises for global companies across the ${industry} sector. You have managed crises ranging from product failures to social media scandals to corporate leadership controversies. You assess situations with clinical precision and without panic.
+      prompt = `You are a crisis communications specialist with 25 years of experience managing brand crises for global companies across the ${industry} sector. You assess situations with clinical precision and without panic.
 
-CRISIS CLIENT PROFILE
+## Crisis Client Profile
+
 Client: ${client_name}
 Industry: ${industry}
 Target Audience: ${audience}
@@ -77,86 +91,96 @@ Core Messages at Risk: ${keyMessages}
 
 This client has been flagged as IN CRISIS MODE. Conduct a comprehensive situation assessment.
 
-**CRISIS SEVERITY CLASSIFICATION**
+## Crisis Severity Classification
+
 Classify the current crisis level:
 - Level 1: Reputational risk — negative sentiment trending, no confirmed incident
 - Level 2: Active incident — confirmed issue affecting brand perception
 - Level 3: Escalating crisis — media coverage or viral spread confirmed
 - Level 4: Full crisis — significant audience trust damage, stakeholder intervention required
+
 State the classification and the specific indicators that support it.
 
-**STAKEHOLDER IMPACT MATRIX**
+## Stakeholder Impact Matrix
+
 Map the impact across ${client_name}'s key stakeholder groups:
 - Primary audience (${audience}): Current sentiment, risk of defection, severity
 - Media and influencers: Coverage risk, amplification probability
 - Partners/collaborators: Relationship risk
 - Internal team: Morale and operational impact
 
-**BRAND ASSET VULNERABILITY ASSESSMENT**
-Which specific brand assets are most at risk in this crisis? (e.g., premium positioning, trust-dependent conversion funnel, influencer partnerships, community goodwill)
-Rate each: Under Threat / At Risk / Safe — with reasoning.
+## Brand Asset Vulnerability Assessment
 
-**CRISIS TIMELINE PROJECTION**
+Which specific brand assets are most at risk in this crisis? Rate each: Under Threat / At Risk / Safe — with reasoning.
+
+## Crisis Timeline Projection
+
 Based on typical crisis arc patterns in the ${industry} sector:
-- Hours 0-24: What is likely to happen if no action is taken
-- Days 2-7: Secondary wave risks (media pickup, community response, competitor opportunism)
-- Weeks 2-4: Long-tail reputational effects and recovery window
+- Hours 0–24: What is likely to happen if no action is taken
+- Days 2–7: Secondary wave risks (media pickup, community response, competitor opportunism)
+- Weeks 2–4: Long-tail reputational effects and recovery window
 
-**IMMEDIATE ACTION PRIORITIES**
+## Immediate Action Priorities
+
 The three most important actions to take in the next 24 hours, in priority order. Each must be: specific, actionable, assigned to a function (CEO, social team, PR, legal), and measurable.
 
-**THE CEO ASSESSMENT**
+## The CEO Assessment
+
 One paragraph, no hedging. What is the true severity of this situation, what is the realistic outcome if handled well versus handled poorly, and what is the single decision that will define how this crisis resolves?
 
 Rules: No hashtags. No emojis. Crisis communications require clarity and precision — no vague language.`
       break
 
     case 'holding_statement':
-      prompt = `You are a crisis communications specialist and former senior PR executive. You have written holding statements for Fortune 500 brands during product recalls, social media controversies, data breaches, and leadership crises. A holding statement is the most important piece of communication in a crisis — it buys time while protecting brand equity.
+      prompt = `You are a crisis communications specialist and former senior PR executive. You have written holding statements for Fortune 500 brands during product recalls, social media controversies, data breaches, and leadership crises.
 
-CRISIS CLIENT PROFILE
+## Crisis Client Profile
+
 Client: ${client_name}
 Industry: ${industry}
 Audience: ${audience}
 Brand Voice: ${brandVoice}
-Core Values/Key Messages: ${keyMessages}
+Core Values / Key Messages: ${keyMessages}
 
-A HOLDING STATEMENT must:
-1. Acknowledge the situation without admitting liability
-2. Demonstrate that the organisation is taking it seriously
-3. Buy time for a full investigation without appearing evasive
-4. Maintain the brand's voice and human authority
-5. Be legally defensible — no admissions, no speculation
+A holding statement must: (1) acknowledge the situation without admitting liability, (2) demonstrate the organisation is taking it seriously, (3) buy time for a full investigation without appearing evasive, (4) maintain the brand's voice and human authority, (5) be legally defensible.
 
 Generate three distinct holding statement variants, each optimised for a different communication channel and tone strategy.
 
 ---
 
-STATEMENT 1 — FORMAL (Suitable for press release, official website, LinkedIn)
+## Statement 1 — Formal
+
+Suitable for press release, official website, LinkedIn.
 Tone: Authoritative, composed, institutional.
-Length: 80-120 words.
+Length: 80–120 words.
 Structure: Acknowledgement + Position + Commitment + Next step (with timeframe).
 
 ---
 
-STATEMENT 2 — CONVERSATIONAL (Suitable for Instagram/Facebook caption, community post)
+## Statement 2 — Conversational
+
+Suitable for Instagram / Facebook caption, community post.
 Tone: Human, direct, warm but serious. Sounds like a real person wrote it, not a legal team.
-Length: 60-90 words.
+Length: 60–90 words.
 Structure: Direct acknowledgement + empathy signal + clear next step.
 
 ---
 
-STATEMENT 3 — MINIMAL (Suitable for a pinned tweet/X post or interim response to direct comments)
+## Statement 3 — Minimal
+
+Suitable for a pinned post or interim response to direct comments.
 Tone: Concise, clear, no wasted words.
 Length: Maximum 40 words.
 Structure: One acknowledgement sentence + one action sentence.
 
 ---
 
-**COMMUNICATION DO NOT LIST**
+## Communication Do-Not List
+
 For this specific client and situation, list 5 specific phrases, approaches, or commitments that must NOT appear in any crisis communication. Explain why each is dangerous.
 
-**TIMING RECOMMENDATION**
+## Timing Recommendation
+
 When should the first public statement go out (hours from now), on which platform first, and why.
 
 Rules: No hashtags. No emojis. The statements must be ready to publish with minimal editing.`
@@ -165,7 +189,8 @@ Rules: No hashtags. No emojis. The statements must be ready to publish with mini
     case 'recovery_plan':
       prompt = `You are a brand recovery strategist who has rebuilt trust for brands across the ${industry} sector following crises. You understand that recovery is not about erasing the crisis — it is about demonstrating change and earning trust back through consistent action over time.
 
-CRISIS CLIENT PROFILE
+## Crisis Client Profile
+
 Client: ${client_name}
 Industry: ${industry}
 Audience: ${audience}
@@ -182,45 +207,38 @@ Design a 2-week social media content recovery plan. This plan must:
 
 ---
 
-WEEK 1: ACKNOWLEDGEMENT AND STABILISATION (Days 1-7)
+## Week 1: Acknowledgement and Stabilisation (Days 1–7)
 
-Day 1-2: Crisis Response Content
-- What to post: [specific content directive]
-- Platform priority: [which platforms first and why]
-- Tone instruction: [precise tone — e.g. "measured, human, no corporate language"]
-- What NOT to post: [specific prohibitions for days 1-2]
+**Day 1–2: Crisis Response Content**
+What to post, platform priority, tone instruction, and what NOT to post.
 
-Day 3-4: Demonstration of Action
-- What to post: [evidence of the steps being taken — not promises, actions]
-- Format recommendation: [story, long-form post, video, carousel]
-- Tone instruction: [precise tone]
+**Day 3–4: Demonstration of Action**
+Evidence of steps being taken — not promises, actions. Include format recommendation and tone instruction.
 
-Day 5-7: Community Re-engagement
-- Content approach: [how to begin re-engaging the community without appearing to ignore the crisis]
-- Response strategy for incoming comments: [how to handle negative, neutral, and positive responses]
+**Day 5–7: Community Re-engagement**
+Content approach for re-engaging the community. Response strategy for incoming negative, neutral, and positive comments.
 
 ---
 
-WEEK 2: TRUST REBUILDING AND RETURN TO BRAND VOICE (Days 8-14)
+## Week 2: Trust Rebuilding and Return to Brand Voice (Days 8–14)
 
-Day 8-10: Value Content Return
-- What to post: [content that demonstrates brand value without direct reference to crisis]
-- Framing instruction: [how to frame this content so it reads as authentic recovery, not pivot-and-ignore]
+**Day 8–10: Value Content Return**
+Content that demonstrates brand value without direct reference to crisis. Framing instruction so it reads as authentic recovery, not pivot-and-ignore.
 
-Day 11-12: Social Proof and Community Validation
-- Content type: [testimonials, community stories, UGC strategy]
-- Platform recommendation: [specific platform and format]
+**Day 11–12: Social Proof and Community Validation**
+Content type (testimonials, community stories, UGC), platform and format recommendation.
 
-Day 13-14: Brand Voice Reinstatement
-- The specific content type and tone that signals the brand has returned to normal operations
-- The metric that will indicate this post has succeeded
+**Day 13–14: Brand Voice Reinstatement**
+The specific content type and tone that signals the brand has returned to normal operations. The metric that will indicate this post has succeeded.
 
 ---
 
-**WHAT COMPLETE RECOVERY LOOKS LIKE**
+## What Complete Recovery Looks Like
+
 The specific metric benchmarks (engagement rate, sentiment ratio, follower growth/loss rate) that, when reached, signal the brand has returned to pre-crisis health.
 
-**THE SINGLE BIGGEST RECOVERY MISTAKE**
+## The Single Biggest Recovery Mistake
+
 The one approach that brands in this situation most commonly take that extends the crisis rather than ending it. Make sure ${client_name} does not make this mistake.
 
 Rules: No hashtags. No emojis. Every content directive must be specific enough to brief a copywriter with no other context.`
@@ -232,6 +250,18 @@ Rules: No hashtags. No emojis. Every content directive must be specific enough t
 
   try {
     const result = await callGemini(prompt)
+
+    // Persist to ai_generation_cache (fire-and-forget)
+    if (HAS_DB) {
+      const db = adminSupabase()
+      void db.from('ai_generation_cache').insert({
+        generation_type: 'ceo_crisis',
+        context_id: body.client_id ?? null,
+        meta: body.tool,
+        output_json: { result, client_name: body.client_name, tool: body.tool },
+      })
+    }
+
     return NextResponse.json({ result })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'AI generation failed.'

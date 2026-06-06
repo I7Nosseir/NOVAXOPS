@@ -149,7 +149,18 @@ export function StudioChatbot({
         content: data.reply ?? '',
         edit: data.edit,
       }
-      setChatHistory(prev => [...prev, assistantMsg])
+      const newHistory = [...chatHistory, userMsg, assistantMsg]
+      setChatHistory(newHistory)
+
+
+      // Persist chat history to session (fire-and-forget)
+      if (sessionId) {
+        fetch(`/api/studio/session/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_history: newHistory }),
+        }).catch(() => {})
+      }
     } catch {
       setChatHistory(prev => [
         ...prev,

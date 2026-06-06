@@ -64,29 +64,33 @@ export function MyTasksFloat() {
 
   return (
     <>
-      {/* FAB */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        className={cn(
-          'fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg transition-all duration-200',
-          open ? 'bg-novax-hover text-white' : 'bg-novax text-white hover:bg-novax-hover hover:shadow-xl',
-        )}
-        title="My Tasks"
-      >
-        <ListTodo className="w-4 h-4"/>
-        <span className="text-sm font-semibold hidden sm:inline">My Tasks</span>
-        {urgentCount > 0 && !open && (
-          <span className="flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
-            {urgentCount}
-          </span>
-        )}
-      </button>
+      {/* FAB — compact icon button, stacked above AI Assistant */}
+      <div className="fixed bottom-[4.75rem] right-6 z-50 group">
+        <button
+          onClick={() => setOpen(v => !v)}
+          className={cn(
+            'relative w-11 h-11 rounded-xl flex items-center justify-center shadow-md transition-all duration-200',
+            open ? 'bg-novax-hover text-white shadow-lg' : 'bg-novax text-white hover:bg-novax-hover hover:shadow-lg',
+          )}
+          title="My Tasks"
+        >
+          <ListTodo className="w-4 h-4"/>
+          {urgentCount > 0 && !open && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+              {urgentCount > 99 ? '99+' : urgentCount}
+            </span>
+          )}
+        </button>
+        <span className="absolute right-14 top-1/2 -translate-y-1/2 whitespace-nowrap bg-slate-800 text-white text-xs font-medium px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          My Tasks
+        </span>
+      </div>
 
       {/* Slide-over panel */}
       {open && (
         <div
           ref={panelRef}
-          className="fixed bottom-20 right-6 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[70vh] overflow-hidden"
+          className="fixed bottom-[8.5rem] right-6 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[65vh] overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">

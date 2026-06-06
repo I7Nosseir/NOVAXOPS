@@ -366,6 +366,91 @@ export interface MetricoolContext {
   fetched_at: string
 }
 
+// ─── Visual Content Engine ────────────────────────────────────
+
+export type VideoFormat = '9:16' | '16:9' | '1:1' | '4:5'
+export type NarrativePurpose = 'HOOK' | 'AGITATE' | 'SHIFT' | 'SOLUTION' | 'SOCIAL_PROOF' | 'CTA' | 'BUILDUP' | 'REVEAL'
+
+export interface VisualApproach {
+  id: string
+  name: string
+  tagline: string
+  narrative_arc: string
+  hook_type: string
+  hook_moment: string
+  vibe: string
+  emotional_journey: string
+  scene_structure: string[]
+  why_it_works: string
+  boldness: number
+  best_for: string
+}
+
+export interface VisualAnchor {
+  style: string
+  pov: string
+  subject: string
+  environment: string
+  lighting: string
+  color_treatment: string
+  technical: string
+  full_anchor_text: string
+}
+
+export interface ScenePrompt {
+  scene_number: number
+  duration: string
+  narrative_purpose: NarrativePurpose
+  voiceover: string | null
+  image_prompt: string
+  video_prompt: string
+  camera_angle: string
+  emotion_direction: string
+  continuity_note: string
+}
+
+export interface VisualProductionNotes {
+  hook_checklist: {
+    grabs_instantly: boolean
+    visually_disruptive: boolean
+    hook_format_used: string
+    note: string
+  }
+  platform_notes: {
+    aspect_ratio: string
+    pacing: string
+    thumbnail_scene: number
+    cta_placement: string
+  }
+  sound_direction: {
+    music_mood: string
+    sfx_moments: string[]
+    voiceover_tone: string
+  }
+  upscale_priority: string[]
+  editing_notes: string[]
+}
+
+export interface VisualDocument {
+  anchor: VisualAnchor
+  scenes: ScenePrompt[]
+  production_notes: VisualProductionNotes
+  boss_brief: BossBrief
+}
+
+export interface VisualInputs {
+  client_id: string | null
+  platform: string
+  format: VideoFormat
+  length: string
+  objective: string
+  audience: string
+  core_message: string
+  vibe: string
+  cta_type: string
+  additional_notes?: string
+}
+
 // ─── Studio Session (Core Record) ────────────────────────────
 
 export interface StudioSession {

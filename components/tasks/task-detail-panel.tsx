@@ -13,6 +13,7 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useUpdateTask, useDeleteTask } from '@/lib/hooks/use-tasks'
+import { MarkdownContent } from '@/components/ui/markdown-content'
 import { useAuth } from '@/lib/auth-context'
 import { TaskComments } from './task-comments'
 
@@ -731,7 +732,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                       {variant.hook && (
                         <p className="text-[10px] text-novax-muted font-semibold mb-2 italic">Hook: &ldquo;{variant.hook}&rdquo;</p>
                       )}
-                      <pre className="text-[11px] text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{variant.text}</pre>
+                      <MarkdownContent content={variant.text} size="xs" />
                       {selectedVariant === variant.id && (
                         <button
                           onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(variant.text).catch(() => {}) }}
@@ -750,7 +751,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                 </div>
               ) : output ? (
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                  <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{output}</pre>
+                  <MarkdownContent content={output} size="xs" />
                 </div>
               ) : null}
             </div>

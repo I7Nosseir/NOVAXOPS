@@ -1,9 +1,17 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { buildReportPrompt } from '@/lib/report-prompts'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const HAS_METRICOOL = !!(process.env.METRICOOL_API_TOKEN && process.env.METRICOOL_USER_ID)
 const HAS_DB = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+
+function adminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 // ─── Metricool data fetcher ───────────────────────────────────────────────────
 
@@ -317,6 +325,22 @@ export async function POST(req: NextRequest) {
     }
   } else {
     geminiError = 'GEMINI_API_KEY not configured — showing data without AI narrative'
+  }
+
+  // Persist narrative to ai_generation_cache when AI generation succeeded (fire-and-forget)
+  if (HAS_DB && Object.keys(narrative).length > 0) {
+    const db = adminSupabase()
+    void db.from('ai_generation_cache').insert({
+      generation_type: 'report',
+      context_id: clientId,
+      meta: reportType,
+      output_json: {
+        narrative,
+        period: `${startDate} to ${endDate}`,
+        client_name: client.name,
+        report_type: reportType,
+      },
+    })
   }
 
   return NextResponse.json({

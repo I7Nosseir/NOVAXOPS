@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Crown, Shield, Activity, Brain, AlertTriangle, MessageSquare,
   ChevronDown, ChevronUp, Copy, Check, Loader2, TrendingUp,
   TrendingDown, Minus, Users, BarChart2, Zap, Scale,
   CheckCircle2, Target, Lightbulb, GitBranch, ShieldAlert,
+  Calendar, FileText, AlertCircle, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { usePosts } from '@/lib/hooks/use-posts'
+import { MarkdownContent } from '@/components/ui/markdown-content'
 import { cn } from '@/lib/utils'
 import type { Client } from '@/lib/types'
 
@@ -28,6 +30,42 @@ interface GeneratedResult {
 
 function emptyResult(): GeneratedResult {
   return { content: '', loading: false, error: null, expanded: false }
+}
+
+interface QuarterlyStrategy {
+  id?: string
+  goals: string
+  themes: string
+  kpis: string
+  notes: string
+}
+
+interface MonthlyUpdate {
+  id?: string
+  content_summary: string
+  what_worked: string
+  what_didnt: string
+  posts_published: number
+  notes: string
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+function getCurrentQuarterInfo() {
+  const now = new Date()
+  const month = now.getMonth() + 1
+  const year = now.getFullYear()
+  return { year, quarter: Math.ceil(month / 3) }
+}
+
+function getCurrentMonthInfo() {
+  const now = new Date()
+  return { year: now.getFullYear(), month: now.getMonth() + 1 }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -106,41 +144,7 @@ function ResultPanel({ result, onToggle }: {
       </div>
       {result.expanded && (
         <div className="px-4 py-4 bg-white">
-          <div className="prose prose-sm prose-slate max-w-none">
-            {result.content.split('\n').map((line, i) => {
-              const trimmed = line.trim()
-              if (!trimmed) return <div key={i} className="h-2" />
-              if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-                return (
-                  <p key={i} className="font-semibold text-slate-900 mt-4 mb-1 text-sm">
-                    {trimmed.replace(/\*\*/g, '')}
-                  </p>
-                )
-              }
-              if (trimmed.startsWith('- ')) {
-                return (
-                  <p key={i} className="text-slate-700 text-sm pl-3 border-l-2 border-novax-border my-1">
-                    {trimmed.slice(2)}
-                  </p>
-                )
-              }
-              if (trimmed.match(/^\d+\.\s/)) {
-                return (
-                  <p key={i} className="text-slate-700 text-sm my-1">
-                    {trimmed}
-                  </p>
-                )
-              }
-              if (trimmed.startsWith('---')) {
-                return <hr key={i} className="my-3 border-slate-200" />
-              }
-              return (
-                <p key={i} className="text-slate-700 text-sm leading-relaxed my-1">
-                  {trimmed}
-                </p>
-              )
-            })}
-          </div>
+          <MarkdownContent content={result.content} />
         </div>
       )}
     </div>
@@ -174,6 +178,261 @@ function ActionCard({
   )
 }
 
+// ─── Context Form ──────────────────────────────────────────────────────────────
+
+function ContextStatusBadge({ ok }: { ok: boolean }) {
+  if (ok) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+        <CheckCircle2 className="w-3 h-3" />Set
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+      <AlertCircle className="w-3 h-3" />Required
+    </span>
+  )
+}
+
+interface ClientContextCardProps {
+  clientId: string
+  strategyForm: QuarterlyStrategy
+  monthlyForm: MonthlyUpdate
+  hasStrategy: boolean
+  hasMonthly: boolean
+  saving: boolean
+  savingMonthly: boolean
+  loading: boolean
+  quarterLabel: string
+  monthLabel: string
+  onStrategyChange: (f: QuarterlyStrategy) => void
+  onMonthlyChange: (f: MonthlyUpdate) => void
+  onSaveStrategy: () => void
+  onSaveMonthly: () => void
+}
+
+function ClientContextCard({
+  strategyForm, monthlyForm, hasStrategy, hasMonthly,
+  saving, savingMonthly, loading, quarterLabel, monthLabel,
+  onStrategyChange, onMonthlyChange, onSaveStrategy, onSaveMonthly,
+}: ClientContextCardProps) {
+  const [strategyOpen, setStrategyOpen] = useState(!hasStrategy)
+  const [monthlyOpen, setMonthlyOpen] = useState(!hasMonthly)
+
+  useEffect(() => {
+    if (!hasStrategy) setStrategyOpen(true)
+    if (!hasMonthly) setMonthlyOpen(true)
+  }, [hasStrategy, hasMonthly])
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-2 text-sm text-slate-400">
+        <Loader2 className="w-4 h-4 animate-spin" />Loading client context...
+      </div>
+    )
+  }
+
+  const textareaClass = "w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-novax/30 focus:border-novax bg-white"
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FileText className="w-4 h-4 text-novax" />
+          <p className="text-sm font-semibold text-slate-900">Client Strategy Context</p>
+        </div>
+        <p className="text-xs text-slate-400">Required before analysis runs</p>
+      </div>
+
+      {/* Quarterly Strategy */}
+      <div className="border-b border-slate-100">
+        <button
+          onClick={() => setStrategyOpen(v => !v)}
+          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-sm font-medium text-slate-800">{quarterLabel} Strategy</span>
+            <ContextStatusBadge ok={hasStrategy} />
+          </div>
+          {strategyOpen
+            ? <ChevronUp className="w-4 h-4 text-slate-400" />
+            : <ChevronRight className="w-4 h-4 text-slate-400" />}
+        </button>
+
+        {strategyOpen && (
+          <div className="px-5 pb-5 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Goals <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={2}
+                value={strategyForm.goals}
+                onChange={e => onStrategyChange({ ...strategyForm, goals: e.target.value })}
+                placeholder="What are we trying to achieve this quarter? Growth goals, brand objectives, campaign targets..."
+                className={textareaClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Content Themes <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={2}
+                value={strategyForm.themes}
+                onChange={e => onStrategyChange({ ...strategyForm, themes: e.target.value })}
+                placeholder="Main content pillars and themes for this quarter (e.g. product launches, seasonal campaigns, brand storytelling)..."
+                className={textareaClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">KPIs / Success Metrics</label>
+              <textarea
+                rows={2}
+                value={strategyForm.kpis}
+                onChange={e => onStrategyChange({ ...strategyForm, kpis: e.target.value })}
+                placeholder="How we will measure success — reach targets, engagement rates, follower growth, sales impact..."
+                className={textareaClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">Additional Context</label>
+              <textarea
+                rows={2}
+                value={strategyForm.notes}
+                onChange={e => onStrategyChange({ ...strategyForm, notes: e.target.value })}
+                placeholder="Budget constraints, key events, partnerships, anything the AI should know about this quarter..."
+                className={textareaClass}
+              />
+            </div>
+            <button
+              onClick={onSaveStrategy}
+              disabled={saving || !strategyForm.goals.trim() || !strategyForm.themes.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-novax text-white text-sm font-medium rounded-lg hover:bg-novax-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              {saving ? 'Saving...' : 'Save Strategy'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Monthly Update */}
+      <div>
+        <button
+          onClick={() => setMonthlyOpen(v => !v)}
+          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <BarChart2 className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-sm font-medium text-slate-800">{monthLabel} Update</span>
+            <ContextStatusBadge ok={hasMonthly} />
+          </div>
+          {monthlyOpen
+            ? <ChevronUp className="w-4 h-4 text-slate-400" />
+            : <ChevronRight className="w-4 h-4 text-slate-400" />}
+        </button>
+
+        {monthlyOpen && (
+          <div className="px-5 pb-5 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Content Published <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={2}
+                value={monthlyForm.content_summary}
+                onChange={e => onMonthlyChange({ ...monthlyForm, content_summary: e.target.value })}
+                placeholder="What content did we publish this month? Campaigns, posts, formats used, platforms covered..."
+                className={textareaClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">What Worked</label>
+              <textarea
+                rows={2}
+                value={monthlyForm.what_worked}
+                onChange={e => onMonthlyChange({ ...monthlyForm, what_worked: e.target.value })}
+                placeholder="Which posts or formats overperformed? Any surprises or standout moments?"
+                className={textareaClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">What Did Not Work</label>
+              <textarea
+                rows={2}
+                value={monthlyForm.what_didnt}
+                onChange={e => onMonthlyChange({ ...monthlyForm, what_didnt: e.target.value })}
+                placeholder="What underperformed? Any failed experiments or audience misses?"
+                className={textareaClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">Posts Published</label>
+              <input
+                type="number"
+                min={0}
+                value={monthlyForm.posts_published}
+                onChange={e => onMonthlyChange({ ...monthlyForm, posts_published: parseInt(e.target.value) || 0 })}
+                className="w-32 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-novax/30 focus:border-novax bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">Additional Observations</label>
+              <textarea
+                rows={2}
+                value={monthlyForm.notes}
+                onChange={e => onMonthlyChange({ ...monthlyForm, notes: e.target.value })}
+                placeholder="Client feedback, competitor activity, platform changes, anything relevant..."
+                className={textareaClass}
+              />
+            </div>
+            <button
+              onClick={onSaveMonthly}
+              disabled={savingMonthly || !monthlyForm.content_summary.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-novax text-white text-sm font-medium rounded-lg hover:bg-novax-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingMonthly ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              {savingMonthly ? 'Saving...' : 'Save Update'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Context Status Banner ─────────────────────────────────────────────────────
+
+function ContextBanner({
+  hasStrategy, hasMonthly, quarterLabel, monthLabel,
+}: {
+  hasStrategy: boolean; hasMonthly: boolean; quarterLabel: string; monthLabel: string
+}) {
+  if (hasStrategy && hasMonthly) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <p className="text-sm text-emerald-700 font-medium">Strategy context complete — all analysis tools are active.</p>
+      </div>
+    )
+  }
+  const missing: string[] = []
+  if (!hasStrategy) missing.push(`${quarterLabel} strategy`)
+  if (!hasMonthly) missing.push(`${monthLabel} content update`)
+  return (
+    <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+      <p className="text-sm text-amber-700">
+        <span className="font-semibold">Analysis locked.</span>{' '}
+        Missing: {missing.join(' and ')}. Fill in the context above to enable generation.
+      </p>
+    </div>
+  )
+}
+
 // ─── Agency Health Tab ─────────────────────────────────────────────────────────
 
 function AgencyHealthTab({ clients, tasks, posts }: {
@@ -203,7 +462,6 @@ function AgencyHealthTab({ clients, tasks, posts }: {
 
   return (
     <div className="space-y-6">
-      {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {stats.map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="bg-white rounded-xl border border-slate-200 p-4">
@@ -216,7 +474,6 @@ function AgencyHealthTab({ clients, tasks, posts }: {
         ))}
       </div>
 
-      {/* Client health grid */}
       <div>
         <h3 className="text-sm font-semibold text-slate-700 mb-3">Client Health Overview</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -231,34 +488,19 @@ function AgencyHealthTab({ clients, tasks, posts }: {
             let HealthIcon: React.ElementType
 
             if (inCrisis) {
-              healthLabel = 'In Crisis'
-              healthColor = 'text-red-700'
-              healthBg = 'bg-red-50'
-              HealthIcon = AlertTriangle
+              healthLabel = 'In Crisis'; healthColor = 'text-red-700'; healthBg = 'bg-red-50'; HealthIcon = AlertTriangle
             } else if (clientOverdue.length > 0) {
-              healthLabel = 'At Risk'
-              healthColor = 'text-amber-700'
-              healthBg = 'bg-amber-50'
-              HealthIcon = TrendingDown
+              healthLabel = 'At Risk'; healthColor = 'text-amber-700'; healthBg = 'bg-amber-50'; HealthIcon = TrendingDown
             } else if (clientTasks.length > 0) {
-              healthLabel = 'Healthy'
-              healthColor = 'text-emerald-700'
-              healthBg = 'bg-emerald-50'
-              HealthIcon = TrendingUp
+              healthLabel = 'Healthy'; healthColor = 'text-emerald-700'; healthBg = 'bg-emerald-50'; HealthIcon = TrendingUp
             } else {
-              healthLabel = 'Quiet'
-              healthColor = 'text-slate-500'
-              healthBg = 'bg-slate-50'
-              HealthIcon = Minus
+              healthLabel = 'Quiet'; healthColor = 'text-slate-500'; healthBg = 'bg-slate-50'; HealthIcon = Minus
             }
 
             return (
               <div
                 key={client.id}
-                className={cn(
-                  'bg-white rounded-xl border p-4 flex items-center gap-4',
-                  inCrisis ? 'border-red-200' : 'border-slate-200'
-                )}
+                className={cn('bg-white rounded-xl border p-4 flex items-center gap-4', inCrisis ? 'border-red-200' : 'border-slate-200')}
               >
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
@@ -268,9 +510,7 @@ function AgencyHealthTab({ clients, tasks, posts }: {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-900 text-sm truncate">{client.name}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">
-                    {client.brand_identity?.industry ?? 'No industry set'}
-                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">{client.brand_identity?.industry ?? 'No industry set'}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 text-center">
                   <div>
@@ -292,9 +532,7 @@ function AgencyHealthTab({ clients, tasks, posts }: {
             )
           })}
           {clients.length === 0 && (
-            <div className="col-span-2 text-center py-8 text-slate-400 text-sm">
-              No clients found.
-            </div>
+            <div className="col-span-2 text-center py-8 text-slate-400 text-sm">No clients found.</div>
           )}
         </div>
       </div>
@@ -305,9 +543,23 @@ function AgencyHealthTab({ clients, tasks, posts }: {
 // ─── Strategy Intelligence Tab ─────────────────────────────────────────────────
 
 function StrategyIntelTab({ clients }: { clients: Client[] }) {
+  const { year: ctxYear, quarter: ctxQuarter } = getCurrentQuarterInfo()
+  const { year: mYear, month: mMonth } = getCurrentMonthInfo()
+  const quarterLabel = `Q${ctxQuarter} ${ctxYear}`
+  const monthLabel = `${MONTH_NAMES[mMonth - 1]} ${ctxYear}`
+
   const [selectedClient, setSelectedClient] = useState<string>('')
   const [selectedPeriod, setSelectedPeriod] = useState<string>('last quarter')
   const [brief, setBrief] = useState('')
+
+  // Context state
+  const [strategyData, setStrategyData] = useState<QuarterlyStrategy | null>(null)
+  const [monthlyData, setMonthlyData] = useState<MonthlyUpdate | null>(null)
+  const [contextLoading, setContextLoading] = useState(false)
+  const [strategyForm, setStrategyForm] = useState<QuarterlyStrategy>({ goals: '', themes: '', kpis: '', notes: '' })
+  const [monthlyForm, setMonthlyForm] = useState<MonthlyUpdate>({ content_summary: '', what_worked: '', what_didnt: '', posts_published: 0, notes: '' })
+  const [savingStrategy, setSavingStrategy] = useState(false)
+  const [savingMonthly, setSavingMonthly] = useState(false)
 
   const [results, setResults] = useState<Record<string, GeneratedResult>>({
     market_position: emptyResult(),
@@ -318,8 +570,69 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
 
   const client = clients.find(c => c.id === selectedClient) ?? null
 
-  const run = useCallback(async (tool: string, overrideClient?: Client | null, overrideBrief?: string) => {
-    const usedClient = overrideClient !== undefined ? overrideClient : client
+  // Derived context readiness
+  const hasStrategy = (strategyData?.goals?.trim() ?? '') !== '' && (strategyData?.themes?.trim() ?? '') !== ''
+  const hasMonthly = (monthlyData?.content_summary?.trim() ?? '') !== ''
+  const contextReady = !!selectedClient && hasStrategy && hasMonthly
+
+  // Fetch context when client changes
+  useEffect(() => {
+    if (!selectedClient) {
+      setStrategyData(null)
+      setMonthlyData(null)
+      setStrategyForm({ goals: '', themes: '', kpis: '', notes: '' })
+      setMonthlyForm({ content_summary: '', what_worked: '', what_didnt: '', posts_published: 0, notes: '' })
+      return
+    }
+    setContextLoading(true)
+    Promise.all([
+      fetch(`/api/ceo/quarterly-strategy?client_id=${selectedClient}&year=${ctxYear}&quarter=${ctxQuarter}`).then(r => r.json()),
+      fetch(`/api/ceo/monthly-update?client_id=${selectedClient}&year=${mYear}&month=${mMonth}`).then(r => r.json()),
+    ])
+      .then(([qRes, mRes]) => {
+        const q: QuarterlyStrategy | null = qRes.data ?? null
+        const m: MonthlyUpdate | null = mRes.data ?? null
+        setStrategyData(q)
+        setMonthlyData(m)
+        if (q) setStrategyForm({ goals: q.goals, themes: q.themes, kpis: q.kpis, notes: q.notes })
+        if (m) setMonthlyForm({ content_summary: m.content_summary, what_worked: m.what_worked, what_didnt: m.what_didnt, posts_published: m.posts_published, notes: m.notes })
+      })
+      .catch(console.error)
+      .finally(() => setContextLoading(false))
+  }, [selectedClient, ctxYear, ctxQuarter, mYear, mMonth])
+
+  const saveStrategy = async () => {
+    if (!selectedClient || !strategyForm.goals.trim() || !strategyForm.themes.trim()) return
+    setSavingStrategy(true)
+    try {
+      const res = await fetch('/api/ceo/quarterly-strategy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: selectedClient, year: ctxYear, quarter: ctxQuarter, ...strategyForm }),
+      })
+      const data = await res.json() as { data?: QuarterlyStrategy }
+      if (data.data) setStrategyData(data.data)
+    } catch (e) { console.error(e) }
+    finally { setSavingStrategy(false) }
+  }
+
+  const saveMonthly = async () => {
+    if (!selectedClient || !monthlyForm.content_summary.trim()) return
+    setSavingMonthly(true)
+    try {
+      const res = await fetch('/api/ceo/monthly-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: selectedClient, year: mYear, month: mMonth, ...monthlyForm }),
+      })
+      const data = await res.json() as { data?: MonthlyUpdate }
+      if (data.data) setMonthlyData(data.data)
+    } catch (e) { console.error(e) }
+    finally { setSavingMonthly(false) }
+  }
+
+  const run = useCallback(async (tool: string) => {
+    if (!contextReady) return
     setResults(prev => ({ ...prev, [tool]: { content: '', loading: true, error: null, expanded: false } }))
     try {
       const res = await fetch('/api/ceo/strategy', {
@@ -327,18 +640,23 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tool,
-          client_id: usedClient?.id,
-          client_name: usedClient?.name,
-          client_data: usedClient ? {
-            industry: usedClient.brand_identity?.industry,
-            brand_identity: usedClient.brand_identity,
-            competitor_context: usedClient.competitor_context,
-            performance_intel: usedClient.performance_intel,
-            is_in_crisis: usedClient.is_in_crisis,
-            status: usedClient.status,
+          client_id: client?.id,
+          client_name: client?.name,
+          client_data: client ? {
+            industry: client.brand_identity?.industry,
+            brand_identity: client.brand_identity,
+            competitor_context: client.competitor_context,
+            performance_intel: client.performance_intel,
+            is_in_crisis: client.is_in_crisis,
+            status: client.status,
           } : undefined,
-          brief: overrideBrief ?? brief,
+          brief,
           period: selectedPeriod,
+          quarterly_strategy: strategyData ? { goals: strategyData.goals, themes: strategyData.themes, kpis: strategyData.kpis, notes: strategyData.notes } : undefined,
+          monthly_update: monthlyData ? { content_summary: monthlyData.content_summary, what_worked: monthlyData.what_worked, what_didnt: monthlyData.what_didnt, posts_published: monthlyData.posts_published, notes: monthlyData.notes } : undefined,
+          context_year: ctxYear,
+          context_quarter: ctxQuarter,
+          context_month: mMonth,
         }),
       })
       const data = await res.json() as { result?: string; error?: string }
@@ -348,7 +666,7 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.'
       setResults(prev => ({ ...prev, [tool]: { content: '', loading: false, error: msg, expanded: false } }))
     }
-  }, [client, brief, selectedPeriod])
+  }, [client, brief, selectedPeriod, contextReady, strategyData, monthlyData, ctxYear, ctxQuarter, mMonth])
 
   const toggleExpand = (tool: string) => {
     setResults(prev => ({ ...prev, [tool]: { ...prev[tool], expanded: !prev[tool].expanded } }))
@@ -356,7 +674,7 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
 
   return (
     <div className="space-y-5">
-      {/* Client selector */}
+      {/* Context selectors */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Context</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -389,11 +707,41 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
         </div>
       </div>
 
+      {/* Client strategy context (shown when a client is selected) */}
+      {selectedClient && (
+        <ClientContextCard
+          clientId={selectedClient}
+          strategyForm={strategyForm}
+          monthlyForm={monthlyForm}
+          hasStrategy={hasStrategy}
+          hasMonthly={hasMonthly}
+          saving={savingStrategy}
+          savingMonthly={savingMonthly}
+          loading={contextLoading}
+          quarterLabel={quarterLabel}
+          monthLabel={monthLabel}
+          onStrategyChange={setStrategyForm}
+          onMonthlyChange={setMonthlyForm}
+          onSaveStrategy={saveStrategy}
+          onSaveMonthly={saveMonthly}
+        />
+      )}
+
+      {/* Context status banner */}
+      {selectedClient && !contextLoading && (
+        <ContextBanner
+          hasStrategy={hasStrategy}
+          hasMonthly={hasMonthly}
+          quarterLabel={quarterLabel}
+          monthLabel={monthLabel}
+        />
+      )}
+
       {/* Market Position */}
       <ActionCard icon={Target} title="Market Position Analysis" description="Deep competitive position assessment with differentiation strategy and CEO-level positioning read.">
         <button
           onClick={() => run('market_position')}
-          disabled={!selectedClient || results['market_position'].loading}
+          disabled={!contextReady || results['market_position'].loading}
           className="flex items-center gap-2 px-4 py-2 bg-novax text-white text-sm font-medium rounded-lg hover:bg-novax-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {results['market_position'].loading
@@ -402,6 +750,9 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
           {results['market_position'].loading ? 'Analysing...' : 'Analyse Position'}
         </button>
         {!selectedClient && <p className="text-xs text-slate-400">Select a client above to run this analysis.</p>}
+        {selectedClient && !contextReady && !contextLoading && (
+          <p className="text-xs text-amber-600">Complete the strategy context above to enable this tool.</p>
+        )}
         <ResultPanel result={results['market_position']} onToggle={() => toggleExpand('market_position')} />
       </ActionCard>
 
@@ -419,7 +770,7 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
         </div>
         <button
           onClick={() => run('campaign_concepts')}
-          disabled={!brief.trim() || results['campaign_concepts'].loading}
+          disabled={!brief.trim() || !contextReady || results['campaign_concepts'].loading}
           className="flex items-center gap-2 px-4 py-2 bg-novax text-white text-sm font-medium rounded-lg hover:bg-novax-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {results['campaign_concepts'].loading
@@ -427,6 +778,10 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
             : <Lightbulb className="w-4 h-4" />}
           {results['campaign_concepts'].loading ? 'Generating...' : 'Generate Concepts'}
         </button>
+        {!selectedClient && <p className="text-xs text-slate-400">Select a client and fill in context above, then enter a brief.</p>}
+        {selectedClient && !contextReady && !contextLoading && (
+          <p className="text-xs text-amber-600">Complete the strategy context above to enable this tool.</p>
+        )}
         <ResultPanel result={results['campaign_concepts']} onToggle={() => toggleExpand('campaign_concepts')} />
       </ActionCard>
 
@@ -434,7 +789,7 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
       <ActionCard icon={BarChart2} title="Content Strategy Audit" description="Evidence-based audit of current strategy alignment, content pillar performance, and 90-day recommendations.">
         <button
           onClick={() => run('content_audit')}
-          disabled={!selectedClient || results['content_audit'].loading}
+          disabled={!contextReady || results['content_audit'].loading}
           className="flex items-center gap-2 px-4 py-2 bg-novax text-white text-sm font-medium rounded-lg hover:bg-novax-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {results['content_audit'].loading
@@ -443,6 +798,9 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
           {results['content_audit'].loading ? 'Auditing...' : 'Run Audit'}
         </button>
         {!selectedClient && <p className="text-xs text-slate-400">Select a client above to run this analysis.</p>}
+        {selectedClient && !contextReady && !contextLoading && (
+          <p className="text-xs text-amber-600">Complete the strategy context above to enable this tool.</p>
+        )}
         <ResultPanel result={results['content_audit']} onToggle={() => toggleExpand('content_audit')} />
       </ActionCard>
 
@@ -450,7 +808,7 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
       <ActionCard icon={GitBranch} title="Quarterly Narrative" description="CEO-ready strategic narrative for client review, board-level summary, and 90-day commitment statement.">
         <button
           onClick={() => run('quarterly_narrative')}
-          disabled={!selectedClient || results['quarterly_narrative'].loading}
+          disabled={!contextReady || results['quarterly_narrative'].loading}
           className="flex items-center gap-2 px-4 py-2 bg-novax text-white text-sm font-medium rounded-lg hover:bg-novax-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {results['quarterly_narrative'].loading
@@ -459,6 +817,9 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
           {results['quarterly_narrative'].loading ? 'Writing...' : 'Generate Narrative'}
         </button>
         {!selectedClient && <p className="text-xs text-slate-400">Select a client above to run this analysis.</p>}
+        {selectedClient && !contextReady && !contextLoading && (
+          <p className="text-xs text-amber-600">Complete the strategy context above to enable this tool.</p>
+        )}
         <ResultPanel result={results['quarterly_narrative']} onToggle={() => toggleExpand('quarterly_narrative')} />
       </ActionCard>
     </div>
@@ -533,7 +894,6 @@ function CrisisTab({ clients }: { clients: Client[] }) {
 
       {crisisClients.map(client => (
         <div key={client.id} className="bg-white rounded-xl border border-red-200 overflow-hidden">
-          {/* Client header */}
           <div className="flex items-center gap-3 px-5 py-4 bg-red-50 border-b border-red-200">
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
@@ -551,7 +911,6 @@ function CrisisTab({ clients }: { clients: Client[] }) {
             </span>
           </div>
 
-          {/* Crisis tools */}
           <div className="p-5 space-y-4">
             {/* Situation Assessment */}
             <div className="space-y-2">
@@ -752,7 +1111,6 @@ export default function CeoPage() {
   const { tasks, isLoading: tasksLoading } = useTasks()
   const { posts, isLoading: postsLoading } = usePosts()
 
-  // Role guard
   if (!loading && user && user.role !== 'ceo' && user.role !== 'admin') {
     router.replace('/dashboard')
     return null
@@ -777,7 +1135,6 @@ export default function CeoPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      {/* Page header */}
       <div className="flex items-start gap-4">
         <div className="w-11 h-11 rounded-xl bg-novax flex items-center justify-center shrink-0">
           <Crown className="w-5 h-5 text-white" />
@@ -790,7 +1147,6 @@ export default function CeoPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl">
         {tabs.map(({ id, icon, label }) => (
           <div key={id} className="relative">
@@ -804,7 +1160,6 @@ export default function CeoPage() {
         ))}
       </div>
 
-      {/* Tab content */}
       {activeTab === 'health' && (
         <AgencyHealthTab clients={clients} tasks={tasks} posts={posts} />
       )}

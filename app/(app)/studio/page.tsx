@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Zap, Wand2, Brain, Flame, BarChart2, Target, TrendingUp,
-  ArrowRight, Sparkles, BookOpen,
+  ArrowRight, Sparkles, BookOpen, Clapperboard,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
@@ -68,6 +68,17 @@ const TOOLS = [
     dark: false,
     cta: 'Browse Trends',
   },
+  {
+    href: '/studio/visual',
+    icon: Clapperboard,
+    title: 'Visual Content Engine',
+    description: 'Full AI video pipeline. Brief → 3 creative approaches → connected scene prompts for Midjourney, Kling, Higgsfield, Veo3.',
+    badge: 'New',
+    badgeColor: 'bg-amber-100 text-amber-800',
+    gradient: false,
+    dark: false,
+    cta: 'Create Video',
+  },
 ]
 
 const QUICK_LINKS = [
@@ -100,6 +111,7 @@ export default function StudioPage() {
       strategy:   '/studio/strategy',
       campaign:   '/studio/campaign',
       postmortem: '/studio/postmortem',
+      visual:     '/studio/visual',
     }
     const route = routes[session.tool]
     if (route) router.push(`${route}?session_id=${session.id}`)

@@ -5,8 +5,21 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { geminiJson } from '@/lib/gemini'
 import type { PostMortemAnalysis, PostMortemDiagnosis } from '@/lib/studio-types'
+
+const HAS_DB = !!(
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
+function adminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 // ─── Request types ────────────────────────────────────────────
 
@@ -266,6 +279,26 @@ export async function POST(req: NextRequest) {
     analyses,
     verdict:          verdictData.verdict,
     rerun_constraints: verdictData.rerun_constraints,
+  }
+
+  // Save diagnosis to the studio session when session_id is provided
+  if (body.session_id && HAS_DB) {
+    const db = adminSupabase()
+    const { data: existing } = await db
+      .from('studio_sessions')
+      .select('outputs')
+      .eq('id', body.session_id)
+      .single()
+
+    await db.from('studio_sessions').update({
+      status: 'complete',
+      performance: body.performance,
+      outputs: {
+        ...(existing?.outputs as Record<string, unknown> ?? {}),
+        postmortem: diagnosis,
+      },
+      updated_at: new Date().toISOString(),
+    }).eq('id', body.session_id)
   }
 
   return NextResponse.json(diagnosis)

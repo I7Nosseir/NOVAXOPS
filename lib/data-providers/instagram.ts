@@ -181,33 +181,69 @@ export async function fetchInstagramPosts(
   const hashtags = await resolveHashtags(niche, region)
   if (!hashtags.length) return []
 
+  // ── Async-with-wait strategy ──────────────────────────────────
+  // run-sync-get-dataset-items always times out for Instagram because
+  // the scraper needs 30-90s to load Instagram's JS app.
+  //
+  // Instead: launch the run async, wait 14s (in parallel with other
+  // platform fetchers), then fetch whatever has been scraped so far.
+  // With 8192MB memory the actor starts in ~3s and collects 10-20
+  // posts in the first 10s — enough for a useful result set.
+  // ──────────────────────────────────────────────────────────────
+
   try {
-    // 25s Apify run timeout + 512MB memory for faster actor startup
-    // run-sync-get-dataset-items blocks until run completes or timeout
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items?token=${key}&timeout=25&memory=512`,
+    // Step 1 — Start the Apify run asynchronously (don't block)
+    const startRes = await fetch(
+      `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/runs?token=${key}&memory=8192`,
       {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          hashtags:          hashtags,
-          resultsLimit:      10,
-          resultsType:       'posts',
-          addParentData:     false,
-          isUserReelFeedURL: false,
-          isUserTaggedFeedURL: false,
+          hashtags:      hashtags.slice(0, 2), // 2 hashtags = faster first results
+          resultsLimit:  20,
+          resultsType:   'posts',
+          addParentData: false,
         }),
-        signal: AbortSignal.timeout(30_000), // 30s client-side hard timeout
+        signal: AbortSignal.timeout(8_000), // just starting the run, should be fast
       }
     )
 
-    if (!res.ok) {
-      console.error(`[instagram] Apify returned ${res.status} — hashtags: ${hashtags.join(', ')}`)
+    if (!startRes.ok) {
+      console.error(`[instagram] Apify start returned ${startRes.status} for niche "${niche}"`)
       return []
     }
 
-    const items = await res.json() as ApifyInstagramPost[]
-    if (!Array.isArray(items)) return []
+    const startData = await startRes.json() as { data?: { id?: string; defaultDatasetId?: string } }
+    const runId     = startData?.data?.id
+    if (!runId) {
+      console.error('[instagram] No runId in Apify response')
+      return []
+    }
+
+    // Step 2 — Wait 14s for the actor to collect initial results
+    // This runs in parallel with YouTube/TikTok/Pinterest fetches
+    // so it doesn't add much to total response time
+    await new Promise<void>(resolve => setTimeout(resolve, 14_000))
+
+    // Step 3 — Fetch whatever has been scraped so far (partial is fine)
+    const dataRes = await fetch(
+      `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${key}&limit=25&desc=false`,
+      { signal: AbortSignal.timeout(6_000) }
+    )
+
+    if (!dataRes.ok) {
+      console.error(`[instagram] Dataset fetch returned ${dataRes.status}`)
+      return []
+    }
+
+    const raw = await dataRes.json() as ApifyInstagramPost[] | { items?: ApifyInstagramPost[] }
+    // Apify dataset endpoint returns either a plain array or { items: [...] }
+    const items: ApifyInstagramPost[] = Array.isArray(raw) ? raw : (raw as { items?: ApifyInstagramPost[] }).items ?? []
+
+    if (!items.length) {
+      console.warn(`[instagram] 0 items scraped in 14s for niche "${niche}" — run ${runId} may still be running`)
+      return []
+    }
 
     return items
       .filter(p => p.shortCode && !p.isSponsored && !isIndianPost(p))
@@ -232,7 +268,7 @@ export async function fetchInstagramPosts(
           timestamp:    p.timestamp ?? '',
         }
       })
-      // Sort: Reels first, then by engagement
+      // Sort: Reels first, then by engagement rate
       .sort((a, b) => {
         if (a.type === 'reel' && b.type !== 'reel') return -1
         if (b.type === 'reel' && a.type !== 'reel') return 1
@@ -240,10 +276,10 @@ export async function fetchInstagramPosts(
         const erB = b.viewCount > 0 ? (b.likeCount + b.commentCount) / b.viewCount : 0
         return erB - erA || b.likeCount - a.likeCount
       })
-      .slice(0, 12)
+      .slice(0, 16)
 
   } catch (err) {
-    console.warn('[instagram] fetch failed:', err)
+    console.error('[instagram] fetch failed:', err)
     return []
   }
 }

@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
   ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2, ListTodo, ScanSearch, FileText,
-  Zap, Brain, Crown,
+  Zap, Brain, Crown, Clapperboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -44,10 +44,11 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Studio',
     items: [
-      { href: '/studio',          icon: Zap,      label: 'Studio' },
-      { href: '/studio/content',  icon: Sparkles, label: 'Content Studio' },
-      { href: '/studio/hooks',    icon: Wand2,    label: 'Hook Lab' },
-      { href: '/studio/strategy', icon: Brain,    label: 'Strategy' },
+      { href: '/studio',          icon: Zap,          label: 'Studio' },
+      { href: '/studio/content',  icon: Sparkles,     label: 'Content Studio' },
+      { href: '/studio/hooks',    icon: Wand2,         label: 'Hook Lab' },
+      { href: '/studio/strategy', icon: Brain,         label: 'Strategy' },
+      { href: '/studio/visual',   icon: Clapperboard,  label: 'Visual Engine' },
     ],
   },
   {
@@ -63,6 +64,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Intelligence',
     items: [
+      { href: '/assistant',   icon: Sparkles,   label: 'AI Assistant',    permKey: 'assistant' },
       { href: '/performance', icon: TrendingUp, label: 'Performance',     permKey: 'performance' },
       { href: '/workload',    icon: Users,      label: 'Workload',        permKey: 'workload' },
       { href: '/library',     icon: BookMarked, label: 'Content Library', permKey: 'library' },

@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/types'
+import { MarkdownContent } from '@/components/ui/markdown-content'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -451,7 +452,7 @@ function ToolItem({ tool, role, isOpen, onToggle, clients }: ToolItemProps) {
           {result && (
             <div className="relative">
               <div className="p-3 bg-novax-light border border-novax-border rounded-lg max-h-52 overflow-y-auto">
-                <p className="text-[11px] text-slate-700 whitespace-pre-wrap leading-relaxed">{result}</p>
+                <MarkdownContent content={result} size="xs" />
               </div>
               <button
                 onClick={handleCopy}
@@ -506,26 +507,30 @@ export function RoleToolsPanel() {
 
   return (
     <>
-      {/* Floating trigger button — sits at bottom-6, offset left of MyTasksFloat */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        className={cn(
-          'fixed bottom-6 right-24 z-50 flex items-center gap-2 px-3.5 py-2.5 rounded-2xl shadow-lg transition-all duration-200 text-sm font-semibold',
-          open
-            ? 'bg-novax-hover text-white shadow-xl'
-            : 'bg-novax text-white hover:bg-novax-hover hover:shadow-xl',
-        )}
-        title="Role Tools"
-      >
-        <Wrench className="w-3.5 h-3.5"/>
-        <span className="hidden sm:inline">Tools</span>
-      </button>
+      {/* Floating trigger — compact icon, stacked above MyTasksFloat */}
+      <div className="fixed bottom-[8.5rem] right-6 z-50 group">
+        <button
+          onClick={() => setOpen(v => !v)}
+          className={cn(
+            'w-11 h-11 rounded-xl flex items-center justify-center shadow-md transition-all duration-200',
+            open
+              ? 'bg-novax-hover text-white shadow-lg'
+              : 'bg-novax text-white hover:bg-novax-hover hover:shadow-lg',
+          )}
+          title="Role Tools"
+        >
+          <Wrench className="w-4 h-4"/>
+        </button>
+        <span className="absolute right-14 top-1/2 -translate-y-1/2 whitespace-nowrap bg-slate-800 text-white text-xs font-medium px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          Quick Tools
+        </span>
+      </div>
 
       {/* Panel — slides up from trigger */}
       {open && (
         <div
           ref={panelRef}
-          className="fixed bottom-20 right-24 z-50 w-[380px] max-h-[500px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+          className="fixed bottom-[12rem] right-6 z-50 w-[380px] max-h-[55vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
           style={{ animation: 'slideUp 0.18s ease-out' }}
         >
           {/* Header */}

@@ -6,8 +6,21 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { geminiJson }                from '@/lib/gemini'
 import type { TrendingContentItem }  from '@/app/api/studio/trending-content/route'
+
+const HAS_DB = !!(
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
+function adminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 export interface ContentFormula {
   name:       string  // e.g. "The Before/After Transformation"
@@ -124,6 +137,16 @@ Rules:
       temperature:     0.3,
       maxOutputTokens: 2000,
     })
+
+    // Persist to ai_generation_cache (fire-and-forget)
+    if (HAS_DB) {
+      const db = adminSupabase()
+      void db.from('ai_generation_cache').insert({
+        generation_type: 'inspiration_analysis',
+        context_id: `${industry}|${region}`,
+        output_json: { analysis, analyzed_count: toAnalyze.length, industry, region },
+      })
+    }
 
     return NextResponse.json({
       analysis,

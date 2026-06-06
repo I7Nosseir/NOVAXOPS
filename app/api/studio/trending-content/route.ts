@@ -280,7 +280,7 @@ async function regionalChart(
     url.searchParams.set('part', 'id')
     url.searchParams.set('chart', 'mostPopular')
     url.searchParams.set('regionCode', regionCode)
-    url.searchParams.set('maxResults', '15')
+    url.searchParams.set('maxResults', '25')
     if (categoryId) url.searchParams.set('videoCategoryId', categoryId)
     url.searchParams.set('key', key)
     const res  = await fetch(url.toString())
@@ -544,7 +544,7 @@ Formats: Tutorial | Review | Educational | Vlog | Transformation | Product Demo 
 
   try {
     const ranked = await geminiJson<Array<{ score: number; format: string; insight: string }>>(
-      prompt, undefined, { temperature: 0.2, maxOutputTokens: 1500 }
+      prompt, undefined, { temperature: 0.2, maxOutputTokens: 4000 }
     )
 
     if (!Array.isArray(ranked) || ranked.length !== videos.length) {
@@ -593,7 +593,7 @@ async function getYouTubeItems(industry: string, region: string, period = '30d')
     ...seedItems.map(s => s.videoId),
     ...chartIds,
     ...expandedIds,
-  ])].slice(0, 75) // cap at 75 (YouTube videos.list supports up to 50/call, we batch)
+  ])].slice(0, 100) // cap at 100 (YouTube videos.list batches at 50, so 2 calls)
 
   // Phase 4: enrich
   const enriched = await enrichVideos(allIds, seedMap, KEY)
@@ -612,9 +612,9 @@ async function getYouTubeItems(industry: string, region: string, period = '30d')
   // Phase 5: AI rank
   const ranked = await aiRankVideos(toRank, industry, region)
 
-  // Sort by AI score descending, drop low-quality items
+  // Sort by AI score descending, keep score >= 4 for variety
   ranked.sort((a, b) => b.ai_score - a.ai_score || b.viewCount - a.viewCount)
-  const quality = ranked.filter(v => v.ai_score >= 5)
+  const quality = ranked.filter(v => v.ai_score >= 4)
 
   return quality.map(v => {
     const url      = `https://www.youtube.com/watch?v=${v.videoId}`
@@ -854,7 +854,7 @@ export async function GET(req: NextRequest) {
   const period    = searchParams.get('period')    ?? '30d'
   const aiFilter_ = searchParams.get('ai_filter') === 'true'
   const minViews  = parseInt(searchParams.get('min_views') ?? '0', 10)
-  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '36', 10), 60)
+  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '48', 10), 80)
 
   try {
     // Run all platform fetchers in parallel
