@@ -173,16 +173,41 @@ export default function ContentStudioPage() {
 
   // ── Session click: load a previous session's document ──────────────────────
   function handleSessionClick(session: StudioSession) {
-    if (session.status === 'complete' && session.outputs) {
-      const doc = (session.outputs as { content?: ContentDocument }).content ?? null
-      if (doc) {
-        setContentDoc(doc)
-        setBossBrief(session.boss_brief ?? null)
-        setChatHistory(session.chat_history ?? [])
-        setSessionId(session.id)
-        setPageState('document')
-      }
+    if (session.status !== 'complete' || !session.outputs) {
+      setError('This session did not complete. Start a new session below.')
+      return
     }
+    const raw = (session.outputs as { content?: ContentDocument }).content ?? null
+    if (!raw) {
+      setError('Session output is empty. Start a new session.')
+      return
+    }
+    // Normalise: legacy sessions may have stored the page-shape (selected_hook / caption / broll_list)
+    // Convert to canonical shape so the renderer works
+    const doc: ContentDocument = raw.hook ? raw : {
+      ...raw,
+      hook: raw.selected_hook ? {
+        text:        raw.selected_hook.hook_text,
+        type:        raw.selected_hook.hook_type,
+        tier:        raw.selected_hook.virality_tier,
+        score:       raw.selected_hook.total_score,
+        clarity:     raw.selected_hook.clarity_score,
+        context:     raw.selected_hook.context_score,
+        curiosity:   raw.selected_hook.curiosity_score,
+        why_selected: raw.selected_hook.why_selected,
+      } : null,
+      script_sections:       raw.script?.sections ?? raw.script_sections ?? [],
+      total_duration:        raw.script?.total_duration ?? raw.total_duration,
+      production_difficulty: raw.script?.production_difficulty ?? raw.production_difficulty,
+      brand_compliance_notes: raw.script?.brand_compliance_notes ?? raw.brand_compliance_notes,
+      key_broll_list:        raw.broll_list ?? raw.key_broll_list ?? [],
+      caption_preview:       raw.caption ?? raw.caption_preview ?? '',
+    }
+    setContentDoc(doc)
+    setBossBrief(session.boss_brief ?? null)
+    setChatHistory(session.chat_history ?? [])
+    setSessionId(session.id)
+    setPageState('document')
   }
 
   // ── Wait for user to answer the inline question ─────────────────────────────
@@ -334,36 +359,33 @@ export default function ContentStudioPage() {
       setBossBrief(bb)
       completeStep(7)
 
-      // Step 9: Assemble ContentDocument
+      // Step 9: Assemble ContentDocument — use canonical shape the renderer reads
       startStep(8)
       const doc: ContentDocument = {
-        what_we_built: `Content for ${selectedClient?.name ?? 'client'} targeting ${inputs.audience} audience on ${inputs.platforms.join(', ')}.`,
+        // Canonical fields — renderer reads these directly
+        hook: bestHook ? {
+          text:        bestHook.hook_text,
+          type:        bestHook.hook_type,
+          tier:        bestHook.virality_tier as 'S' | 'A' | 'B' | 'C',
+          score:       bestHook.total_score,
+          clarity:     bestHook.clarity_score,
+          context:     bestHook.context_score,
+          curiosity:   bestHook.curiosity_score,
+          why_selected: `Highest 3C score in batch. Activates ${emotionalTrigger || 'target'} emotion.`,
+        } : null,
         audience_intelligence: {
-          functional_job:  `Consuming this content accomplishes: ${inputs.goal.toLowerCase()}.`,
-          emotional_job:   `After watching: the audience should feel ${emotionalTrigger || 'engaged and informed'}.`,
-          social_job:      `If they share this, it signals they are informed and forward-thinking.`,
+          functional_job: `Consuming this content accomplishes: ${inputs.goal.toLowerCase()}.`,
+          emotional_job:  `After watching: the audience should feel ${emotionalTrigger || 'engaged and informed'}.`,
+          social_job:     `If they share this, it signals they are informed and forward-thinking.`,
         },
-        selected_hook: bestHook ? {
-          hook_text:      bestHook.hook_text,
-          hook_type:      bestHook.hook_type,
-          virality_tier:  bestHook.virality_tier as 'S' | 'A' | 'B' | 'C',
-          clarity_score:  bestHook.clarity_score,
-          context_score:  bestHook.context_score,
-          curiosity_score: bestHook.curiosity_score,
-          total_score:    bestHook.total_score,
-          why_selected:   `Highest 3C score in batch. Activates ${emotionalTrigger || 'target'} emotion.`,
-        } : null,
-        script: scriptData.script ? {
-          sections:              scriptData.script.script_sections,
-          total_duration:        scriptData.script.total_duration,
-          production_difficulty: scriptData.script.production_difficulty,
-          brand_compliance_notes: scriptData.script.brand_compliance_notes,
-        } : null,
-        broll_list: scriptData.script?.key_broll_list ?? [],
-        caption:    scriptData.script?.caption_preview ?? '',
-        platforms:  inputs.platforms,
-        language:   inputs.language,
-        cold_start: false,
+        script_sections:       scriptData.script?.script_sections ?? [],
+        total_duration:        scriptData.script?.total_duration,
+        production_difficulty: scriptData.script?.production_difficulty,
+        brand_compliance_notes: scriptData.script?.brand_compliance_notes,
+        key_broll_list:        scriptData.script?.key_broll_list ?? [],
+        caption_preview:       scriptData.script?.caption_preview ?? '',
+        platforms:             inputs.platforms,
+        language:              inputs.language,
       }
       setContentDoc(doc)
       completeStep(8)
@@ -439,27 +461,28 @@ export default function ContentStudioPage() {
       `Brief: ${inputs.brief}`,
       '',
     ]
-    if (contentDoc.selected_hook) {
-      lines.push(`HOOK [${contentDoc.selected_hook.virality_tier}] ${contentDoc.selected_hook.total_score}/30`)
-      lines.push(contentDoc.selected_hook.hook_text)
+    const hook = contentDoc.hook
+    if (hook) {
+      lines.push(`HOOK [${hook.tier}] ${hook.score}/30`)
+      lines.push(hook.text)
       lines.push('')
     }
-    if (contentDoc.script?.sections) {
-      lines.push(`SCRIPT (${contentDoc.script.total_duration})`)
+    if (contentDoc.script_sections?.length) {
+      lines.push(`SCRIPT (${contentDoc.total_duration ?? ''})`)
       lines.push('─'.repeat(50))
-      for (const s of contentDoc.script.sections) {
+      for (const s of contentDoc.script_sections) {
         lines.push(`\n[${s.section}] — ${s.duration_estimate}`)
         for (const l of s.lines) lines.push(`  ${l}`)
         if (s.visual_note) lines.push(`  Visual: ${s.visual_note}`)
       }
     }
-    if (contentDoc.caption) {
+    if (contentDoc.caption_preview) {
       lines.push('\nCAPTION:')
-      lines.push(contentDoc.caption)
+      lines.push(contentDoc.caption_preview)
     }
-    if (contentDoc.broll_list?.length) {
+    if (contentDoc.key_broll_list?.length) {
       lines.push('\nB-ROLL LIST:')
-      for (const b of contentDoc.broll_list) lines.push(`  - ${b}`)
+      for (const b of contentDoc.key_broll_list) lines.push(`  - ${b}`)
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
     const url  = URL.createObjectURL(blob)
@@ -744,12 +767,11 @@ export default function ContentStudioPage() {
             <StudioSaveActions
               client={selectedClient}
               contentSummary={[
-                contentDoc.selected_hook?.hook_text ?? contentDoc.hook?.text ?? '',
-                contentDoc.what_we_built ?? '',
+                contentDoc.hook?.text ?? '',
                 contentDoc.caption_preview ?? '',
               ].filter(Boolean).join('\n\n')}
               documentTitle={`${selectedClient?.name ?? 'Content'} — ${inputs.platforms[0] ?? 'Studio'} Content`}
-              taskTitle={contentDoc.selected_hook?.hook_text ?? inputs.brief}
+              taskTitle={contentDoc.hook?.text ?? inputs.brief}
               taskDescription={inputs.brief}
             />
           </div>
