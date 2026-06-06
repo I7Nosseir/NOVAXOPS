@@ -12,7 +12,7 @@ import {
   FileText, TrendingUp, Eye, BarChart2, ArrowUpRight, ArrowDownRight,
   AlertCircle, Activity, Calendar, RefreshCw, Sparkles, Printer, Check,
   Heart, MessageCircle, Share2, Users, Link2,
-  Folder, FolderOpen, ChevronDown, ChevronRight, ChevronUp, Trash2, DollarSign,
+  Folder, FolderOpen, ChevronDown, ChevronRight, ChevronUp, Trash2,
 } from 'lucide-react'
 
 // ─── Brand palette ─────────────────────────────────────────────────────────────
@@ -836,7 +836,6 @@ export default function ReportsPage() {
   const [exportingPdf, setExportingPdf]           = useState(false) // unused but kept for future
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(ALL_PLATFORMS)
   const [language, setLanguage]                   = useState<'en' | 'ar'>('en')
-  const [reportCost, setReportCost]               = useState<{ inputTokens: number; outputTokens: number; totalTokens: number; estimatedUsd: number; model: string } | null>(null)
 
   // ── Library ──────────────────────────────────────────
   const [savedReports, setSavedReports]           = useState<SavedReport[]>([])
@@ -955,7 +954,6 @@ export default function ReportsPage() {
     setDataError(null)
     setAiError(null)
     setAiReport(null)
-    setReportCost(null)
 
     const range = parsePeriodToRange(period)
     if (!range) {
@@ -990,7 +988,6 @@ export default function ReportsPage() {
         _mock?: boolean
         _geminiError?: string
         error?: string
-        aiCost?: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedUsd: number; model: string }
       }
 
       if (!res.ok) {
@@ -1012,7 +1009,7 @@ export default function ReportsPage() {
         if (data.narrative && data.meta && !data._mock) {
           setAiReport({ narrative: data.narrative, meta: data.meta })
         }
-        if (data.aiCost) setReportCost(data.aiCost)
+
 
         // Auto-save to library (fire and forget — non-blocking)
         if (!data._mock && data.stats && Object.values(data.stats).some(v => Number(v) > 0)) {
@@ -1133,15 +1130,6 @@ export default function ReportsPage() {
               {generated && aiReport && !aiError && (
                 <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg" style={{ background: B.light, color: B.primary }}>
                   <Sparkles className="w-3 h-3"/> AI Analysis
-                </span>
-              )}
-              {generated && reportCost && (
-                <span
-                  className="flex items-center gap-1 text-xs text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg"
-                  title={`${reportCost.inputTokens.toLocaleString()} input + ${reportCost.outputTokens.toLocaleString()} output tokens · ${reportCost.model}`}
-                >
-                  <DollarSign className="w-3 h-3"/>
-                  {reportCost.estimatedUsd < 0.001 ? '<$0.001' : `$${reportCost.estimatedUsd.toFixed(4)}`}
                 </span>
               )}
               {generated && aiError && (
