@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
 
 interface StrategyRequest {
   client_id: string
@@ -189,8 +190,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid meta phase' }, { status: 400 })
   }
 
-  const prompt = promptFn(body)
+  let prompt = promptFn(body)
   let raw = ''
+
+  // Inject client intelligence
+  if (body.client_id) {
+    const db = adminSupabase()
+    if (db) {
+      const block = await buildClientIntelligenceBlock(body.client_id, 'strategy', db).catch(() => '')
+      if (block) prompt = prompt + block
+    }
+  }
 
   if (anthropicKey) {
     const anthropic = new Anthropic({ apiKey: anthropicKey })

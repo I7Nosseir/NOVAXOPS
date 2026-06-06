@@ -9,6 +9,11 @@ export interface StudioLoadingStep {
   insight?: string
 }
 
+export interface StudioLoadingQuestion {
+  question: string
+  options: string[]
+}
+
 export interface StudioLoadingProps {
   steps: StudioLoadingStep[]
   sessionName?: string
@@ -16,6 +21,9 @@ export interface StudioLoadingProps {
   elapsedSeconds?: number
   totalSteps?: number
   completedSteps?: number
+  /** When set, loading pauses and displays this question inline */
+  pausedQuestion?: StudioLoadingQuestion | null
+  onQuestionAnswer?: (answer: string) => void
 }
 
 const TOOL_LABELS: Record<StudioLoadingProps['tool'], string> = {
@@ -33,6 +41,8 @@ export function StudioLoading({
   elapsedSeconds,
   totalSteps,
   completedSteps,
+  pausedQuestion,
+  onQuestionAnswer,
 }: StudioLoadingProps) {
   const allPending = steps.every(s => s.status === 'pending')
   const progressPercent =
@@ -121,8 +131,32 @@ export function StudioLoading({
           </div>
         )}
 
+        {/* Inline question pause card */}
+        {pausedQuestion && (
+          <div className="mt-8 bg-novax-light border border-novax-border rounded-2xl p-5 space-y-4">
+            <div className="flex items-start gap-2">
+              <Loader2 className="w-4 h-4 text-novax-accent mt-0.5 shrink-0 animate-spin" />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-novax-muted mb-1">One quick question</p>
+                <p className="text-sm font-semibold text-novax leading-snug">{pausedQuestion.question}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {pausedQuestion.options.map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => onQuestionAnswer?.(opt)}
+                  className="px-3 py-2 text-xs font-medium bg-white border border-novax-border text-novax rounded-xl hover:bg-novax hover:text-white transition-all"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Elapsed time */}
-        {typeof elapsedSeconds === 'number' && elapsedSeconds > 0 && (
+        {typeof elapsedSeconds === 'number' && elapsedSeconds > 0 && !pausedQuestion && (
           <p className="text-xs text-slate-400 mt-4 text-right">
             {elapsedSeconds}s elapsed
           </p>

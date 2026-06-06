@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
 
 interface ScriptRequest {
   platform: string
@@ -15,6 +16,7 @@ interface ScriptRequest {
   brand_voice?: string
   key_messages?: string[]
   client_name?: string
+  client_id?: string
   language?: string
   dialect?: string
 }
@@ -109,8 +111,17 @@ export async function POST(
     return NextResponse.json({ error: 'hook is required — complete Phase 3 first' }, { status: 400 })
   }
 
-  const prompt = SCRIPT_PROMPT(body)
+  let prompt = SCRIPT_PROMPT(body)
   let raw = ''
+
+  // Inject client intelligence
+  if (body.client_id) {
+    const db = adminSupabase()
+    if (db) {
+      const block = await buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => '')
+      if (block) prompt = prompt + block
+    }
+  }
 
   if (anthropicKey) {
     const anthropic = new Anthropic({ apiKey: anthropicKey })

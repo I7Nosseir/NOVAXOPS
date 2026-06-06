@@ -5,6 +5,7 @@
 import { NextRequest } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
+import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
 
 const MODEL_STANDARD = 'claude-sonnet-4-6'
 const MODEL_CEO      = 'claude-opus-4-7'
@@ -147,14 +148,75 @@ async function fetchPerformanceSummary(db: SupabaseClient, clientId: string): Pr
   } catch { return '' }
 }
 
+// ── CEO: Cross-client agency intelligence ─────────────────────
+
+async function fetchCeoAgencyBriefing(db: SupabaseClient): Promise<string> {
+  try {
+    const now = new Date()
+    const quarter = Math.ceil((now.getMonth() + 1) / 3)
+    const year = now.getFullYear()
+
+    const [clientsRes, tasksRes, approvalsRes, moderationRes, ctxRes, stratRes] = await Promise.all([
+      db.from('clients').select('id,name,is_in_crisis,status,brand_identity_json').eq('status', 'active'),
+      db.from('tasks').select('id,client_id,status,due_date,pipeline_stage').eq('status', 'active'),
+      db.from('approval_requests').select('id,status').eq('status', 'pending'),
+      db.from('moderation_items').select('id,status').eq('status', 'pending'),
+      db.from('client_context_bank').select('client_id,category,summary').eq('is_active', true).order('created_at', { ascending: false }).limit(40),
+      db.from('client_quarterly_strategies').select('client_id,goals,themes').eq('year', year).eq('quarter', quarter),
+    ])
+
+    const clients = clientsRes.data ?? []
+    const tasks = tasksRes.data ?? []
+    const now2 = new Date()
+
+    const overdueTasks = tasks.filter(t => t.due_date && new Date(t.due_date) < now2)
+    const crisisClients = clients.filter(c => c.is_in_crisis)
+    const ctxByClient = (ctxRes.data ?? []).reduce((acc: Record<string, string[]>, r) => {
+      if (!acc[r.client_id]) acc[r.client_id] = []
+      acc[r.client_id].push(`[${r.category}] ${r.summary}`)
+      return acc
+    }, {})
+    const stratByClient = (stratRes.data ?? []).reduce((acc: Record<string, string>, r) => {
+      acc[r.client_id] = r.goals ? `Goals: ${r.goals}` : ''
+      return acc
+    }, {})
+
+    const lines: string[] = [
+      `── AGENCY OVERVIEW ──`,
+      `Active clients: ${clients.length} | Active tasks: ${tasks.length} | Overdue: ${overdueTasks.length}`,
+      `Pending approvals: ${(approvalsRes.data ?? []).length} | Pending moderation: ${(moderationRes.data ?? []).length}`,
+      crisisClients.length > 0 ? `CRISIS MODE: ${crisisClients.map(c => c.name).join(', ')}` : 'No clients in crisis',
+      '',
+      `── PER-CLIENT INTELLIGENCE ──`,
+    ]
+
+    for (const client of clients) {
+      const clientTasks = tasks.filter(t => t.client_id === client.id)
+      const clientOverdue = clientTasks.filter(t => t.due_date && new Date(t.due_date) < now2)
+      const ctx = ctxByClient[client.id] ?? []
+      const strat = stratByClient[client.id]
+      const b = client.brand_identity_json as Record<string, unknown> | null
+
+      lines.push(`\n${client.name}${client.is_in_crisis ? ' [CRISIS]' : ''} — ${b?.industry ?? 'Unknown industry'}`)
+      lines.push(`  Tasks: ${clientTasks.length} active${clientOverdue.length > 0 ? `, ${clientOverdue.length} overdue` : ''}`)
+      if (strat) lines.push(`  Q${quarter} ${year} goal: ${strat.slice(0, 120)}`)
+      if (ctx.length > 0) lines.push(`  Memory: ${ctx.slice(0, 3).join(' | ')}`)
+    }
+
+    return lines.join('\n')
+  } catch { return '' }
+}
+
 // ── System prompt builder ─────────────────────────────────────
 
 function buildSystemPrompt(
-  isCeo:         boolean,
-  userRole:      string,
-  clientContext: string,
-  contextBlocks: string[],
-  perfData:      string,
+  isCeo:              boolean,
+  userRole:           string,
+  clientContext:      string,
+  contextBlocks:      string[],
+  perfData:           string,
+  intelligenceBlock?: string,
+  ceoBriefing?:       string,
 ): string {
   const roleName = ({
     admin:            'Admin',
@@ -167,13 +229,19 @@ function buildSystemPrompt(
     strategist:       'Strategist',
   } as Record<string, string>)[userRole] ?? 'Team Member'
 
-  let prompt = `You are the NOVAX AI Assistant — an expert embedded inside NOVAX, the internal operations platform for a social media and creative agency.
+  let prompt: string
+
+  if (isCeo) {
+    prompt = `You are a board-level strategic advisor reviewing the full state of NOVAX, a social media and creative agency.
+You have complete visibility across all clients, all active work, and the agency's performance data.
+You challenge assumptions. You surface what is not being asked. You give concrete recommendations, not hedged options.
+You think like a managing partner who has seen 100 agency cycles. You are concise and never waste the CEO's time.
+Current operator: ${roleName}`
+  } else {
+    prompt = `You are the NOVAX AI Assistant — an expert embedded inside NOVAX, the internal operations platform for a social media and creative agency.
 You think and respond like a senior marketing strategist with 15 years of agency experience.
 You are concise, direct, and actionable. No filler, no fluff, no disclaimers.
 Current user role: ${roleName}`
-
-  if (isCeo) {
-    prompt += `\n\nCEO MODE ACTIVE. Provide cross-client strategic thinking. Challenge assumptions. Surface risks and opportunities the user might not see. Be a thought partner, not an assistant.`
   }
 
   if (clientContext) {
@@ -186,6 +254,14 @@ Current user role: ${roleName}`
 
   if (perfData) {
     prompt += `\n\n── LIVE PERFORMANCE DATA ──\n${perfData}`
+  }
+
+  if (intelligenceBlock) {
+    prompt += intelligenceBlock
+  }
+
+  if (ceoBriefing) {
+    prompt += `\n\n${ceoBriefing}`
   }
 
   prompt += `
@@ -254,10 +330,12 @@ export async function POST(req: NextRequest) {
 
   const clientInContextItems = context_items.some(i => i.type === 'client' && i.id === client_id)
 
-  const [clientContext, contextBlocks, perfData] = await Promise.all([
+  const [clientContext, contextBlocks, perfData, intelligenceBlock, ceoBriefing] = await Promise.all([
     client_id && !clientInContextItems ? fetchClientContext(db, client_id) : Promise.resolve(''),
     Promise.all(contextFetches),
     client_id && needsPerformanceData(messages) ? fetchPerformanceSummary(db, client_id) : Promise.resolve(''),
+    client_id ? buildClientIntelligenceBlock(client_id, 'chat', db).catch(() => '') : Promise.resolve(''),
+    is_ceo ? fetchCeoAgencyBriefing(db).catch(() => '') : Promise.resolve(''),
   ])
 
   const systemPrompt = buildSystemPrompt(
@@ -266,6 +344,8 @@ export async function POST(req: NextRequest) {
     clientContext,
     contextBlocks.filter(Boolean),
     perfData,
+    intelligenceBlock || undefined,
+    ceoBriefing || undefined,
   )
 
   const useAnthropic = !!process.env.ANTHROPIC_API_KEY

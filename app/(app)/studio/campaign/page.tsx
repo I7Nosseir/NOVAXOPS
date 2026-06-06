@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { StudioLoading } from '@/components/studio/studio-loading'
 import { StudioDocument } from '@/components/studio/studio-document'
 import { StudioChatbot } from '@/components/studio/studio-chatbot'
+import { StudioSaveActions } from '@/components/studio/studio-save-actions'
 import type {
   CampaignDocument,
   BossBrief,
@@ -194,17 +195,17 @@ export default function CampaignIgniterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          client_id:    clientId || null,
-          client_name:  selectedClient?.name,
-          industry:     effectiveIndustry,
-          audience:     audience || selectedClient?.brand_identity?.target_audience,
-          platforms,
-          boldness,
-          constraint,
+          client_id:        clientId || null,
+          client_name:      selectedClient?.name ?? 'Client',
+          industry:         effectiveIndustry,
+          target_audience:  audience || selectedClient?.brand_identity?.target_audience,
+          current_platforms: platforms,
+          boldness:         boldness === 'redbull' ? 'red_bull' : boldness,
+          constraint:       constraint === 'none' ? undefined : constraint === 'brandsafe' ? 'brand_safe' : constraint,
           brief,
-          brand_voice:  selectedClient?.brand_identity?.tone_of_voice,
-          signal_report: signalReport,
-          session_id:   sid,
+          brand_voice:      selectedClient?.brand_identity?.tone_of_voice,
+          signal_report:    signalReport,
+          session_id:       sid,
         }),
       })
 
@@ -489,11 +490,12 @@ export default function CampaignIgniterPage() {
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && campaignDoc && (
         <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 space-y-3">
             <StudioDocument
               tool="campaign"
               clientName={selectedClient?.name ?? ''}
               clientColor={selectedClient?.color ?? '#1B3D38'}
+              clientId={selectedClient?.id}
               platforms={platforms}
               content={campaignDoc}
               bossBrief={bossBrief}
@@ -523,6 +525,13 @@ export default function CampaignIgniterPage() {
                   setCampaignDoc(updated)
                 }
               }}
+            />
+            <StudioSaveActions
+              client={selectedClient}
+              contentSummary={campaignDoc.concepts?.slice(0, 3).map(c => `${c.campaign_name}: ${c.core_idea}`).join('\n\n') ?? ''}
+              documentTitle={`${selectedClient?.name ?? 'Campaign'} — Campaign Igniter`}
+              taskTitle={`Campaign: ${campaignDoc.concepts?.[0]?.campaign_name ?? 'Campaign Output'}`}
+              contextCategory="Campaign Feedback"
             />
           </div>
 

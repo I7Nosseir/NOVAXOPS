@@ -19,7 +19,7 @@ import type { Client } from '@/lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'health' | 'strategy' | 'crisis' | 'second_opinion'
+type Tab = 'health' | 'strategy' | 'crisis' | 'second_opinion' | 'agent'
 
 interface GeneratedResult {
   content: string
@@ -1100,6 +1100,162 @@ function SecondOpinionTab() {
   )
 }
 
+// ─── CEO Agent Tab ─────────────────────────────────────────────────────────────
+
+const CEO_QUICK_PROMPTS = [
+  { label: 'Agency Brief', prompt: 'Brief me on the current state of the agency. Active clients, overdue work, anything that needs my attention today.' },
+  { label: 'Risk Scan', prompt: 'Which clients are at risk? Give me a ranked list with the reason for each flag.' },
+  { label: 'Team Workload', prompt: 'What does the current team workload look like? Is anyone overloaded? Any allocation recommendations?' },
+  { label: 'Best & Worst', prompt: 'Which client had the best performance this month? Which had the worst? What patterns do you see?' },
+  { label: 'Stale Clients', prompt: 'Which clients have had no context bank updates, no new strategy, or no tasks in the last 30 days?' },
+]
+
+interface AgentMessage { role: 'user' | 'assistant'; content: string }
+
+function CeoAgentTab() {
+  const [messages, setMessages] = useState<AgentMessage[]>([])
+  const [input, setInput] = useState('')
+  const [streaming, setStreaming] = useState(false)
+  const [error, setError] = useState('')
+
+  const send = async (text: string) => {
+    if (!text.trim() || streaming) return
+    const userMsg: AgentMessage = { role: 'user', content: text }
+    const updated = [...messages, userMsg]
+    setMessages(updated)
+    setInput('')
+    setStreaming(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/assistant/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: updated,
+          context_items: [],
+          is_ceo: true,
+          user_role: 'ceo',
+        }),
+      })
+
+      if (!res.ok || !res.body) throw new Error('Stream failed')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let assistantText = ''
+
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6)
+          if (raw === '[DONE]') break
+          try {
+            const parsed = JSON.parse(raw) as { text?: string; error?: string }
+            if (parsed.text) {
+              assistantText += parsed.text
+              setMessages(prev => {
+                const copy = [...prev]
+                copy[copy.length - 1] = { role: 'assistant', content: assistantText }
+                return copy
+              })
+            }
+          } catch { /* partial chunk */ }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setStreaming(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 px-4 py-3 bg-novax-light border border-novax-border rounded-xl">
+        <Crown className="w-4 h-4 text-novax mt-0.5 shrink-0"/>
+        <p className="text-sm text-novax-muted">
+          CEO Agent has full visibility across all clients, tasks, strategy, and context banks. It knows the current state of your agency in real time.
+        </p>
+      </div>
+
+      {/* Quick prompt chips */}
+      <div className="flex flex-wrap gap-2">
+        {CEO_QUICK_PROMPTS.map(({ label, prompt }) => (
+          <button
+            key={label}
+            onClick={() => void send(prompt)}
+            disabled={streaming}
+            className="text-xs px-3 py-1.5 rounded-full border border-novax-border bg-novax-light text-novax font-medium hover:bg-novax hover:text-white transition-all disabled:opacity-50"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Messages */}
+      {messages.length > 0 && (
+        <div className="space-y-3 max-h-[500px] overflow-y-auto">
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              className={cn(
+                'px-4 py-3 rounded-xl text-sm',
+                msg.role === 'user'
+                  ? 'bg-novax text-white ml-8'
+                  : 'bg-white border border-slate-200 mr-8',
+              )}
+            >
+              {msg.role === 'assistant'
+                ? <MarkdownContent content={msg.content || (streaming && i === messages.length - 1 ? '…' : '')}/>
+                : msg.content
+              }
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {messages.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+          <Crown className="w-8 h-8 mb-2 text-novax-border"/>
+          <p className="text-sm font-medium text-slate-600">CEO Agent ready</p>
+          <p className="text-xs mt-1">Use a quick prompt above or type your own question below.</p>
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs text-red-600 px-1">{error}</p>
+      )}
+
+      {/* Input */}
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input) } }}
+          placeholder="Ask anything about clients, team, performance, strategy..."
+          disabled={streaming}
+          className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 disabled:opacity-60"
+        />
+        <button
+          onClick={() => void send(input)}
+          disabled={!input.trim() || streaming}
+          className="flex items-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          {streaming ? <Loader2 className="w-4 h-4 animate-spin"/> : <Zap className="w-4 h-4"/>}
+          {streaming ? 'Thinking...' : 'Ask'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CeoPage() {
@@ -1126,8 +1282,9 @@ export default function CeoPage() {
 
   const tabs: { id: Tab; icon: React.ElementType; label: string }[] = [
     { id: 'health', icon: Activity, label: 'Agency Health' },
-    { id: 'strategy', icon: Brain, label: 'Strategy Intelligence' },
-    { id: 'crisis', icon: AlertTriangle, label: 'Crisis Management' },
+    { id: 'agent', icon: Crown, label: 'CEO Agent' },
+    { id: 'strategy', icon: Brain, label: 'Strategy' },
+    { id: 'crisis', icon: AlertTriangle, label: 'Crisis' },
     { id: 'second_opinion', icon: MessageSquare, label: 'Second Opinion' },
   ]
 
@@ -1162,6 +1319,9 @@ export default function CeoPage() {
 
       {activeTab === 'health' && (
         <AgencyHealthTab clients={clients} tasks={tasks} posts={posts} />
+      )}
+      {activeTab === 'agent' && (
+        <CeoAgentTab />
       )}
       {activeTab === 'strategy' && (
         <StrategyIntelTab clients={clients} />

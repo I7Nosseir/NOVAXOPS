@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
+import { AIFeedbackButtons } from '@/components/shared/ai-feedback-buttons'
 import type {
   ContentDocument,
   HookDocument,
@@ -24,6 +25,7 @@ export interface StudioDocumentProps {
   tool: 'content' | 'hooks' | 'strategy' | 'campaign' | 'postmortem'
   clientName: string
   clientColor?: string
+  clientId?: string
   platforms: string[]
   content:
     | ContentDocument
@@ -495,13 +497,12 @@ function HooksToolDocument({
                 >
                   {hook.hook_text}
                 </p>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2">
                   <span className="text-[10px] bg-slate-100 text-slate-600 rounded-full px-2 py-0.5 capitalize">
                     {hook.hook_type}
                   </span>
                   <span className="text-[10px] text-slate-400">{hook.total_score}/30</span>
                 </div>
-                <ThreeCBars clarity={hook.clarity} context={hook.context} curiosity={hook.curiosity} />
               </div>
 
               {/* Actions */}
@@ -837,6 +838,7 @@ export function StudioDocument({
   tool,
   clientName,
   clientColor,
+  clientId,
   platforms,
   content,
   bossBrief,
@@ -860,7 +862,7 @@ export function StudioDocument({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+    <div id="printable-studio" className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
       <DocumentHeader
         clientName={clientName}
         clientColor={clientColor}
@@ -889,6 +891,16 @@ export function StudioDocument({
       {bossBrief && (
         <div className="px-6 pb-6">
           <BossBriefSection brief={bossBrief} />
+        </div>
+      )}
+
+      {clientId && content && (
+        <div className="px-6 pb-4 border-t border-slate-100 pt-3">
+          <AIFeedbackButtons
+            clientId={clientId}
+            agentType={`studio_${tool}`}
+            contentSnapshot={JSON.stringify(content).slice(0, 500)}
+          />
         </div>
       )}
     </div>

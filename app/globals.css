@@ -791,4 +791,36 @@ html.dark .search-glass:focus {
   html.dark :where(#printable-doc .text-slate-700) { color: #334155 !important; }
   html.dark :where(#printable-doc .bg-white) { background-color: #ffffff !important; }
   html.dark :where(#printable-doc .border-slate-200) { border-color: #e2e8f0 !important; }
+
+  /* ── Studio PDF print ────────────────────────────────────────── */
+  #printable-studio {
+    visibility: visible !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    min-width: 680px !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  #printable-studio * {
+    visibility: visible !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+  }
+  #printable-studio .overflow-hidden { overflow: visible !important; }
+  #printable-studio .bg-white { break-inside: avoid !important; }
+  #printable-studio .space-y-3 > * + *,
+  #printable-studio .space-y-4 > * + *,
+  #printable-studio .space-y-5 > * + * { margin-top: 10pt !important; }
+  /* Hide action buttons in PDF */
+  #printable-studio button,
+  #printable-studio [data-print-hide] { display: none !important; }
+  html.dark :where(#printable-studio) { background-color: #ffffff !important; }
+  html.dark :where(#printable-studio .bg-white) { background-color: #ffffff !important; }
+  html.dark :where(#printable-studio .text-slate-900) { color: #0f172a !important; }
+  html.dark :where(#printable-studio .text-slate-700) { color: #334155 !important; }
+  html.dark :where(#printable-studio .border-slate-200) { border-color: #e2e8f0 !important; }
 }

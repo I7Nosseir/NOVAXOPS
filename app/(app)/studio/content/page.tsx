@@ -1,22 +1,21 @@
 ﻿'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Zap, ArrowLeft, Loader2, CheckCircle, PlusCircle,
+  Zap, ArrowLeft, PlusCircle,
   AlertTriangle, RefreshCw,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import { StudioLoading } from '@/components/studio/studio-loading'
-import { StudioBriefConfirm } from '@/components/studio/studio-brief-confirm'
 import { StudioDocument } from '@/components/studio/studio-document'
 import { StudioChatbot } from '@/components/studio/studio-chatbot'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
+import { StudioSaveActions } from '@/components/studio/studio-save-actions'
 import type {
-  BriefConfirmation,
   StructuredQuestion,
   ContentDocument,
   BossBrief,
@@ -55,7 +54,7 @@ const LOADING_INSIGHTS = [
 ]
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type PageState = 'brief' | 'confirming' | 'loading' | 'document'
+type PageState = 'brief' | 'loading' | 'document'
 
 interface ContentInputs {
   client_id:  string
@@ -65,6 +64,7 @@ interface ContentInputs {
   cta:        string
   brief:      string
   language:   'english' | 'arabic'
+  dialect:    'egyptian' | 'saudi'
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
@@ -87,12 +87,12 @@ export default function ContentStudioPage() {
     cta:       '',
     brief:     params?.get('brief') ?? '',
     language:  'english',
+    dialect:   'egyptian',
   })
 
-  // Confirmation + question step
-  const [confirmation,       setConfirmation]       = useState<BriefConfirmation | null>(null)
-  const [question,           setQuestion]           = useState<StructuredQuestion | null>(null)
-  const [isLoadingQuestion,  setIsLoadingQuestion]  = useState(false)
+  // Inline question pause during loading
+  const [pausedQuestion,     setPausedQuestion]     = useState<StructuredQuestion | null>(null)
+  const questionResolveRef = useRef<((answer: string) => void) | null>(null)
 
   // Loading
   const [loadingSteps,   setLoadingSteps]   = useState<LoadingStep[]>(INITIAL_LOADING_STEPS)
@@ -185,15 +185,30 @@ export default function ContentStudioPage() {
     }
   }
 
-  // ── Run: from brief to confirmation ─────────────────────────────────────────
+  // ── Wait for user to answer the inline question ─────────────────────────────
+  function waitForQuestionAnswer(): Promise<string> {
+    return new Promise(resolve => {
+      questionResolveRef.current = resolve
+    })
+  }
+
+  function handleInlineAnswer(answer: string) {
+    setPausedQuestion(null)
+    questionResolveRef.current?.(answer)
+    questionResolveRef.current = null
+  }
+
+  // ── Run: start loading immediately, ask question inline during loading ───────
   async function handleRunBrief() {
     if (!inputs.brief.trim()) return
     setError(null)
-    setIsLoadingQuestion(true)
 
     const clientName = selectedClient?.name ?? 'Unknown Client'
     const name = `${clientName} — ${inputs.platforms[0]}`
     setSessionName(name)
+
+    setLoadingSteps(INITIAL_LOADING_STEPS.map((s, i) => ({ ...s, status: i === 0 ? 'active' : 'pending' })))
+    setPageState('loading')
 
     try {
       // 1. Create session
@@ -213,64 +228,42 @@ export default function ContentStudioPage() {
       const sid = sessData.session?.id ?? null
       if (sid) setSessionId(sid)
 
-      // 2. Brief confirmation (Haiku, fast)
-      const confirmRes = await fetch('/api/studio/brief-confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brief:    inputs.brief,
-          client:   selectedClient ? { name: selectedClient.name, industry: selectedClient.brand_identity?.industry } : null,
-          platforms: inputs.platforms,
-          goal:     inputs.goal,
-          audience: inputs.audience,
-          language: inputs.language,
-        }),
-      })
-      const confirmData = await confirmRes.json() as { confirmation?: BriefConfirmation }
-      setConfirmation(confirmData.confirmation ?? null)
-
-      // 3. Generate question options (Haiku, fast) — parallel with confirm
-      const qRes = await fetch('/api/studio/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'content', brief: inputs.brief, client_profile: selectedClient }),
-      })
-      const qData = await qRes.json() as { question?: StructuredQuestion }
-      setQuestion(qData.question ?? null)
-
-      setPageState('confirming')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong. Try again.')
-    } finally {
-      setIsLoadingQuestion(false)
-    }
-  }
-
-  // ── Run: auto-chain after confirmation ──────────────────────────────────────
-  async function handleConfirm(answers: { confirmed: boolean; emotional_trigger: string }) {
-    setLoadingSteps(INITIAL_LOADING_STEPS.map((s, i) => ({ ...s, status: i === 0 ? 'active' : 'pending' })))
-    setPageState('loading')
-
-    try {
       const industry = selectedClient?.brand_identity?.industry ?? 'general'
 
-      // Step 1: Signal report
-      startStep(0)
-      const sigRes = await fetch(`/api/studio/signal-report/${encodeURIComponent(industry)}`)
+      // Step 1: Signal report + question (parallel)
+      const [sigRes, qRes] = await Promise.all([
+        fetch(`/api/studio/signal-report/${encodeURIComponent(industry)}`),
+        fetch('/api/studio/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tool: 'content', brief: inputs.brief, client_profile: selectedClient }),
+        }),
+      ])
       const signalReport = sigRes.ok ? await sigRes.json() : null
+      const qData = await qRes.json() as { question?: StructuredQuestion }
       completeStep(0)
 
-      // Step 2: Brief expansion (tracked visually only)
+      // Step 2: Brief expansion (visual)
       completeStep(1)
 
-      // Step 3: Research
+      // Pause loading to ask the question inline (if one was generated)
+      let emotionalTrigger = ''
+      if (qData.question?.options?.length) {
+        setPausedQuestion(qData.question)
+        const answer = await waitForQuestionAnswer()
+        emotionalTrigger = answer === qData.question.options[qData.question.options.length - 1]
+          ? ''
+          : answer
+      }
+
+      // Step 3: Research (visual)
       startStep(2)
       completeStep(2)
 
       // Step 4: Generate hooks
       startStep(3)
-      const boldnessPrefix = answers.emotional_trigger
-        ? `CONSTRAINT: Primary emotional trigger = ${answers.emotional_trigger}. Every hook must activate this emotion as a hard constraint.\n\n`
+      const boldnessPrefix = emotionalTrigger
+        ? `CONSTRAINT: Primary emotional trigger = ${emotionalTrigger}. Every hook must activate this emotion as a hard constraint.\n\n`
         : ''
       const hookRes = await fetch('/api/studio/hooks/generate', {
         method: 'POST',
@@ -282,6 +275,8 @@ export default function ContentStudioPage() {
           goal:          inputs.goal,
           brand_voice:   selectedClient?.brand_identity?.tone_of_voice,
           language:      inputs.language,
+          dialect:       inputs.dialect,
+          client_id:     inputs.client_id || undefined,
           signal_report: signalReport,
         }),
       })
@@ -297,7 +292,6 @@ export default function ContentStudioPage() {
 
       // Step 6: Write script
       startStep(5)
-      const sid = sessionId
       const scriptRes = await fetch(`/api/studio/content/${sid ?? 'new'}/script`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,7 +302,7 @@ export default function ContentStudioPage() {
           brand_voice: selectedClient?.brand_identity?.tone_of_voice,
           key_messages: selectedClient?.brand_identity?.key_messages,
           client_name: selectedClient?.name,
-          emotional_trigger: answers.emotional_trigger,
+          emotional_trigger: emotionalTrigger,
           signal_report: signalReport,
         }),
       })
@@ -316,10 +310,10 @@ export default function ContentStudioPage() {
       if (!scriptRes.ok) throw new Error(scriptData.error ?? 'Script generation failed')
       completeStep(5)
 
-      // Step 7: Quality checks (visual only)
+      // Step 7: Quality checks (visual)
       completeStep(6)
 
-      // Step 8: Build Boss Brief via chat endpoint
+      // Step 8: Boss Brief
       startStep(7)
       let bb: BossBrief | null = null
       try {
@@ -346,7 +340,7 @@ export default function ContentStudioPage() {
         what_we_built: `Content for ${selectedClient?.name ?? 'client'} targeting ${inputs.audience} audience on ${inputs.platforms.join(', ')}.`,
         audience_intelligence: {
           functional_job:  `Consuming this content accomplishes: ${inputs.goal.toLowerCase()}.`,
-          emotional_job:   `After watching: the audience should feel ${answers.emotional_trigger || 'engaged and informed'}.`,
+          emotional_job:   `After watching: the audience should feel ${emotionalTrigger || 'engaged and informed'}.`,
           social_job:      `If they share this, it signals they are informed and forward-thinking.`,
         },
         selected_hook: bestHook ? {
@@ -357,33 +351,31 @@ export default function ContentStudioPage() {
           context_score:  bestHook.context_score,
           curiosity_score: bestHook.curiosity_score,
           total_score:    bestHook.total_score,
-          why_selected:   `Highest 3C score in batch. Activates ${answers.emotional_trigger || 'target'} emotion.`,
+          why_selected:   `Highest 3C score in batch. Activates ${emotionalTrigger || 'target'} emotion.`,
         } : null,
         script: scriptData.script ? {
-          sections:            scriptData.script.script_sections,
-          total_duration:      scriptData.script.total_duration,
+          sections:              scriptData.script.script_sections,
+          total_duration:        scriptData.script.total_duration,
           production_difficulty: scriptData.script.production_difficulty,
           brand_compliance_notes: scriptData.script.brand_compliance_notes,
         } : null,
-        broll_list:     scriptData.script?.key_broll_list ?? [],
-        caption:        scriptData.script?.caption_preview ?? '',
-        platforms:      inputs.platforms,
-        language:       inputs.language,
-        cold_start:     (confirmation as BriefConfirmation & { performance_days?: number })?.performance_days != null
-                          ? ((confirmation as BriefConfirmation & { performance_days?: number }).performance_days ?? 30) < 7
-                          : false,
+        broll_list: scriptData.script?.key_broll_list ?? [],
+        caption:    scriptData.script?.caption_preview ?? '',
+        platforms:  inputs.platforms,
+        language:   inputs.language,
+        cold_start: false,
       }
       setContentDoc(doc)
       completeStep(8)
 
-      // Save completed session + prepend to session list
+      // Save completed session
       if (sid) {
         fetch(`/api/studio/session/${sid}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'complete', outputs: { content: doc }, boss_brief: bb }),
         }).catch(() => {})
-        const newSession: StudioSession = {
+        setSessions(prev => [{
           id: sid,
           name: sessionName,
           tool: 'content',
@@ -404,12 +396,13 @@ export default function ContentStudioPage() {
           metricool_snapshot: null,
           performance: null,
           performance_verdict: null,
-        }
-        setSessions(prev => [newSession, ...prev])
+        } as StudioSession, ...prev])
       }
 
       setPageState('document')
     } catch (e) {
+      setPausedQuestion(null)
+      questionResolveRef.current = null
       setError(e instanceof Error ? e.message : 'Generation failed. Try again.')
       setPageState('brief')
     }
@@ -422,10 +415,9 @@ export default function ContentStudioPage() {
     setBossBrief(null)
     setChatHistory([])
     setChatOpen(false)
-    setConfirmation(null)
-    setQuestion(null)
+    setPausedQuestion(null)
     setError(null)
-    setInputs({ client_id: '', platforms: ['Instagram'], audience: 'B2C', goal: 'Engagement', cta: '', brief: '', language: 'english' })
+    setInputs({ client_id: '', platforms: ['Instagram'], audience: 'B2C', goal: 'Engagement', cta: '', brief: '', language: 'english', dialect: 'egyptian' })
   }
 
   function handleEditApplied(target: string, newContent: string) {
@@ -643,7 +635,7 @@ export default function ContentStudioPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">Language</label>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1.5 mb-1.5">
                   {(['english', 'arabic'] as const).map(lang => (
                     <button
                       key={lang}
@@ -659,6 +651,27 @@ export default function ContentStudioPage() {
                     </button>
                   ))}
                 </div>
+                {inputs.language === 'arabic' && (
+                  <div className="flex gap-1.5">
+                    {([
+                      { value: 'egyptian', label: 'مصري' },
+                      { value: 'saudi',    label: 'سعودي' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setInputs(v => ({ ...v, dialect: opt.value }))}
+                        className={cn(
+                          'flex-1 py-1 text-[10px] rounded-lg font-medium border transition-all',
+                          inputs.dialect === opt.value
+                            ? 'bg-novax-light text-novax border-novax-border'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-novax-border',
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -688,27 +701,13 @@ export default function ContentStudioPage() {
 
           <button
             onClick={handleRunBrief}
-            disabled={!inputs.brief.trim() || isLoadingQuestion}
+            disabled={!inputs.brief.trim()}
             className="flex items-center gap-2 px-6 py-3 bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
           >
-            {isLoadingQuestion ? (
-              <><Loader2 className="w-4 h-4 animate-spin" />Reading your brief...</>
-            ) : (
-              <><Zap className="w-4 h-4" />Run Content Studio</>
-            )}
+            <Zap className="w-4 h-4" />
+            Run Content Studio
           </button>
         </div>
-      )}
-
-      {/* ── CONFIRMING state — Brief confirm + question ── */}
-      {pageState === 'confirming' && confirmation && (
-        <StudioBriefConfirm
-          confirmation={confirmation}
-          question={question}
-          onConfirm={handleConfirm}
-          onAdjust={() => setPageState('brief')}
-          isLoadingQuestion={isLoadingQuestion}
-        />
       )}
 
       {/* ── LOADING state ── */}
@@ -718,6 +717,8 @@ export default function ContentStudioPage() {
           sessionName={sessionName}
           tool="content"
           elapsedSeconds={elapsedSeconds}
+          pausedQuestion={pausedQuestion ?? undefined}
+          onQuestionAnswer={handleInlineAnswer}
         />
       )}
 
@@ -725,11 +726,12 @@ export default function ContentStudioPage() {
       {pageState === 'document' && contentDoc && (
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main document */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 space-y-3">
             <StudioDocument
               tool="content"
               clientName={selectedClient?.name ?? ''}
               clientColor={selectedClient?.color ?? '#1B3D38'}
+              clientId={selectedClient?.id}
               platforms={inputs.platforms}
               content={contentDoc}
               bossBrief={bossBrief}
@@ -738,6 +740,17 @@ export default function ContentStudioPage() {
               onExportPdf={() => window.print()}
               onChatOpen={() => setChatOpen(true)}
               onEditApplied={handleEditApplied}
+            />
+            <StudioSaveActions
+              client={selectedClient}
+              contentSummary={[
+                contentDoc.selected_hook?.hook_text ?? contentDoc.hook?.text ?? '',
+                contentDoc.what_we_built ?? '',
+                contentDoc.caption_preview ?? '',
+              ].filter(Boolean).join('\n\n')}
+              documentTitle={`${selectedClient?.name ?? 'Content'} — ${inputs.platforms[0] ?? 'Studio'} Content`}
+              taskTitle={contentDoc.selected_hook?.hook_text ?? inputs.brief}
+              taskDescription={inputs.brief}
             />
           </div>
 

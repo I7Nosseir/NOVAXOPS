@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { geminiJson, geminiGenerate } from '@/lib/gemini'
+import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
 import type {
   CampaignDocument,
   CampaignConcept,
@@ -18,21 +19,23 @@ import { pickRandomDomains } from '@/lib/studio-campaign-domains'
 // ─── Request type ─────────────────────────────────────────────
 
 interface CampaignGenerateBody {
-  session_id?:       string
-  client_name:       string
-  industry:          string
-  brand_voice?:      string
-  target_audience:   string
-  current_platforms: string[]
-  boldness:          'safe' | 'disrupting' | 'red_bull' | 'nuanced'
-  constraint?:       'budget' | 'timeline' | 'brand_safe'
-  signal_report?:    SignalReport
+  session_id?:        string
+  client_id?:         string
+  client_name:        string
+  industry:           string
+  brand_voice?:       string
+  target_audience:    string
+  current_platforms:  string[]
+  boldness:           'safe' | 'disrupting' | 'red_bull' | 'nuanced'
+  constraint?:        'budget' | 'timeline' | 'brand_safe'
+  signal_report?:     SignalReport
   metricool_context?: {
     best_format:       string
     best_posting_time: string
     avg_er:            number
     observed_pattern?: string
   }
+  _intelligence_block?: string
 }
 
 // ─── Phase-save helper ────────────────────────────────────────
@@ -80,6 +83,7 @@ async function runPhase1(
   const prompt = `You are mining cultural tensions for a campaign targeting: ${body.target_audience}
 Industry: ${body.industry}
 Client: ${body.client_name}
+${body._intelligence_block ?? ''}
 
 ${tensionsContext}
 
@@ -471,6 +475,14 @@ export async function POST(req: NextRequest) {
 
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({ error: 'AI provider not configured' }, { status: 503 })
+  }
+
+  // Inject client intelligence into first-phase prompt
+  if (body.client_id) {
+    const db = adminSupabase()
+    if (db) {
+      body._intelligence_block = await buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => '')
+    }
   }
 
   const domains = pickRandomDomains(3)

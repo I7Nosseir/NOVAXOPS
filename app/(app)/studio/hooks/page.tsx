@@ -14,6 +14,7 @@ import { StudioLoading } from '@/components/studio/studio-loading'
 import { StudioDocument } from '@/components/studio/studio-document'
 import { StudioChatbot } from '@/components/studio/studio-chatbot'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
+import { StudioSaveActions } from '@/components/studio/studio-save-actions'
 import type {
   HookDocument,
   BossBrief,
@@ -68,6 +69,7 @@ export default function HookLabPage() {
   const [audience,  setAudience]  = useState<'B2C' | 'B2B'>('B2C')
   const [goal,      setGoal]      = useState('Engagement')
   const [language,  setLanguage]  = useState<'english' | 'arabic'>('english')
+  const [dialect,   setDialect]   = useState<'egyptian' | 'saudi'>('egyptian')
   const [brief,     setBrief]     = useState(params?.get('brief') ?? '')
   const [boldness,  setBoldness]  = useState<'familiar' | 'unexpected' | 'edge'>('familiar')
 
@@ -176,7 +178,7 @@ export default function HookLabPage() {
           created_by: user?.id ?? null,
           name:       `${selectedClient?.name ?? 'Hooks'} — ${platforms[0]}`,
           brief,
-          inputs:     { clientId, platforms, audience, goal, language, boldness },
+          inputs:     { clientId, platforms, audience, goal, language, dialect, boldness },
         }),
       })
       const sessData = await sessRes.json() as { session?: { id: string } }
@@ -194,6 +196,8 @@ export default function HookLabPage() {
           goal,
           brand_voice: selectedClient?.brand_identity?.tone_of_voice,
           language,
+          dialect,
+          client_id:   clientId || undefined,
         }),
       })
       const hookData = await hookRes.json() as { hooks?: GeneratedHook[]; error?: string }
@@ -482,7 +486,7 @@ export default function HookLabPage() {
             {/* Language */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Hook Language</label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-2">
                 {(['english', 'arabic'] as const).map(lang => (
                   <button
                     key={lang}
@@ -496,6 +500,27 @@ export default function HookLabPage() {
                   </button>
                 ))}
               </div>
+              {language === 'arabic' && (
+                <div className="flex gap-2">
+                  {([
+                    { value: 'egyptian', label: 'Egyptian — مصري' },
+                    { value: 'saudi',    label: 'Saudi — سعودي' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setDialect(opt.value)}
+                      className={cn(
+                        'flex-1 py-1.5 text-[11px] rounded-lg font-medium border transition-all',
+                        dialect === opt.value
+                          ? 'bg-novax-light text-novax border-novax-border'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-novax-border',
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Boldness — inline question */}
@@ -565,11 +590,12 @@ export default function HookLabPage() {
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && hookDoc && (
         <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 space-y-3">
             <StudioDocument
               tool="hooks"
               clientName={selectedClient?.name ?? ''}
               clientColor={selectedClient?.color ?? '#1B3D38'}
+              clientId={selectedClient?.id}
               platforms={platforms}
               content={hookDoc}
               bossBrief={bossBrief}
@@ -585,6 +611,13 @@ export default function HookLabPage() {
                   setHookDoc(updated)
                 }
               }}
+            />
+            <StudioSaveActions
+              client={selectedClient}
+              contentSummary={hookDoc.hooks?.slice(0, 3).map(h => h.hook_text).join('\n') ?? ''}
+              documentTitle={`${selectedClient?.name ?? 'Hooks'} — Hook Lab Top 3`}
+              taskTitle={hookDoc.hooks?.[0]?.hook_text ?? 'Hook Lab Output'}
+              contextCategory="Campaign Feedback"
             />
           </div>
 

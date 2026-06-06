@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
 
 export interface GeneratedHook {
   hook_text: string
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
     brand_voice?: string
     language?: string
     dialect?: string
+    client_id?: string
   }
 
   try {
@@ -103,7 +105,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const { brief, platform, audience, goal, emotion, brand_voice, language, dialect } = body
+  const { brief, platform, audience, goal, emotion, brand_voice, language, dialect, client_id } = body
   if (!brief?.trim() || !platform || !audience) {
     return NextResponse.json({ error: 'brief, platform, and audience are required' }, { status: 400 })
   }
@@ -115,7 +117,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No AI API key configured' }, { status: 500 })
   }
 
-  const prompt = HOOK_PROMPT(
+  let prompt = HOOK_PROMPT(
     brief.trim(),
     platform,
     audience,
@@ -125,6 +127,14 @@ export async function POST(req: NextRequest) {
     language || 'english',
     dialect || 'saudi',
   )
+
+  if (client_id) {
+    const db = adminSupabase()
+    if (db) {
+      const block = await buildClientIntelligenceBlock(client_id, 'hook_lab', db).catch(() => '')
+      if (block) prompt = prompt + block
+    }
+  }
 
   let raw = ''
 

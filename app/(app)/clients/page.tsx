@@ -13,6 +13,8 @@ import { useAuth } from '@/lib/auth-context'
 import type { Client, UserRole } from '@/lib/types'
 import { NewClientWizard } from '@/components/clients/new-client-wizard'
 import { DesignBriefForm } from '@/components/clients/design-brief-form'
+import { ContextBankPanel } from '@/components/clients/context-bank-panel'
+import { StrategyTab } from '@/components/clients/strategy-tab'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
 import type { DesignBrief } from '@/lib/types'
 
@@ -151,7 +153,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const { tasks: allTasks } = useTasks()
   const { posts: allPosts } = usePosts()
   const updateClient = useUpdateClient()
-  const [tab, setTab] = useState<'overview' | 'intelligence' | 'tasks' | 'brief'>('overview')
+  const [tab, setTab] = useState<'overview' | 'intelligence' | 'tasks' | 'brief' | 'context' | 'strategy'>('overview')
   const [briefSaving, setBriefSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [localIntel, setLocalIntel] = useState(() => {
@@ -267,15 +269,17 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 px-6 py-2 border-b border-slate-100 shrink-0">
+        <div className="flex items-center gap-1 px-6 py-2 border-b border-slate-100 shrink-0 overflow-x-auto">
           {([
             { key: 'overview', label: 'Overview' },
             { key: 'intelligence', label: 'Intelligence' },
+            { key: 'context', label: 'Context Bank' },
+            { key: 'strategy', label: 'Strategy' },
             { key: 'tasks', label: 'Tasks' },
             { key: 'brief', label: 'Design Brief' },
           ] as const).map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
-              className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-colors',
+              className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                 tab === key ? 'bg-novax-light text-novax' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
               {label}
             </button>
@@ -448,6 +452,14 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             )}
             </>}
           </>}
+
+          {tab === 'context' && (
+            <ContextBankPanel clientId={client.id}/>
+          )}
+
+          {tab === 'strategy' && (
+            <StrategyTab clientId={client.id} clientName={client.name}/>
+          )}
 
           {tab === 'brief' && (
             <DesignBriefForm

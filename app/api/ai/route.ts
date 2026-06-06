@@ -4,6 +4,7 @@ import { createHash } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { getArabicDialectGuide, getClientDialect, HUMANIZATION_RULES_EN, HUMANIZATION_RULES_AR } from '@/lib/arabic-dialect'
 import type { ArabicDialect } from '@/lib/arabic-dialect'
+import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
 
 const PRIMARY_MODEL = 'claude-sonnet-4-6'
 const ADVANCED_MODEL = 'claude-opus-4-7'
@@ -63,9 +64,7 @@ async function fetchDialectRules(
     kbCache = { data: (data ?? []) as KBRow[], fetchedAt: now }
   }
 
-  const rows = kbCache.data.filter(
-    r => true // all rows fetched; filter by dialect below if needed
-  )
+  const rows = kbCache.data.filter(() => true)
 
   const allBanned = rows
     .flatMap(r => r.banned_phrases ?? [])
@@ -784,6 +783,14 @@ Return ONLY the rewritten text. No labels, no explanation, no quotes around it.`
 
     default:
       return NextResponse.json({ error: `Unknown agent type: ${agent}` }, { status: 400 })
+  }
+
+  // Append client intelligence (context bank + corrections + quarter strategy) to every prompt
+  if (client?.id && db) {
+    try {
+      const block = await buildClientIntelligenceBlock(client.id, agent, db)
+      if (block) prompt = prompt + block
+    } catch { /* non-critical — don't block generation */ }
   }
 
   try {
