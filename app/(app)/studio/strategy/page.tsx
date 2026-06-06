@@ -1,11 +1,11 @@
-﻿'use client'
+'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Brain, ArrowLeft, Loader2, CheckCircle, PlusCircle,
-  AlertTriangle, RefreshCw, Download,
+  Brain, ArrowLeft, PlusCircle,
+  AlertTriangle, RefreshCw,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
@@ -21,41 +21,27 @@ import type {
   EditPayload,
   LoadingStep,
   StudioSession,
-  StructuredQuestion,
 } from '@/lib/studio-types'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const PLATFORMS = ['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Facebook', 'X (Twitter)']
+const PLATFORMS = ['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Snapchat', 'X (Twitter)', 'Facebook']
+const QUARTERS  = ['Q1', 'Q2', 'Q3', 'Q4'] as const
+const YEARS     = [2025, 2026, 2027]
 
-const LOADING_STEPS_INITIAL: LoadingStep[] = [
-  { label: 'Loading market intelligence',          status: 'pending' },
-  { label: 'Intelligence analysis (Discover)',     status: 'pending' },
-  { label: 'Positioning analysis (Define)',        status: 'pending' },
-  { label: 'Execution planning (Develop)',         status: 'pending' },
-  { label: 'Scale and retain strategy (Deliver)',  status: 'pending' },
-  { label: 'Optimization roadmap',                 status: 'pending' },
-  { label: 'Quality checks',                      status: 'pending' },
-  { label: 'Executive summary',                   status: 'pending' },
-  { label: 'Boss Brief',                          status: 'pending' },
+const LOADING_STEPS: LoadingStep[] = [
+  { label: 'Loading market signals',              status: 'pending' },
+  { label: 'Analysing brand + seasonal context',  status: 'pending' },
+  { label: 'Mapping content pillars',             status: 'pending' },
+  { label: 'Building strategy arc',               status: 'pending' },
+  { label: 'Writing monthly tactics',             status: 'pending' },
+  { label: 'Defining platform roles',             status: 'pending' },
+  { label: 'Assembling full strategy document',   status: 'pending' },
 ]
 
-const LOADING_INSIGHTS = [
-  'Signal report loaded',
-  'Market position mapped',
-  'Archetype and UVP defined',
-  'Content pillars built',
-  'Community strategy ready',
-  '12-month roadmap built',
-  'Six Thinking Hats complete',
-  'Summary ready',
-  'Done',
-]
-
-type PageState = 'brief' | 'question' | 'loading' | 'document'
+type PageState = 'brief' | 'loading' | 'document'
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function StrategyPage() {
-  const router      = useRouter()
   const params      = useSearchParams()
   const { clients } = useClients()
   const { user }    = useAuth()
@@ -65,29 +51,26 @@ export default function StrategyPage() {
   const [error,     setError]     = useState<string | null>(null)
 
   // Form
-  const [clientId,  setClientId]  = useState(params?.get('client') ?? '')
-  const [platforms, setPlatforms] = useState<string[]>(['Instagram'])
-  const [brief,     setBrief]     = useState('')
-
-  // Question step
-  const [question,          setQuestion]          = useState<StructuredQuestion | null>(null)
-  const [questionAnswer,    setQuestionAnswer]    = useState('')
-  const [customAnswer,      setCustomAnswer]      = useState('')
-  const [showCustomInput,   setShowCustomInput]   = useState(false)
-  const [isLoadingQuestion, setIsLoadingQuestion] = useState(false)
+  const [clientId,         setClientId]         = useState(params?.get('client') ?? '')
+  const [platforms,        setPlatforms]        = useState<string[]>(['Instagram', 'TikTok'])
+  const [quarter,          setQuarter]          = useState<typeof QUARTERS[number]>('Q2')
+  const [year,             setYear]             = useState(new Date().getFullYear())
+  const [brief,            setBrief]            = useState('')
+  const [campaignTheme,    setCampaignTheme]    = useState('')
+  const [culturalMoments,  setCulturalMoments]  = useState('')
+  const [brandPersona,     setBrandPersona]     = useState('')
+  const [tenantNotes,      setTenantNotes]      = useState('')
 
   // Loading
-  const [loadingSteps,   setLoadingSteps]   = useState<LoadingStep[]>(LOADING_STEPS_INITIAL)
+  const [loadingSteps,   setLoadingSteps]   = useState<LoadingStep[]>(LOADING_STEPS)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
   // Sessions list
   const [sessions,        setSessions]        = useState<StudioSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
 
-  // Session
-  const [sessionId, setSessionId] = useState<string | null>(null)
-
-  // Document
+  // Session + document
+  const [sessionId,   setSessionId]   = useState<string | null>(null)
   const [strategyDoc, setStrategyDoc] = useState<StrategyDocument | null>(null)
   const [bossBrief,   setBossBrief]   = useState<BossBrief | null>(null)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
@@ -99,7 +82,7 @@ export default function StrategyPage() {
   useEffect(() => {
     async function loadSessions() {
       try {
-        const res = await fetch(`/api/studio/session?tool=strategy&created_by=${user?.id ?? ''}&limit=10`)
+        const res  = await fetch(`/api/studio/session?tool=strategy&created_by=${user?.id ?? ''}&limit=10`)
         const data = await res.json() as { sessions: StudioSession[] }
         setSessions(data.sessions ?? [])
       } catch { /* silent */ } finally {
@@ -134,7 +117,7 @@ export default function StrategyPage() {
     return () => clearInterval(t)
   }, [pageState])
 
-  // ── Session click: load a previous session's document ──────────────────────
+  // ── Session click ───────────────────────────────────────────────────────────
   function handleSessionClick(session: StudioSession) {
     if (session.status === 'complete' && session.outputs) {
       const doc = (session.outputs as { strategy?: StrategyDocument }).strategy ?? null
@@ -148,139 +131,88 @@ export default function StrategyPage() {
     }
   }
 
-  // ── Step 1: Submit brief, get question ──────────────────────────────────────
-  async function handleBriefSubmit() {
-    if (!clientId || !brief.trim()) return
-    setError(null)
-    setIsLoadingQuestion(true)
+  // ── Simulate step progression during the API call ───────────────────────────
+  function startStepSimulation(apiPromise: Promise<unknown>) {
+    const STEP_DELAYS = [4, 8, 14, 20, 28, 36, 44]
+    setLoadingSteps(LOADING_STEPS.map((s, i) => ({ ...s, status: i === 0 ? 'active' : 'pending' })))
+    let done = false
+    apiPromise.finally(() => { done = true })
 
-    try {
-      // Create session
-      const sessRes = await fetch('/api/studio/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool:       'strategy',
-          client_id:  clientId,
-          created_by: user?.id ?? null,
-          name:       `${selectedClient?.name ?? 'Strategy'} — Strategy`,
-          brief,
-          inputs:     { clientId, platforms },
-        }),
-      })
-      const sessData = await sessRes.json() as { session?: { id: string } }
-      const sid = sessData.session?.id ?? null
-      if (sid) setSessionId(sid)
-
-      // Get strategy-specific question
-      const qRes = await fetch('/api/studio/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool:           'strategy',
-          brief,
-          client_profile: selectedClient,
-        }),
-      })
-      const qData = await qRes.json() as { question?: StructuredQuestion }
-      setQuestion(qData.question ?? {
-        question: 'What is the biggest obstacle to growth right now?',
-        options:  ['Low brand awareness', 'Inconsistent content', 'Weak audience targeting', 'No clear positioning'],
-        type:     'static' as const,
-      })
-      setPageState('question')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.')
-    } finally {
-      setIsLoadingQuestion(false)
-    }
+    STEP_DELAYS.forEach((delay, idx) => {
+      setTimeout(() => {
+        if (done) return
+        setLoadingSteps(prev => prev.map((s, i) => {
+          if (i === idx)     return { ...s, status: 'complete' }
+          if (i === idx + 1) return { ...s, status: 'active' }
+          return s
+        }))
+      }, delay * 1000)
+    })
   }
 
-  // ── Step 2: Run auto-chain after question answered ──────────────────────────
-  async function handleRunStrategy() {
-    const obstacle = showCustomInput ? customAnswer : questionAnswer
-    if (!obstacle) return
+  // ── Run ─────────────────────────────────────────────────────────────────────
+  async function handleRun() {
+    if (!brief.trim()) return
     setError(null)
 
-    setLoadingSteps(LOADING_STEPS_INITIAL.map((s, i) => ({ ...s, status: i === 0 ? 'active' : 'pending' })))
+    const name = `${selectedClient?.name ?? 'Strategy'} — ${quarter} ${year}`
+
+    // Create session
+    const sessRes = await fetch('/api/studio/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tool:       'strategy',
+        client_id:  clientId || null,
+        created_by: user?.id ?? null,
+        name,
+        brief,
+        inputs: { clientId, platforms, quarter, year, campaignTheme, culturalMoments, brandPersona, tenantNotes },
+      }),
+    })
+    const sessData = await sessRes.json() as { session?: { id: string } }
+    const sid = sessData.session?.id ?? null
+    if (sid) setSessionId(sid)
+
     setPageState('loading')
 
     try {
-      // Step 1: Signal report
       const industry = selectedClient?.brand_identity?.industry ?? 'general'
-      const sigRes = await fetch(`/api/studio/signal-report/${encodeURIComponent(industry)}`)
-      const signalReport = sigRes.ok ? await sigRes.json() : null
-      setLoadingSteps(prev => prev.map((s, i) => {
-        if (i === 0) return { ...s, status: 'complete', insight: LOADING_INSIGHTS[0] }
-        if (i === 1) return { ...s, status: 'active' }
-        return s
-      }))
+      const sigRes   = await fetch(`/api/studio/signal-report/${encodeURIComponent(industry)}`)
+      const signal   = sigRes.ok ? await sigRes.json() : null
 
-      const basePayload = {
-        client_id:    selectedClient?.id,
-        client_name:  selectedClient?.name,
-        industry:     selectedClient?.brand_identity?.industry,
-        brand_voice:  selectedClient?.brand_identity?.tone_of_voice,
-        key_messages: selectedClient?.brand_identity?.key_messages,
-        platforms:    platforms.length ? platforms : selectedClient?.brand_identity?.platforms,
-        competitors:  selectedClient?.brand_identity?.competitors,
-        brief,
-        obstacle,
-        signal_report: signalReport,
-      }
+      const apiPromise = fetch('/api/studio/strategy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id:        clientId || null,
+          client_name:      selectedClient?.name ?? 'Client',
+          industry,
+          brand_voice:      selectedClient?.brand_identity?.tone_of_voice,
+          key_messages:     selectedClient?.brand_identity?.key_messages,
+          competitors:      selectedClient?.competitor_context,
+          platforms,
+          brief,
+          quarter,
+          year,
+          campaign_theme:   campaignTheme || undefined,
+          cultural_moments: culturalMoments || undefined,
+          brand_persona:    brandPersona || undefined,
+          tenant_notes:     tenantNotes || undefined,
+          signal_report:    signal,
+        }),
+      })
 
-      // Steps 2-6: Strategy phases sequentially
-      const phases: Array<'intelligence' | 'positioning' | 'execution' | 'scale' | 'optimize'> = [
-        'intelligence', 'positioning', 'execution', 'scale', 'optimize'
-      ]
-      const phaseData: Partial<Record<string, unknown>> = {}
-      const stepOffset = 1 // step 0 was signal report
+      startStepSimulation(apiPromise)
 
-      for (let i = 0; i < phases.length; i++) {
-        const phase = phases[i]
-        const stepIdx = i + stepOffset
+      const apiRes = await apiPromise
+      setLoadingSteps(LOADING_STEPS.map(s => ({ ...s, status: 'complete' as const })))
 
-        try {
-          const res = await fetch('/api/studio/strategy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...basePayload, meta: phase, existing_data: phaseData }),
-          })
-          const result = await res.json() as { data?: Record<string, unknown>; error?: string }
-          if (res.ok && result.data) {
-            phaseData[phase] = result.data
-            // Save phase to session
-            if (sessionId) {
-              fetch(`/api/studio/session/${sessionId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ outputs: { ...phaseData } }),
-              }).catch(() => {})
-            }
-          }
-        } catch { /* phase failure — continue, mark partial */ }
+      const data = await apiRes.json() as { strategy?: StrategyDocument; error?: string }
+      if (!apiRes.ok) throw new Error(data.error ?? 'Strategy generation failed')
 
-        setLoadingSteps(prev => prev.map((s, si) => {
-          if (si === stepIdx) return { ...s, status: 'complete', insight: LOADING_INSIGHTS[stepIdx] }
-          if (si === stepIdx + 1) return { ...s, status: 'active' }
-          return s
-        }))
-      }
-
-      // Step 7: Quality checks (visual)
-      setLoadingSteps(prev => prev.map((s, i) => {
-        if (i === 6) return { ...s, status: 'complete', insight: LOADING_INSIGHTS[6] }
-        if (i === 7) return { ...s, status: 'active' }
-        return s
-      }))
-
-      // Step 8: Executive summary
-      const execSummary = `Strategic framework built for ${selectedClient?.name ?? 'client'}. Key phases: Intelligence, Positioning, Execution, Scale, Optimize. Growth obstacle addressed: ${obstacle}.`
-      setLoadingSteps(prev => prev.map((s, i) => {
-        if (i === 7) return { ...s, status: 'complete', insight: LOADING_INSIGHTS[7] }
-        if (i === 8) return { ...s, status: 'active' }
-        return s
-      }))
+      const doc = data.strategy ?? { executive_summary: '', platforms, brief, quarter, year }
+      setStrategyDoc(doc)
 
       // Boss Brief
       let bb: BossBrief | null = null
@@ -288,63 +220,34 @@ export default function StrategyPage() {
         const bbRes = await fetch('/api/studio/brief-confirm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brief, mode: 'boss_brief', strategy: phaseData, client: selectedClient ? { name: selectedClient.name } : null }),
+          body: JSON.stringify({
+            brief, mode: 'boss_brief',
+            strategy: { campaign_line: doc.campaign_line, quarter_role: doc.quarter_role },
+            client:   selectedClient ? { name: selectedClient.name } : null,
+          }),
         })
         const bbData = await bbRes.json() as { boss_brief?: BossBrief }
         bb = bbData.boss_brief ?? null
       } catch { /* non-fatal */ }
       setBossBrief(bb)
 
-      setLoadingSteps(prev => prev.map((s, i) =>
-        i === 8 ? { ...s, status: 'complete', insight: LOADING_INSIGHTS[8] } : s
-      ))
-
-      // Assemble StrategyDocument
-      const doc: StrategyDocument = {
-        executive_summary:    execSummary,
-        phases:               [],
-        phase_intelligence:   phaseData['intelligence'] as Record<string, unknown> ?? {},
-        phase_positioning:    phaseData['positioning']  as Record<string, unknown> ?? {},
-        phase_execution:      phaseData['execution']    as Record<string, unknown> ?? {},
-        phase_scale:          phaseData['scale']        as Record<string, unknown> ?? {},
-        phase_optimize:       phaseData['optimize']     as Record<string, unknown> ?? {},
-        brief,
-        obstacle,
-        platforms,
-        client_name:          selectedClient?.name ?? '',
-      }
-      setStrategyDoc(doc)
-
-      // Save completed session + prepend to session list
-      if (sessionId) {
-        fetch(`/api/studio/session/${sessionId}`, {
+      // Save session
+      if (sid) {
+        fetch(`/api/studio/session/${sid}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'complete', outputs: { strategy: doc }, boss_brief: bb }),
         }).catch(() => {})
-        const newSession: StudioSession = {
-          id: sessionId,
-          name: `${selectedClient?.name ?? 'Strategy'} — Strategy`,
-          tool: 'strategy',
-          status: 'complete',
-          outputs: { strategy: doc },
-          boss_brief: bb,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          client_id: clientId || null,
-          created_by: user?.id ?? null,
-          brief,
-          inputs: { clientId, platforms },
-          chat_history: [],
-          edit_history: [],
-          structured_answers: {},
-          executive_summary: doc.executive_summary ?? null,
-          signal_report_used: null,
-          metricool_snapshot: null,
-          performance: null,
-          performance_verdict: null,
-        }
-        setSessions(prev => [newSession, ...prev])
+        setSessions(prev => [{
+          id: sid, name, tool: 'strategy', status: 'complete',
+          outputs: { strategy: doc }, boss_brief: bb,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          client_id: clientId || null, created_by: user?.id ?? null,
+          brief, inputs: { clientId, platforms, quarter, year },
+          chat_history: [], edit_history: [], structured_answers: {},
+          executive_summary: doc.positioning_statement ?? null,
+          signal_report_used: null, metricool_snapshot: null, performance: null, performance_verdict: null,
+        } as StudioSession, ...prev])
       }
 
       setPageState('document')
@@ -355,26 +258,16 @@ export default function StrategyPage() {
   }
 
   function handleNewSession() {
-    setPageState('brief')
-    setSessionId(null)
-    setStrategyDoc(null)
-    setBossBrief(null)
-    setChatHistory([])
-    setChatOpen(false)
-    setError(null)
-    setBrief('')
-    setQuestion(null)
-    setQuestionAnswer('')
+    setPageState('brief'); setSessionId(null); setStrategyDoc(null); setBossBrief(null)
+    setChatHistory([]); setChatOpen(false); setError(null); setBrief('')
+    setCampaignTheme(''); setCulturalMoments(''); setBrandPersona(''); setTenantNotes('')
   }
 
   return (
     <div className="max-w-3xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <Link
-          href="/studio"
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-        >
+        <Link href="/studio" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div className="flex-1">
@@ -382,13 +275,10 @@ export default function StrategyPage() {
             <Brain className="w-4 h-4 text-novax-accent" />
             Strategy Command Center
           </h1>
-          <p className="text-xs text-slate-500">Double Diamond pipeline — Discover, Define, Develop, Deliver</p>
+          <p className="text-xs text-slate-500">Quarterly social media strategy — Esplanade format</p>
         </div>
         {(pageState === 'brief' || pageState === 'document') && (
-          <button
-            onClick={handleNewSession}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-          >
+          <button onClick={handleNewSession} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
             <PlusCircle className="w-3.5 h-3.5" />
             New Session
           </button>
@@ -400,10 +290,7 @@ export default function StrategyPage() {
         <div className="mb-5 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
           <p className="flex-1 text-sm text-red-700">{error}</p>
-          <button
-            onClick={() => { setError(null); setPageState('brief') }}
-            className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-semibold"
-          >
+          <button onClick={() => { setError(null); setPageState('brief') }} className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-semibold">
             <RefreshCw className="w-3 h-3" /> Try again
           </button>
         </div>
@@ -414,48 +301,63 @@ export default function StrategyPage() {
         <div className="space-y-5">
           {(sessions.length > 0 || sessionsLoading) && (
             <div className="mb-6">
-              <StudioSessionList
-                sessions={sessions}
-                onSessionClick={handleSessionClick}
-                onNewSession={() => {}}
-                isLoading={sessionsLoading}
-              />
+              <StudioSessionList sessions={sessions} onSessionClick={handleSessionClick} onNewSession={() => {}} isLoading={sessionsLoading} />
             </div>
           )}
+
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+
             {/* Client */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Client</label>
-              <select
-                value={clientId}
-                onChange={e => { setClientId(e.target.value) }}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted bg-white text-slate-700"
-              >
-                <option value="">Choose a client...</option>
+              <select value={clientId} onChange={e => setClientId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted bg-white text-slate-700">
+                <option value="">No specific client</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               {selectedClient && (
-                <p className="text-xs text-slate-400 mt-1.5">
-                  {selectedClient.brand_identity?.industry} · {selectedClient.brand_identity?.tone_of_voice}
-                </p>
+                <p className="text-xs text-slate-400 mt-1">{selectedClient.brand_identity?.industry} · {selectedClient.brand_identity?.tone_of_voice}</p>
               )}
+            </div>
+
+            {/* Quarter + Year */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Quarter</label>
+                <div className="flex gap-1.5">
+                  {QUARTERS.map(q => (
+                    <button key={q} onClick={() => setQuarter(q)}
+                      className={cn('flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all',
+                        quarter === q ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border')}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Year</label>
+                <div className="flex gap-1.5">
+                  {YEARS.map(y => (
+                    <button key={y} onClick={() => setYear(y)}
+                      className={cn('flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all',
+                        year === y ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border')}>
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Platforms */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Target Platforms</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Platforms</label>
               <div className="flex flex-wrap gap-1.5">
                 {PLATFORMS.map(p => {
-                  const selected = platforms.includes(p)
+                  const sel = platforms.includes(p)
                   return (
-                    <button
-                      key={p}
-                      onClick={() => setPlatforms(selected ? platforms.filter(x => x !== p) : [...platforms, p])}
-                      className={cn(
-                        'px-2.5 py-1 text-xs rounded-lg font-medium border transition-all',
-                        selected ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
-                      )}
-                    >
+                    <button key={p} onClick={() => setPlatforms(sel ? platforms.filter(x => x !== p) : [...platforms, p])}
+                      className={cn('px-2.5 py-1 text-xs rounded-lg font-medium border transition-all',
+                        sel ? 'bg-novax text-white border-novax' : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border')}>
                       {p}
                     </button>
                   )
@@ -463,109 +365,65 @@ export default function StrategyPage() {
               </div>
             </div>
 
-            {/* Brief */}
+            {/* Strategic Brief */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Strategic Challenge</label>
-              <textarea
-                value={brief}
-                onChange={e => setBrief(e.target.value)}
-                placeholder="What is the strategic challenge? What does this client need to achieve in the next 90 days?"
-                rows={4}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none"
-              />
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Strategic Brief</label>
+              <textarea value={brief} onChange={e => setBrief(e.target.value)}
+                placeholder="What is the strategic challenge and goal for this quarter? What does the brand need to own, change, or achieve? What makes this quarter different?"
+                rows={3}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none" />
+            </div>
+
+            {/* Campaign Theme (optional) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Campaign Theme / Line
+                <span className="ml-1.5 text-[10px] font-normal text-slate-400">(optional — AI will create one if blank)</span>
+              </label>
+              <input value={campaignTheme} onChange={e => setCampaignTheme(e.target.value)}
+                placeholder={`e.g. "When the City Doesn't Sleep" · "Energy of the City"`}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400" />
+            </div>
+
+            {/* Cultural Moments */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Key Cultural Moments This Quarter
+                <span className="ml-1.5 text-[10px] font-normal text-slate-400">(holidays, seasons, events)</span>
+              </label>
+              <input value={culturalMoments} onChange={e => setCulturalMoments(e.target.value)}
+                placeholder="e.g. Ramadan starts March 1 · Saudi Founding Day Feb 22 · Eid Al-Fitr late March"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400" />
+            </div>
+
+            {/* Brand Persona Direction */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Brand Persona Direction
+                <span className="ml-1.5 text-[10px] font-normal text-slate-400">(optional — adjectives or description)</span>
+              </label>
+              <input value={brandPersona} onChange={e => setBrandPersona(e.target.value)}
+                placeholder="e.g. Bold · Nocturnal · Cinematic · Unapologetic — or describe the tone shift"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400" />
+            </div>
+
+            {/* Tenant / Partner Integration */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Partner / Tenant Integration Notes
+                <span className="ml-1.5 text-[10px] font-normal text-slate-400">(optional)</span>
+              </label>
+              <input value={tenantNotes} onChange={e => setTenantNotes(e.target.value)}
+                placeholder="e.g. Tenants appear as part of life, not ads · No prices or promotions in content"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400" />
             </div>
           </div>
 
-          <button
-            onClick={handleBriefSubmit}
-            disabled={!clientId || !brief.trim() || isLoadingQuestion}
-            className="flex items-center gap-2 px-6 py-3 bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
-          >
-            {isLoadingQuestion ? (
-              <><Loader2 className="w-4 h-4 animate-spin" />Preparing question...</>
-            ) : (
-              <><Brain className="w-4 h-4" />Continue</>
-            )}
+          <button onClick={handleRun} disabled={!brief.trim()}
+            className="flex items-center gap-2 px-6 py-3 bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors">
+            <Brain className="w-4 h-4" />
+            Build {quarter} {year} Strategy
           </button>
-        </div>
-      )}
-
-      {/* ── QUESTION state ── */}
-      {pageState === 'question' && question && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">One question before I start</p>
-            <p className="text-base font-semibold text-slate-900 leading-snug">{question.question}</p>
-            <p className="text-xs text-slate-400 mt-1">Your answer will shape the entire strategy.</p>
-          </div>
-
-          <div className="space-y-2">
-            {question.options.map(opt => (
-              <button
-                key={opt}
-                onClick={() => { setQuestionAnswer(opt); setShowCustomInput(false) }}
-                className={cn(
-                  'w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all',
-                  questionAnswer === opt && !showCustomInput
-                    ? 'border-novax bg-novax-light'
-                    : 'border-slate-200 bg-white hover:border-novax-border',
-                )}
-              >
-                <div className={cn(
-                  'w-4 h-4 rounded-full border-2 shrink-0 transition-all',
-                  questionAnswer === opt && !showCustomInput ? 'border-novax bg-novax' : 'border-slate-300',
-                )} />
-                <span className={cn(
-                  'text-sm',
-                  questionAnswer === opt && !showCustomInput ? 'text-novax font-medium' : 'text-slate-700',
-                )}>
-                  {opt}
-                </span>
-              </button>
-            ))}
-
-            {/* Something else */}
-            <button
-              onClick={() => { setShowCustomInput(true); setQuestionAnswer('') }}
-              className={cn(
-                'w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all',
-                showCustomInput ? 'border-novax bg-novax-light' : 'border-slate-200 bg-white hover:border-novax-border',
-              )}
-            >
-              <div className={cn(
-                'w-4 h-4 rounded-full border-2 shrink-0',
-                showCustomInput ? 'border-novax bg-novax' : 'border-slate-300',
-              )} />
-              <span className="text-sm text-slate-500">Something else...</span>
-            </button>
-
-            {showCustomInput && (
-              <input
-                autoFocus
-                value={customAnswer}
-                onChange={e => setCustomAnswer(e.target.value)}
-                placeholder="Describe the obstacle..."
-                className="w-full px-3 py-2 text-sm border border-novax-border rounded-xl outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-novax-light/50 text-slate-700 placeholder:text-slate-400"
-              />
-            )}
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setPageState('brief')}
-              className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
-            >
-              Back
-            </button>
-            <button
-              onClick={handleRunStrategy}
-              disabled={!questionAnswer && !customAnswer}
-              className="flex items-center gap-2 px-6 py-2.5 bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              <Brain className="w-4 h-4" />
-              Run Strategy
-            </button>
-          </div>
         </div>
       )}
 
@@ -573,7 +431,7 @@ export default function StrategyPage() {
       {pageState === 'loading' && (
         <StudioLoading
           steps={loadingSteps}
-          sessionName={`${selectedClient?.name ?? 'Strategy'} — Strategy`}
+          sessionName={`${selectedClient?.name ?? 'Strategy'} — ${quarter} ${year}`}
           tool="strategy"
           elapsedSeconds={elapsedSeconds}
         />
@@ -585,7 +443,7 @@ export default function StrategyPage() {
           <div className="flex-1 min-w-0">
             <StudioDocument
               tool="strategy"
-              clientName={selectedClient?.name ?? ''}
+              clientName={selectedClient?.name ?? strategyDoc.client_name ?? ''}
               clientColor={selectedClient?.color ?? '#1B3D38'}
               platforms={platforms}
               content={strategyDoc}
@@ -593,23 +451,23 @@ export default function StrategyPage() {
               language="english"
               onExportTxt={() => {
                 const lines = [
-                  `STRATEGY DOCUMENT — ${selectedClient?.name ?? 'Client'}`,
-                  `Brief: ${brief}`,
-                  `Obstacle: ${strategyDoc.obstacle}`,
-                  '',
-                  `EXECUTIVE SUMMARY`,
-                  strategyDoc.executive_summary,
+                  `STRATEGY — ${selectedClient?.name ?? 'Client'} — ${quarter} ${year}`,
+                  strategyDoc.campaign_line ? `Campaign Line: ${strategyDoc.campaign_line}` : '',
+                  '', strategyDoc.positioning_statement ?? '',
+                  '', 'MONTHLY TACTICS:',
+                  ...(strategyDoc.monthly_tactics ?? []).map(m =>
+                    `\n${m.month} — ${m.role}: ${m.theme_line}\n${m.description}\nFocus: ${m.focus.join(' · ')}\nOutcome: ${m.outcome.join(' · ')}`
+                  ),
                 ]
-                const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a'); a.href = url; a.download = `novax-strategy-${Date.now()}.txt`; a.click(); URL.revokeObjectURL(url)
+                const blob = new Blob([lines.filter(Boolean).join('\n')], { type: 'text/plain' })
+                const url = URL.createObjectURL(blob); const a = document.createElement('a')
+                a.href = url; a.download = `novax-strategy-${quarter}-${year}-${Date.now()}.txt`; a.click(); URL.revokeObjectURL(url)
               }}
               onExportPdf={() => window.print()}
               onChatOpen={() => setChatOpen(true)}
               onEditApplied={(target, newContent) => {
                 if (!strategyDoc) return
-                const key = target as keyof StrategyDocument
-                setStrategyDoc({ ...strategyDoc, [key]: newContent })
+                setStrategyDoc({ ...strategyDoc, [target]: newContent })
               }}
             />
           </div>
@@ -618,36 +476,26 @@ export default function StrategyPage() {
             <>
               <div className="hidden lg:block w-[380px] shrink-0">
                 <div className="sticky top-4">
-                  <StudioChatbot
-                    sessionId={sessionId}
+                  <StudioChatbot sessionId={sessionId}
                     sessionContext={{ tool: 'strategy', document: strategyDoc, client: selectedClient }}
                     initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => {
-                      setStrategyDoc(prev => prev ? { ...prev, [edit.target]: edit.new_content } : prev)
-                    }}
-                  />
+                    onEditDetected={(edit: EditPayload) => setStrategyDoc(prev => prev ? { ...prev, [edit.target]: edit.new_content } : prev)} />
                 </div>
               </div>
               <div className="fixed inset-x-0 bottom-0 z-50 lg:hidden">
                 <div className="bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl" style={{ maxHeight: '70vh' }}>
-                  <StudioChatbot
-                    sessionId={sessionId}
+                  <StudioChatbot sessionId={sessionId}
                     sessionContext={{ tool: 'strategy', document: strategyDoc, client: selectedClient }}
                     initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => {
-                      setStrategyDoc(prev => prev ? { ...prev, [edit.target]: edit.new_content } : prev)
-                    }}
-                  />
+                    onEditDetected={(edit: EditPayload) => setStrategyDoc(prev => prev ? { ...prev, [edit.target]: edit.new_content } : prev)} />
                 </div>
               </div>
             </>
           )}
 
           {!chatOpen && (
-            <button
-              onClick={() => setChatOpen(true)}
-              className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center gap-2 px-4 py-3 bg-novax text-white text-sm font-semibold rounded-full shadow-lg hover:bg-novax-hover transition-colors"
-            >
+            <button onClick={() => setChatOpen(true)}
+              className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center gap-2 px-4 py-3 bg-novax text-white text-sm font-semibold rounded-full shadow-lg hover:bg-novax-hover transition-colors">
               <Brain className="w-4 h-4" />
               Chat
             </button>

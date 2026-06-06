@@ -131,7 +131,7 @@ function formatStrategy(outputs: Record<string, unknown>): string {
   let out = section('EXECUTIVE SUMMARY')
   out += `${doc.executive_summary}\n`
 
-  doc.phases.forEach((phase) => {
+  ;(doc.phases ?? []).forEach((phase) => {
     out += section(`PHASE: ${phase.name}  [${phase.diamond_position}]`)
     out += `Key insight: ${phase.key_insight}\n`
     if (phase.content && typeof phase.content === 'object') {

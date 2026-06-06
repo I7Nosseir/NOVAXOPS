@@ -1,170 +1,153 @@
+// ============================================================
+// POST /api/studio/strategy
+// Single-call social media strategy generator.
+// Output matches the Esplanade Q1/Q2 presentation format:
+//   positioning · campaign line · content pillars · strategy arc ·
+//   platform roles · monthly tactics · format roles · tenant integration · flow beats
+// ============================================================
+
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
+import type { StrategyDocument } from '@/lib/studio-types'
 
 interface StrategyRequest {
-  client_id: string
+  client_id?: string
   client_name: string
   industry?: string
   brand_voice?: string
   key_messages?: string[]
   competitors?: string[]
   platforms?: string[]
-  goals?: string
-  meta: 'intelligence' | 'positioning' | 'execution' | 'scale' | 'optimize'
-  existing_data?: Record<string, unknown>
+  brief: string
+  quarter: string
+  year: number
+  campaign_theme?: string
+  cultural_moments?: string
+  brand_persona?: string
+  tenant_notes?: string
+  signal_report?: unknown
 }
 
-const META_PROMPTS: Record<string, (d: StrategyRequest) => string> = {
-  intelligence: (d) => `You are a senior marketing strategist conducting a comprehensive business intelligence analysis.
+function buildPrompt(d: StrategyRequest): string {
+  const months = quarterMonths(d.quarter, d.year)
+  return `You are a senior social media strategist producing a QUARTERLY SOCIAL MEDIA STRATEGY document for an agency client presentation.
 
+You must follow the EXACT format of a high-quality agency strategy deck (similar to The Esplanade Riyadh Q1/Q2 strategies). Every section must be concrete, specific, and tailored — no generic filler.
+
+─── CLIENT BRIEF ───────────────────────────────────────────────
 Client: ${d.client_name}
-${d.industry ? `Industry: ${d.industry}` : ''}
-${d.brand_voice ? `Brand voice: ${d.brand_voice}` : ''}
-${d.competitors?.length ? `Known competitors: ${d.competitors.join(', ')}` : ''}
-${d.platforms?.length ? `Active platforms: ${d.platforms.join(', ')}` : ''}
-${d.goals ? `Goals: ${d.goals}` : ''}
+Industry: ${d.industry ?? 'not specified'}
+Quarter: ${d.quarter} ${d.year} — Months: ${months.join(', ')}
+Platforms: ${d.platforms?.join(', ') ?? 'Instagram, TikTok'}
+Brand Voice: ${d.brand_voice ?? 'not specified'}
+${d.key_messages?.length ? `Key Messages: ${d.key_messages.join(' | ')}` : ''}
+${d.competitors?.length ? `Competitors: ${d.competitors.join(', ')}` : ''}
 
-Generate a comprehensive intelligence analysis covering:
-1. Business intelligence (market position, strengths, weaknesses)
-2. Market analysis (size, trends, opportunities, threats)
-3. Audience psychology (who they are, what drives them, what holds them back)
+Strategic Brief: ${d.brief}
+${d.campaign_theme ? `Campaign Theme / Line: "${d.campaign_theme}"` : ''}
+${d.cultural_moments ? `Key Cultural Moments this quarter: ${d.cultural_moments}` : ''}
+${d.brand_persona ? `Brand Persona direction: ${d.brand_persona}` : ''}
+${d.tenant_notes ? `Partner / Tenant Integration Notes: ${d.tenant_notes}` : ''}
 
-Return JSON:
+─── WHAT TO GENERATE ───────────────────────────────────────────
+Generate a complete social media strategy document. Every field must be SPECIFIC to this client, quarter, and cultural context — not generic.
+
+Return ONLY valid JSON, no markdown fences:
 {
-  "market_position": "Current position in the market",
-  "strengths": ["strength 1", "strength 2", "strength 3"],
-  "weaknesses": ["weakness 1", "weakness 2"],
-  "market_size": "Estimated addressable market description",
-  "key_trends": ["Trend shaping this industry...", "..."],
-  "opportunities": ["Opportunity 1 with brief why", "..."],
-  "threats": ["Threat 1 with brief why", "..."],
-  "primary_audience": {
-    "demographics": "Age, location, income bracket description",
-    "psychographics": "Values, lifestyle, aspirations",
-    "pain_points": ["Pain 1", "Pain 2", "Pain 3"],
-    "buying_triggers": ["What makes them buy...", "..."]
-  },
-  "swot_summary": "2-3 sentence SWOT narrative",
-  "strategic_priority": "The single most important strategic priority based on this analysis"
-}
+  "positioning_statement": "One-sentence brand role statement for this quarter — what the brand IS for its audience this period",
+  "campaign_line": "${d.campaign_theme ? d.campaign_theme : 'A punchy campaign tagline that anchors the whole quarter — 3–7 words, poetic, not generic'}",
+  "quarter_role": "2–3 sentences: what this quarter represents strategically, how it builds on what came before and what it sets up for next quarter",
+  "identity_shift": "The single most important shift in brand behavior or narrative this quarter vs last quarter",
 
-Return ONLY valid JSON.`,
-
-  positioning: (d) => `You are a brand positioning strategist. Create a positioning strategy for this client.
-
-Client: ${d.client_name}
-${d.industry ? `Industry: ${d.industry}` : ''}
-${d.brand_voice ? `Brand voice: ${d.brand_voice}` : ''}
-${d.key_messages?.length ? `Current key messages: ${d.key_messages.join(', ')}` : ''}
-${d.existing_data ? `Intelligence data: ${JSON.stringify(d.existing_data).slice(0, 800)}` : ''}
-
-Return JSON:
-{
-  "brand_archetype": "e.g. The Hero / The Creator / The Sage",
-  "archetype_narrative": "Why this archetype fits and how to embody it",
-  "positioning_statement": "For [audience] who [need], [brand] is the [category] that [benefit] because [reason to believe]",
-  "uvp": "Unique value proposition in one punchy sentence",
-  "competitive_differentiation": ["How we're different from competitor type 1...", "..."],
-  "offer_optimization": "Key recommendation to strengthen the core offer",
-  "customer_journey": {
-    "awareness": "How they first encounter the brand",
-    "consideration": "What makes them consider seriously",
-    "conversion": "The final trigger to purchase",
-    "advocacy": "What makes them recommend"
-  },
-  "messaging_hierarchy": {
-    "primary_message": "The one message that must land every time",
-    "secondary_messages": ["Supporting message 1", "Supporting message 2"],
-    "proof_points": ["Proof point 1", "Proof point 2"]
-  }
-}
-
-Return ONLY valid JSON.`,
-
-  execution: (d) => `You are a content strategy director. Build a content execution system for this client.
-
-Client: ${d.client_name}
-${d.industry ? `Industry: ${d.industry}` : ''}
-${d.platforms?.length ? `Platforms: ${d.platforms.join(', ')}` : ''}
-${d.brand_voice ? `Brand voice: ${d.brand_voice}` : ''}
-${d.existing_data ? `Strategy so far: ${JSON.stringify(d.existing_data).slice(0, 600)}` : ''}
-
-Return JSON:
-{
   "content_pillars": [
-    { "name": "Authority", "description": "...", "content_types": ["..."], "posting_frequency": "2x/week", "example_topics": ["...", "..."] },
-    { "name": "Emotional", "description": "...", "content_types": ["..."], "posting_frequency": "2x/week", "example_topics": ["...", "..."] },
-    { "name": "Proof", "description": "...", "content_types": ["..."], "posting_frequency": "1x/week", "example_topics": ["...", "..."] },
-    { "name": "Viral", "description": "...", "content_types": ["..."], "posting_frequency": "1x/week", "example_topics": ["...", "..."] },
-    { "name": "Conversion", "description": "...", "content_types": ["..."], "posting_frequency": "1x/week", "example_topics": ["...", "..."] }
+    { "name": "Pillar Name", "description": "What this pillar captures — specific content territory, mood, and the type of life moments it reflects" },
+    { "name": "Pillar Name", "description": "..." },
+    { "name": "Pillar Name", "description": "..." },
+    { "name": "Pillar Name", "description": "..." },
+    { "name": "Pillar Name", "description": "..." }
   ],
-  "platform_strategy": {
-    "primary_platform": "Best platform for this brand and why",
-    "platform_notes": { "Instagram": "...", "LinkedIn": "..." }
-  },
-  "posting_cadence": "Total recommended posts per week with breakdown",
-  "lead_generation_system": "How content converts to leads for this specific client",
-  "seasonal_moments": ["Ramadan 2027 — opportunity...", "Industry event — opportunity..."],
-  "content_mix": { "video": 40, "carousel": 30, "static": 20, "text": 10 }
-}
 
-Return ONLY valid JSON.`,
-
-  scale: (d) => `You are a growth strategist. Design a community and paid advertising strategy.
-
-Client: ${d.client_name}
-${d.industry ? `Industry: ${d.industry}` : ''}
-${d.existing_data ? `Strategy context: ${JSON.stringify(d.existing_data).slice(0, 600)}` : ''}
-
-Return JSON:
-{
-  "community_architecture": {
-    "loyalty_mechanism": "How to build brand loyalty beyond transactions",
-    "ugc_strategy": "How to generate user-generated content",
-    "participation_loops": ["Loop 1: ...", "Loop 2: ..."]
-  },
-  "paid_strategy": {
-    "recommended_budget_split": { "awareness": 40, "retargeting": 35, "conversion": 25 },
-    "creative_brief": "What ad creative to produce first",
-    "targeting_approach": "How to target and which audiences to build",
-    "primary_platform": "Best paid platform for this brand"
-  },
-  "retargeting_architecture": "3-step retargeting funnel description",
-  "kpis_to_track": ["KPI 1 with target", "KPI 2 with target", "KPI 3 with target"],
-  "scale_triggers": ["When to scale budget...", "When to expand to new platform..."]
-}
-
-Return ONLY valid JSON.`,
-
-  optimize: (d) => `You are a performance optimization strategist.
-
-Client: ${d.client_name}
-${d.industry ? `Industry: ${d.industry}` : ''}
-${d.existing_data ? `Full strategy data: ${JSON.stringify(d.existing_data).slice(0, 800)}` : ''}
-
-Return JSON:
-{
-  "ab_test_roadmap": [
-    { "test": "Hook type A vs B", "hypothesis": "...", "metric": "...", "duration": "2 weeks" },
-    { "test": "...", "hypothesis": "...", "metric": "...", "duration": "..." }
+  "strategy_arc": [
+    { "number": "01", "phase_name": "Short name", "description": "One sentence — what this phase does strategically" },
+    { "number": "02", "phase_name": "Short name", "description": "..." },
+    { "number": "03", "phase_name": "Short name", "description": "..." }
   ],
-  "format_experiments": ["Try long-form LinkedIn articles for authority content", "..."],
-  "category_ownership_strategy": "How to own the conversation in this niche within 12 months",
-  "iteration_roadmap": {
-    "month_1_3": "Focus and actions",
-    "month_4_6": "Focus and actions",
-    "month_7_12": "Focus and actions"
+
+  "platform_roles": [
+    { "platform": "${d.platforms?.[0] ?? 'Instagram'}", "role": "Role tagline — what this platform does for the brand this quarter", "description": "2–3 sentences on visual style, content type, tone shift, and what changes vs last quarter" }
+  ],
+
+  "monthly_tactics": [
+    {
+      "month": "${months[0]}",
+      "role": "Short role name (e.g. Revival, The Flip, Spark)",
+      "theme_line": "Theme name × Cultural trigger (e.g. Post-Eid Energy × Spring Light)",
+      "description": "2–3 sentences — what this month does for the brand, who the audience is in this moment, what makes now different",
+      "brand_persona_adjectives": ["Adjective", "Adjective", "Adjective", "Adjective"],
+      "brand_persona_description": "One sentence: what the brand IS in this month's tone",
+      "focus": ["Specific content focus 1", "Specific content focus 2", "Specific content focus 3", "Specific content focus 4"],
+      "outcome": ["Business/brand outcome 1", "Business/brand outcome 2", "Business/brand outcome 3"]
+    },
+    {
+      "month": "${months[1] ?? months[0]}",
+      "role": "...",
+      "theme_line": "...",
+      "description": "...",
+      "brand_persona_adjectives": ["...", "...", "...", "..."],
+      "brand_persona_description": "...",
+      "focus": ["...", "...", "...", "..."],
+      "outcome": ["...", "...", "..."]
+    },
+    {
+      "month": "${months[2] ?? months[1] ?? months[0]}",
+      "role": "...",
+      "theme_line": "...",
+      "description": "...",
+      "brand_persona_adjectives": ["...", "...", "...", "..."],
+      "brand_persona_description": "...",
+      "focus": ["...", "...", "...", "..."],
+      "outcome": ["...", "...", "..."]
+    }
+  ],
+
+  "format_roles": {
+    "reels": ["Format use 1 — why Reels serve this brand this quarter", "Format use 2", "Format use 3"],
+    "motion_graphics": ["Format use 1", "Format use 2", "Format use 3"],
+    "static_carousel": ["Format use 1", "Format use 2", "Format use 3"]
   },
-  "performance_benchmarks": {
-    "instagram_er_target": "4-6%",
-    "linkedin_er_target": "2-4%",
-    "monthly_reach_growth": "15-20%"
-  },
-  "quarterly_review_triggers": ["Review if ER drops below X...", "Pivot if reach growth < Y%..."]
+
+  "tenant_integration": [
+    "Principle 1 — how partners/tenants/products appear in content",
+    "Principle 2",
+    "Principle 3"
+  ],
+
+  "strategy_flow": [
+    { "beat": "1", "label": "${months[0]}", "phase": "Phase name", "description": "One sentence — what happens" },
+    { "beat": "2", "label": "Early ${months[1] ?? months[0]}", "phase": "Phase name", "description": "..." },
+    { "beat": "3", "label": "Late ${months[1] ?? months[0]}", "phase": "Phase name", "description": "..." },
+    { "beat": "4", "label": "${months[2] ?? months[1] ?? months[0]}", "phase": "Phase name", "description": "..." },
+    { "beat": "5", "label": "Peak moment", "phase": "Climax", "description": "..." }
+  ]
 }
 
-Return ONLY valid JSON.`,
+Rules:
+- Every item must be SPECIFIC to ${d.client_name}, ${d.industry}, ${d.quarter} ${d.year}
+- Monthly tactics must align with actual cultural/seasonal moments in ${months.join('/')}
+- No generic strategy filler — if you don't know something, make a specific creative judgment
+- Platform roles must reflect what actually changes this quarter, not generic descriptions
+- Return ONLY valid JSON — no markdown, no commentary`
+}
+
+function quarterMonths(quarter: string, year: number): string[] {
+  const map: Record<string, string[]> = {
+    Q1: ['January', 'February', 'March'],
+    Q2: ['April', 'May', 'June'],
+    Q3: ['July', 'August', 'September'],
+    Q4: ['October', 'November', 'December'],
+  }
+  return map[quarter] ?? ['Month 1', 'Month 2', 'Month 3']
 }
 
 export async function POST(req: NextRequest) {
@@ -181,32 +164,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  if (!body.client_name || !body.meta) {
-    return NextResponse.json({ error: 'client_name and meta are required' }, { status: 400 })
+  if (!body.client_name || !body.brief || !body.quarter) {
+    return NextResponse.json({ error: 'client_name, brief, and quarter are required' }, { status: 400 })
   }
 
-  const promptFn = META_PROMPTS[body.meta]
-  if (!promptFn) {
-    return NextResponse.json({ error: 'Invalid meta phase' }, { status: 400 })
-  }
+  let prompt = buildPrompt(body)
 
-  let prompt = promptFn(body)
-  let raw = ''
-
-  // Inject client intelligence
+  // Inject client intelligence memory if available
   if (body.client_id) {
     const db = adminSupabase()
     if (db) {
       const block = await buildClientIntelligenceBlock(body.client_id, 'strategy', db).catch(() => '')
-      if (block) prompt = prompt + block
+      if (block) prompt = block + '\n\n' + prompt
     }
   }
+
+  let raw = ''
 
   if (anthropicKey) {
     const anthropic = new Anthropic({ apiKey: anthropicKey })
     const msg = await anthropic.messages.create({
       model: 'claude-opus-4-7',
-      max_tokens: 3000,
+      max_tokens: 6000,
       messages: [{ role: 'user', content: prompt }],
     })
     raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
@@ -216,9 +195,16 @@ export async function POST(req: NextRequest) {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 6000, temperature: 0.7 },
+        }),
       },
     )
+    if (!res.ok) {
+      const err = await res.text().catch(() => '')
+      return NextResponse.json({ error: `AI error: ${err}` }, { status: 502 })
+    }
     const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
     raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
   }
@@ -229,12 +215,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to parse strategy from AI', raw }, { status: 502 })
   }
 
-  let result: unknown
+  let result: StrategyDocument
   try {
-    result = JSON.parse(match[0])
+    result = JSON.parse(match[0]) as StrategyDocument
+    result.client_name = body.client_name
+    result.platforms   = body.platforms
+    result.brief       = body.brief
+    result.quarter     = body.quarter
+    result.year        = body.year
+    result.campaign_theme = body.campaign_theme
   } catch {
     return NextResponse.json({ error: 'Invalid JSON from AI', raw }, { status: 502 })
   }
 
-  return NextResponse.json({ data: result, meta: body.meta })
+  return NextResponse.json({ strategy: result })
 }

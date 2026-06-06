@@ -46,7 +46,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  return NextResponse.json(data as StudioSession)
+  return NextResponse.json({ session: data as StudioSession })
 }
 
 // ─── PATCH /api/studio/session/[id] ──────────────────────────

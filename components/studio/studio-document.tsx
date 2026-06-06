@@ -617,39 +617,271 @@ function HooksToolDocument({
 // ─── STRATEGY TOOL renderer ───────────────────────────────────────────────────
 
 function StrategyToolDocument({ doc }: { doc: StrategyDocument }) {
+  // Month persona adjective colors cycle
+  const PERSONA_COLORS = [
+    'bg-novax-light text-novax border-novax-border',
+    'bg-amber-50 text-amber-700 border-amber-200',
+    'bg-slate-100 text-slate-600 border-slate-200',
+  ]
+
   return (
-    <div className="p-6 space-y-6">
-      {doc.executive_summary && (
-        <div className="bg-novax rounded-2xl p-6">
-          <p className="text-[10px] tracking-[0.2em] text-novax-accent font-bold uppercase mb-2">BUILT FOR YOU</p>
-          <p className="text-base text-white leading-relaxed">{doc.executive_summary}</p>
+    <div className="p-6 space-y-8">
+
+      {/* ── IDENTITY BLOCK ── */}
+      {(doc.campaign_line || doc.positioning_statement) && (
+        <div className="bg-novax rounded-2xl p-6 space-y-3">
+          {doc.campaign_line && (
+            <p className="text-2xl font-bold text-white leading-snug">
+              {doc.campaign_line}
+            </p>
+          )}
+          {doc.quarter && doc.year && (
+            <p className="text-xs tracking-widest text-novax-accent font-bold uppercase">
+              {doc.quarter} {doc.year} Strategy
+            </p>
+          )}
+          {doc.quarter_role && (
+            <p className="text-sm text-white/80 leading-relaxed border-t border-white/10 pt-3">
+              {doc.quarter_role}
+            </p>
+          )}
+          {doc.identity_shift && (
+            <p className="text-xs italic text-novax-accent/80">{doc.identity_shift}</p>
+          )}
         </div>
       )}
 
-      {doc.phases?.map((phase, i) => (
-        <div key={i} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          {/* Phase header */}
-          <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-4">
-            <span className="text-3xl font-black text-slate-100 leading-none">
-              {String(i + 1).padStart(2, '0')}
-            </span>
-            <div>
-              <p className="text-sm font-bold text-slate-800">{phase.name}</p>
-              {phase.diamond_position && (
-                <p className="text-xs text-slate-400 mt-0.5">{phase.diamond_position}</p>
-              )}
+      {/* ── CONTENT PILLARS ── */}
+      {doc.content_pillars && doc.content_pillars.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">CONTENT PHILOSOPHY — PILLARS</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {doc.content_pillars.map((p, i) => (
+              <div key={i} className={cn(
+                'rounded-xl border p-4',
+                i === 0 ? 'sm:col-span-2 bg-novax-light border-novax-border' : 'bg-white border-slate-200',
+              )}>
+                <p className={cn('text-xs font-bold uppercase tracking-wider mb-1', i === 0 ? 'text-novax' : 'text-slate-500')}>
+                  {p.name}
+                </p>
+                <p className="text-sm text-slate-700 leading-relaxed">{p.description}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-400 italic mt-2 text-center">Partners and products appear as part of life, not advertisements.</p>
+        </div>
+      )}
+
+      {/* ── STRATEGY ARC ── */}
+      {doc.strategy_arc && doc.strategy_arc.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">THE STRATEGY IN ACTION</p>
+          <div className="space-y-2">
+            {doc.strategy_arc.map((phase, i) => (
+              <div key={i} className={cn(
+                'flex items-start gap-4 p-4 rounded-xl border',
+                i % 2 === 0 ? 'bg-slate-50 border-slate-200' : 'bg-white border-novax-border',
+              )}>
+                <span className="text-3xl font-black text-slate-100 leading-none shrink-0 w-10">
+                  {phase.number}
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">{phase.phase_name}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{phase.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── PLATFORM ROLES ── */}
+      {doc.platform_roles && doc.platform_roles.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">CONTENT STRATEGY — PLATFORMS</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {doc.platform_roles.map((pr, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-xl p-4">
+                <p className="text-xs font-bold text-novax uppercase tracking-wider mb-1">{pr.platform}</p>
+                <p className="text-xs font-semibold text-slate-600 mb-2">Role: {pr.role}</p>
+                <p className="text-xs text-slate-500 leading-relaxed">{pr.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── MONTHLY TACTICS ── */}
+      {doc.monthly_tactics && doc.monthly_tactics.length > 0 && (
+        <div className="space-y-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">MONTHLY TACTICS</p>
+          {doc.monthly_tactics.map((m, i) => (
+            <div key={i} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+              {/* Month header */}
+              <div className="bg-slate-50 border-b border-slate-200 px-6 py-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <p className="text-xs text-slate-400 font-medium">{m.month}</p>
+                  <span className="text-slate-200">·</span>
+                  <p className="text-xs font-bold text-novax uppercase tracking-wider">Role: {m.role}</p>
+                </div>
+                <p className="text-base font-bold text-slate-900 mt-1">{m.theme_line}</p>
+              </div>
+
+              <div className="px-6 py-4 space-y-4">
+                {/* Description */}
+                {m.description && (
+                  <p className="text-sm text-slate-600 leading-relaxed">{m.description}</p>
+                )}
+
+                {/* Brand Persona */}
+                {(m.brand_persona_adjectives?.length > 0 || m.brand_persona_description) && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Brand Persona</p>
+                    {m.brand_persona_adjectives?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {m.brand_persona_adjectives.map((adj, j) => (
+                          <span key={j} className={cn('text-[10px] font-semibold px-2.5 py-1 rounded-full border', PERSONA_COLORS[i % PERSONA_COLORS.length])}>
+                            {adj}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {m.brand_persona_description && (
+                      <p className="text-xs text-slate-500 italic">{m.brand_persona_description}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Focus + Outcome side by side */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {m.focus?.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 mb-2">Focus</p>
+                      <ul className="space-y-1.5">
+                        {m.focus.map((f, j) => (
+                          <li key={j} className="flex items-start gap-2 text-xs text-amber-800">
+                            <span className="text-amber-400 mt-0.5 shrink-0">·</span>
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {m.outcome?.length > 0 && (
+                    <div className="bg-novax rounded-xl p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-novax-accent mb-2">Outcome</p>
+                      <ul className="space-y-1.5">
+                        {m.outcome.map((o, j) => (
+                          <li key={j} className="flex items-start gap-2 text-xs text-white/85">
+                            <span className="text-novax-accent mt-0.5 shrink-0">·</span>
+                            {o}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── FORMAT ROLES ── */}
+      {doc.format_roles && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">CONTENT STRATEGY — FORMAT ROLES</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { label: 'REELS',             items: doc.format_roles.reels },
+              { label: 'MOTION GRAPHICS',   items: doc.format_roles.motion_graphics },
+              { label: 'STATIC / CAROUSEL', items: doc.format_roles.static_carousel },
+            ].map(({ label, items }) => items?.length ? (
+              <div key={label} className="bg-white border border-slate-200 rounded-xl p-4">
+                <p className="text-xs font-bold text-novax uppercase tracking-wider mb-2">{label}</p>
+                <ul className="space-y-1.5">
+                  {items.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                      <span className="text-slate-300 mt-0.5 shrink-0">_</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null)}
+          </div>
+        </div>
+      )}
+
+      {/* ── TENANT / PARTNER INTEGRATION ── */}
+      {doc.tenant_integration && doc.tenant_integration.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">PARTNER INTEGRATION PRINCIPLE</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {doc.tenant_integration.map((item, i) => (
+              <div key={i} className="bg-slate-900 rounded-xl p-4">
+                <p className="text-xs text-white/80 leading-relaxed">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── STRATEGY FLOW ── */}
+      {doc.strategy_flow && doc.strategy_flow.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">
+            {doc.quarter && doc.year ? `${doc.quarter} ${doc.year}` : 'STRATEGY'} — FULL FLOW
+          </p>
+          <div className="relative">
+            {/* Vertical line */}
+            <div className="absolute left-6 top-4 bottom-4 w-px bg-slate-200" />
+            <div className="space-y-4 pl-14">
+              {doc.strategy_flow.map((beat, i) => {
+                const isLeft = i % 2 === 0
+                return (
+                  <div key={i} className="relative">
+                    {/* Beat circle */}
+                    <div className={cn(
+                      'absolute -left-14 w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black',
+                      isLeft ? 'bg-novax text-white' : 'bg-slate-700 text-white',
+                    )}>
+                      {beat.beat}
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={cn('text-xs font-bold', isLeft ? 'text-novax' : 'text-slate-600')}>
+                          {beat.label}
+                        </span>
+                        <span className="text-slate-200 text-xs">·</span>
+                        <span className="text-xs text-slate-400">{beat.phase}</span>
+                      </div>
+                      <p className="text-sm text-slate-700 leading-relaxed">{beat.description}</p>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Key insight */}
+      {/* ── FALLBACK: legacy phase format ── */}
+      {!doc.monthly_tactics?.length && doc.phases?.map((phase, i) => (
+        <div key={i} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-4">
+            <span className="text-3xl font-black text-slate-100 leading-none">{String(i + 1).padStart(2, '0')}</span>
+            <div>
+              <p className="text-sm font-bold text-slate-800">{phase.name}</p>
+              {phase.diamond_position && <p className="text-xs text-slate-400 mt-0.5">{phase.diamond_position}</p>}
+            </div>
+          </div>
           {phase.key_insight && (
             <div className="bg-novax-light border-l-4 border-novax-border rounded-r-xl p-4 mx-6 my-4">
               <p className="text-[10px] tracking-wider text-novax-muted font-bold uppercase mb-1">THE INSIGHT</p>
               <p className="text-sm font-medium text-novax">{phase.key_insight}</p>
             </div>
           )}
-
-          {/* Content items — phase.content is Record<string, unknown>, render as bullets */}
           {phase.content && (
             <ul className="px-6 pb-5 space-y-1.5">
               {Object.values(phase.content).flatMap((v, j) => {

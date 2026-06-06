@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  transpilePackages: ['react-markdown', 'remark-gfm', 'remark-parse', 'unified', 'vfile', 'unist-util-visit'],
   // Skip ESLint and type errors during builds — run separately
   eslint: {
     ignoreDuringBuilds: true,

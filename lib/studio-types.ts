@@ -262,26 +262,78 @@ export interface HookDocument {
 
 // ─── Strategy ─────────────────────────────────────────────────
 
-export interface StrategyPhase {
+export interface StrategyContentPillar {
   name: string
-  diamond_position: string
-  key_insight: string
-  content: Record<string, unknown>
+  description: string
+}
+
+export interface StrategyArcPhase {
+  number: string
+  phase_name: string
+  description: string
+}
+
+export interface StrategyPlatformRole {
+  platform: string
+  role: string
+  description: string
+}
+
+export interface StrategyMonthTactic {
+  month: string
+  role: string
+  theme_line: string
+  description: string
+  brand_persona_adjectives: string[]
+  brand_persona_description: string
+  focus: string[]
+  outcome: string[]
+}
+
+export interface StrategyFormatRoles {
+  reels: string[]
+  motion_graphics: string[]
+  static_carousel: string[]
+}
+
+export interface StrategyFlowBeat {
+  beat: string
+  label: string
+  phase: string
+  description: string
 }
 
 export interface StrategyDocument {
-  executive_summary: string
-  phases: StrategyPhase[]
-  // Optional flat phase data used by strategy/page.tsx
+  // Legacy fields kept for backward compat
+  executive_summary?: string
+  phases?: Array<{ name: string; diamond_position: string; key_insight: string; content: Record<string, unknown> }>
   phase_intelligence?: Record<string, unknown>
   phase_positioning?: Record<string, unknown>
   phase_execution?: Record<string, unknown>
   phase_scale?: Record<string, unknown>
   phase_optimize?: Record<string, unknown>
+
+  // New Esplanade-style fields
+  positioning_statement?: string
+  campaign_line?: string
+  quarter_role?: string
+  identity_shift?: string
+  content_pillars?: StrategyContentPillar[]
+  strategy_arc?: StrategyArcPhase[]
+  platform_roles?: StrategyPlatformRole[]
+  monthly_tactics?: StrategyMonthTactic[]
+  format_roles?: StrategyFormatRoles
+  tenant_integration?: string[]
+  strategy_flow?: StrategyFlowBeat[]
+
+  // Metadata
   obstacle?: string
   brief?: string
   platforms?: string[]
   client_name?: string
+  quarter?: string
+  year?: number
+  campaign_theme?: string
 }
 
 // ─── Post-Mortem ──────────────────────────────────────────────
