@@ -2,6 +2,12 @@
 // Gemini prompt builders for each report template type.
 // All prompts strictly forbid recommendations, suggestions, or action items.
 
+const ARABIC_INSTRUCTION = `
+LANGUAGE REQUIREMENT: Write all body text in Arabic (Modern Standard Arabic — الفصحى المعاصرة).
+CRITICAL: The ### section headings must remain exactly in English as specified — do not translate them.
+Write flowing, professional Arabic prose in each section body. Do not mix languages within a paragraph.
+`.trim()
+
 // Plain-language format rule for the master monthly template (client-facing)
 const PLAIN_FORMAT = `
 FORMAT RULES — PLAIN LANGUAGE:
@@ -104,7 +110,8 @@ export function buildMonthlyPrompt(
   data: ReportData,
   clientName: string,
   period: string,
-  brand?: BrandContext
+  brand?: BrandContext,
+  language?: 'en' | 'ar'
 ): string {
   return `You are a social media analyst at NOVAX, a creative marketing agency.
 Write a plain-language Monthly Performance Report for ${clientName} covering ${period}.
@@ -150,7 +157,8 @@ Explain in simple terms whether the audience is growing, shrinking, or staying s
 ### Audience Engagement
 Summarise the quality of audience interaction — are people saving, sharing, or commenting? State the specific numbers. Explain what this shows about how the content is resonating.
 
-${PLAIN_FORMAT}`
+${PLAIN_FORMAT}
+${language === 'ar' ? '\n' + ARABIC_INSTRUCTION : ''}`
 }
 
 // ─── Paid Ads ────────────────────────────────────────────────────────────────
@@ -398,15 +406,16 @@ export function buildReportPrompt(
   data: ReportData,
   clientName: string,
   period: string,
-  brand?: BrandContext
+  brand?: BrandContext,
+  language?: 'en' | 'ar'
 ): string {
   switch (reportType) {
-    case 'monthly':   return buildMonthlyPrompt(data, clientName, period, brand)
+    case 'monthly':   return buildMonthlyPrompt(data, clientName, period, brand, language)
     case 'paid':      return buildPaidPrompt(data, clientName, period, brand)
     case 'combined':  return buildCombinedPrompt(data, clientName, period, brand)
     case 'platform':  return buildPlatformPrompt(data, clientName, period, brand)
     case 'quarterly': return buildQuarterlyPrompt(data, clientName, period, brand)
     case 'executive': return buildExecutivePrompt(data, clientName, period, brand)
-    default:          return buildMonthlyPrompt(data, clientName, period, brand)
+    default:          return buildMonthlyPrompt(data, clientName, period, brand, language)
   }
 }

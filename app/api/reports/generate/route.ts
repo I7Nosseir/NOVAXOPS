@@ -81,9 +81,13 @@ async function fetchMetricoolData(
   }
 }
 
+// Gemini Flash approximate pricing (per 1M tokens)
+const GEMINI_INPUT_COST_PER_M  = 0.075
+const GEMINI_OUTPUT_COST_PER_M = 0.30
+
 // ─── Gemini caller ────────────────────────────────────────────────────────────
 
-async function callGemini(prompt: string): Promise<string> {
+async function callGemini(prompt: string): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY not configured')
 
@@ -101,8 +105,13 @@ async function callGemini(prompt: string): Promise<string> {
 
   const data = await res.json() as {
     candidates?: { content?: { parts?: { text?: string }[] } }[]
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }
   }
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  return {
+    text:         data.candidates?.[0]?.content?.parts?.[0]?.text ?? '',
+    inputTokens:  data.usageMetadata?.promptTokenCount ?? 0,
+    outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+  }
 }
 
 // ─── Section parser ───────────────────────────────────────────────────────────
@@ -237,7 +246,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { clientId, reportType = 'monthly', startDate, endDate, platforms } = body as typeof body & { platforms?: string[] }
+  const { clientId, reportType = 'monthly', startDate, endDate, platforms, language } = body as typeof body & { platforms?: string[]; language?: 'en' | 'ar' }
 
   if (!clientId || !startDate || !endDate) {
     return NextResponse.json(
@@ -281,6 +290,7 @@ export async function POST(req: NextRequest) {
   // 4. Build and run Gemini prompt (if API key configured)
   let narrative: Record<string, string> = {}
   let geminiError: string | null = null
+  let aiCost: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedUsd: number; model: string } | null = null
 
   if (process.env.GEMINI_API_KEY) {
     try {
@@ -290,10 +300,18 @@ export async function POST(req: NextRequest) {
         metricoolData,
         client.name,
         period,
-        client.brand
+        client.brand,
+        language
       )
-      const raw = await callGemini(prompt)
+      const { text: raw, inputTokens, outputTokens } = await callGemini(prompt)
       narrative = parseSections(raw)
+      aiCost = {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        estimatedUsd: (inputTokens / 1_000_000) * GEMINI_INPUT_COST_PER_M + (outputTokens / 1_000_000) * GEMINI_OUTPUT_COST_PER_M,
+        model: GEMINI_MODEL,
+      }
     } catch (err) {
       geminiError = err instanceof Error ? err.message : 'AI generation failed'
     }
@@ -319,5 +337,6 @@ export async function POST(req: NextRequest) {
     _mock: metricoolData.isMock,
     error: metricoolData.error ?? undefined,
     _geminiError: geminiError ?? undefined,
+    aiCost,
   })
 }

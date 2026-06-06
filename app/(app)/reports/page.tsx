@@ -12,7 +12,7 @@ import {
   FileText, TrendingUp, Eye, BarChart2, ArrowUpRight, ArrowDownRight,
   AlertCircle, Activity, Calendar, RefreshCw, Sparkles, Printer, Check,
   Heart, MessageCircle, Share2, Users, Link2,
-  Folder, FolderOpen, ChevronDown, ChevronRight, ChevronUp, Trash2,
+  Folder, FolderOpen, ChevronDown, ChevronRight, ChevronUp, Trash2, DollarSign,
 } from 'lucide-react'
 
 // ─── Brand palette ─────────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 // ─── Master Monthly Report ──────────────────────────────────────────────────────
 
 function MasterMonthlyReport({
-  client, period, logoUrl, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport,
+  client, period, logoUrl, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport, language = 'en',
 }: {
   client: string
   period: string
@@ -304,6 +304,7 @@ function MasterMonthlyReport({
   liveTrend?: LiveTrendPoint[] | null
   topPostGroups?: TopPostGroup[] | null
   aiReport?: AIReport | null
+  language?: 'en' | 'ar'
 }) {
   const platformData = (livePlatforms ?? [])
     .filter(p => p.reach > 0 || p.impressions > 0 || p.likes > 0 || p.comments > 0)
@@ -749,28 +750,28 @@ function MasterMonthlyReport({
           <ReportPageHeader client={client} period={period} logoUrl={logoUrl}/>
           <SectionLabel n={sec()} label="Analysis"/>
           <SectionTitle
-            title="What This Month's Data Tells Us"
-            subtitle="Here is what the numbers mean for your brand — written in plain language without any marketing jargon."
+            title={language === 'ar' ? 'ماذا تخبرنا بيانات هذا الشهر' : "What This Month's Data Tells Us"}
+            subtitle={language === 'ar' ? 'إليك ما تعنيه الأرقام لعلامتك التجارية — بلغة واضحة وبدون مصطلحات تسويقية.' : "Here is what the numbers mean for your brand — written in plain language without any marketing jargon."}
           />
 
           <div className="space-y-6">
             {([
-              { key: 'executive',  heading: 'Month Overview' },
-              { key: 'reach',      heading: 'How Your Content Spread' },
-              { key: 'engagement', heading: 'How People Reacted' },
-              { key: 'platform',   heading: 'Which Platforms Worked Best' },
-              { key: 'trend',      heading: 'Are You Growing?' },
-              { key: 'audience',   heading: 'About Your Audience' },
-              { key: 'follower',   heading: 'Follower Growth' },
-            ] as { key: keyof AIReportNarrative; heading: string }[])
+              { key: 'executive',  en: 'Month Overview',             ar: 'نظرة عامة على الشهر' },
+              { key: 'reach',      en: 'How Your Content Spread',     ar: 'كيف انتشر محتواك' },
+              { key: 'engagement', en: 'How People Reacted',          ar: 'كيف تفاعل الجمهور' },
+              { key: 'platform',   en: 'Which Platforms Worked Best', ar: 'أفضل المنصات أداءً' },
+              { key: 'trend',      en: 'Are You Growing?',            ar: 'هل أنت في تنامٍ؟' },
+              { key: 'audience',   en: 'About Your Audience',         ar: 'عن جمهورك' },
+              { key: 'follower',   en: 'Follower Growth',             ar: 'نمو المتابعين' },
+            ] as { key: keyof AIReportNarrative; en: string; ar: string }[])
               .filter(({ key }) => !!aiReport!.narrative[key])
-              .map(({ key, heading }) => (
+              .map(({ key, en, ar }) => (
                 <div key={key} className="rounded-xl border border-slate-100 p-5">
-                  <div className="flex items-center gap-2.5 mb-3">
+                  <div className={cn('flex items-center gap-2.5 mb-3', language === 'ar' && 'flex-row-reverse')}>
                     <div className="w-1 h-5 rounded-full shrink-0" style={{ background: B.accent }}/>
-                    <h3 className="text-sm font-bold text-slate-800">{heading}</h3>
+                    <h3 className="text-sm font-bold text-slate-800">{language === 'ar' ? ar : en}</h3>
                   </div>
-                  <p className="text-sm text-slate-600 leading-7">
+                  <p className="text-sm text-slate-600 leading-7" dir={language === 'ar' ? 'rtl' : undefined}>
                     {renderInline(aiReport!.narrative[key]!)}
                   </p>
                 </div>
@@ -834,6 +835,8 @@ export default function ReportsPage() {
   const [reportLogoUrl, setReportLogoUrl]         = useState<string | null>(null)
   const [exportingPdf, setExportingPdf]           = useState(false) // unused but kept for future
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(ALL_PLATFORMS)
+  const [language, setLanguage]                   = useState<'en' | 'ar'>('en')
+  const [reportCost, setReportCost]               = useState<{ inputTokens: number; outputTokens: number; totalTokens: number; estimatedUsd: number; model: string } | null>(null)
 
   // ── Library ──────────────────────────────────────────
   const [savedReports, setSavedReports]           = useState<SavedReport[]>([])
@@ -952,6 +955,7 @@ export default function ReportsPage() {
     setDataError(null)
     setAiError(null)
     setAiReport(null)
+    setReportCost(null)
 
     const range = parsePeriodToRange(period)
     if (!range) {
@@ -971,6 +975,7 @@ export default function ReportsPage() {
           startDate:  range.startDate,
           endDate:    range.endDate,
           platforms:  selectedPlatforms,
+          language,
         }),
       })
       const data = await res.json() as {
@@ -985,6 +990,7 @@ export default function ReportsPage() {
         _mock?: boolean
         _geminiError?: string
         error?: string
+        aiCost?: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedUsd: number; model: string }
       }
 
       if (!res.ok) {
@@ -1006,6 +1012,7 @@ export default function ReportsPage() {
         if (data.narrative && data.meta && !data._mock) {
           setAiReport({ narrative: data.narrative, meta: data.meta })
         }
+        if (data.aiCost) setReportCost(data.aiCost)
 
         // Auto-save to library (fire and forget — non-blocking)
         if (!data._mock && data.stats && Object.values(data.stats).some(v => Number(v) > 0)) {
@@ -1088,6 +1095,24 @@ export default function ReportsPage() {
                 ))}
               </select>
 
+              {/* Language toggle */}
+              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => { setLanguage('en'); setGenerated(false) }}
+                  className={cn('px-3 py-2 text-xs font-bold transition-colors', language === 'en' ? 'text-white' : 'text-slate-500 hover:text-slate-700 bg-white')}
+                  style={language === 'en' ? { background: B.primary } : undefined}
+                >
+                  EN
+                </button>
+                <button
+                  onClick={() => { setLanguage('ar'); setGenerated(false) }}
+                  className={cn('px-3 py-2 text-xs font-bold transition-colors', language === 'ar' ? 'text-white' : 'text-slate-500 hover:text-slate-700 bg-white')}
+                  style={language === 'ar' ? { background: B.primary } : undefined}
+                >
+                  AR
+                </button>
+              </div>
+
               <button
                 onClick={handleGenerate}
                 disabled={generating || !selectedClient || selectedPlatforms.length === 0}
@@ -1108,6 +1133,15 @@ export default function ReportsPage() {
               {generated && aiReport && !aiError && (
                 <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg" style={{ background: B.light, color: B.primary }}>
                   <Sparkles className="w-3 h-3"/> AI Analysis
+                </span>
+              )}
+              {generated && reportCost && (
+                <span
+                  className="flex items-center gap-1 text-xs text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg"
+                  title={`${reportCost.inputTokens.toLocaleString()} input + ${reportCost.outputTokens.toLocaleString()} output tokens · ${reportCost.model}`}
+                >
+                  <DollarSign className="w-3 h-3"/>
+                  {reportCost.estimatedUsd < 0.001 ? '<$0.001' : `$${reportCost.estimatedUsd.toFixed(4)}`}
                 </span>
               )}
               {generated && aiError && (
@@ -1309,6 +1343,7 @@ export default function ReportsPage() {
             liveTrend={liveTrend}
             topPostGroups={topPostGroups}
             aiReport={aiReport}
+            language={language}
           />
         </div>
       ) : (
