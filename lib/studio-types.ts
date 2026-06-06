@@ -166,6 +166,9 @@ export interface HookItem {
   context: number
   curiosity: number
   scamper_applied?: string
+  headline?: string
+  body?: string
+  cta?: string
 }
 
 export interface ScriptSection {

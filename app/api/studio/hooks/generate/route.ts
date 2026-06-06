@@ -12,6 +12,9 @@ export interface GeneratedHook {
   virality_tier: 'S' | 'A' | 'B' | 'C'
   format_rec: 'vocal' | 'text_block' | 'caption' | 'all_three'
   format_note: string
+  headline: string
+  body: string
+  cta: string
 }
 
 function languageInstruction(language: string, dialect: string): string {
@@ -64,6 +67,11 @@ Format recommendations:
 - caption: Best as written post opening
 - all_three: Works across all formats
 
+For each hook also write:
+- headline: A punchy 4–8 word title for the content piece this hook introduces (not the hook itself)
+- body: 2–3 sentences of body copy that follow the hook — deliver on its promise, build tension or value
+- cta: One short, specific call to action sentence matching the content goal (${platform} native)
+
 Return ONLY a valid JSON array — no markdown, no explanation:
 [
   {
@@ -75,12 +83,15 @@ Return ONLY a valid JSON array — no markdown, no explanation:
     "total_score": 27,
     "virality_tier": "S",
     "format_rec": "vocal",
-    "format_note": "One-breath opener, natural pause after the question"
+    "format_note": "One-breath opener, natural pause after the question",
+    "headline": "...",
+    "body": "...",
+    "cta": "..."
   }
 ]
 
 Rules:
-- No hashtags, no emojis
+- No hashtags, no emojis anywhere
 - Each hook must be a complete standalone line (not mid-sentence)
 - Vary sentence structure — some short, some medium
 - Hooks for ${platform} should match platform norms (TikTok = shorter/punchier, LinkedIn = more intellectual)

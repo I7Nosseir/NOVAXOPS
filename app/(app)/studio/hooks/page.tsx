@@ -243,6 +243,9 @@ export default function HookLabPage() {
           total_score:     h.total_score,
           format_rec:      h.format_rec,
           format_note:     h.format_note,
+          headline:        h.headline,
+          body:            h.body,
+          cta:             h.cta,
         })),
         tier_summary: {
           S: tierCounts['S'] ?? 0,
@@ -338,9 +341,12 @@ export default function HookLabPage() {
       `TIER SUMMARY: S·${hookDoc.tier_summary?.S ?? 0} A·${hookDoc.tier_summary?.A ?? 0} B·${hookDoc.tier_summary?.B ?? 0} C·${hookDoc.tier_summary?.C ?? 0}`,
       '',
     ]
-    ;(hookDoc.hooks as Array<{ hook_text: string; hook_type: string; virality_tier: string; total_score: number }>).forEach((h, i) => {
+    ;(hookDoc.hooks as Array<{ hook_text: string; hook_type: string; virality_tier: string; total_score: number; headline?: string; body?: string; cta?: string }>).forEach((h, i) => {
       lines.push(`#${i + 1} [${h.virality_tier}] ${h.total_score}/30 — ${h.hook_type}`)
-      lines.push(h.hook_text)
+      lines.push(`HOOK: ${h.hook_text}`)
+      if (h.headline) lines.push(`HEADLINE: ${h.headline}`)
+      if (h.body)     lines.push(`BODY: ${h.body}`)
+      if (h.cta)      lines.push(`CTA: ${h.cta}`)
       lines.push('')
     })
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' })

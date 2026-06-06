@@ -393,24 +393,33 @@ function HooksToolDocument({
   doc: HookDocument
   language?: 'english' | 'arabic'
 }) {
-  const [savedHooks, setSavedHooks] = useState<Set<number>>(new Set())
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [savedHooks,   setSavedHooks]   = useState<Set<number>>(new Set())
+  const [copiedIdx,    setCopiedIdx]    = useState<number | null>(null)
+  const [expandedIdx,  setExpandedIdx]  = useState<number | null>(null)
   const isArabic = language === 'arabic'
 
   // Normalise union hook shape to HookItem for rendering
   const hooks: HookItem[] = (doc.hooks ?? []).map((h, i) => {
     if ('tier' in h) return h as HookItem
-    const raw = h as { hook_text: string; hook_type: string; virality_tier: string; clarity_score: number; context_score: number; curiosity_score: number; total_score: number; format_rec?: string }
+    const raw = h as {
+      hook_text: string; hook_type: string; virality_tier: string
+      clarity_score: number; context_score: number; curiosity_score: number
+      total_score: number; format_rec?: string
+      headline?: string; body?: string; cta?: string
+    }
     return {
-      rank: i + 1,
+      rank:      i + 1,
       hook_text: raw.hook_text,
       hook_type: raw.hook_type,
-      format: raw.format_rec ?? 'vocal',
-      tier: raw.virality_tier as HookTier,
+      format:    raw.format_rec ?? 'vocal',
+      tier:      raw.virality_tier as HookTier,
       total_score: raw.total_score,
-      clarity: raw.clarity_score,
-      context: raw.context_score,
+      clarity:   raw.clarity_score,
+      context:   raw.context_score,
       curiosity: raw.curiosity_score,
+      headline:  raw.headline,
+      body:      raw.body,
+      cta:       raw.cta,
     } satisfies HookItem
   })
   const bestHook = hooks.find(h => h.tier === 'S') ?? hooks[0]
@@ -429,9 +438,17 @@ function HooksToolDocument({
   }
 
   function copyHook(hook: HookItem, idx: number) {
-    navigator.clipboard.writeText(hook.hook_text).catch(() => {})
+    const parts = [hook.hook_text]
+    if (hook.headline) parts.push(`\n${hook.headline}`)
+    if (hook.body)     parts.push(hook.body)
+    if (hook.cta)      parts.push(`\nCTA: ${hook.cta}`)
+    navigator.clipboard.writeText(parts.join('\n')).catch(() => {})
     setCopiedIdx(idx)
     setTimeout(() => setCopiedIdx(null), 2000)
+  }
+
+  function toggleExpand(idx: number) {
+    setExpandedIdx(prev => (prev === idx ? null : idx))
   }
 
   return (
@@ -456,87 +473,139 @@ function HooksToolDocument({
         </div>
       </div>
 
-      {/* Featured hook */}
+      {/* Featured best hook — shows everything */}
       {bestHook && (
-        <div className="bg-novax text-white rounded-2xl p-6">
-          <p className="text-[10px] tracking-widest text-novax-accent font-bold uppercase mb-1">BEST HOOK</p>
-          <p
-            className="text-xl font-semibold leading-snug my-3"
-            dir={isArabic ? 'rtl' : 'ltr'}
-          >
-            {bestHook.hook_text}
-          </p>
-          <ThreeCBars clarity={bestHook.clarity} context={bestHook.context} curiosity={bestHook.curiosity} inverted />
+        <div className="bg-novax text-white rounded-2xl overflow-hidden">
+          <div className="px-6 pt-6 pb-4">
+            <p className="text-[10px] tracking-widest text-novax-accent font-bold uppercase mb-1">BEST HOOK</p>
+            <p className="text-xl font-semibold leading-snug mt-3" dir={isArabic ? 'rtl' : 'ltr'}>
+              {bestHook.hook_text}
+            </p>
+            <ThreeCBars clarity={bestHook.clarity} context={bestHook.context} curiosity={bestHook.curiosity} inverted />
+          </div>
+          {(bestHook.headline || bestHook.body || bestHook.cta) && (
+            <div className="border-t border-white/10 px-6 py-4 space-y-3">
+              {bestHook.headline && (
+                <div>
+                  <p className="text-[10px] tracking-widest text-novax-accent font-bold uppercase mb-1">HEADLINE</p>
+                  <p className="text-base font-bold text-white leading-snug" dir={isArabic ? 'rtl' : 'ltr'}>{bestHook.headline}</p>
+                </div>
+              )}
+              {bestHook.body && (
+                <div>
+                  <p className="text-[10px] tracking-widest text-novax-accent font-bold uppercase mb-1">BODY</p>
+                  <p className="text-sm text-white/85 leading-relaxed" dir={isArabic ? 'rtl' : 'ltr'}>{bestHook.body}</p>
+                </div>
+              )}
+              {bestHook.cta && (
+                <div className="bg-white/10 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-novax-accent" dir={isArabic ? 'rtl' : 'ltr'}>{bestHook.cta}</p>
+                  <span className="text-[10px] text-white/40 shrink-0 uppercase tracking-wider">CTA</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* Hook list */}
       <div className="space-y-2">
         {hooks.map((hook, i) => {
-          const isSaved = savedHooks.has(i)
-          const isCopied = copiedIdx === i
+          const isSaved    = savedHooks.has(i)
+          const isCopied   = copiedIdx === i
+          const isExpanded = expandedIdx === i
+          const hasContent = hook.headline || hook.body || hook.cta
           return (
             <div
               key={i}
               className={cn(
-                'flex items-start gap-3 p-4 rounded-xl border transition-all',
+                'rounded-xl border transition-all',
                 isSaved ? 'border-novax-border bg-novax-light/30' : 'border-slate-200 bg-white',
               )}
             >
-              {/* Rank + tier */}
-              <div className="flex flex-col items-center gap-1 shrink-0">
-                <span className="text-[11px] text-slate-400">#{i + 1}</span>
-                <TierBadge tier={hook.tier ?? 'B'} />
-              </div>
+              {/* Main row */}
+              <div className="flex items-start gap-3 p-4">
+                {/* Rank + tier */}
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  <span className="text-[11px] text-slate-400">#{i + 1}</span>
+                  <TierBadge tier={hook.tier ?? 'B'} />
+                </div>
 
-              {/* Body */}
-              <div className="flex-1 min-w-0">
-                <p
-                  className="text-sm font-medium text-slate-900 leading-snug mb-1"
-                  dir={isArabic ? 'rtl' : 'ltr'}
-                >
-                  {hook.hook_text}
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] bg-slate-100 text-slate-600 rounded-full px-2 py-0.5 capitalize">
-                    {hook.hook_type}
-                  </span>
-                  <span className="text-[10px] text-slate-400">{hook.total_score}/30</span>
+                {/* Hook text + meta */}
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-sm font-medium text-slate-900 leading-snug mb-1.5"
+                    dir={isArabic ? 'rtl' : 'ltr'}
+                  >
+                    {hook.hook_text}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] bg-slate-100 text-slate-600 rounded-full px-2 py-0.5 capitalize">
+                      {hook.hook_type}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{hook.total_score}/30</span>
+                    {hasContent && (
+                      <button
+                        onClick={() => toggleExpand(i)}
+                        className="text-[10px] text-novax-muted hover:text-novax font-medium transition-colors"
+                      >
+                        {isExpanded ? 'Hide content' : 'Headline + Body + CTA'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <button
+                    onClick={() => toggleSave(i)}
+                    className={cn(
+                      'p-1.5 rounded-lg transition-colors',
+                      isSaved
+                        ? 'text-novax bg-novax-light'
+                        : 'text-slate-400 hover:text-novax hover:bg-novax-light',
+                    )}
+                    title="Save hook"
+                  >
+                    <Star className="w-3.5 h-3.5" fill={isSaved ? 'currentColor' : 'none'} />
+                  </button>
+                  <button
+                    onClick={() => copyHook(hook, i)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    title="Copy hook + content"
+                  >
+                    {isCopied ? (
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <button
-                  onClick={() => toggleSave(i)}
-                  className={cn(
-                    'p-1.5 rounded-lg transition-colors',
-                    isSaved
-                      ? 'text-novax bg-novax-light'
-                      : 'text-slate-400 hover:text-novax hover:bg-novax-light',
+              {/* Expanded content block */}
+              {isExpanded && hasContent && (
+                <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-3" dir={isArabic ? 'rtl' : 'ltr'}>
+                  {hook.headline && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Headline</p>
+                      <p className="text-sm font-semibold text-slate-900">{hook.headline}</p>
+                    </div>
                   )}
-                  title="Save hook"
-                >
-                  <Star className="w-3.5 h-3.5" fill={isSaved ? 'currentColor' : 'none'} />
-                </button>
-                <button
-                  onClick={() => copyHook(hook, i)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                  title="Copy hook"
-                >
-                  {isCopied ? (
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
+                  {hook.body && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Body</p>
+                      <p className="text-sm text-slate-700 leading-relaxed">{hook.body}</p>
+                    </div>
                   )}
-                </button>
-                <button
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                  title="SCAMPER variation"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                  {hook.cta && (
+                    <div className="bg-novax-light border border-novax-border rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold text-novax">{hook.cta}</p>
+                      <span className="text-[10px] text-novax-muted shrink-0 uppercase tracking-wider">CTA</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
