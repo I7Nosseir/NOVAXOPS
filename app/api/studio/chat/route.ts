@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      response: responseText,
+      reply: responseText,
       ...(edit ? { edit } : {}),
       updated_history: [...history, newUserMessage, assistantMessage],
     })

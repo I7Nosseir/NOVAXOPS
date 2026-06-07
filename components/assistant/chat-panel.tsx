@@ -51,6 +51,19 @@ const QUICK_PROMPTS = [
   'Best content format for this niche',
 ]
 
+const ASSISTANT_CAPABILITIES_REPLY = `I'm the NOVAX Assistant. Here's what I can do:
+
+- Answer questions about any client, project, task, or studio session — use @ to reference them
+- Edit or rewrite content (captions, scripts, copy) — paste it in and ask
+- Analyze performance data for any active client
+- Generate hooks, captions, briefs, or full content structures
+- Translate to Arabic
+- Summarize documents or studio sessions
+- Answer strategy questions scoped to a specific client or across all clients
+
+**Slash commands:** /summarize · /rewrite · /shorten · /brief · /caption · /translate
+**@ references:** type @ to attach a client, document, session, or task as context`
+
 // ── @ mention hook ─────────────────────────────────────────────
 // query is null when @ is not active, string (possibly empty) when active
 
@@ -501,6 +514,17 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => {
+                setMessages([
+                  { id: crypto.randomUUID(), role: 'user', content: 'What can you do?' },
+                  { id: crypto.randomUUID(), role: 'assistant', content: ASSISTANT_CAPABILITIES_REPLY },
+                ])
+              }}
+              className="mt-3 px-4 py-1.5 text-xs font-medium border border-slate-200 rounded-lg text-slate-600 hover:border-novax-border hover:bg-novax-light/50 transition-colors"
+            >
+              What can you do?
+            </button>
           </div>
         )}
 

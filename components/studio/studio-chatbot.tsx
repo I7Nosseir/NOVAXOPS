@@ -66,6 +66,17 @@ function EditCard({
   )
 }
 
+const CAPABILITIES_REPLY = `I help you get the most out of this studio session. Here's what I can do:
+
+- Explain why any hook, line, or strategy choice was made — ask "why did you use X?"
+- Rewrite or refine any section — say "rewrite the hook" or "shorten the CTA"
+- Diagnose weak spots: "what's the weakest part of this content?"
+- Answer questions about the frameworks used (StoryBrand arc, 3C scoring, Cialdini triggers, Fogg model)
+- Translate content to Arabic
+- Suggest improvements based on the brief and client context
+
+For edits, I return a direct replacement — not a description of changes.`
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function StudioChatbot({
@@ -81,6 +92,14 @@ export function StudioChatbot({
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  function handleCapabilities() {
+    setChatHistory(prev => [
+      ...prev,
+      { role: 'user', content: 'What can you do?' },
+      { role: 'assistant', content: CAPABILITIES_REPLY },
+    ])
+  }
 
   // Detect mobile and set initial open state
   useEffect(() => {
@@ -210,11 +229,17 @@ export function StudioChatbot({
       {/* Message list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {chatHistory.length === 0 && !isLoading && (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center justify-center h-full gap-3">
             <p className="text-sm text-slate-500 italic text-center px-4">
               Ask anything about this session — edits, strategy, or why something
               was built this way.
             </p>
+            <button
+              onClick={handleCapabilities}
+              className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg text-slate-600 hover:border-novax-border hover:bg-novax-light/50 transition-colors"
+            >
+              What can you do?
+            </button>
           </div>
         )}
 
