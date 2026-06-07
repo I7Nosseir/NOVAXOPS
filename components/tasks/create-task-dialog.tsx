@@ -8,6 +8,7 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useCreateTask } from '@/lib/hooks/use-tasks'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { PipelineStage, Priority } from '@/lib/types'
 
@@ -121,6 +122,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
         tags,
         linked_doc_ids: linkedDocIds.length > 0 ? linkedDocIds : undefined,
       })
+      toast.success('Task created')
       handleClose()
     } catch {
       // Error is displayed inline via createTask.isError
