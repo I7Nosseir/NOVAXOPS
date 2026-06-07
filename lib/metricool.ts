@@ -325,11 +325,19 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     throw new Error(`Metricool ${res.status} on /scheduler/posts: ${rawBody}`)
   }
 
+  let parsed: Record<string, unknown>
   try {
-    return JSON.parse(rawBody) as MetricoolScheduledPost
+    parsed = JSON.parse(rawBody) as Record<string, unknown>
   } catch {
     throw new Error(`Metricool returned non-JSON (${res.status}): ${rawBody.slice(0, 300)}`)
   }
+
+  // Metricool sometimes wraps the created post in { data: { ... } }
+  const postObj = (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data))
+    ? parsed.data as Record<string, unknown>
+    : parsed
+  console.log('[Metricool] schedulePost extracted post id:', postObj.id)
+  return postObj as unknown as MetricoolScheduledPost
 }
 
 /**
@@ -340,13 +348,17 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
  * (empty body), which causes res.json() to throw even on success.
  */
 export async function deleteScheduledPost(postId: string, blogId: string | number): Promise<void> {
-  const res = await fetch(`${BASE}/scheduler/posts/${postId}?${qs(blogId)}`, {
+  const url = `${BASE}/scheduler/posts/${postId}?${qs(blogId)}`
+  console.log('[Metricool] deleteScheduledPost →', url)
+  const res = await fetch(url, {
     method: 'DELETE',
     headers: {
+      'Content-Type': 'application/json',
       Accept: 'application/json',
       'X-Mc-Auth': requireToken(),
     },
   })
+  console.log(`[Metricool] deleteScheduledPost response: ${res.status}`)
   // 204 No Content = success. 404 = already gone = also fine.
   if (!res.ok && res.status !== 404) {
     let body = ''

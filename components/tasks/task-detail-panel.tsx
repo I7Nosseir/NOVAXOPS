@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle,
   Clock, Zap, Copy, MoreHorizontal, Trash2, Eye, BookOpen as ReadIcon,
   ChevronDown, ChevronRight, Monitor, FileText, Plus, ExternalLink,
   Wand2, ClipboardList,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import type { Task, AgentType, PipelineStage, Priority, ContentBriefRequest, ContentBriefData } from '@/lib/types'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import type { Task, AgentType, PipelineStage, Priority, TaskStatus, ContentBriefRequest, ContentBriefData } from '@/lib/types'
 import { BriefRequestButton } from './brief-request-button'
 import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, timeAgo, getSubtypesForStage, getSubtypeStyle, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -94,6 +95,10 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const { user: authUser } = useAuth()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
+  const queryClient = useQueryClient()
+
+  // Roles that can manage task metadata (title, stage, priority, assignee, due date, delete)
+  const canManage = !!authUser && ['admin', 'ceo', 'creative_director', 'account_manager', 'strategist'].includes(authUser.role)
 
   const { data: allDocs = [] } = useQuery<{ id: string; title: string; is_template: boolean }[]>({
     queryKey: ['docs'],
@@ -123,10 +128,23 @@ export function TaskDetailPanel({ task, onClose }: Props) {
     }
   }, [task?.id])
 
+  const acknowledge = useCallback(async (type: 'seen' | 'read') => {
+    if (!authUser || !task) return
+    try {
+      await fetch(`/api/tasks/${task.id}/acknowledge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: authUser.id, type }),
+      })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    } catch { /* non-critical */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id, authUser?.id])
+
   // Auto-mark seen when assignee opens the task
   useEffect(() => {
     if (task && authUser && authUser.id === task.assigned_to && !task.seen_at) {
-      updateTask.mutate({ id: task.id, seen_at: new Date().toISOString(), seen_by: authUser.id })
+      acknowledge('seen')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id])
@@ -158,10 +176,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
     setEditingField(null)
   }
 
-  const markRead = () => {
-    if (!authUser) return
-    updateTask.mutate({ id: task.id, read_at: new Date().toISOString(), read_by: authUser.id })
-  }
+  const markRead = () => acknowledge('read')
 
   const handleDelete = () => {
     deleteTask.mutate(task.id, { onSuccess: onClose })
@@ -214,8 +229,8 @@ export function TaskDetailPanel({ task, onClose }: Props) {
           <div className="flex-1 min-w-0 pr-3">
             {/* Badges row */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {/* Stage — click to edit */}
-              {editingField === 'pipeline_stage' ? (
+              {/* Stage — managers can edit, workers see display-only */}
+              {canManage && editingField === 'pipeline_stage' ? (
                 <select
                   value={draftStage}
                   autoFocus
@@ -228,16 +243,16 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   ))}
                 </select>
               ) : (
-                <button
-                  onClick={() => { setDraftStage(task.pipeline_stage); setEditingField('pipeline_stage') }}
-                  className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all hover:opacity-80', stage.bg, stage.color, stage.border)}
+                <span
+                  onClick={canManage ? () => { setDraftStage(task.pipeline_stage); setEditingField('pipeline_stage') } : undefined}
+                  className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full border', stage.bg, stage.color, stage.border, canManage && 'cursor-pointer hover:opacity-80 transition-all')}
                 >
                   {stage.label}
-                </button>
+                </span>
               )}
 
-              {/* Priority — click to edit */}
-              {editingField === 'priority' ? (
+              {/* Priority — managers can edit, workers see display-only */}
+              {canManage && editingField === 'priority' ? (
                 <div className="flex gap-1">
                   {(['low', 'medium', 'high', 'urgent'] as Priority[]).map(p => (
                     <button
@@ -254,20 +269,20 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   <button onClick={() => setEditingField(null)} className="text-[10px] text-slate-400 hover:text-slate-600 px-1">✕</button>
                 </div>
               ) : (
-                <button
-                  onClick={() => { setDraftPriority(task.priority); setEditingField('priority') }}
-                  className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all hover:opacity-80', priority.bg, priority.color)}
+                <span
+                  onClick={canManage ? () => { setDraftPriority(task.priority); setEditingField('priority') } : undefined}
+                  className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', priority.bg, priority.color, canManage && 'cursor-pointer hover:opacity-80 transition-all')}
                 >
                   {priority.label}
-                </button>
+                </span>
               )}
 
-              {/* Sub-type — click to edit */}
+              {/* Sub-type — managers can edit, workers see display-only */}
               {(() => {
                 const subtypes = getSubtypesForStage(task.pipeline_stage)
                 if (subtypes.length === 0) return null
                 const currentStyle = task.sub_type ? getSubtypeStyle(task.sub_type) : null
-                if (editingField === 'sub_type') {
+                if (canManage && editingField === 'sub_type') {
                   return (
                     <div className="flex gap-1 flex-wrap">
                       <button
@@ -292,15 +307,18 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                     </div>
                   )
                 }
-                return task.sub_type && currentStyle ? (
-                  <button
-                    onClick={() => setEditingField('sub_type')}
-                    className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full transition-all hover:opacity-80', currentStyle.bg, currentStyle.color)}
-                    title="Click to change sub-type"
-                  >
-                    {task.sub_type}
-                  </button>
-                ) : (
+                if (task.sub_type && currentStyle) {
+                  return (
+                    <span
+                      onClick={canManage ? () => setEditingField('sub_type') : undefined}
+                      className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', currentStyle.bg, currentStyle.color, canManage && 'cursor-pointer hover:opacity-80 transition-all')}
+                    >
+                      {task.sub_type}
+                    </span>
+                  )
+                }
+                if (!canManage) return null
+                return (
                   <button
                     onClick={() => setEditingField('sub_type')}
                     className="text-[10px] px-2 py-0.5 rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-novax-border transition-colors"
@@ -310,15 +328,28 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                 )
               })()}
 
-              {/* Status toggle */}
+              {/* Status toggle — available to assignee and managers */}
               <div className="flex items-center gap-1 ml-auto">
-                {(['active', 'blocked', 'completed'] as const).map(s => {
+                {(['active', 'blocked', 'completed'] as TaskStatus[]).map(s => {
                   const sc = STATUS_CONFIG[s]
                   const active = task.status === s
                   return (
                     <button
                       key={s}
-                      onClick={() => updateTask.mutate({ id: task.id, status: s })}
+                      onClick={async () => {
+                        if (!authUser || active) return
+                        const res = await fetch(`/api/tasks/${task.id}/status`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ user_id: authUser.id, role: authUser.role, status: s }),
+                        })
+                        if (!res.ok) {
+                          const d = await res.json()
+                          toast.error(d.error ?? 'Failed to update status')
+                          return
+                        }
+                        queryClient.invalidateQueries({ queryKey: ['tasks'] })
+                      }}
                       title={sc.label}
                       className={cn(
                         'flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all',
@@ -333,8 +364,8 @@ export function TaskDetailPanel({ task, onClose }: Props) {
               </div>
             </div>
 
-            {/* Title — click to edit */}
-            {editingField === 'title' ? (
+            {/* Title — managers can edit, workers see display-only */}
+            {canManage && editingField === 'title' ? (
               <input
                 value={draftTitle}
                 autoFocus
@@ -348,9 +379,9 @@ export function TaskDetailPanel({ task, onClose }: Props) {
               />
             ) : (
               <h2
-                onClick={() => { setDraftTitle(task.title); setEditingField('title') }}
-                className="text-base font-semibold text-slate-900 leading-snug cursor-text hover:text-novax transition-colors"
-                title="Click to edit"
+                onClick={canManage ? () => { setDraftTitle(task.title); setEditingField('title') } : undefined}
+                className={cn('text-base font-semibold text-slate-900 leading-snug', canManage && 'cursor-text hover:text-novax transition-colors')}
+                title={canManage ? 'Click to edit' : undefined}
               >
                 {task.title}
               </h2>
@@ -359,47 +390,49 @@ export function TaskDetailPanel({ task, onClose }: Props) {
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
-            {/* 3-dot menu */}
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => { setShowMenu(v => !v); setDeleteConfirm(false) }}
-                className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                <MoreHorizontal className="w-4 h-4 text-slate-500" />
-              </button>
-              {showMenu && (
-                <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
-                  {deleteConfirm ? (
-                    <div className="p-3 space-y-2">
-                      <p className="text-xs text-slate-600 font-medium">Delete this task?</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleDelete}
-                          disabled={deleteTask.isPending}
-                          className="flex-1 py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          {deleteTask.isPending ? 'Deleting…' : 'Confirm'}
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(false)}
-                          className="flex-1 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
+            {/* 3-dot menu — managers only */}
+            {canManage && (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => { setShowMenu(v => !v); setDeleteConfirm(false) }}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <MoreHorizontal className="w-4 h-4 text-slate-500" />
+                </button>
+                {showMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                    {deleteConfirm ? (
+                      <div className="p-3 space-y-2">
+                        <p className="text-xs text-slate-600 font-medium">Delete this task?</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleDelete}
+                            disabled={deleteTask.isPending}
+                            className="flex-1 py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {deleteTask.isPending ? 'Deleting…' : 'Confirm'}
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(false)}
+                            className="flex-1 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setDeleteConfirm(true)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete task
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+                    ) : (
+                      <button
+                        onClick={() => setDeleteConfirm(true)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete task
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
               <X className="w-4 h-4 text-slate-500" />
             </button>
@@ -481,10 +514,10 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                 <p className="text-sm font-medium text-slate-700">{project?.name ?? '—'}</p>
               </div>
 
-              {/* Assignee — click to edit */}
+              {/* Assignee — managers can edit, workers see display-only */}
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Assigned to</p>
-                {editingField === 'assigned_to' ? (
+                {canManage && editingField === 'assigned_to' ? (
                   <div className="flex flex-wrap gap-1 p-1.5 rounded-lg border border-novax-border bg-slate-50">
                     {users.map(u => (
                       <button
@@ -504,8 +537,8 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   </div>
                 ) : (
                   <div
-                    onClick={() => { setDraftAssignee(task.assigned_to ?? ''); setEditingField('assigned_to') }}
-                    className="flex items-center gap-1.5 cursor-pointer hover:text-novax transition-colors"
+                    onClick={canManage ? () => { setDraftAssignee(task.assigned_to ?? ''); setEditingField('assigned_to') } : undefined}
+                    className={cn('flex items-center gap-1.5', canManage && 'cursor-pointer hover:text-novax transition-colors')}
                   >
                     {user ? (
                       <>
@@ -521,10 +554,10 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                 )}
               </div>
 
-              {/* Due date — click to edit */}
+              {/* Due date — managers can edit, workers see display-only */}
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">Due date</p>
-                {editingField === 'due_date' ? (
+                {canManage && editingField === 'due_date' ? (
                   <input
                     type="date"
                     value={draftDueDate}
@@ -539,11 +572,11 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   />
                 ) : (
                   <p
-                    onClick={() => { setDraftDueDate(task.due_date ?? ''); setEditingField('due_date') }}
-                    className="text-sm font-medium text-slate-700 cursor-pointer hover:text-novax transition-colors"
-                    title="Click to edit"
+                    onClick={canManage ? () => { setDraftDueDate(task.due_date ?? ''); setEditingField('due_date') } : undefined}
+                    className={cn('text-sm font-medium text-slate-700', canManage && 'cursor-pointer hover:text-novax transition-colors')}
+                    title={canManage ? 'Click to edit' : undefined}
                   >
-                    {task.due_date ? formatDate(task.due_date) : <span className="text-slate-400 italic">Set due date</span>}
+                    {task.due_date ? formatDate(task.due_date) : <span className="text-slate-400 italic">{canManage ? 'Set due date' : '—'}</span>}
                   </p>
                 )}
               </div>

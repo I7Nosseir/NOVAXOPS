@@ -89,7 +89,6 @@ export interface Client {
   respond_io_channel_id?: string
   chatwoot_inbox_id?: number
   crisis_mode?: boolean
-  is_in_crisis?: boolean
   performance_intel?: PerformanceIntel
   performance_analyzed_at?: string
   design_brief_json?: DesignBrief | null

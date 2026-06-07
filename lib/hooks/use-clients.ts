@@ -15,7 +15,6 @@ function mapClient(row: Record<string, unknown>): Client {
     metricool_blog_id: row.metricool_blog_id as string | undefined,
     respond_io_channel_id: row.respond_io_channel_id as string | undefined,
     crisis_mode: (row.crisis_mode as boolean | undefined) ?? false,
-    is_in_crisis: (row.is_in_crisis as boolean | undefined) ?? false,
     performance_intel: (row.performance_intel as PerformanceIntel | undefined) ?? undefined,
     performance_analyzed_at: row.performance_analyzed_at as string | undefined,
     design_brief_json: (row.design_brief_json as DesignBrief | null | undefined) ?? null,

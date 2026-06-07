@@ -127,6 +127,100 @@ function EditPostDialog({ post, onClose }: { post: ScheduledPost; onClose: () =>
   )
 }
 
+function PreviewDialog({ post, onClose }: { post: ScheduledPost; onClose: () => void }) {
+  const { clients } = useClients()
+  const client = clients.find(c => c.id === post.client_id)
+  const status = STATUS_CONFIG[post.status]
+  const isVideo = /\.(mp4|mov|webm|avi|m4v|mkv|wmv|flv)(\?|$)/i.test(post.media_url ?? '')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold shrink-0"
+              style={{ background: client?.color }}
+            >
+              {client?.initials}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900 leading-none">{client?.name}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Post Preview</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X className="w-4 h-4"/>
+          </button>
+        </div>
+
+        {/* Media */}
+        {post.media_url && (
+          <div className="relative bg-slate-900 aspect-square overflow-hidden">
+            {isVideo ? (
+              <video
+                src={post.media_url}
+                controls
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <img
+                src={post.media_url}
+                alt=""
+                className="w-full h-full object-contain"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+          {/* Status + time */}
+          <div className="flex items-center justify-between">
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${status.bg} ${status.color}`}>
+              {status.label}
+            </span>
+            <span className="text-[11px] text-slate-400 flex items-center gap-1">
+              <Clock className="w-3 h-3"/>
+              {post.status === 'published'
+                ? formatDate(post.published_at!)
+                : formatDateTime(post.scheduled_at)}
+            </span>
+          </div>
+
+          {/* Caption */}
+          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
+            {post.caption}
+          </p>
+
+          {/* Platforms */}
+          <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-100">
+            {post.platforms.map(platform => (
+              <div
+                key={platform}
+                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-slate-50 border border-slate-200"
+              >
+                <PlatformIcon platform={platform} size="xs"/>
+                <span className="text-slate-600">{PLATFORM_CONFIG[platform].label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Metricool ID — admin debug info */}
+          {post.metricool_post_id && (
+            <p className="text-[9px] text-slate-300 font-mono">ID: {post.metricool_post_id}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PostCard({ post }: { post: ScheduledPost }) {
   const { clients } = useClients()
   const queryClient = useQueryClient()
@@ -138,6 +232,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
   const [actionLoading, setActionLoading] = useState<'delete' | 'schedule' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const [syncingStats, setSyncingStats] = useState(false)
 
   async function doDelete() {
@@ -175,6 +270,10 @@ function PostCard({ post }: { post: ScheduledPost }) {
   }
 
   async function handleReschedule() {
+    if (isCrisis) {
+      toast.error('Publishing is paused — this client is in Crisis Mode')
+      return
+    }
     setActionLoading('schedule')
     try {
       const res = await fetch('/api/metricool/schedule', {
@@ -225,9 +324,18 @@ function PostCard({ post }: { post: ScheduledPost }) {
           </div>
           <span className="text-xs font-medium text-slate-700">{client?.name}</span>
         </div>
-        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', status.bg, status.color)}>
-          {status.label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setPreviewing(true)}
+            className="p-1 text-slate-400 hover:text-novax-muted hover:bg-novax-light rounded-md transition-colors"
+            title="Preview post"
+          >
+            <Eye className="w-3.5 h-3.5"/>
+          </button>
+          <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', status.bg, status.color)}>
+            {status.label}
+          </span>
+        </div>
       </div>
 
       {/* Media */}
@@ -301,7 +409,8 @@ function PostCard({ post }: { post: ScheduledPost }) {
               {post.status === 'draft' && (
                 <button
                   onClick={handleReschedule}
-                  disabled={!!actionLoading}
+                  disabled={!!actionLoading || isCrisis}
+                  title={isCrisis ? 'Publishing paused — Crisis Mode active' : undefined}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium bg-novax-light text-novax hover:bg-novax hover:text-white rounded-lg transition-colors disabled:opacity-40"
                 >
                   {actionLoading === 'schedule'
@@ -339,6 +448,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
         </div>
       )}
       {editing && <EditPostDialog post={post} onClose={() => setEditing(false)}/>}
+      {previewing && <PreviewDialog post={post} onClose={() => setPreviewing(false)}/>}
     </div>
   )
 }
@@ -701,6 +811,11 @@ function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; 
 
   async function handleSchedule() {
     if (!selectedClient) return toast.error('Select a client first.')
+    const selectedClientData = clients.find(c => c.id === selectedClient)
+    if (selectedClientData?.crisis_mode) {
+      toast.error('Publishing is paused — this client is in Crisis Mode')
+      return
+    }
     if (!selectedPlatforms.length) return toast.error('Select at least one platform.')
     if (!caption.trim() && !captionAr.trim()) return toast.error('Caption cannot be empty.')
     if (!scheduleDate) return toast.error('Set a schedule date and time.')
@@ -2463,8 +2578,12 @@ function PublishingPageContent() {
     }
   }
 
-  // Auto-sync on mount so published/failed statuses are always current
-  useEffect(() => { handleSync(true) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-sync on mount and every 3 minutes so statuses stay current without manual refresh
+  useEffect(() => {
+    handleSync(true)
+    const interval = setInterval(() => handleSync(true), 3 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const crisisClients = clients.filter(c => c.crisis_mode)
 
