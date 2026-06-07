@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, FileText, Paperclip, Sheet } from 'lucide-react'
 import { cn, STAGE_CONFIG, PIPELINE_STAGES } from '@/lib/utils'
@@ -8,6 +8,7 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useCreateTask } from '@/lib/hooks/use-tasks'
+import { supabase } from '@/lib/supabase'
 import type { PipelineStage, Priority } from '@/lib/types'
 
 interface DocOption {
@@ -40,9 +41,29 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const [dueDate, setDueDate] = useState('')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
+  const [tagFocused, setTagFocused] = useState(false)
   const [linkedDocIds, setLinkedDocIds] = useState<string[]>([])
   const [docSearch, setDocSearch] = useState('')
   const [showDocPicker, setShowDocPicker] = useState(false)
+
+  const { data: tagRows = [] } = useQuery<{ tags: string[] | null }[]>({
+    queryKey: ['task-tags'],
+    queryFn: async () => {
+      const { data } = await supabase.from('tasks').select('tags').not('tags', 'is', null)
+      return (data ?? []) as { tags: string[] | null }[]
+    },
+    staleTime: 5 * 60_000,
+    enabled: open,
+  })
+
+  const existingTags = useMemo(() => {
+    const flat = tagRows.flatMap(r => r.tags ?? [])
+    return [...new Set(flat)].sort()
+  }, [tagRows])
+
+  const tagSuggestions = existingTags.filter(
+    t => !tags.includes(t) && (tagInput === '' || t.toLowerCase().includes(tagInput.toLowerCase()))
+  )
 
   const { data: allDocs = [] } = useQuery<DocOption[]>({
     queryKey: ['docs'],
@@ -286,14 +307,30 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
                 <input
                   value={tagInput}
                   onChange={e => setTagInput(e.target.value)}
+                  onFocus={() => setTagFocused(true)}
+                  onBlur={() => setTimeout(() => setTagFocused(false), 150)}
                   onKeyDown={e => {
                     if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput) }
                     if (e.key === ',') { e.preventDefault(); addTag(tagInput) }
                   }}
-                  placeholder={tags.length === 0 ? 'Add tags, press Enter…' : ''}
+                  placeholder={tags.length === 0 ? 'Type or pick from existing…' : ''}
                   className="flex-1 min-w-[80px] text-xs text-slate-700 placeholder:text-slate-400 outline-none bg-transparent"
                 />
               </div>
+              {tagFocused && tagSuggestions.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {tagSuggestions.slice(0, 15).map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onMouseDown={e => { e.preventDefault(); addTag(tag) }}
+                      className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-novax-light hover:text-novax border border-transparent hover:border-novax-border text-slate-500 transition-colors"
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Documents */}

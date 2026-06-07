@@ -14,6 +14,7 @@ import {
   DollarSign, Calendar, Globe, TrendingUp, ArrowUpRight, ArrowDownRight,
   Eye, Activity, RefreshCw, ChevronRight, X,
 } from 'lucide-react'
+import { PlatformIcon } from '@/components/ui/platform-icon'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -360,7 +361,7 @@ export default function DashboardPage() {
   const topPosts = [...posts]
     .filter(p => p.performance?.engagement_rate)
     .sort((a, b) => b.performance!.engagement_rate - a.performance!.engagement_rate)
-    .slice(0, 3)
+    .slice(0, 5)
 
   const statCards = [
     { label: 'Active Tasks',       value: activeTasks,      icon: CheckSquare,   color: 'bg-blue-50 text-blue-600',      delta: `${tasks.filter(t => t.status === 'blocked').length} blocked` },
@@ -502,36 +503,60 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Top posts */}
+        {/* Top content pieces */}
         <div className="dash-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-900 dark:text-white">Top Performing Posts</h3>
-            <a href="/reports" className="text-xs text-novax hover:text-novax-hover font-medium">Reports →</a>
+            <div>
+              <h3 className="font-semibold text-slate-900 dark:text-white">Top Content</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Best performing by engagement rate</p>
+            </div>
+            <a href="/performance" className="text-xs text-novax hover:text-novax-hover font-medium">Performance →</a>
           </div>
-          <div className="space-y-3">
-            {topPosts.map(post => {
+          <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-0.5">
+            {topPosts.map((post, i) => {
               const client = clients.find(c => c.id === post.client_id)
-              const isUp = post.performance!.engagement_rate > 5
+              const perf = post.performance!
+              const isUp = perf.engagement_rate >= 3
+              const platform = post.platforms?.[0]
               return (
-                <div key={post.id} className="p-3 rounded-lg bg-slate-50 dark:bg-white/5 dark:border dark:border-white/6">
-                  <div className="flex items-start justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ background: client?.color }}>
-                        {client?.initials}
+                <div key={post.id} className="p-3 rounded-xl border border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-white/10 transition-colors">
+                  {/* Header: rank · platform · client · ER */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-4 h-4 rounded bg-slate-100 dark:bg-white/8 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">
+                      {i + 1}
+                    </span>
+                    {platform && (
+                      <span className="shrink-0">
+                        <PlatformIcon platform={platform} size="xs" />
                       </span>
-                      <span className="text-[11px] font-medium text-slate-700">{client?.name}</span>
-                    </div>
-                    <div className={`flex items-center gap-0.5 text-[11px] font-semibold ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {isUp ? <ArrowUpRight className="w-3 h-3"/> : <ArrowDownRight className="w-3 h-3"/>}
-                      {post.performance!.engagement_rate}%
-                    </div>
+                    )}
+                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 flex-1 truncate">
+                      {client?.name}
+                    </span>
+                    <span className={`text-[11px] font-bold flex items-center gap-0.5 shrink-0 ${isUp ? 'text-emerald-600' : 'text-amber-500'}`}>
+                      {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                      {perf.engagement_rate}%
+                    </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 line-clamp-2">{post.caption}</p>
-                  <div className="flex gap-3 mt-2 text-[10px] text-slate-400">
-                    <span>{formatNumber(post.performance!.reach)} reach</span>
-                    <span>{formatNumber(post.performance!.likes)} likes</span>
-                    <span>{post.performance!.comments} comments</span>
+                  {/* Caption */}
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-2.5">{post.caption}</p>
+                  {/* Stats grid */}
+                  <div className="grid grid-cols-3 gap-1 text-center">
+                    {[
+                      { label: 'Reach',    value: formatNumber(perf.reach) },
+                      { label: 'Likes',    value: formatNumber(perf.likes) },
+                      { label: 'Comments', value: String(perf.comments) },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="py-1 rounded-lg bg-slate-50 dark:bg-white/4">
+                        <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">{value}</p>
+                        <p className="text-[9px] text-slate-400 uppercase tracking-wide">{label}</p>
+                      </div>
+                    ))}
                   </div>
+                  {/* Date */}
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    {formatDate(post.published_at ?? post.scheduled_at)}
+                  </p>
                 </div>
               )
             })}
