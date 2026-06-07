@@ -34,11 +34,12 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // Public: API routes + public approval portal + static assets + PWA files
+  // Public: API routes + landing + public approval portal + static assets + PWA files
   if (
     pathname.startsWith('/api/') ||
     pathname.startsWith('/approval/') ||
     pathname.startsWith('/_next/') ||
+    pathname === '/landing' ||
     pathname === '/manifest.json' ||
     pathname === '/sw.js' ||
     pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico)$/)
@@ -46,10 +47,10 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // Unauthenticated → login
+  // Unauthenticated: root → landing page, everything else → login
   if (!user && pathname !== '/login') {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = pathname === '/' ? '/landing' : '/login'
     return NextResponse.redirect(url)
   }
 

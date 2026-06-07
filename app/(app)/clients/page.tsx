@@ -14,6 +14,7 @@ import type { Client, UserRole } from '@/lib/types'
 import { NewClientWizard } from '@/components/clients/new-client-wizard'
 import { DesignBriefForm } from '@/components/clients/design-brief-form'
 import { ContextBankPanel } from '@/components/clients/context-bank-panel'
+import { ClientProfileForm } from '@/components/clients/client-profile-form'
 import { StrategyTab } from '@/components/clients/strategy-tab'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
 import type { DesignBrief } from '@/lib/types'
@@ -454,7 +455,17 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
           </>}
 
           {tab === 'context' && (
-            <ContextBankPanel clientId={client.id}/>
+            <div className="space-y-8">
+              <ClientProfileForm
+                clientId={client.id}
+                initial={client.normalized_profile}
+              />
+              <div className="border-t border-slate-100 pt-6">
+                <h3 className="text-sm font-bold text-slate-800 mb-1">Context Bank</h3>
+                <p className="text-[11px] text-slate-400 mb-4">Freeform living memory — meeting notes, briefs, feedback, market intel.</p>
+                <ContextBankPanel clientId={client.id}/>
+              </div>
+            </div>
           )}
 
           {tab === 'strategy' && (

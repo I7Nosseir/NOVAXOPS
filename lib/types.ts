@@ -43,6 +43,39 @@ export interface BrandIdentity {
   logo_url?: string
 }
 
+export interface ClientNormalizedProfile {
+  // SECTION 1: Positioning
+  positioning_statement?: string      // What you do, for whom, and why differently (≤200 chars)
+  primary_offering?: string           // Core product or service
+  key_differentiator?: string         // The ONE thing that sets them apart
+  price_positioning?: 'ultra_premium' | 'premium' | 'mid_market' | 'value'
+
+  // SECTION 2: Audience
+  audience_age_range?: string         // e.g. "25–40"
+  audience_gender_skew?: 'female' | 'male' | 'balanced'
+  audience_location?: string          // City / Country / Region
+  audience_psychographic?: string     // Lifestyle, mindset, values
+
+  // SECTION 3: Voice & Language
+  brand_voice?: string[]              // 3–5 adjectives: Bold, Warm, Educational…
+  language?: 'arabic_only' | 'english_only' | 'both'
+  arabic_dialect?: string             // Gulf / Egyptian / Levantine / MSA
+  formality?: 'very_formal' | 'professional' | 'balanced' | 'friendly' | 'very_casual'
+  emoji_policy?: 'never' | 'on_request' | 'always'
+
+  // SECTION 4: Content Rules
+  content_goal?: 'awareness' | 'lead_gen' | 'sales' | 'retention' | 'launch' | 'community'
+  primary_cta?: string                // e.g. "DM us to book", "link in bio"
+  banned_topics?: string              // Topics / words / associations to avoid
+  hashtag_policy?: 'never' | 'on_request' | 'always'
+
+  // SECTION 5: Social Presence
+  primary_platform?: SocialPlatform
+  secondary_platforms?: SocialPlatform[]
+  posts_per_week?: number
+  best_posting_times?: string         // e.g. "Weekdays 7–9 PM Gulf time"
+}
+
 export interface Client {
   id: string
   name: string
@@ -60,6 +93,7 @@ export interface Client {
   performance_intel?: PerformanceIntel
   performance_analyzed_at?: string
   design_brief_json?: DesignBrief | null
+  normalized_profile?: ClientNormalizedProfile
   created_at: string
 }
 

@@ -115,6 +115,7 @@ interface AIRequest {
   brief?: string; month?: string; frequency?: string; language?: 'en' | 'ar'
   media_url?: string  // public image or video URL — images passed as vision block, videos as text context
   imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video'
+  evalMode?: 'strategy' | 'content'
 }
 
 // Agents that operate on a specific task and benefit from caching
@@ -778,6 +779,156 @@ ADDITIONAL RULES:
 
 Return ONLY the rewritten text. No labels, no explanation, no quotes around it.`
       }
+      break
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    case 'strategy_eval': {
+      model = ADVANCED_MODEL
+      prompt = `You are a strategic intelligence analyst specialising in social media agency strategy assessment. Apply the following frameworks to evaluate this strategy document with clinical precision.
+
+CLIENT CONTEXT
+Client: ${clientName}
+Industry: ${industry}
+Brand Voice: ${brandVoice}
+Target Audience: ${audience}
+Key Messages: ${keyMessages}
+Competitors: ${competitors}
+
+STRATEGY DOCUMENT TO EVALUATE:
+${body.brief ?? ''}
+
+SCORING DIMENSIONS — score each 0–100. Be calibrated: 85+ is genuinely exceptional. 70 = good but improvable. 50 = average/generic. Below 50 = structurally flawed.
+
+1. OBJECTIVE CLARITY (SMART Framework)
+   Evaluate: Is the strategic goal Specific (defined deliverable), Measurable (success metric attached), Achievable (scope realistic), Relevant (linked to business objective), Time-bound (deadline referenced)?
+   90-100: All 5 SMART criteria fully met with specific numbers.
+   70-89: 3-4 criteria met; minor gaps.
+   50-69: 2 criteria met; intent present but undefined.
+   <50: Generic goal statements — no measurable outcome.
+
+2. AUDIENCE PRECISION (ICP Quality)
+   Evaluate: Is the target audience defined beyond demographics? Psychographics (values, fears, aspirations)? Behavioral triggers? Jobs-to-be-done? Pain points in the audience's own language? Segment size clarity?
+   90-100: Full behavioral + psychographic profile with specific pain points.
+   70-89: Demographics + some psychographics.
+   <50: Surface-level demographic segmentation only.
+
+3. COMPETITIVE DIFFERENTIATION (Blue Ocean Analysis)
+   Scientific basis: Kim & Mauborgne's Blue Ocean Strategy — identify the axes where ALL competitors compete identically, then find the uncontested space.
+   Evaluate: Does the strategy identify competitor strategies and their shared blind spots? Does it stake out a unique position? Does it avoid competing on the same axis as market leaders?
+
+4. CHANNEL-STRATEGY FIT (Platform Algorithm Alignment)
+   Evaluate: Are platform choices driven by audience behavior data, not convention? Does each platform have a distinct role (awareness vs conversion vs retention)? Are formats matched to platform-native behavior?
+
+5. CONTENT PILLAR COHERENCE (Narrative Architecture)
+   Evaluate: Do the content pillars form a coherent strategic narrative arc? Is there a 5-3-2 ratio logic (50% value, 30% brand, 20% promotional)? Do pillars address different stages of the customer journey? Are pillars meaningfully distinct?
+
+6. MEASUREMENT FRAMEWORK (KPI Specificity)
+   Evaluate: Are KPIs defined beyond vanity metrics? Are leading indicators identified (saves, shares, DMs) vs lagging (sales, revenue)? Is there a reporting cadence? Are baselines established?
+
+7. EXECUTION FEASIBILITY (Resource-Reality Assessment)
+   Evaluate: Is the content volume realistic for the implied team and budget? Are dependencies and risks identified? Is there a prioritisation mechanism?
+
+WEIGHTED OVERALL SCORE:
+overall = (objective_clarity × 0.20) + (audience_precision × 0.18) + (competitive_differentiation × 0.18) + (channel_fit × 0.15) + (pillar_coherence × 0.12) + (measurement_framework × 0.12) + (execution_feasibility × 0.05)
+
+strategic_impact_score: 0-100 composite — how likely this strategy, if executed, would materially improve the client's social media performance vs baseline. Weight: competitive_differentiation × 0.35 + audience_precision × 0.35 + channel_fit × 0.30.
+
+strategy_grade: "exceptional" if overall >= 85, "strong" if >= 70, "developing" if >= 50, "weak" if < 50.
+
+Return ONLY a valid JSON object, no markdown, no code fences:
+{
+  "overall": <number>,
+  "objective_clarity": <number>,
+  "audience_precision": <number>,
+  "competitive_differentiation": <number>,
+  "channel_fit": <number>,
+  "pillar_coherence": <number>,
+  "measurement_framework": <number>,
+  "execution_feasibility": <number>,
+  "strategic_impact_score": <number>,
+  "strategy_grade": "weak" | "developing" | "strong" | "exceptional",
+  "strategic_gaps": ["<specific gap with evidence from the document>"],
+  "untapped_angles": ["<specific strategic opening not addressed in this document>"],
+  "framework_violations": ["<strategy pattern that contradicts proven frameworks — name the framework and explain the violation>"],
+  "strengths": ["<evidence-based strategic strength — quote or reference specific content from the document>"],
+  "improvements": ["<specific, actionable improvement with expected strategic outcome>"]
+}`
+      break
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    case 'content_eval': {
+      const evalPlatform = body.platform ?? 'unspecified'
+      prompt = `You are a behavioural copywriting scientist specialising in social media content performance prediction. Apply neuroscience, persuasion science, and platform algorithm research to evaluate this content with clinical precision.
+
+CLIENT CONTEXT
+Client: ${clientName}
+Industry: ${industry}
+Brand Voice: ${brandVoice}
+Target Audience: ${audience}
+Platform: ${evalPlatform}
+
+CONTENT TO EVALUATE:
+${body.brief ?? ''}
+
+SCORING DIMENSIONS — score each 0–100. Be calibrated: 85+ is genuinely exceptional. 70 = good. 50 = average, would perform below median. Below 50 = would be ignored.
+
+1. HOOK STRENGTH (0-3 Second Window)
+   Scientific basis: Meta research — average mobile scroll dwell time 1.7 seconds. First line must create a pattern interrupt that halts the scroll.
+   Evaluate: Does the opening line create a curiosity gap, counterintuitive statement, or emotionally loaded statement under 125 characters? Is it specific (numbers, names, scenarios) or generic? Does it address the reader directly?
+   90-100: Would halt >80% of target audience immediately.
+   70-89: Strong hook with minor friction.
+   50-69: Generic opener — most scroll past.
+   <50: No interrupt mechanism — invisible in feed.
+
+2. NARRATIVE ARC (Structure Quality)
+   Evaluate: Is there a clear structural progression (Problem → Tension → Resolution, or Hook → Story → Payoff)? Does each sentence earn its place? Does it build investment before the payoff? Is there a satisfying close?
+
+3. BRAND VOICE MATCH (Tonal Alignment)
+   Evaluate: Does the language, formality, and vocabulary match "${brandVoice}"? Are there tonal inconsistencies (too corporate, too casual)? Does it feel native to ${clientName} or generic brand copy?
+
+4. CTA EFFECTIVENESS (Action Architecture)
+   Evaluate: Is there a clear next step? Is it specific (what exactly to do) and frictionless (low effort)? Is it placed optimally (after value delivery)? Does it match the content's emotional tone?
+
+5. PLATFORM FIT (Native Format Optimisation)
+   Platform: ${evalPlatform}
+   Evaluate: Is the first line under 125 characters (Instagram/Facebook "see more" threshold)? Is the length appropriate for this platform? Are line breaks used for readability? Is the tone native to this platform's culture? Does it avoid cross-posting signals?
+
+6. EMOTIONAL AROUSAL (Berger-Milkman Analysis)
+   Scientific basis: Berger & Milkman (2012) — high-arousal emotions (awe, excitement, anger, amusement, anxiety) drive 2× more shares than low-arousal. Positive high-arousal is optimal.
+   Evaluate: Which specific emotion does this content activate? What is the arousal intensity? Is this the optimal emotion for the goal? Is arousal maintained throughout or front-loaded then dropped?
+
+7. MESSAGE CLARITY (Cognitive Load Assessment)
+   Scientific basis: Sweller's Cognitive Load Theory — working memory is limited to 7±2 chunks. Overloaded copy kills conversion.
+   Evaluate: Can the core message be extracted in under 3 seconds? Are sentences clear and direct? Is there a single primary message or multiple competing ones? Is the vocabulary at the right level for ${audience}?
+
+WEIGHTED OVERALL:
+overall = (hook_strength × 0.30) + (emotional_arousal × 0.20) + (narrative_arc × 0.15) + (message_clarity × 0.15) + (brand_voice_match × 0.10) + (cta_effectiveness × 0.05) + (platform_fit × 0.05)
+
+virality_score: 0-100 composite — hook_strength × 0.40 + emotional_arousal × 0.40 + narrative_arc × 0.20.
+engagement_prediction: "viral" if overall >= 85 AND virality_score >= 80, "high" if overall >= 72, "medium" if >= 55, "low" if < 55.
+
+Return ONLY a valid JSON object, no markdown, no code fences:
+{
+  "overall": <number>,
+  "hook_strength": <number>,
+  "narrative_arc": <number>,
+  "brand_voice_match": <number>,
+  "cta_effectiveness": <number>,
+  "platform_fit": <number>,
+  "emotional_arousal": <number>,
+  "message_clarity": <number>,
+  "virality_score": <number>,
+  "engagement_prediction": "low" | "medium" | "high" | "viral",
+  "emotional_trigger": "<single dominant emotion triggered — be specific, e.g. 'anticipatory excitement' not just 'excitement'>",
+  "hook_analysis": "<What fires in lines 1-3? What is the scroll-stop mechanism? What would improve it? 2-3 sentences.>",
+  "strengths": ["<evidence-based observation quoting or referencing specific words or phrases from the content>"],
+  "improvements": ["<specific, measurable improvement with expected performance impact>"],
+  "missing_elements": ["<specific element absent that would materially improve performance — be concrete>"],
+  "platform_recommendations": ["<Platform: specific technical reason this content fits or doesn't fit>"],
+  "ab_test_suggestion": "<Control: [current version element] vs Variant: [proposed change] — Metric to measure: [specific KPI]>"
+}`
       break
     }
 
