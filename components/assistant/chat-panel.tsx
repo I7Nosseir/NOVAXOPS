@@ -65,7 +65,10 @@ const ASSISTANT_CAPABILITIES_REPLY = `I'm the NOVAX Assistant. Here's what I can
 **@ references:** type @ to attach a client, document, session, or task as context`
 
 // ── @ mention hook ─────────────────────────────────────────────
-// query is null when @ is not active, string (possibly empty) when active
+// query is null when @ is not active.
+// query === '' → show recent items (no debounce).
+// query !== '' → search documents, sessions, tasks (180ms debounce).
+// Clients are NOT in @mention — they are set via the header dropdown.
 
 function useAtMention(query: string | null) {
   const [results, setResults] = useState<ContextSearchResult[]>([])
@@ -73,10 +76,15 @@ function useAtMention(query: string | null) {
 
   useEffect(() => {
     if (query === null) { setResults([]); return }
+    const isRecent = query === ''
+    const delay    = isRecent ? 0 : 180
     const tid = setTimeout(async () => {
       setLoading(true)
       try {
-        const res  = await fetch(`/api/assistant/context?q=${encodeURIComponent(query)}&types=client,document,session,task`)
+        const url = isRecent
+          ? `/api/assistant/context?recent=true&types=document,session,task`
+          : `/api/assistant/context?q=${encodeURIComponent(query)}&types=document,session,task`
+        const res  = await fetch(url)
         const data = await res.json() as { results: ContextSearchResult[] }
         setResults(data.results ?? [])
       } catch {
@@ -84,11 +92,28 @@ function useAtMention(query: string | null) {
       } finally {
         setLoading(false)
       }
-    }, 180)
+    }, delay)
     return () => clearTimeout(tid)
   }, [query])
 
   return { results, loading }
+}
+
+// Group @mention results by type for a cleaner dropdown
+function groupByType(results: ContextSearchResult[]) {
+  const order: ContextSearchResult['type'][] = ['document', 'session', 'task']
+  const grouped = new Map<ContextSearchResult['type'], ContextSearchResult[]>()
+  for (const r of results) {
+    if (!grouped.has(r.type)) grouped.set(r.type, [])
+    grouped.get(r.type)!.push(r)
+  }
+  return order.filter(t => grouped.has(t)).map(t => ({ type: t, items: grouped.get(t)! }))
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  document: 'Documents',
+  session:  'Studio Sessions',
+  task:     'Tasks',
 }
 
 // ── Auto-resize textarea helper ───────────────────────────────
@@ -290,8 +315,9 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
   }
 
   // ── Send message ──────────────────────────────────────────────
-  const sendMessage = useCallback(async () => {
-    const text = input.trim()
+  // immediateText bypasses the input state (used by quick-send buttons)
+  const sendMessage = useCallback(async (immediateText?: string) => {
+    const text = (immediateText !== undefined ? immediateText : input).trim()
     if (!text || streaming) return
 
     setErrorMsg(null)
@@ -318,6 +344,7 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
           client_id:     selectedClient || undefined,
           is_ceo:        isCeo,
           user_role:     user?.role,
+          user_id:       user?.id,
         }),
       })
 
@@ -378,7 +405,7 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
       setTimeout(() => inputRef.current?.focus(), 0)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, messages, contextItems, selectedClient, isCeo, user?.role, streaming])
+  }, [input, messages, contextItems, selectedClient, isCeo, user?.role, user?.id, streaming])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Arrow keys to navigate dropdowns (basic — just close on Escape)
@@ -437,15 +464,19 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Client selector */}
-          <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1.5">
-            <Building2 className="w-3 h-3 text-white/70 shrink-0" />
+          {/* Client context selector — sets the active client for the full conversation */}
+          <div className={cn(
+            'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-colors',
+            selectedClient ? 'bg-white/20 ring-1 ring-white/30' : 'bg-white/10',
+          )}>
+            <Building2 className={cn('w-3 h-3 shrink-0', selectedClient ? 'text-white' : 'text-white/70')} />
             <select
               value={selectedClient}
               onChange={e => setSelectedClient(e.target.value)}
-              className="text-[11px] text-white bg-transparent outline-none cursor-pointer max-w-[110px]"
+              className="text-[11px] text-white bg-transparent outline-none cursor-pointer max-w-[120px]"
+              title="Active client context — sets the client for the entire conversation"
             >
-              <option value="" className="text-slate-800">All clients</option>
+              <option value="" className="text-slate-800">No client</option>
               {clients.map(c => (
                 <option key={c.id} value={c.id} className="text-slate-800">{c.name}</option>
               ))}
@@ -495,7 +526,17 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
               Ask strategy questions, edit content, or analyze performance.
               Type <span className="font-mono bg-slate-100 px-1 rounded text-novax-muted">@</span> to reference a client, document, or studio session.
             </p>
-            <div className="mt-5 grid grid-cols-2 gap-2 w-full max-w-[280px]">
+            {/* CEO morning brief — full-width CTA above quick prompts */}
+            {isCeo && (
+              <button
+                onClick={() => void sendMessage('Give me a full morning briefing — agency status, active clients, overdue tasks, pipeline bottlenecks, and anything that needs my attention today.')}
+                className="mt-4 w-full max-w-[280px] px-4 py-2.5 bg-novax text-white text-xs font-bold rounded-xl hover:bg-novax-hover transition-colors"
+              >
+                Morning Brief
+              </button>
+            )}
+
+            <div className={cn('grid grid-cols-2 gap-2 w-full max-w-[280px]', isCeo ? 'mt-3' : 'mt-5')}>
               {QUICK_PROMPTS.map(s => (
                 <button
                   key={s}
@@ -580,31 +621,40 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
       {/* Input area */}
       <div className="relative px-3 pb-3 pt-2 border-t border-slate-100 bg-white rounded-b-2xl">
 
-        {/* @ mention dropdown */}
+        {/* @ mention dropdown — grouped by type, recents when query is empty */}
         {atQuery !== null && (
-          <div className="absolute bottom-full left-3 right-3 mb-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 max-h-52 overflow-y-auto">
+          <div className="absolute bottom-full left-3 right-3 mb-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 max-h-64 overflow-y-auto">
             <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide px-3 pt-2 pb-1">
-              Reference
+              {atQuery === '' ? 'Recent' : 'Search results'}
             </p>
             {mentionLoading ? (
               <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-slate-400">
-                <Loader2 className="w-3 h-3 animate-spin" /> Searching…
+                <Loader2 className="w-3 h-3 animate-spin" /> {atQuery === '' ? 'Loading…' : 'Searching…'}
               </div>
             ) : mentionResults.length === 0 ? (
-              <p className="px-3 py-2.5 text-xs text-slate-400">No results for &ldquo;{atQuery}&rdquo;</p>
+              <p className="px-3 py-2.5 text-xs text-slate-400">
+                {atQuery === '' ? 'No recent items' : `No results for "${atQuery}"`}
+              </p>
             ) : (
-              mentionResults.map(r => (
-                <button
-                  key={r.id}
-                  onMouseDown={e => { e.preventDefault(); insertMention(r) }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-novax-light/60 transition-colors"
-                >
-                  <span className="text-novax-muted shrink-0">{CONTEXT_ICONS[r.type]}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-800 truncate">{r.label}</p>
-                    <p className="text-[10px] text-slate-400 capitalize">{r.sublabel}</p>
-                  </div>
-                </button>
+              groupByType(mentionResults).map(({ type, items }) => (
+                <div key={type}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 px-3 pt-2 pb-0.5 bg-slate-50/80">
+                    {TYPE_LABELS[type]}
+                  </p>
+                  {items.map(r => (
+                    <button
+                      key={r.id}
+                      onMouseDown={e => { e.preventDefault(); insertMention(r) }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-novax-light/60 transition-colors"
+                    >
+                      <span className="text-novax-muted shrink-0">{CONTEXT_ICONS[r.type]}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-slate-800 truncate">{r.label}</p>
+                        <p className="text-[10px] text-slate-400 capitalize">{r.sublabel}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               ))
             )}
           </div>

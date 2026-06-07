@@ -1,55 +1,52 @@
-const CACHE = 'novax-v1'
-const PRECACHE = [
-  '/',
-  '/dashboard',
+const CACHE = 'novax-v2'
+
+// Only cache true static assets — never URLs that involve auth redirects
+const STATIC_ASSETS = [
   '/icon.svg',
   '/manifest.json',
 ]
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE).then(cache =>
-      Promise.allSettled(PRECACHE.map(url => cache.add(url)))
-    ).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then(cache => Promise.allSettled(STATIC_ASSETS.map(url => cache.add(url))))
+      .then(() => self.skipWaiting())
   )
 })
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   )
 })
 
 self.addEventListener('fetch', event => {
-  // Only handle GET requests for same-origin or navigation
   if (event.request.method !== 'GET') return
   const url = new URL(event.request.url)
   if (url.origin !== location.origin) return
 
-  // Skip auth pages — they require valid session state the SW cannot guarantee
-  if (url.pathname.startsWith('/login') || url.pathname.startsWith('/onboarding')) return
+  // Never intercept navigation requests — the middleware handles auth redirects
+  // and the browser must follow them natively. Intercepting causes ERR_FAILED.
+  if (event.request.mode === 'navigate') return
 
-  // Network-first for API routes
-  if (url.pathname.startsWith('/api/')) {
+  // Never intercept API routes — always need fresh authenticated responses
+  if (url.pathname.startsWith('/api/')) return
+
+  // Cache-first for static assets only (images, fonts, icons)
+  if (/\.(svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|otf)$/.test(url.pathname)) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    )
-    return
-  }
-
-  // Cache-first for static assets; stale-while-revalidate for pages
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      const networkFetch = fetch(event.request).then(response => {
-        if (response.ok) {
-          const cloned = response.clone()
-          caches.open(CACHE).then(cache => cache.put(event.request, cloned))
-        }
-        return response
+      caches.match(event.request).then(cached => {
+        if (cached) return cached
+        return fetch(event.request).then(response => {
+          if (response.ok) {
+            caches.open(CACHE).then(cache => cache.put(event.request, response.clone()))
+          }
+          return response
+        })
       })
-      return cached || networkFetch
-    })
-  )
+    )
+  }
+  // All other requests: fall through to network (no SW interference)
 })

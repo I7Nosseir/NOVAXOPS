@@ -39,6 +39,7 @@ interface RequestBody {
   client_id?:    string
   is_ceo?:       boolean
   user_role?:    string
+  user_id?:      string
 }
 
 // ── Tiptap JSON → plain text ──────────────────────────────────
@@ -148,6 +149,38 @@ async function fetchPerformanceSummary(db: SupabaseClient, clientId: string): Pr
   } catch { return '' }
 }
 
+// ── Role-scoped context for non-CEO users ────────────────────
+// Auto-injects the user's own active tasks so they don't have to
+// manually @ every task when asking for help with their work.
+
+async function fetchUserScopedContext(db: SupabaseClient, userId: string): Promise<string> {
+  try {
+    const { data: tasks } = await db
+      .from('tasks')
+      .select('id,title,pipeline_stage,priority,due_date,client_id')
+      .eq('assigned_to', userId)
+      .neq('status', 'completed')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .limit(8)
+
+    if (!tasks?.length) return ''
+
+    const clientIds = [...new Set(tasks.map((t: { client_id: string }) => t.client_id).filter(Boolean))]
+    const { data: clients } = clientIds.length > 0
+      ? await db.from('clients').select('id,name').in('id', clientIds)
+      : { data: [] as Array<{ id: string; name: string }> }
+
+    const clientMap: Record<string, string> = {}
+    for (const c of clients ?? []) clientMap[c.id] = c.name
+
+    const lines = tasks.map((t: { title: string; pipeline_stage: string; priority: string; due_date: string; client_id: string }) =>
+      `- "${t.title}" [${t.pipeline_stage}${t.priority ? `, ${t.priority}` : ''}${t.due_date ? `, due ${t.due_date}` : ''}] — ${clientMap[t.client_id] ?? 'Unknown client'}`
+    )
+
+    return `\n\n── YOUR ACTIVE TASKS (${lines.length}) ──\n${lines.join('\n')}`
+  } catch { return '' }
+}
+
 // ── CEO: Cross-client agency intelligence ─────────────────────
 
 async function fetchCeoAgencyBriefing(db: SupabaseClient): Promise<string> {
@@ -220,6 +253,7 @@ function buildSystemPrompt(
   perfData:           string,
   intelligenceBlock?: string,
   ceoBriefing?:       string,
+  userContext?:       string,
 ): string {
   const roleName = ({
     admin:            'Admin',
@@ -262,6 +296,10 @@ Current user role: ${roleName}`
 
   if (ceoBriefing) {
     prompt += `\n\n${ceoBriefing}`
+  }
+
+  if (userContext && !isCeo) {
+    prompt += userContext
   }
 
   prompt += `
@@ -311,7 +349,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() }
   catch { return new Response(JSON.stringify({ error: 'Invalid request body.' }), { status: 400 }) }
 
-  const { messages, context_items = [], client_id, is_ceo = false, user_role = 'admin' } = body
+  const { messages, context_items = [], client_id, is_ceo = false, user_role = 'admin', user_id } = body
 
   if (!messages?.length) {
     return new Response(JSON.stringify({ error: 'messages array is required.' }), { status: 400 })
@@ -332,12 +370,13 @@ export async function POST(req: NextRequest) {
 
   const clientInContextItems = context_items.some(i => i.type === 'client' && i.id === client_id)
 
-  const [clientContext, contextBlocks, perfData, intelligenceBlock, ceoBriefing] = await Promise.all([
+  const [clientContext, contextBlocks, perfData, intelligenceBlock, ceoBriefing, userContext] = await Promise.all([
     client_id && !clientInContextItems ? fetchClientContext(db, client_id) : Promise.resolve(''),
     Promise.all(contextFetches),
     client_id && needsPerformanceData(messages) ? fetchPerformanceSummary(db, client_id) : Promise.resolve(''),
     client_id ? buildClientIntelligenceBlock(client_id, 'chat', db).catch(() => '') : Promise.resolve(''),
     is_ceo ? fetchCeoAgencyBriefing(db).catch(err => { console.error('[assistant/chat] CEO briefing failed:', err); return '' }) : Promise.resolve(''),
+    user_id && !is_ceo ? fetchUserScopedContext(db, user_id).catch(() => '') : Promise.resolve(''),
   ])
 
   const systemPrompt = buildSystemPrompt(
@@ -348,6 +387,7 @@ export async function POST(req: NextRequest) {
     perfData,
     intelligenceBlock || undefined,
     ceoBriefing || undefined,
+    userContext || undefined,
   )
 
   const useAnthropic = !!process.env.ANTHROPIC_API_KEY

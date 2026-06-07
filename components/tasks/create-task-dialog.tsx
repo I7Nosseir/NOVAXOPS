@@ -65,6 +65,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
     setAssignedTo(''); setStage(defaultStage ?? 'strategy'); setPriority('medium')
     setDueDate(''); setTagInput(''); setTags([])
     setLinkedDocIds([]); setDocSearch(''); setShowDocPicker(false)
+    createTask.reset()
   }
 
   const handleClose = () => { reset(); onClose() }
@@ -84,21 +85,25 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !clientId) return
-    await createTask.mutateAsync({
-      title: title.trim(),
-      description,
-      final_submission: finalSubmission.trim() || null,
-      client_id: clientId,
-      project_id: projectId || null,
-      assigned_to: assignedTo || null,
-      pipeline_stage: stage,
-      priority,
-      status: 'active',
-      due_date: dueDate || null,
-      tags,
-      linked_doc_ids: linkedDocIds.length > 0 ? linkedDocIds : undefined,
-    })
-    handleClose()
+    try {
+      await createTask.mutateAsync({
+        title: title.trim(),
+        description,
+        final_submission: finalSubmission.trim() || null,
+        client_id: clientId,
+        project_id: projectId || null,
+        assigned_to: assignedTo || null,
+        pipeline_stage: stage,
+        priority,
+        status: 'active',
+        due_date: dueDate || null,
+        tags,
+        linked_doc_ids: linkedDocIds.length > 0 ? linkedDocIds : undefined,
+      })
+      handleClose()
+    } catch {
+      // Error is displayed inline via createTask.isError
+    }
   }
 
   if (!open) return null
@@ -158,8 +163,15 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
               />
             </div>
 
+            {/* Error banner */}
+            {createTask.isError && (
+              <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-100 text-xs text-red-600">
+                {createTask.error instanceof Error ? createTask.error.message : 'Failed to create task. Please try again.'}
+              </div>
+            )}
+
             {/* Client + Project */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Client *</label>
                 <select
@@ -223,7 +235,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
             </div>
 
             {/* Assignee + Due date */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Assignee</label>
                 <div className="flex flex-wrap gap-1.5 p-2 rounded-lg border border-slate-200 min-h-[40px] items-center">

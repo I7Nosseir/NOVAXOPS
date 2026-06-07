@@ -276,11 +276,13 @@ export function Sidebar() {
               <p className="text-slate-500 text-[10px] truncate capitalize">{user?.role?.replace('_', ' ') ?? ''}</p>
             </div>
             <button
+              type="button"
               onClick={handleSignOut}
-              className="text-slate-500 hover:text-slate-300 transition-colors shrink-0"
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0 min-h-[36px]"
               title="Sign out"
             >
               <LogOut className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-medium lg:hidden">Sign out</span>
             </button>
           </div>
         </div>

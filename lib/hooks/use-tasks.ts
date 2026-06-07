@@ -108,6 +108,15 @@ export function useUpdateTask() {
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error
+
+      // Fire assignment notification when a task is reassigned
+      if (updates.assigned_to) {
+        fetch('/api/tasks/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: id, assignedTo: updates.assigned_to }),
+        }).catch(() => {})
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
