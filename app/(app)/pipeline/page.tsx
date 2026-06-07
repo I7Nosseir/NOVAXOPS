@@ -4,6 +4,7 @@ import { useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LayoutGrid, List, Filter } from 'lucide-react'
 import { useTasks } from '@/lib/hooks/use-tasks'
+import { useRealtime } from '@/lib/hooks/use-realtime'
 import { PipelineBoard } from '@/components/pipeline/pipeline-board'
 import { TaskList } from '@/components/pipeline/task-list'
 import { FilterPanel, EMPTY_FILTERS, type FilterState } from '@/components/pipeline/filter-panel'
@@ -52,6 +53,8 @@ function PipelineContent() {
   const filters = parseFilters(searchParams)
   const { tasks } = useTasks(filters)
   const active = hasActiveFilters(filters)
+
+  useRealtime('tasks', ['tasks'])
 
   const updateFilters = useCallback((newFilters: FilterState) => {
     const params = filtersToParams(newFilters)

@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
 
 interface ScriptRequest {
+  content_type?: 'reel' | 'carousel' | 'static'
   platform: string
   audience: string
   goal: string
@@ -29,7 +30,9 @@ function languageInstruction(language: string | undefined, dialect: string | und
   return '\nLANGUAGE: Write the ENTIRE script in Egyptian Arabic (اللهجة المصرية / عامية مصرية). All spoken lines must be in Egyptian colloquial Arabic. Visual/direction notes (inside brackets) may stay in English for production clarity.\n'
 }
 
-const SCRIPT_PROMPT = (d: ScriptRequest) => `You are an elite content director writing a production-ready ${d.platform} script.
+// ── Reel prompt (original) ────────────────────────────────────
+
+const REEL_PROMPT = (d: ScriptRequest) => `You are an elite content director writing a production-ready ${d.platform} script.
 ${languageInstruction(d.language, d.dialect)}
 
 BRIEF: ${d.brief}
@@ -88,6 +91,73 @@ Return a JSON object:
 
 Return ONLY valid JSON. No markdown, no explanation.`
 
+// ── Carousel prompt ───────────────────────────────────────────
+
+const CAROUSEL_PROMPT = (d: ScriptRequest) => `You are creating a carousel post for ${d.platform}.
+${languageInstruction(d.language, d.dialect)}
+
+BRIEF: ${d.brief}
+HOOK (Cover Slide): "${d.hook}"
+GOAL: ${d.goal}
+AUDIENCE: ${d.audience}
+${d.brand_voice ? `BRAND VOICE: ${d.brand_voice}` : ''}
+${d.key_messages?.length ? `KEY MESSAGES: ${d.key_messages.join(' | ')}` : ''}
+${d.client_name ? `CLIENT: ${d.client_name}` : ''}
+
+Create 5–7 carousel slides that build on the hook and deliver clear value slide-by-slide.
+
+Return ONLY valid JSON:
+{
+  "slides": [
+    { "title": "Cover title — use the hook exactly", "body": "2–3 sentences (max 30 words)", "visual_note": "Visual direction for this slide" },
+    { "title": "Slide 2 title", "body": "...", "visual_note": "..." }
+  ],
+  "caption_preview": "First 150 chars of the carousel caption",
+  "production_difficulty": "Low / Medium / High",
+  "brand_compliance_notes": "Any brand voice notes",
+  "key_broll_list": ["Design element or asset needed 1", "asset 2"]
+}
+
+Rules:
+- Slide 1: hook/cover — use the provided hook as the title
+- Slides 2–(N-1): each delivers ONE insight or step — no filler
+- Last slide: clear CTA
+- Body text: max 30 words per slide (readable at a glance on mobile)
+- No hashtags, no emojis`
+
+// ── Static prompt ─────────────────────────────────────────────
+
+const STATIC_PROMPT = (d: ScriptRequest) => `You are creating a static social post image brief for ${d.platform}.
+${languageInstruction(d.language, d.dialect)}
+
+BRIEF: ${d.brief}
+HOOK / MESSAGE: "${d.hook}"
+GOAL: ${d.goal}
+AUDIENCE: ${d.audience}
+${d.brand_voice ? `BRAND VOICE: ${d.brand_voice}` : ''}
+${d.client_name ? `CLIENT: ${d.client_name}` : ''}
+
+Return ONLY valid JSON:
+{
+  "visual_direction": "Detailed description of the image: composition, subject, mood, lighting, color palette, background, framing",
+  "text_overlay": "The exact text shown on the image — max 10 words, punchy and readable at a glance",
+  "caption_preview": "First 150 chars of the post caption",
+  "brand_compliance_notes": "Any brand voice or visual notes",
+  "production_difficulty": "Low",
+  "key_broll_list": ["Photography prop or element 1", "element 2"]
+}
+
+Rules:
+- visual_direction: describe in enough detail for a photographer or designer to execute without questions
+- text_overlay: this IS the hook — make it punchy, large, readable. No emojis, no hashtags
+- caption_preview: max 150 chars including a soft CTA`
+
+function selectPrompt(d: ScriptRequest): string {
+  if (d.content_type === 'carousel') return CAROUSEL_PROMPT(d)
+  if (d.content_type === 'static')   return STATIC_PROMPT(d)
+  return REEL_PROMPT(d)
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -111,7 +181,7 @@ export async function POST(
     return NextResponse.json({ error: 'hook is required — complete Phase 3 first' }, { status: 400 })
   }
 
-  let prompt = SCRIPT_PROMPT(body)
+  let prompt = selectPrompt(body)
   let raw = ''
 
   // Inject client intelligence

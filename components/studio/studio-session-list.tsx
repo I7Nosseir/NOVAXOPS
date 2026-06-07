@@ -1,6 +1,7 @@
 'use client'
 
-import { Zap, Wand2, Brain, Target, AlertCircle, Plus, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
+import { Zap, Wand2, Brain, Target, AlertCircle, Plus, RefreshCw, Trash2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { StudioSession } from '@/lib/studio-types'
 
@@ -10,6 +11,7 @@ export interface StudioSessionListProps {
   sessions: StudioSession[]
   onSessionClick: (session: StudioSession) => void
   onNewSession: () => void
+  onDeleteSession?: (sessionId: string) => void
   isLoading?: boolean
 }
 
@@ -24,6 +26,8 @@ const TOOL_CONFIG: Record<
   strategy:  { icon: Brain,      label: 'Strategy'          },
   campaign:  { icon: Target,     label: 'Campaign Igniter'  },
   postmortem:{ icon: AlertCircle,label: 'Post-Mortem'       },
+  formats:   { icon: Zap,        label: 'Peak Formats'      },
+  visual:    { icon: Target,     label: 'Visual Studio'     },
   intel:     { icon: AlertCircle,label: 'Intelligence'      },
   trends:    { icon: Zap,        label: 'Trends'            },
   ads:       { icon: Target,     label: 'Ads'               },
@@ -90,79 +94,76 @@ function SkeletonRow() {
 function SessionRow({
   session,
   onClick,
+  onDelete,
 }: {
   session: StudioSession
   onClick: () => void
+  onDelete?: (id: string) => void
 }) {
-  const toolCfg = TOOL_CONFIG[session.tool] ?? TOOL_CONFIG.content
-  const Icon = toolCfg.icon
+  const [deleting, setDeleting] = useState(false)
+  const toolCfg   = TOOL_CONFIG[session.tool] ?? TOOL_CONFIG.content
+  const Icon      = toolCfg.icon
   const statusCfg = STATUS_STYLES[session.status] ?? STATUS_STYLES.complete
-  const perfCfg = session.performance_verdict
-    ? PERFORMANCE_STYLES[session.performance_verdict]
-    : null
+  const perfCfg   = session.performance_verdict ? PERFORMANCE_STYLES[session.performance_verdict] : null
+  const dateLabel = session.created_at ? formatRelativeDate(session.created_at) : null
+  const isStuck   = session.status === 'running' || session.status === 'error'
 
-  // Format created_at to relative or readable date
-  const dateLabel = session.created_at
-    ? formatRelativeDate(session.created_at)
-    : null
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!onDelete) return
+    setDeleting(true)
+    try {
+      await fetch(`/api/studio/session/${session.id}`, { method: 'DELETE' })
+      onDelete(session.id)
+    } catch { /* silent */ } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-slate-50 cursor-pointer text-left transition-colors group"
-    >
-      {/* Tool icon */}
-      <div className="bg-novax-light rounded-lg p-2 shrink-0 group-hover:bg-novax-light-hover transition-colors">
-        <Icon className="w-4 h-4 text-novax" />
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold text-slate-900 truncate">
-            {session.name}
+    <div className={cn(
+      'flex items-center gap-2 py-2 px-3 rounded-xl transition-colors group',
+      isStuck ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-slate-50',
+    )}>
+      <button onClick={onClick} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+        <div className={cn('rounded-lg p-2 shrink-0 transition-colors', isStuck ? 'bg-red-100' : 'bg-novax-light group-hover:bg-novax-light-hover')}>
+          <Icon className={cn('w-4 h-4', isStuck ? 'text-red-500' : 'text-novax')} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-slate-900 truncate">{session.name}</span>
+            {session.client_id && (
+              <span className="text-[10px] bg-novax-light text-novax-muted rounded-full px-2 py-0.5 shrink-0">Client</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <span className="text-xs text-slate-400">{toolCfg.label}</span>
+            {dateLabel && <><span className="text-slate-200">·</span><span className="text-xs text-slate-400">{dateLabel}</span></>}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={cn('text-[10px] font-semibold rounded-full px-2 py-0.5', statusCfg.bg, statusCfg.text)}>
+            {statusCfg.label}
           </span>
-          {session.client_id && (
-            <span className="text-[10px] bg-novax-light text-novax-muted rounded-full px-2 py-0.5 shrink-0">
-              Client
+          {perfCfg && (
+            <span className={cn('text-[10px] font-semibold rounded-full px-2 py-0.5', perfCfg.bg, perfCfg.text)}>
+              {perfCfg.label}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-          <span className="text-xs text-slate-400">{toolCfg.label}</span>
-          {dateLabel && (
-            <>
-              <span className="text-slate-200">·</span>
-              <span className="text-xs text-slate-400">{dateLabel}</span>
-            </>
-          )}
-        </div>
-      </div>
+      </button>
 
-      {/* Badges */}
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        <span
-          className={cn(
-            'text-[10px] font-semibold rounded-full px-2 py-0.5',
-            statusCfg.bg,
-            statusCfg.text,
-          )}
+      {onDelete && (
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          title="Delete session"
+          className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
         >
-          {statusCfg.label}
-        </span>
-        {perfCfg && (
-          <span
-            className={cn(
-              'text-[10px] font-semibold rounded-full px-2 py-0.5',
-              perfCfg.bg,
-              perfCfg.text,
-            )}
-          >
-            {perfCfg.label}
-          </span>
-        )}
-      </div>
-    </button>
+          {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -234,6 +235,7 @@ export function StudioSessionList({
   sessions,
   onSessionClick,
   onNewSession,
+  onDeleteSession,
   isLoading = false,
 }: StudioSessionListProps) {
   return (
@@ -279,12 +281,13 @@ export function StudioSessionList({
       {!isLoading && sessions.length > 0 && (
         <>
           {/* Desktop */}
-          <div className="hidden sm:block divide-y divide-slate-100">
+          <div className="hidden sm:block space-y-0.5">
             {sessions.map(session => (
               <SessionRow
                 key={session.id}
                 session={session}
                 onClick={() => onSessionClick(session)}
+                onDelete={onDeleteSession}
               />
             ))}
           </div>

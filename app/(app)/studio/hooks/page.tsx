@@ -417,7 +417,8 @@ export default function HookLabPage() {
               <StudioSessionList
                 sessions={sessions}
                 onSessionClick={handleSessionClick}
-                onNewSession={() => {}}
+                onNewSession={handleNewSession}
+                onDeleteSession={id => setSessions(prev => prev.filter(s => s.id !== id))}
                 isLoading={sessionsLoading}
               />
             </div>

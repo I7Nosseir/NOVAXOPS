@@ -9,6 +9,8 @@ export type StudioTool =
   | 'strategy'
   | 'campaign'
   | 'postmortem'
+  | 'formats'
+  | 'visual'
   | 'intel'
   | 'trends'
   | 'ads'
@@ -180,6 +182,36 @@ export interface ScriptSection {
 
 // ─── Content Studio Document ──────────────────────────────────
 
+export type ContentFormat = 'reel' | 'carousel' | 'static'
+
+export interface ContentPiece {
+  type: ContentFormat
+  index: number
+  hook: {
+    text: string
+    type: string
+    tier: HookTier
+    score: number
+    clarity: number
+    context: number
+    curiosity: number
+    why_selected?: string
+  } | null
+  // Reel fields
+  script_sections?: ScriptSection[]
+  total_duration?: string
+  production_difficulty?: string
+  brand_compliance_notes?: string
+  key_broll_list?: string[]
+  // Carousel fields
+  slides?: Array<{ title: string; body: string; visual_note?: string }>
+  // Static fields
+  visual_direction?: string
+  text_overlay?: string
+  // Shared
+  caption_preview?: string
+}
+
 export interface ContentDocument {
   // Canonical shape (used by document renderer)
   hook?: {
@@ -190,7 +222,7 @@ export interface ContentDocument {
     clarity: number
     context: number
     curiosity: number
-    why_selected: string
+    why_selected?: string
   } | null
   audience_intelligence?: {
     functional_job: string
@@ -205,6 +237,11 @@ export interface ContentDocument {
   key_broll_list?: string[]
   caption_preview?: string
   platform_notes?: Record<string, string>
+
+  // Multi-piece support
+  pieces?: ContentPiece[]
+  content_type?: ContentFormat
+  piece_count?: number
 
   // Page-built shape (assembled by content/page.tsx)
   what_we_built?: string

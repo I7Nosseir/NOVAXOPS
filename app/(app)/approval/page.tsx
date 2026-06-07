@@ -5,6 +5,7 @@ import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2,
 import { useClients } from '@/lib/hooks/use-clients'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useApprovalRequests, useCreateApproval } from '@/lib/hooks/use-approvals'
+import { useRealtime } from '@/lib/hooks/use-realtime'
 import { formatDate, cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import { supabase } from '@/lib/supabase'
@@ -274,6 +275,9 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
 }
 
 export default function ApprovalPage() {
+  useRealtime('approval_requests', ['approvals'])
+  useRealtime('approval_post_statuses', ['approvals'])
+
   const { clients } = useClients()
   const { posts: allPosts } = usePosts()
   const { requests, isLoading } = useApprovalRequests()

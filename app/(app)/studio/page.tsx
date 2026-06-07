@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Zap, Wand2, Brain, Flame, BarChart2, Target, TrendingUp,
-  ArrowRight, Sparkles, BookOpen, Clapperboard,
+  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
@@ -79,6 +79,17 @@ const TOOLS = [
     dark: false,
     cta: 'Create Video',
   },
+  {
+    href: '/studio/formats',
+    icon: Layers,
+    title: 'Peak Format Generator',
+    description: 'Enter a niche → 5 viral content formats with hook stacks, 3-law validation, episode structure and payoff architecture.',
+    badge: 'New',
+    badgeColor: 'bg-amber-100 text-amber-800',
+    gradient: false,
+    dark: false,
+    cta: 'Generate Formats',
+  },
 ]
 
 const QUICK_LINKS = [
@@ -112,6 +123,7 @@ export default function StudioPage() {
       campaign:   '/studio/campaign',
       postmortem: '/studio/postmortem',
       visual:     '/studio/visual',
+      formats:    '/studio/formats',
     }
     const route = routes[session.tool]
     if (route) router.push(`${route}?session_id=${session.id}`)

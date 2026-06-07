@@ -301,7 +301,7 @@ export default function StrategyPage() {
         <div className="space-y-5">
           {(sessions.length > 0 || sessionsLoading) && (
             <div className="mb-6">
-              <StudioSessionList sessions={sessions} onSessionClick={handleSessionClick} onNewSession={() => {}} isLoading={sessionsLoading} />
+              <StudioSessionList sessions={sessions} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onDeleteSession={id => setSessions(prev => prev.filter(s => s.id !== id))} isLoading={sessionsLoading} />
             </div>
           )}
 

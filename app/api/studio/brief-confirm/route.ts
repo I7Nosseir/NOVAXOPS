@@ -1,29 +1,37 @@
 // ============================================================
 // POST /api/studio/brief-confirm
-// Fast Gemini call (<1s). Reads the brief and returns a
-// structured BriefConfirmation for the UI to display.
-// If no GEMINI_API_KEY: derives BriefConfirmation from
-// the inputs directly — zero AI needed.
+// Two modes:
+//   (default)   — Returns BriefConfirmation for the UI confirmation step.
+//                 Requires: brief, platforms, goal, audience.
+//   boss_brief  — Returns { boss_brief: BossBrief } for the 30-second
+//                 executive summary block. Only requires: brief.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
 import { geminiJson } from '@/lib/gemini'
-import type { BriefConfirmation } from '@/lib/studio-types'
+import type { BriefConfirmation, BossBrief } from '@/lib/studio-types'
 
-// ─── Types ────────────────────────────────────────────────────
+// ─── Request shapes ───────────────────────────────────────────
 
 interface BriefConfirmBody {
   brief: string
+  mode?: 'boss_brief'
+  // Default mode fields
   client_name?: string
-  platforms: string[]
-  goal: string
-  audience: string
-  language: 'english' | 'arabic'
+  platforms?: string[]
+  goal?: string
+  audience?: string
+  language?: 'english' | 'arabic'
   performance_days?: number
   client_industry?: string
+  // Boss brief context (sent by content + strategy pages)
+  hook?: string
+  script?: Record<string, unknown>
+  strategy?: { campaign_line?: string; quarter_role?: string }
+  client?: { name?: string }
 }
 
-// ─── Fallback (no API key) ────────────────────────────────────
+// ─── Default mode: derive BriefConfirmation without AI ────────
 
 function deriveFromInputs(body: BriefConfirmBody): BriefConfirmation {
   const days = body.performance_days ?? 0
@@ -35,14 +43,76 @@ function deriveFromInputs(body: BriefConfirmBody): BriefConfirmation {
         : 'No performance history — generation grounded in industry benchmarks'
 
   return {
-    client_name:     body.client_name   ?? 'Unknown Client',
-    platforms:       body.platforms,
-    goal:            body.goal,
-    audience:        body.audience,
-    language:        body.language,
+    client_name:      body.client_name ?? 'Unknown Client',
+    platforms:        body.platforms ?? [],
+    goal:             body.goal ?? '',
+    audience:         body.audience ?? '',
+    language:         body.language ?? 'english',
     performance_days: days,
-    key_signal:      keySignal,
+    key_signal:       keySignal,
   }
+}
+
+// ─── Boss brief: derive without AI (fallback) ─────────────────
+
+function deriveBossBrief(body: BriefConfirmBody): BossBrief {
+  const clientName  = body.client?.name ?? body.client_name ?? 'the brand'
+  const hook        = body.hook ?? ''
+  const campaignLine = body.strategy?.campaign_line ?? ''
+
+  return {
+    what_we_made: hook
+      ? `A ${clientName} reel built around the hook: "${hook.slice(0, 80)}${hook.length > 80 ? '...' : ''}"`
+      : campaignLine
+        ? `A ${clientName} strategy anchored by: "${campaignLine}"`
+        : `Content for ${clientName} based on the provided brief.`,
+    why_it_works:  'The brief has been developed with audience psychology and platform context in mind.',
+    the_one_thing: body.brief.slice(0, 120),
+    do_this_now:   'Review the output, record or design the content, then schedule at the optimal posting time.',
+  }
+}
+
+// ─── Boss brief: AI generation ────────────────────────────────
+
+async function generateBossBrief(body: BriefConfirmBody): Promise<BossBrief> {
+  const clientName   = body.client?.name ?? body.client_name ?? 'the brand'
+  const hook         = body.hook ?? ''
+  const strategy     = body.strategy
+  const hasScript    = body.script && Object.keys(body.script).length > 0
+
+  const contextBlock = hook
+    ? `SELECTED HOOK: "${hook}"\nSCRIPT: ${hasScript ? 'Full production script generated.' : 'Brief only.'}`
+    : strategy
+      ? `CAMPAIGN LINE: "${strategy.campaign_line ?? ''}"\nQUARTER ROLE: "${strategy.quarter_role ?? ''}"`
+      : 'Brief provided — no additional context.'
+
+  const prompt = `You are writing a Boss Brief — a 30-second executive summary of creative work.
+
+CLIENT: ${clientName}
+BRIEF: "${body.brief}"
+CONTEXT:
+${contextBlock}
+
+Return ONLY valid JSON (no markdown, no explanation):
+{
+  "what_we_made": "One sentence — the concrete deliverable in plain language",
+  "why_it_works": "One sentence — the strategic reason this will perform",
+  "the_one_thing": "THE single most important thing — one memorable sentence",
+  "do_this_now": "One concrete next action for the client or team",
+  "watch_out_for": "One real risk or constraint the team must know — or null"
+}
+
+Rules:
+- what_we_made: name the format and core angle (e.g. "A carousel that reframes the objection that X is too expensive")
+- why_it_works: reference the audience tension or platform insight it exploits
+- the_one_thing: a single sentence — NOT a list
+- do_this_now: operational, specific, actionable
+- watch_out_for: timing conflict, brand voice risk, platform policy, or null`
+
+  return await geminiJson<BossBrief>(prompt, undefined, {
+    temperature:     0.4,
+    maxOutputTokens: 350,
+  })
 }
 
 // ─── Handler ─────────────────────────────────────────────────
@@ -55,14 +125,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  if (!body.brief || !body.platforms || !body.goal || !body.audience) {
+  if (!body.brief) {
+    return NextResponse.json({ error: 'brief is required' }, { status: 400 })
+  }
+
+  // ── Boss Brief mode ──────────────────────────────────────────
+  if (body.mode === 'boss_brief') {
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ boss_brief: deriveBossBrief(body) })
+    }
+    try {
+      const bossBrief = await generateBossBrief(body)
+      return NextResponse.json({ boss_brief: bossBrief })
+    } catch {
+      return NextResponse.json({ boss_brief: deriveBossBrief(body) })
+    }
+  }
+
+  // ── Default mode: BriefConfirmation ─────────────────────────
+  if (!body.platforms || !body.goal || !body.audience) {
     return NextResponse.json(
       { error: 'brief, platforms, goal, and audience are required' },
       { status: 400 },
     )
   }
 
-  // No API key → derive without AI
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(deriveFromInputs(body))
   }
@@ -105,7 +192,6 @@ Rules:
     })
     return NextResponse.json(parsed)
   } catch {
-    // Parse failure or API error — fall back to derived result
     return NextResponse.json(deriveFromInputs(body))
   }
 }

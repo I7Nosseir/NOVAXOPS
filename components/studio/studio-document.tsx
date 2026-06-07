@@ -2,14 +2,15 @@
 
 import { useState } from 'react'
 import {
-  Camera, Copy, CheckCircle, Star, RefreshCw,
-  TriangleAlert, MessageSquare, Download, FileText,
+  Camera, Copy, CheckCircle, Star,
+  TriangleAlert, MessageSquare, Download, FileText, ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import { AIFeedbackButtons } from '@/components/shared/ai-feedback-buttons'
 import type {
   ContentDocument,
+  ContentPiece,
   HookDocument,
   HookItem,
   HookTier,
@@ -102,6 +103,22 @@ function ThreeCBars({
   )
 }
 
+// ─── Platform normalizer ──────────────────────────────────────────────────────
+// Maps any display name (e.g. "X (Twitter)", "Snapchat") to a SocialPlatform key.
+// Returns null for unsupported platforms so PlatformIcon is skipped safely.
+type KnownPlatform = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'twitter' | 'youtube' | 'pinterest'
+function toPlatformKey(name: string): KnownPlatform | null {
+  const lower = name.toLowerCase().trim()
+  if (lower === 'instagram') return 'instagram'
+  if (lower === 'facebook') return 'facebook'
+  if (lower === 'linkedin') return 'linkedin'
+  if (lower === 'tiktok') return 'tiktok'
+  if (lower === 'youtube') return 'youtube'
+  if (lower === 'pinterest') return 'pinterest'
+  if (lower === 'twitter' || lower.includes('twitter') || lower === 'x') return 'twitter'
+  return null
+}
+
 // ─── Document Header (sticky) ─────────────────────────────────────────────────
 
 function DocumentHeader({
@@ -120,15 +137,18 @@ function DocumentHeader({
         )}
         <span className="font-semibold text-slate-900 text-sm truncate">{clientName}</span>
         <div className="flex items-center gap-1 flex-wrap">
-          {platforms.map(p => (
-            <span
-              key={p}
-              className="inline-flex items-center gap-1 bg-novax-light text-novax text-[10px] font-medium rounded-full px-2 py-0.5"
-            >
-              <PlatformIcon platform={p.toLowerCase() as Parameters<typeof PlatformIcon>[0]['platform']} size="xs" />
-              {p}
-            </span>
-          ))}
+          {platforms.map(p => {
+            const key = toPlatformKey(p)
+            return (
+              <span
+                key={p}
+                className="inline-flex items-center gap-1 bg-novax-light text-novax text-[10px] font-medium rounded-full px-2 py-0.5"
+              >
+                {key && <PlatformIcon platform={key} size="xs" />}
+                {p}
+              </span>
+            )
+          })}
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -143,7 +163,27 @@ function DocumentHeader({
         )}
         {onExportPdf && (
           <button
-            onClick={onExportPdf}
+            onClick={() => {
+              const el = document.getElementById('printable-studio')
+              if (!el) { onExportPdf(); return }
+              const win = window.open('', '_blank', 'width=900,height=700')
+              if (!win) { onExportPdf(); return }
+              const styles = Array.from(
+                document.querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel="stylesheet"], style')
+              ).map(s => s.outerHTML).join('\n')
+              win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body{margin:0;padding:0;background:#fff;font-family:system-ui,sans-serif}
+  button,[data-print-hide]{display:none!important}
+  @page{size:A4 portrait;margin:12mm 16mm}
+  @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
+</style>
+${styles}
+</head><body>${el.outerHTML}</body></html>`)
+              win.document.close()
+              win.focus()
+              setTimeout(() => { win.print(); win.close() }, 600)
+            }}
             className="flex items-center gap-1 text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors"
           >
             <Download className="w-3 h-3" />
@@ -215,6 +255,209 @@ function BossBriefSection({ brief }: { brief: BossBrief }) {
   )
 }
 
+// ─── CONTENT TOOL — single piece expandable card ─────────────────────────────
+
+function ContentPieceCard({
+  piece,
+  index,
+  total,
+  language,
+  defaultOpen,
+}: {
+  piece: ContentPiece
+  index: number
+  total: number
+  language?: 'english' | 'arabic'
+  defaultOpen?: boolean
+}) {
+  const [expanded, setExpanded]   = useState(defaultOpen ?? false)
+  const [copied,   setCopied]     = useState(false)
+  const isArabic = language === 'arabic'
+  const hook = piece.hook
+  const slides = (piece as ContentPiece & { slides?: { title: string; body: string; visual_note?: string }[] }).slides
+  const visualDirection = (piece as ContentPiece & { visual_direction?: string }).visual_direction
+  const textOverlay     = (piece as ContentPiece & { text_overlay?: string }).text_overlay
+
+  const typeLabel =
+    piece.type === 'carousel' ? `${slides?.length ?? 0} slides` :
+    piece.type === 'static'   ? 'static post' :
+    piece.total_duration ?? 'reel'
+
+  function copyCaption() {
+    if (!piece.caption_preview) return
+    navigator.clipboard.writeText(piece.caption_preview).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className={cn('rounded-2xl border overflow-hidden transition-all', expanded ? 'border-novax-border' : 'border-slate-200 bg-white')}>
+      {/* ── Collapsed header — always visible ── */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-start gap-3 p-5 text-left hover:bg-slate-50 transition-colors group"
+      >
+        {/* Index + Tier */}
+        <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+          {total > 1 && (
+            <span className="text-[10px] text-slate-400 font-medium w-4 text-center">#{index + 1}</span>
+          )}
+          {hook && <TierBadge tier={hook.tier ?? 'A'} />}
+        </div>
+
+        {/* Hook text */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-slate-900 leading-snug" dir={isArabic ? 'rtl' : 'ltr'}>
+            {hook?.text ?? textOverlay ?? 'No hook generated'}
+          </p>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {hook && (
+              <>
+                <span className="text-[10px] text-slate-400">{hook.score}/30</span>
+                <span className="text-[10px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 capitalize">{hook.type}</span>
+              </>
+            )}
+            <span className="text-[10px] text-novax-muted font-medium">{typeLabel}</span>
+          </div>
+        </div>
+
+        {/* Chevron */}
+        <ChevronDown className={cn('w-4 h-4 text-slate-400 shrink-0 mt-1 transition-transform duration-200', expanded && 'rotate-180')} />
+      </button>
+
+      {/* ── Expanded content ── */}
+      {expanded && (
+        <div className="border-t border-slate-100">
+
+          {/* 3C bars + why selected */}
+          {hook && (
+            <div className="px-5 py-4 bg-novax-light/40 border-b border-slate-100">
+              <ThreeCBars clarity={hook.clarity} context={hook.context} curiosity={hook.curiosity} />
+              {hook.why_selected && (
+                <p className="text-xs text-novax-muted italic mt-2">{hook.why_selected}</p>
+              )}
+            </div>
+          )}
+
+          {/* ── REEL: script sections ── */}
+          {piece.script_sections && piece.script_sections.length > 0 && (
+            <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">THE SCRIPT</p>
+              <div className="space-y-3">
+                {piece.script_sections.map((section, i) => (
+                  <div key={i} className="overflow-hidden rounded-xl border border-novax-border">
+                    <div className="bg-novax flex items-center justify-between px-4 py-2">
+                      <span className="text-xs font-bold text-white tracking-widest uppercase">{section.section}</span>
+                      {section.duration_estimate && (
+                        <span className="text-xs text-novax-accent">{section.duration_estimate}</span>
+                      )}
+                    </div>
+                    <div className="bg-white px-4 py-3 space-y-1" dir={isArabic ? 'rtl' : 'ltr'}>
+                      {section.lines.map((line, j) => (
+                        <p key={j} className={cn('leading-relaxed', line.startsWith('[') ? 'text-xs text-slate-400 italic' : 'text-sm text-slate-800')}>
+                          {line}
+                        </p>
+                      ))}
+                      {section.visual_note && (
+                        <div className="flex items-start gap-1 border-t border-slate-100 mt-3 pt-3">
+                          <Camera className="w-3 h-3 text-slate-400 mt-0.5 shrink-0" />
+                          <p className="text-xs text-novax-muted italic" dir="ltr">{section.visual_note}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── CAROUSEL: slides ── */}
+          {slides && slides.length > 0 && (
+            <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{slides.length} SLIDES</p>
+              <div className="space-y-2">
+                {slides.map((slide, i) => (
+                  <div key={i} className="bg-white border border-slate-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg font-black text-novax leading-none shrink-0 w-6">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 mb-1" dir={isArabic ? 'rtl' : 'ltr'}>{slide.title}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed" dir={isArabic ? 'rtl' : 'ltr'}>{slide.body}</p>
+                        {slide.visual_note && (
+                          <div className="flex items-start gap-1 mt-2">
+                            <Camera className="w-3 h-3 text-slate-400 mt-0.5 shrink-0" />
+                            <p className="text-[10px] text-slate-400 italic">{slide.visual_note}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── STATIC: visual direction + text overlay ── */}
+          {visualDirection && (
+            <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+              {textOverlay && (
+                <div className="bg-novax rounded-xl p-4">
+                  <p className="text-[10px] tracking-widest text-novax-accent font-bold uppercase mb-1">TEXT OVERLAY</p>
+                  <p className="text-xl font-bold text-white leading-snug" dir={isArabic ? 'rtl' : 'ltr'}>{textOverlay}</p>
+                </div>
+              )}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <div className="flex items-start gap-2">
+                  <Camera className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">VISUAL DIRECTION</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{visualDirection}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* B-roll / assets */}
+          {piece.key_broll_list && piece.key_broll_list.length > 0 && (
+            <div className="px-5 py-3 border-b border-slate-100">
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                {piece.type === 'static' ? 'ASSETS NEEDED' : 'B-ROLL NEEDED'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {piece.key_broll_list.map((shot, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 rounded-lg px-3 py-1.5 text-xs font-medium">
+                    <Camera className="w-3 h-3 text-slate-400 shrink-0" />
+                    {shot}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Caption */}
+          {piece.caption_preview && (
+            <div className="px-5 py-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">CAPTION</span>
+                  <button onClick={copyCaption} className="flex items-center gap-1 text-xs text-novax-muted hover:text-novax transition-colors">
+                    {copied ? <CheckCircle className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap" dir={isArabic ? 'rtl' : 'ltr'}>
+                  {piece.caption_preview}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── CONTENT TOOL renderer ────────────────────────────────────────────────────
 
 function ContentToolDocument({
@@ -224,162 +467,68 @@ function ContentToolDocument({
   doc: ContentDocument
   language?: 'english' | 'arabic'
 }) {
-  const [copiedCaption, setCopiedCaption] = useState(false)
-  const isArabic = language === 'arabic'
-
-  // ContentDocument.hook is the selected hook object
-  const hook = doc.hook
-
-  function copyCaption() {
-    const cap = doc.caption_preview
-    if (!cap) return
-    navigator.clipboard.writeText(cap).catch(() => {})
-    setCopiedCaption(true)
-    setTimeout(() => setCopiedCaption(false), 2000)
-  }
+  // Build a pieces array — use doc.pieces if present, else synthesize from root fields
+  const pieces: ContentPiece[] = doc.pieces && doc.pieces.length > 0
+    ? doc.pieces
+    : [{
+        type:                   (doc.content_type ?? 'reel'),
+        index:                  0,
+        hook:                   doc.hook ?? null,
+        script_sections:        doc.script_sections ?? [],
+        total_duration:         doc.total_duration,
+        production_difficulty:  doc.production_difficulty,
+        brand_compliance_notes: doc.brand_compliance_notes,
+        key_broll_list:         doc.key_broll_list ?? [],
+        caption_preview:        doc.caption_preview ?? '',
+      } as ContentPiece]
 
   return (
-    <div className="p-6 space-y-6">
-      {/* WHAT WE BUILT */}
-      <div className="bg-novax rounded-2xl p-6">
-        <p className="text-[10px] tracking-[0.2em] text-novax-accent font-bold uppercase mb-2">BUILT FOR YOU</p>
-        <p className="text-base text-white leading-relaxed">
-          {doc.audience_intelligence?.functional_job}
-        </p>
-      </div>
-
-      {/* AUDIENCE INTELLIGENCE */}
+    <div className="p-6 space-y-5">
+      {/* Session-level audience intelligence */}
       {doc.audience_intelligence && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {doc.audience_intelligence.functional_job && (
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Functional Job</p>
-              <p className="text-sm text-slate-700">{doc.audience_intelligence.functional_job}</p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-1.5">Functional Job</p>
+              <p className="text-xs text-slate-700 leading-relaxed">{doc.audience_intelligence.functional_job}</p>
             </div>
           )}
           {doc.audience_intelligence.emotional_job && (
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Emotional Job</p>
-              <p className="text-sm text-slate-700">{doc.audience_intelligence.emotional_job}</p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-1.5">Emotional Job</p>
+              <p className="text-xs text-slate-700 leading-relaxed">{doc.audience_intelligence.emotional_job}</p>
             </div>
           )}
           {doc.audience_intelligence.social_job && (
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Social Job</p>
-              <p className="text-sm text-slate-700">{doc.audience_intelligence.social_job}</p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-1.5">Social Job</p>
+              <p className="text-xs text-slate-700 leading-relaxed">{doc.audience_intelligence.social_job}</p>
             </div>
           )}
         </div>
       )}
 
-      {/* SELECTED HOOK — ContentDocument.hook shape */}
-      {hook && (
-        <div className="bg-novax-light border-2 border-novax-border rounded-2xl p-6">
-          <div className="flex items-center gap-2 flex-wrap">
-            <TierBadge tier={hook.tier ?? 'A'} />
-            <span className="text-[10px] bg-novax-light border border-novax-border text-novax-muted rounded-full px-2 py-0.5 capitalize">
-              {hook.type}
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium ml-auto">
-              {hook.score}/30
-            </span>
-          </div>
-          <p
-            className="text-xl font-semibold text-slate-900 leading-snug my-4"
-            dir={isArabic ? 'rtl' : 'ltr'}
-          >
-            {hook.text}
-          </p>
-          <ThreeCBars clarity={hook.clarity} context={hook.context} curiosity={hook.curiosity} />
-          {hook.why_selected && (
-            <p className="text-xs text-novax-muted italic mt-3">Why selected: {hook.why_selected}</p>
-          )}
+      {/* Piece count summary */}
+      {pieces.length > 1 && (
+        <div className="flex items-center gap-2 px-1">
+          <span className="text-sm font-semibold text-slate-700">{pieces.length} pieces generated</span>
+          <span className="text-xs text-slate-400">— each with a different hook. Click to expand.</span>
         </div>
       )}
 
-      {/* SCRIPT SECTIONS */}
-      {doc.script_sections && doc.script_sections.length > 0 && (
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-3">THE SCRIPT</p>
-          <div className="space-y-4">
-            {doc.script_sections.map((section, i) => (
-              <div key={i} className="overflow-hidden rounded-xl border border-novax-border">
-                <div className="bg-novax flex items-center justify-between px-4 py-2">
-                  <span className="text-xs font-bold text-white tracking-widest uppercase">
-                    {section.section}
-                  </span>
-                  {section.duration_estimate && (
-                    <span className="text-xs text-novax-accent">{section.duration_estimate}</span>
-                  )}
-                </div>
-                <div className="bg-white px-4 py-3 space-y-1" dir={isArabic ? 'rtl' : 'ltr'}>
-                  {section.lines.map((line, j) => (
-                    <p
-                      key={j}
-                      className={cn(
-                        'leading-relaxed',
-                        line.startsWith('[') ? 'text-xs text-slate-400 italic' : 'text-sm text-slate-800',
-                      )}
-                    >
-                      {line}
-                    </p>
-                  ))}
-                  {section.visual_note && (
-                    <div className="flex items-start gap-1 border-t border-slate-100 mt-3 pt-3">
-                      <Camera className="w-3 h-3 text-slate-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-novax-muted italic" dir="ltr">{section.visual_note}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* B-ROLL */}
-      {doc.key_broll_list && doc.key_broll_list.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wider">B-ROLL NEEDED</p>
-          <div className="flex flex-wrap gap-2">
-            {doc.key_broll_list.map((shot, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 rounded-lg px-3 py-1.5 text-xs font-medium"
-              >
-                <Camera className="w-3 h-3 text-slate-400 shrink-0" />
-                {shot}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* CAPTION */}
-      {doc.caption_preview && (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">CAPTION</span>
-            <button
-              onClick={copyCaption}
-              className="flex items-center gap-1 text-xs text-novax-muted hover:text-novax transition-colors"
-            >
-              {copiedCaption ? (
-                <CheckCircle className="w-3 h-3 text-emerald-500" />
-              ) : (
-                <Copy className="w-3 h-3" />
-              )}
-              {copiedCaption ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-          <p
-            className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap"
-            dir={isArabic ? 'rtl' : 'ltr'}
-          >
-            {doc.caption_preview}
-          </p>
-        </div>
-      )}
+      {/* Expandable piece cards */}
+      <div className="space-y-3">
+        {pieces.map((piece, i) => (
+          <ContentPieceCard
+            key={i}
+            piece={piece}
+            index={i}
+            total={pieces.length}
+            language={language}
+            defaultOpen={pieces.length === 1}
+          />
+        ))}
+      </div>
     </div>
   )
 }

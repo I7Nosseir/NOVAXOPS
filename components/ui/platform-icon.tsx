@@ -20,6 +20,19 @@ const PLATFORM_LETTERS: Record<SocialPlatform, string> = {
 
 export function PlatformIcon({ platform, size = 'sm', className }: PlatformIconProps) {
   const cfg = PLATFORM_CONFIG[platform]
+  if (!cfg) {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center justify-center rounded font-bold bg-slate-400 text-white leading-none',
+          size === 'xs' ? 'w-4 h-4 text-[8px]' : 'w-5 h-5 text-[9px]',
+          className,
+        )}
+      >
+        {String(platform ?? '?').slice(0, 2).toUpperCase()}
+      </span>
+    )
+  }
   return (
     <span
       className={cn(

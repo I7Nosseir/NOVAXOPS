@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useRealtime } from '@/lib/hooks/use-realtime'
 
 export interface AppNotification {
   id: string
@@ -60,6 +61,8 @@ function mapAuditToNotification(row: Record<string, unknown>): AppNotification {
 }
 
 export function useNotifications() {
+  useRealtime('audit_log', ['notifications'])
+
   const { data: notifications = [], isLoading, error } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
@@ -72,7 +75,7 @@ export function useNotifications() {
       return (data ?? []).map(row => mapAuditToNotification(row as Record<string, unknown>))
     },
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    // No polling — realtime subscription in useNotifications() handles live updates
   })
   return { notifications, isLoading, error }
 }

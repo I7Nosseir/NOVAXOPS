@@ -62,6 +62,9 @@ This means:
 | sharp | ^0.34.5 | Server-side image processing |
 | xlsx | ^0.18.5 | Spreadsheet import/export |
 | @googleapis/drive | ^20.1.0 | Google Drive OAuth + file browser |
+| react-markdown | ^10.1.0 | Markdown rendering (assistant, docs) |
+| remark-gfm | ^4.0.1 | GitHub-flavoured markdown |
+| google-auth-library | ^10.6.2 | Google OAuth token handling |
 
 **Not yet installed (planned):**
 - `fal-ai/client` — Flux 2 image generation ($0.03/image)
@@ -110,6 +113,12 @@ Keys are set in `.env.local` and Vercel. `lib/supabase.ts` has browser + admin c
 016_inspiration_board.sql       Inspiration board table
 016_studio_sessions_v4.sql      Studio sessions v4 schema upgrade
 017_studio_unified.sql          Unified studio + inspiration (idempotent — safe to re-run)
+018_ai_generation_cache.sql     AI generation cache table (prompt_hash keyed)
+018_chatwoot_migration.sql      Chatwoot integration schema
+019_peak_format_generator.sql   format_favorites table (Peak Format Generator)
+020_ceo_context.sql             CEO context + cross-client briefing tables
+021_client_context_bank.sql     Per-client context bank (wins, voice, objections, signals)
+022_ai_feedback.sql             ai_feedback table (per-client, per-agent taste profiles)
 ```
 
 **Key tables:**
@@ -130,6 +139,11 @@ post_performance_snapshots  Synced Metricool analytics per post
 competitor_tracking         Competitor account performance data
 arabic_knowledge_base       Dialect rules + banned phrases per client
 ai_responses                Cached AI outputs (keyed by prompt_hash)
+ai_generation_cache         Second-level AI cache (broader key)
+ai_feedback                 Team thumbs-up/down on AI outputs (feeds back into prompts)
+client_context_bank         Per-client wins, brand voice, objections, signals (built by team)
+ceo_context                 Cross-client strategy context for CEO briefings
+format_favorites            Saved viral content formats (Peak Format Generator)
 api_usage                   Per-call cost tracking
 audit_log                   Every action with user + timestamp
 task_comments               Comment threads on tasks
@@ -170,17 +184,21 @@ agency-ops/
 │       ├── performance/page.tsx        Post analytics, competitor tracking, AI intelligence
 │       ├── ceo/page.tsx                CEO Hub: strategy, crisis override, second opinion
 │       ├── ai-image/page.tsx           AI Image Creation (UI shell — FAL/Ideogram pending)
+│       ├── assistant/page.tsx          AI Chat Assistant — context-aware, client/task scoped
 │       ├── docs/page.tsx               Document list (create, search, delete)
 │       ├── docs/[id]/page.tsx          Tiptap rich text editor + share + templates
 │       ├── tools/resize/page.tsx       Smart Resize tool (partial)
 │       └── studio/
+│           ├── layout.tsx              Studio layout wrapper
 │           ├── page.tsx                Studio hub — recent sessions, tool links
-│           ├── content/page.tsx        Flagship: Signal → Brief → Boss Brief → Script
+│           ├── content/page.tsx        Content type (reel/carousel/static) + 1-3 pieces
 │           ├── hooks/page.tsx          Hook Lab: 20 divergent → 3C scoring → convergent
-│           ├── strategy/page.tsx       Strategy Command Center (double diamond, Claude)
+│           ├── strategy/page.tsx       Strategy Command Center (Esplanade format, Claude)
 │           ├── campaign/page.tsx       Campaign Igniter: tensions → 5 execution briefs
-│           └── inspiration/page.tsx    Live trends (Apify) → per-client boards
-├── app/api/                            79 API routes — see API Routes section
+│           ├── inspiration/page.tsx    Live trends (Apify) → per-client boards
+│           ├── postmortem/page.tsx     Post-Mortem: why didn't this perform? (Claude)
+│           └── visual/page.tsx         Visual Content Engine: approach → scene prompts
+├── app/api/                            100+ API routes — see AI Architecture section
 ├── components/
 │   ├── layout/
 │   │   ├── sidebar.tsx                 Dark sidebar, live badge counts from Supabase
@@ -205,11 +223,14 @@ agency-ops/
 │   ├── studio/
 │   │   ├── studio-session-list.tsx     Recent session cards
 │   │   ├── studio-brief-confirm.tsx    Brief confirmation + AI questions
-│   │   ├── studio-document.tsx         Boss Brief + script renderer
+│   │   ├── studio-document.tsx         Expandable output cards (hook → full content on expand)
 │   │   ├── studio-chatbot.tsx          In-studio chat interface
 │   │   ├── studio-loading.tsx          Multi-step loading indicator
+│   │   ├── studio-save-actions.tsx     Save output to task / doc / client context bank
 │   │   ├── inspiration-board-panel.tsx Inspiration side panel
 │   │   └── inspiration-card.tsx        Individual trend card
+│   ├── shared/
+│   │   └── ai-feedback-buttons.tsx     Thumbs up/down on any AI output (feeds ai_feedback)
 │   ├── clients/
 │   │   ├── new-client-wizard.tsx       9-step onboarding modal
 │   │   └── design-brief-form.tsx       Canvas sizes, fonts, colors, motion, AI video notes
@@ -222,13 +243,19 @@ agency-ops/
 │   ├── tools/
 │   │   └── role-tools-panel.tsx        Role-specific tool shortcuts
 │   └── ui/
-│       └── platform-icon.tsx           Custom branded platform icon (no lucide brand icons)
+│       └── platform-icon.tsx           Custom branded platform icon. Handles unknown keys
+│                                       gracefully (fallback badge). Never import IG/FB/etc
+│                                       from lucide-react — removed in v1.
 ├── lib/
-│   ├── types.ts                        All TypeScript interfaces + union types (21 types)
+│   ├── types.ts                        All TypeScript interfaces + union types
 │   ├── utils.ts                        cn(), STAGE_CONFIG, PRIORITY_CONFIG, PLATFORM_CONFIG
 │   ├── supabase.ts                     Browser client + createAdminClient()
 │   ├── auth-context.tsx                Supabase Auth provider + role preview mode
+│   ├── query-provider.tsx              TanStack Query v5 provider wrapper
+│   ├── theme-context.tsx               Dark/light theme provider
+│   ├── sidebar-context.tsx             Mobile sidebar open/close state
 │   ├── ai-client.ts                    Claude + Gemini abstraction layer
+│   ├── client-intelligence.ts          Client context bank builder + AI feedback injector
 │   ├── metricool.ts                    Metricool API client (mFetch, schedule, analytics)
 │   ├── google-drive.ts                 Google Drive OAuth + file browser
 │   ├── email.ts                        Resend email templates
@@ -236,11 +263,10 @@ agency-ops/
 │   ├── arabic-dialect.ts               Arabic tone rules + banned phrases
 │   ├── report-prompts.ts               Report generation prompt templates
 │   ├── page-permissions.ts             Page ACL (role → visible pages)
-│   ├── studio-types.ts                 StudioSession, BossBrief, SignalReport, HookTier, etc.
+│   ├── studio-types.ts                 All studio types — see Studio Types section
 │   ├── studio-campaign-domains.ts      Campaign niche definitions
 │   ├── studio-export.ts                Export session to document
 │   ├── strategy-export.ts              Export strategy to PPTX
-│   ├── sidebar-context.tsx             Mobile sidebar open/close state
 │   └── hooks/
 │       ├── use-tasks.ts                CRUD + filters (client, stage, priority, assignee)
 │       ├── use-clients.ts              CRUD clients
@@ -253,10 +279,24 @@ agency-ops/
 │       ├── use-notifications.ts        Real notifications from audit_log (refetch 60s)
 │       ├── use-task-comments.ts        Comment threads per task
 │       └── use-dashboard.ts            Weekly activity + AI cost + Metricool overview
-├── sql/                                17 migration files (see Database section)
+├── sql/                                30 migration files (001–022, see Database section)
 ├── middleware.ts                       Supabase session refresh + auth redirect
 └── next.config.ts                      Turbopack root + image domains
 ```
+
+## Studio Types (lib/studio-types.ts)
+
+All studio modules import from here. Key exports:
+
+**Type aliases:** `StudioTool`, `SessionStatus`, `PerformanceVerdict`, `HookTier`, `ContentFormat` (`reel | carousel | static`), `VideoFormat`, `NarrativePurpose`
+
+**Core interfaces:** `LoadingStep`, `SignalReport`, `SessionPerformance`, `BossBrief`, `ChatMessage`, `EditPayload`, `StructuredQuestion`, `BriefConfirmation`, `StudioSession`
+
+**Content:** `ContentInputs`, `ContentPiece` (reel/carousel/static — has `slides[]`, `script_sections[]`, `visual_direction`, `text_overlay`), `ContentDocument` (supports `pieces?: ContentPiece[]` for multi-piece output + `content_type`, `piece_count`), `ScriptSection`, `HookItem`, `HookDocument`
+
+**Strategy:** `StrategyContentPillar`, `StrategyArcPhase`, `StrategyPlatformRole`, `StrategyMonthTactic`, `StrategyFormatRoles`, `StrategyFlowBeat`, `StrategyDocument`
+
+**Other:** `CampaignConcept`, `CampaignDocument`, `PostMortemAnalysis`, `PostMortemDiagnosis`, `MetricoolContext`, `VisualApproach`, `VisualAnchor`, `ScenePrompt`, `VisualProductionNotes`, `VisualDocument`, `VisualInputs`
 
 ## Role System
 
@@ -303,6 +343,7 @@ Each stage has a fixed color scheme in `lib/utils.ts` → `STAGE_CONFIG`. Always
 **Context injected into every prompt:**
 - Task title + description + pipeline stage
 - Client brand identity (tone, audience, key messages, colors)
+- Client context bank (wins, objections, signals, recent feedback) via `lib/client-intelligence.ts`
 - Last 3 relevant AI outputs for this client
 - Current user role (affects output formality)
 - Arabic dialect rules if client uses Arabic (from `arabic_knowledge_base` table)
@@ -315,14 +356,26 @@ Each stage has a fixed color scheme in `lib/utils.ts` → `STAGE_CONFIG`. Always
 - `post_caption` — Image-aware caption via Claude Vision
 - `presentation_builder` — Generates slide structure → pptxgenjs
 
-**Studio AI calls (separate routes):**
-- `/api/studio/content/[id]/research` — Signal grounding + market intelligence
-- `/api/studio/content/[id]/script` — Full Boss Brief + script generation (Claude Opus)
+**Studio AI routes:**
+- `/api/studio/content/[id]/script` — Reel script / Carousel slides / Static image brief (content_type-aware)
 - `/api/studio/hooks/generate` — 20 hooks → 3C scoring → SCAMPER filtering
-- `/api/studio/strategy` — Double-diamond strategy (17 phases, Claude)
+- `/api/studio/strategy` — Esplanade-format quarterly strategy (17 phases, Claude)
 - `/api/studio/campaign/generate` — Cultural tensions → 5 execution briefs
 - `/api/studio/chat` — In-session chat + content editing (Claude Sonnet)
 - `/api/studio/postmortem` — Post-mortem diagnosis (Claude)
+- `/api/studio/brief-confirm` — Two modes: (1) `BriefConfirmation` for UI confirmation, (2) `mode:'boss_brief'` → generates `BossBrief` (30-second exec summary)
+- `/api/studio/signal-report/[industry]` — Pre-computed daily signal report (trends, tensions)
+- `/api/studio/questions` — AI-generated inline question during loading
+- `/api/studio/visual` — Visual content engine: approach selection → scene prompts (Higgsfield-ready)
+- `/api/studio/inspiration-analysis` — Trend analysis + save to client board
+- `/api/studio/strategy-export` — Export strategy to PPTX
+- `/api/studio/metricool-context` — Per-client performance snapshot for studio
+
+**Other key routes:**
+- `/api/ai-feedback` — Save team thumbs-up/down on AI outputs → feeds `ai_feedback` table
+- `/api/clients/[id]/context-bank` — Read/write client context bank entries
+- `/api/assistant/chat` — Context-aware AI chat assistant (scoped to client or task)
+- `/api/ceo/strategy`, `/api/ceo/second-opinion`, `/api/ceo/crisis` — CEO Hub AI calls
 
 **Output rules:**
 - No hashtags or emojis in any AI output by default
@@ -396,17 +449,30 @@ Each stage has a fixed color scheme in `lib/utils.ts` → `STAGE_CONFIG`. Always
 - [x] **Settings** — integrations config (admin), team + invite, page permissions per user
 - [x] **Performance** — post analytics, competitor tracking, AI pattern intelligence, best posting times
 - [x] **CEO Hub** — strategy analysis, crisis override, second opinion (Claude)
+- [x] **AI Assistant** (`/assistant`) — context-aware chat, scoped to client or task
 - [x] **Documents** — Tiptap rich text editor, templates, public sharing via token
 - [x] **Studio Hub** — links to all studio tools, recent session list
 
 ### Studio Tools (all on real Supabase + Claude)
-- [x] **Content Studio** (`/studio/content`) — Signal report → Brief confirmation → Boss Brief + Script (Claude Opus)
-- [x] **Hook Lab** (`/studio/hooks`) — 20 divergent hooks → 3C scoring + SCAMPER → convergent top 3
-- [x] **Strategy** (`/studio/strategy`) — Double-diamond, 17 phases, PPTX export (Claude)
+- [x] **Content Studio** (`/studio/content`) — Content type selector (Reel/Carousel/Static) + 1–3 pieces, each with a different hook. Output as expandable cards (hook collapsed → full content on expand). Boss Brief generated after output.
+- [x] **Hook Lab** (`/studio/hooks`) — 20 divergent hooks → 3C scoring + SCAMPER → convergent top 3. Expandable cards per hook.
+- [x] **Strategy** (`/studio/strategy`) — Esplanade-format quarterly strategy, PPTX export (Claude)
 - [x] **Campaign Igniter** (`/studio/campaign`) — Cultural tensions + constraint inversion → 5 execution briefs
 - [x] **Inspiration Board** (`/studio/inspiration`) — Live YouTube/TikTok/Reddit trends (Apify), save to client boards
+- [x] **Post-Mortem** (`/studio/postmortem`) — Why didn't this perform? Hook/format/timing/caption diagnosis (Claude)
+- [x] **Visual Content Engine** (`/studio/visual`) — Choose approach → visual anchor → scene-by-scene prompts (Higgsfield/image-gen ready)
+- [x] **Peak Format Generator** (`/studio/formats`) — Enter niche → 5 viral formats each with hook stack, 3-law validation, episode structure, payoff architecture. Claude Opus when key set, Gemini fallback.
 
-### API Routes (79 total — 68 fully functional, 11 stubs)
+### Client Intelligence Layer (fully built — migration 021+022)
+- [x] `client_context_bank` table — per-client wins, brand voice captures, objections, signals
+- [x] `ai_feedback` table — team thumbs-up/down on outputs feeds back into future prompts
+- [x] `/api/clients/[id]/context-bank` — CRUD for context entries
+- [x] `/api/ai-feedback` — Save feedback, retrieve taste profile
+- [x] `lib/client-intelligence.ts` — `buildClientIntelligenceBlock()` injected into studio + task AI calls
+- [x] `components/shared/ai-feedback-buttons.tsx` — Feedback UI on all studio outputs
+- [x] `components/studio/studio-save-actions.tsx` — Save output to task / document / context bank
+
+### API Routes (100+ total)
 All routes use Node.js runtime. No edge functions.
 
 ### Background Jobs (Cron)
@@ -418,6 +484,7 @@ All routes use Node.js runtime. No edge functions.
 All cron routes are protected by `CRON_SECRET` header.
 
 ### Data Layer
+- **Realtime subscriptions** — `lib/hooks/use-realtime.ts` provides `useRealtime(table, queryKey)` and `useRealtimeMulti()`. Wired to: pipeline (`tasks`), approval (`approval_requests`, `approval_post_statuses`), moderation (`moderation_items`), notifications (`audit_log`). Pattern: hook calls `queryClient.invalidateQueries()` on any Postgres change — no changes to existing data-fetching hooks needed.
 - **Zero mock data** — `lib/mock-data.ts` deleted. `lib/studio-session-store.ts` deleted.
 - All pages query Supabase via TanStack Query v5 hooks
 - All `_mock: true` fallbacks removed from API routes — misconfiguration now surfaces as explicit `503`
@@ -429,13 +496,13 @@ All cron routes are protected by `CRON_SECRET` header.
 | **ANTHROPIC_API_KEY** | **CRITICAL** | Not set in `.env.local`. All AI falls back to Gemini. Set this for production. |
 | Respond.io reply sender | Partial | Webhook receives items. `/api/respond-io/reply` route exists but not fully wired. |
 | AI Image page (`/ai-image`) | UI shell | FAL_API_KEY + IDEOGRAM_API_KEY not set. Routes return 503. |
-| Higgsfield video generation | Stub | HIGGSFIELD_API_KEY not set. Asset page shows UI but no generation. |
+| Higgsfield video generation | Stub | HIGGSFIELD_API_KEY not set. Asset page shows UI but no generation. Visual Studio generates prompts but can't submit to Higgsfield yet. |
 | Smart Resize (`/tools/resize`) | Partial | Routes exist; UI not fully wired end-to-end. |
-| Studio Postmortem | UI only | `/api/studio/postmortem` route exists and works; page UI not wired. |
-| Error handling sweep | In progress | 35+ silent catch blocks across API routes need `console.error` + proper error returns. See audit. |
+| Error handling sweep | In progress | Silent catch blocks across API routes need `console.error` + proper error returns. |
 | Real-time subscriptions | Not built | No Supabase `realtime().on()` subscriptions. Updates require page refresh. |
 | Crisis Mode → Publishing queue | Partial | Crisis state persists in DB but doesn't block scheduled posts in all flows. |
 | Per-client pipeline view | Not built | `/pipeline?client=id` filter works but no dedicated page. |
+| Peak Format Generator favorites persistence | Planned | Page + API built. Saving favorites to `format_favorites` table not yet wired. |
 
 ## Key Conventions
 
@@ -445,7 +512,7 @@ All cron routes are protected by `CRON_SECRET` header.
 
 **Stage config:** Always use `STAGE_CONFIG[stage]` from `lib/utils.ts`. Never hardcode stage strings.
 
-**Platform icons:** Use `<PlatformIcon platform={p} size="xs|sm"/>` from `@/components/ui/platform-icon.tsx`. Do not import Instagram/Facebook/Linkedin/Youtube from lucide-react — removed in v1.
+**Platform icons:** Use `<PlatformIcon platform={key} size="xs|sm"/>` from `@/components/ui/platform-icon.tsx`. Always pass a lowercase `SocialPlatform` key (`'instagram'`, `'twitter'`, etc.) — not the display name (`'X (Twitter)'`). Use the `toPlatformKey()` helper (in `studio-document.tsx`) to normalise display names before passing to `PlatformIcon`. `PlatformIcon` handles unknown keys with a fallback badge — it will not crash.
 
 **No mock data:** `lib/mock-data.ts` is deleted. If you need test data, seed the real Supabase DB. Never recreate a mock-data file.
 
@@ -468,6 +535,10 @@ catch { } // silent swallow
 **No emojis:** Never add emojis to UI text, labels, buttons, or AI output. Icons only.
 
 **User creation:** Never create users via raw SQL — always use Supabase Dashboard UI. Raw SQL breaks GoTrue password hashing → 500 on login.
+
+**brief-confirm route:** Has two modes. Default mode returns `BriefConfirmation` (requires `platforms`, `goal`, `audience`). `mode: 'boss_brief'` returns `{ boss_brief: BossBrief }` — only requires `brief`. Both content and strategy pages use boss_brief mode.
+
+**ContentDocument multi-piece:** `doc.pieces?: ContentPiece[]` holds multiple generated pieces. Each `ContentPiece` has `type` (reel/carousel/static), `hook`, `script_sections` (reel), `slides` (carousel), `visual_direction`/`text_overlay` (static). Backward-compat: root-level fields (`hook`, `script_sections`, etc.) always mirror the first piece.
 
 ## Environment Variables
 
