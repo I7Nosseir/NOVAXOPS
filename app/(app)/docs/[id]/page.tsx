@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Share2, Loader2, CheckCircle, LayoutTemplate, Download } from 'lucide-react'
-import { DocEditor } from '@/components/docs/doc-editor'
+import { DocEditor, type DocEditorRef } from '@/components/docs/doc-editor'
 import { SheetEditor } from '@/components/docs/sheet-editor'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -42,7 +42,19 @@ export default function DocEditorPage() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const editorRef  = useRef<DocEditorRef>(null)
+
+  // Listen for AI assistant "Apply to document" events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { docId, text } = (e as CustomEvent<{ docId: string; text: string }>).detail
+      if (docId !== id) return
+      editorRef.current?.applyContent(text)
+    }
+    window.addEventListener('novax:apply-to-doc', handler)
+    return () => window.removeEventListener('novax:apply-to-doc', handler)
+  }, [id])
 
   const { data: doc, isLoading } = useQuery<Document>({
     queryKey: ['doc', id],
@@ -250,7 +262,7 @@ export default function DocEditorPage() {
             <SheetEditor content={content} onChange={handleContentChange} editable title={title} />
           </div>
         ) : (
-          <DocEditor content={content} onChange={handleContentChange} editable />
+          <DocEditor ref={editorRef} content={content} onChange={handleContentChange} editable />
         )}
       </div>
 

@@ -38,6 +38,7 @@ export interface StudioDocumentProps {
   bossBrief?: BossBrief | null
   language?: 'english' | 'arabic'
   onExportPdf?: () => void
+  pdfExporting?: boolean
   onChatOpen?: () => void
   onEditApplied?: (target: string, newContent: string) => void
   isLoading?: boolean
@@ -121,12 +122,14 @@ function toPlatformKey(name: string): KnownPlatform | null {
 // ─── Document Header (sticky) ─────────────────────────────────────────────────
 
 function DocumentHeader({
+  tool,
   clientName,
   clientColor,
   platforms,
   onExportPdf,
+  pdfExporting,
   onChatOpen,
-}: Pick<StudioDocumentProps, 'clientName' | 'clientColor' | 'platforms' | 'onExportPdf' | 'onChatOpen'>) {
+}: Pick<StudioDocumentProps, 'tool' | 'clientName' | 'clientColor' | 'platforms' | 'onExportPdf' | 'pdfExporting' | 'onChatOpen'>) {
   return (
     <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
       <div className="flex items-center gap-2 min-w-0">
@@ -152,7 +155,14 @@ function DocumentHeader({
       <div className="flex items-center gap-2 shrink-0">
         {onExportPdf && (
           <button
+            disabled={pdfExporting}
             onClick={() => {
+              // Strategy tool: always call the real PDF export (server-generated, professional template)
+              if (tool === 'strategy') {
+                onExportPdf()
+                return
+              }
+              // Other tools: use the print window approach
               const el = document.getElementById('printable-studio')
               if (!el) { onExportPdf(); return }
               const win = window.open('', '_blank', 'width=900,height=700')
@@ -173,10 +183,10 @@ ${styles}
               win.focus()
               setTimeout(() => { win.print(); win.close() }, 600)
             }}
-            className="flex items-center gap-1 text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1 text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
             <Download className="w-3 h-3" />
-            Export PDF
+            {pdfExporting ? 'Generating PDF…' : 'Export PDF'}
           </button>
         )}
         {onChatOpen && (
@@ -1283,6 +1293,7 @@ export function StudioDocument({
   bossBrief,
   language,
   onExportPdf,
+  pdfExporting = false,
   onChatOpen,
   isLoading = false,
 }: StudioDocumentProps) {
@@ -1302,10 +1313,12 @@ export function StudioDocument({
   return (
     <div id="printable-studio" className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
       <DocumentHeader
+        tool={tool}
         clientName={clientName}
         clientColor={clientColor}
         platforms={platforms}
         onExportPdf={onExportPdf}
+        pdfExporting={pdfExporting}
         onChatOpen={onChatOpen}
       />
 

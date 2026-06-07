@@ -5,10 +5,11 @@ import {
   X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle,
   Clock, Zap, Copy, MoreHorizontal, Trash2, Eye, BookOpen as ReadIcon,
   ChevronDown, ChevronRight, Monitor, FileText, Plus, ExternalLink,
-  Wand2,
+  Wand2, ClipboardList,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import type { Task, AgentType, PipelineStage, Priority } from '@/lib/types'
+import type { Task, AgentType, PipelineStage, Priority, ContentBriefRequest, ContentBriefData } from '@/lib/types'
+import { BriefRequestButton } from './brief-request-button'
 import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, timeAgo, getSubtypesForStage, getSubtypeStyle, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
@@ -79,6 +80,9 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   // Design brief collapsible
   const [briefExpanded, setBriefExpanded] = useState(false)
 
+  // Client brief collapsible
+  const [clientBriefExpanded, setClientBriefExpanded] = useState(false)
+
   // Linked documents
   const [docsExpanded, setDocsExpanded] = useState(false)
   const [docSearch, setDocSearch] = useState('')
@@ -95,6 +99,13 @@ export function TaskDetailPanel({ task, onClose }: Props) {
     queryKey: ['docs'],
     queryFn: () => fetch('/api/docs').then(r => r.json()),
     staleTime: 60_000,
+  })
+
+  const { data: clientBriefRequest } = useQuery<ContentBriefRequest | null>({
+    queryKey: ['brief-request', task?.id],
+    queryFn: () => fetch(`/api/brief-requests?task_id=${task!.id}`).then(r => r.json()),
+    enabled: !!task?.id,
+    staleTime: 30_000,
   })
 
   // Sync drafts when task changes (e.g. after a save re-fetches)
@@ -836,6 +847,45 @@ export function TaskDetailPanel({ task, onClose }: Props) {
             </div>
           )}
 
+          {/* Client Brief Request */}
+          {client && (
+            <div className="border-b border-slate-100">
+              <button
+                onClick={() => setClientBriefExpanded(v => !v)}
+                className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="w-3.5 h-3.5 text-slate-400" />
+                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Client Brief</p>
+                  {clientBriefRequest?.status === 'submitted' && (
+                    <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                      Received
+                    </span>
+                  )}
+                  {clientBriefRequest?.status === 'pending' && (
+                    <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      Pending
+                    </span>
+                  )}
+                </div>
+                {clientBriefExpanded
+                  ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                  : <ChevronRight className="w-4 h-4 text-slate-400" />
+                }
+              </button>
+
+              {clientBriefExpanded && (
+                <div className="px-5 pb-5 space-y-4">
+                  <BriefRequestButton taskId={task.id} clientId={client.id} />
+
+                  {clientBriefRequest?.status === 'submitted' && clientBriefRequest.brief_data && (
+                    <ClientBriefDisplay brief={clientBriefRequest.brief_data} />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Linked Documents */}
           {(() => {
             const linkedIds = task.linked_doc_ids ?? []
@@ -958,5 +1008,91 @@ export function TaskDetailPanel({ task, onClose }: Props) {
         </div>
       </div>
     </>
+  )
+}
+
+// ── Read-only brief display (shown in task panel after submission) ─────────────
+
+function BriefRow({ label, value }: { label: string; value: string | number | undefined | null }) {
+  if (!value) return null
+  return (
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-xs text-slate-700 leading-relaxed">{value}</p>
+    </div>
+  )
+}
+
+function BriefChips({ label, values }: { label: string; values?: string[] }) {
+  if (!values?.length) return null
+  return (
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {values.map(v => (
+          <span key={v} className="text-[10px] px-2 py-0.5 rounded-full bg-novax-light border border-novax-border text-novax-muted font-medium">
+            {v}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const CONTENT_TYPE_LABELS: Record<string, string> = {
+  static: 'Static Image',
+  carousel: 'Carousel',
+  reel: 'Reel',
+  story: 'Story',
+}
+
+function ClientBriefDisplay({ brief }: { brief: ContentBriefData }) {
+  return (
+    <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-4">
+      {/* Type badge */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-novax text-white uppercase tracking-wide">
+          {CONTENT_TYPE_LABELS[brief.content_type] ?? brief.content_type}
+        </span>
+        {brief.submitter_name && (
+          <span className="text-[10px] text-slate-400">from {brief.submitter_name}</span>
+        )}
+      </div>
+
+      {/* Static fields */}
+      <BriefRow label="Main message"   value={brief.main_message} />
+      {/* Carousel fields */}
+      <BriefRow label="Topic"          value={brief.carousel_topic} />
+      <BriefRow label="Slide count"    value={brief.slide_count ? `${brief.slide_count} slides` : undefined} />
+      <BriefRow label="First slide"    value={brief.first_slide_type} />
+      <BriefRow label="Last slide CTA" value={brief.last_slide_cta} />
+      <BriefRow label="Text density"   value={brief.text_density} />
+      {/* Reel fields */}
+      <BriefRow label="Core message"   value={brief.key_message} />
+      <BriefRow label="Duration"       value={brief.duration} />
+      <BriefRow label="Opening style"  value={brief.opening_style} />
+      <BriefRow label="On camera"      value={brief.on_camera} />
+      <BriefRow label="Music vibe"     value={brief.music_vibe} />
+      <BriefRow label="Reel goal"      value={brief.reel_goal} />
+      <BriefRow label="Specific scenes" value={brief.specific_scenes} />
+      {/* Story fields */}
+      <BriefRow label="Story message"  value={brief.story_message} />
+      <BriefRow label="Story purpose"  value={brief.story_purpose} />
+      <BriefChips label="Interactive elements" values={brief.interactive_elements} />
+      {/* Shared */}
+      <BriefRow label="Mood / feeling" value={brief.visual_feeling} />
+      <BriefRow label="Subject focus"  value={brief.subject_focus} />
+      <BriefRow label="Text on image"  value={brief.text_on_image} />
+      <BriefChips label="Reference links" values={brief.reference_links} />
+      {/* Timeline */}
+      <BriefRow label="Needed by"      value={brief.needed_by} />
+      <BriefRow label="Urgency"        value={brief.urgency} />
+      {/* Notes */}
+      {brief.additional_notes && (
+        <div className="pt-2 border-t border-slate-200">
+          <BriefRow label="Additional notes" value={brief.additional_notes} />
+        </div>
+      )}
+    </div>
   )
 }

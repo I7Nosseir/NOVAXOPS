@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Zap, Wand2, Brain, Flame, BarChart2, Target, TrendingUp,
-  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers,
+  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers, Crosshair,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
@@ -89,6 +89,17 @@ const TOOLS = [
     gradient: false,
     dark: false,
     cta: 'Generate Formats',
+  },
+  {
+    href: '/studio/competitive',
+    icon: Crosshair,
+    title: 'Competitive Intelligence',
+    description: 'Discover what competitors are doing. Gap map, threat assessment, and hooks to beat them — injected into every studio tool.',
+    badge: 'New',
+    badgeColor: 'bg-amber-100 text-amber-800',
+    gradient: false,
+    dark: false,
+    cta: 'Analyze Rivals',
   },
 ]
 

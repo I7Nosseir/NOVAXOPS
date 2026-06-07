@@ -16,6 +16,7 @@ import { DesignBriefForm } from '@/components/clients/design-brief-form'
 import { ContextBankPanel } from '@/components/clients/context-bank-panel'
 import { ClientProfileForm } from '@/components/clients/client-profile-form'
 import { StrategyTab } from '@/components/clients/strategy-tab'
+import { CompetitorsPanel } from '@/components/clients/competitors-panel'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
 import type { DesignBrief } from '@/lib/types'
 
@@ -114,13 +115,18 @@ function ClientCard({ client, onSelect, isCrisis, onToggleCrisis, userRole }: {
         </div>
       </div>
 
-      {/* Integrations */}
-      <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
+      {/* Integrations + competitor count */}
+      <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2 flex-wrap">
         {client.metricool_blog_id && (
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">{vendorName(userRole, 'Metricool')}</span>
         )}
         {client.respond_io_channel_id && (
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">{vendorName(userRole, 'Respond.io')}</span>
+        )}
+        {client.competitor_context.length > 0 && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium border border-amber-200">
+            {client.competitor_context.length} rival{client.competitor_context.length !== 1 ? 's' : ''}
+          </span>
         )}
         <span className="ml-auto text-[10px] text-slate-400">Since {formatDate(client.created_at)}</span>
       </div>
@@ -154,7 +160,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const { tasks: allTasks } = useTasks()
   const { posts: allPosts } = usePosts()
   const updateClient = useUpdateClient()
-  const [tab, setTab] = useState<'overview' | 'intelligence' | 'tasks' | 'brief' | 'context' | 'strategy'>('overview')
+  const [tab, setTab] = useState<'overview' | 'intelligence' | 'competitors' | 'tasks' | 'brief' | 'context' | 'strategy'>('overview')
   const [briefSaving, setBriefSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [localIntel, setLocalIntel] = useState(() => {
@@ -272,12 +278,13 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
         {/* Tabs */}
         <div className="flex items-center gap-1 px-6 py-2 border-b border-slate-100 shrink-0 overflow-x-auto">
           {([
-            { key: 'overview', label: 'Overview' },
-            { key: 'intelligence', label: 'Intelligence' },
-            { key: 'context', label: 'Context Bank' },
-            { key: 'strategy', label: 'Strategy' },
-            { key: 'tasks', label: 'Tasks' },
-            { key: 'brief', label: 'Design Brief' },
+            { key: 'overview',      label: 'Overview' },
+            { key: 'intelligence',  label: 'Intelligence' },
+            { key: 'competitors',   label: 'Competitors' },
+            { key: 'context',       label: 'Context Bank' },
+            { key: 'strategy',      label: 'Strategy' },
+            { key: 'tasks',         label: 'Tasks' },
+            { key: 'brief',         label: 'Design Brief' },
           ] as const).map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
               className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
@@ -453,6 +460,14 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             )}
             </>}
           </>}
+
+          {tab === 'competitors' && (
+            <CompetitorsPanel
+              clientId={client.id}
+              clientName={client.name}
+              industry={client.brand_identity.industry}
+            />
+          )}
 
           {tab === 'context' && (
             <div className="space-y-8">

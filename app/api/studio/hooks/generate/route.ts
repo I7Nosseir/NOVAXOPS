@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase } from '@/lib/client-intelligence'
 
 export interface GeneratedHook {
   hook_text: string
@@ -144,6 +144,8 @@ export async function POST(req: NextRequest) {
     if (db) {
       const block = await buildClientIntelligenceBlock(client_id, 'hook_lab', db).catch(() => '')
       if (block) prompt = prompt + block
+      const compBlock = await buildCompetitorContextBlock(client_id, db).catch(() => '')
+      if (compBlock) prompt = prompt + compBlock
     }
   }
 

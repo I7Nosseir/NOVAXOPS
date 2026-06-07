@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   X, Send, Sparkles, User, Bot,
   FileText, Layers, CheckSquare, Building2,
-  ExternalLink, Copy, Check, Loader2,
+  ExternalLink, Copy, Check, Loader2, PenLine,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
@@ -125,13 +125,20 @@ function resizeTextarea(el: HTMLTextAreaElement) {
 
 // ── Message bubble ─────────────────────────────────────────────
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
-  const [copied, setCopied] = useState(false)
+function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextItems: ContextItem[] }) {
+  const [copied,  setCopied]  = useState(false)
+  const [applied, setApplied] = useState(false)
 
   const copy = useCallback(async () => {
     await navigator.clipboard.writeText(msg.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }, [msg.content])
+
+  const applyToDoc = useCallback((docId: string) => {
+    window.dispatchEvent(new CustomEvent('novax:apply-to-doc', { detail: { docId, text: msg.content } }))
+    setApplied(true)
+    setTimeout(() => setApplied(false), 3000)
   }, [msg.content])
 
   if (msg.role === 'user') {
@@ -152,23 +159,47 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       <div className="w-6 h-6 rounded-full bg-novax-light border border-novax-border flex items-center justify-center shrink-0 mt-1">
         <Bot className="w-3 h-3 text-novax-muted" />
       </div>
-      <div className="max-w-[90%] relative">
-        <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-          {msg.content}
+      <div className="max-w-[90%] space-y-1.5">
+        <div className="relative">
+          <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+            {msg.content}
+          </div>
+          <button
+            onClick={copy}
+            className={cn(
+              'absolute -bottom-2.5 right-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all opacity-0 group-hover:opacity-100',
+              copied
+                ? 'bg-emerald-100 text-emerald-700 opacity-100'
+                : 'bg-white border border-slate-200 text-slate-500 hover:border-novax-border hover:text-novax shadow-sm',
+            )}
+          >
+            {copied
+              ? <><Check className="w-2.5 h-2.5" /> Copied</>
+              : <><Copy className="w-2.5 h-2.5" /> Copy</>}
+          </button>
         </div>
-        <button
-          onClick={copy}
-          className={cn(
-            'absolute -bottom-2.5 right-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all opacity-0 group-hover:opacity-100',
-            copied
-              ? 'bg-emerald-100 text-emerald-700 opacity-100'
-              : 'bg-white border border-slate-200 text-slate-500 hover:border-novax-border hover:text-novax shadow-sm',
-          )}
-        >
-          {copied
-            ? <><Check className="w-2.5 h-2.5" /> Copied</>
-            : <><Copy className="w-2.5 h-2.5" /> Copy</>}
-        </button>
+
+        {/* Apply to document buttons — shown for each doc in context */}
+        {docContextItems.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {docContextItems.map(doc => (
+              <button
+                key={doc.id}
+                onClick={() => applyToDoc(doc.id)}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors',
+                  applied
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'bg-novax-light border-novax-border text-novax hover:bg-novax hover:text-white',
+                )}
+              >
+                {applied
+                  ? <><Check className="w-3 h-3" /> Applied to "{doc.label}"</>
+                  : <><PenLine className="w-3 h-3" /> Apply to "{doc.label}"</>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -250,6 +281,96 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
     }
   }, [open, fullPage])
 
+  // ── Send message — must be defined before early return (Rules of Hooks) ──────
+  // immediateText bypasses the input state (used by quick-send buttons)
+  const sendMessage = useCallback(async (immediateText?: string) => {
+    const text = (immediateText !== undefined ? immediateText : input).trim()
+    if (!text || streaming) return
+
+    setErrorMsg(null)
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text }
+    const history = [...messages, userMsg]
+    setMessages(history)
+    setInput('')
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto'
+    }
+    setStreaming(true)
+    setStreamingText('')
+
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
+
+    try {
+      const res = await fetch('/api/assistant/chat', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages:      history.map(m => ({ role: m.role, content: m.content })),
+          context_items: contextItems,
+          client_id:     selectedClient || undefined,
+          is_ceo:        isCeo,
+          user_role:     user?.role,
+          user_id:       user?.id,
+        }),
+      })
+
+      if (!res.ok || !res.body) {
+        const errData = await res.json().catch(() => ({ error: 'Request failed.' })) as { error?: string }
+        throw new Error(errData.error ?? `HTTP ${res.status}`)
+      }
+
+      reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let full   = ''
+      let done   = false
+
+      while (!done) {
+        const { done: streamDone, value } = await reader.read()
+        if (streamDone) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const payload = line.slice(6)
+          if (payload === '[DONE]') { done = true; break }
+          try {
+            const chunk = JSON.parse(payload) as { text?: string; error?: string }
+            if (chunk.error) throw new Error(chunk.error)
+            if (chunk.text) { full += chunk.text; setStreamingText(full) }
+          } catch (parseErr) {
+            if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') throw parseErr
+          }
+        }
+      }
+
+      if (buffer.startsWith('data: ')) {
+        const payload = buffer.slice(6)
+        if (payload && payload !== '[DONE]') {
+          try {
+            const chunk = JSON.parse(payload) as { text?: string }
+            if (chunk.text) full += chunk.text
+          } catch { /* ignore partial */ }
+        }
+      }
+
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: full || 'No response.' }])
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong.'
+      setErrorMsg(msg)
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: `Error: ${msg}` }])
+    } finally {
+      try { await reader?.cancel() } catch { /* ignore */ }
+      setStreaming(false)
+      setStreamingText('')
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, messages, contextItems, selectedClient, isCeo, user?.role, user?.id, streaming])
+
   if (!open && !fullPage) return null
 
   // ── Input change handler ──────────────────────────────────────
@@ -313,99 +434,6 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
       resizeTextarea(el)
     }, 0)
   }
-
-  // ── Send message ──────────────────────────────────────────────
-  // immediateText bypasses the input state (used by quick-send buttons)
-  const sendMessage = useCallback(async (immediateText?: string) => {
-    const text = (immediateText !== undefined ? immediateText : input).trim()
-    if (!text || streaming) return
-
-    setErrorMsg(null)
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text }
-    const history = [...messages, userMsg]
-    setMessages(history)
-    setInput('')
-    // Reset textarea height
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto'
-    }
-    setStreaming(true)
-    setStreamingText('')
-
-    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
-
-    try {
-      const res = await fetch('/api/assistant/chat', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages:      history.map(m => ({ role: m.role, content: m.content })),
-          context_items: contextItems,
-          client_id:     selectedClient || undefined,
-          is_ceo:        isCeo,
-          user_role:     user?.role,
-          user_id:       user?.id,
-        }),
-      })
-
-      if (!res.ok || !res.body) {
-        const errData = await res.json().catch(() => ({ error: 'Request failed.' })) as { error?: string }
-        throw new Error(errData.error ?? `HTTP ${res.status}`)
-      }
-
-      reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let full   = ''
-      let done   = false
-
-      while (!done) {
-        const { done: streamDone, value } = await reader.read()
-        if (streamDone) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const payload = line.slice(6)
-          if (payload === '[DONE]') { done = true; break }
-          try {
-            const chunk = JSON.parse(payload) as { text?: string; error?: string }
-            if (chunk.error) throw new Error(chunk.error)
-            if (chunk.text) { full += chunk.text; setStreamingText(full) }
-          } catch (parseErr) {
-            if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') throw parseErr
-          }
-        }
-      }
-
-      // Process any remaining buffer content after stream ends
-      if (buffer.startsWith('data: ')) {
-        const payload = buffer.slice(6)
-        if (payload && payload !== '[DONE]') {
-          try {
-            const chunk = JSON.parse(payload) as { text?: string }
-            if (chunk.text) full += chunk.text
-          } catch { /* ignore partial */ }
-        }
-      }
-
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: full || 'No response.' }])
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong.'
-      setErrorMsg(msg)
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: `Error: ${msg}` }])
-    } finally {
-      try { await reader?.cancel() } catch { /* ignore */ }
-      setStreaming(false)
-      setStreamingText('')
-      // Re-focus input after response
-      setTimeout(() => inputRef.current?.focus(), 0)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, messages, contextItems, selectedClient, isCeo, user?.role, user?.id, streaming])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Arrow keys to navigate dropdowns (basic — just close on Escape)
@@ -570,7 +598,18 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
         )}
 
         {/* Message list */}
-        {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
+        {messages.map((msg, i) => (
+          <MessageBubble
+            key={msg.id}
+            msg={msg}
+            docContextItems={
+              // Only show "Apply" on assistant replies, and only when there are doc context items
+              msg.role === 'assistant' && i > 0
+                ? contextItems.filter(c => c.type === 'document')
+                : []
+            }
+          />
+        ))}
 
         {/* Streaming response */}
         {streaming && streamingText  && <StreamingBubble text={streamingText} />}

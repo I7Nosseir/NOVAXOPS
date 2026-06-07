@@ -1,18 +1,16 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { X, ChevronRight, ChevronLeft, Check, Loader2, Building2, Mic2, Send, ImagePlus, Trash2 } from 'lucide-react'
-import { cn, vendorName } from '@/lib/utils'
-import { useAuth } from '@/lib/auth-context'
+import { X, ChevronRight, ChevronLeft, Check, Loader2, Building2, Mic2, ImagePlus, Trash2, Plus } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useCreateClient } from '@/lib/hooks/use-clients'
 import type { CreateClientInput } from '@/lib/hooks/use-clients'
 import type { Client } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 
 const STEPS = [
-  { id: 1, label: 'Core',      icon: Building2 },
-  { id: 2, label: 'Voice',     icon: Mic2 },
-  { id: 3, label: 'Publishing', icon: Send },
+  { id: 1, label: 'Identity',       icon: Building2 },
+  { id: 2, label: 'Voice & Rivals', icon: Mic2 },
 ]
 
 const INDUSTRIES = [
@@ -31,6 +29,10 @@ const PLATFORMS = [
   { id: 'youtube',   label: 'YouTube'   },
 ]
 
+const COMP_PLATFORMS = ['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Facebook', 'Twitter']
+
+interface Competitor { handle: string; platform: string }
+
 interface FormState {
   // Step 1
   name: string
@@ -38,24 +40,24 @@ interface FormState {
   primary_color: string
   language: 'en' | 'ar' | 'both'
   website: string
+  platforms: string[]
   // Step 2
   tone_formal: number
   tone_energy: number
   dialect: 'msa' | 'saudi' | 'egyptian' | 'gulf'
   audience: string
   key_messages: [string, string, string]
-  // Step 3
-  metricool_blog_id: string
-  platforms: string[]
-  posts_per_week: number
+  competitors: Competitor[]
+  _compHandle: string
+  _compPlatform: string
 }
 
 const INIT: FormState = {
   name: '', industry: '', primary_color: '#1B3D38', language: 'en', website: '',
+  platforms: ['instagram', 'facebook'],
   tone_formal: 50, tone_energy: 50, dialect: 'msa',
-  audience: '',
-  key_messages: ['', '', ''],
-  metricool_blog_id: '', platforms: ['instagram', 'facebook'], posts_per_week: 4,
+  audience: '', key_messages: ['', '', ''],
+  competitors: [], _compHandle: '', _compPlatform: 'Instagram',
 }
 
 const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all bg-white text-slate-800 placeholder:text-slate-400'
@@ -78,10 +80,7 @@ function Slider({ label, left, right, value, onChange }: {
   )
 }
 
-export function NewClientWizard({
-  onClose,
-  onSave,
-}: {
+export function NewClientWizard({ onClose, onSave }: {
   onClose: () => void
   onSave: (client: Client) => void
 }) {
@@ -92,8 +91,6 @@ export function NewClientWizard({
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const createClient = useCreateClient()
-  const { realUser } = useAuth()
-  const schedPlatform = vendorName(realUser?.role, 'Metricool')
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm(f => ({ ...f, [key]: val }))
@@ -110,10 +107,20 @@ export function NewClientWizard({
     set('key_messages', msgs)
   }
 
+  const addCompetitor = () => {
+    const handle = form._compHandle.trim().replace(/^@/, '')
+    if (!handle) return
+    if (form.competitors.some(c => c.handle.toLowerCase() === handle.toLowerCase())) return
+    set('competitors', [...form.competitors, { handle: `@${handle}`, platform: form._compPlatform }])
+    set('_compHandle', '' as FormState['_compHandle'])
+  }
+
+  const removeCompetitor = (handle: string) =>
+    set('competitors', form.competitors.filter(c => c.handle !== handle))
+
   function canAdvance(): boolean {
     if (step === 1) return !!form.name.trim() && !!form.industry
-    if (step === 2) return !!form.audience.trim()
-    return true
+    return !!form.audience.trim()
   }
 
   const handleLogoSelect = (file: File) => {
@@ -136,14 +143,12 @@ export function NewClientWizard({
       tone_energy: form.tone_energy,
       audience: form.audience.trim(),
       key_messages: form.key_messages.filter(Boolean),
-      metricool_blog_id: form.metricool_blog_id.trim() || undefined,
       platforms: form.platforms,
-      posts_per_week: form.posts_per_week,
+      competitors: form.competitors,
     }
     try {
       const client = await createClient.mutateAsync(input)
 
-      // Upload logo if provided (fire after creation so we have the client ID)
       if (logoFile && supabase) {
         const ext = logoFile.name.split('.').pop()?.toLowerCase() ?? 'png'
         const path = `clients/${client.id}/logo.${ext}`
@@ -165,7 +170,7 @@ export function NewClientWizard({
     }
   }
 
-  const progress = ((step - 1) / 2) * 100
+  const progress = ((step - 1) / (STEPS.length - 1)) * 100
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-6">
@@ -175,7 +180,7 @@ export function NewClientWizard({
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
           <div>
             <h2 className="font-semibold text-slate-900">New Client</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Step {step} of 3 — {STEPS[step - 1].label}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Step {step} of {STEPS.length} — {STEPS[step - 1].label}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
             <X className="w-4 h-4 text-slate-500" />
@@ -207,7 +212,7 @@ export function NewClientWizard({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
 
-          {/* ── Step 1: Core ── */}
+          {/* ── Step 1: Identity ── */}
           {step === 1 && (
             <>
               {/* Logo upload */}
@@ -215,10 +220,7 @@ export function NewClientWizard({
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                   Client Logo <span className="text-slate-400 font-normal">(optional)</span>
                 </label>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp"
                   className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoSelect(f) }}
                 />
@@ -226,30 +228,19 @@ export function NewClientWizard({
                   <div className="flex items-center gap-3">
                     <img src={logoPreview} alt="Logo preview" className="h-14 w-14 rounded-xl object-contain border border-slate-200 bg-slate-50 p-1"/>
                     <div className="flex flex-col gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => logoInputRef.current?.click()}
-                        className="text-xs font-semibold text-novax-muted hover:text-novax"
-                      >
-                        Change logo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setLogoFile(null); setLogoPreview(null) }}
-                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-400"
-                      >
+                      <button type="button" onClick={() => logoInputRef.current?.click()}
+                        className="text-xs font-semibold text-novax-muted hover:text-novax">Change logo</button>
+                      <button type="button" onClick={() => { setLogoFile(null); setLogoPreview(null) }}
+                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-400">
                         <Trash2 className="w-3 h-3"/> Remove
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => logoInputRef.current?.click()}
+                  <button type="button" onClick={() => logoInputRef.current?.click()}
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleLogoSelect(f) }}
-                    className="w-full flex flex-col items-center gap-2 py-5 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 hover:border-novax-border hover:text-novax-muted transition-colors"
-                  >
+                    className="w-full flex flex-col items-center gap-2 py-5 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 hover:border-novax-border hover:text-novax-muted transition-colors">
                     <ImagePlus className="w-5 h-5"/>
                     <span className="text-xs">Drop logo here or <span className="font-semibold text-novax-muted">browse</span></span>
                     <span className="text-[10px] text-slate-400">PNG, JPG, SVG or WebP · max 3MB</span>
@@ -282,7 +273,6 @@ export function NewClientWizard({
                       placeholder="#000000" className={`${inputCls} flex-1`} />
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Content Language</label>
                   <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
@@ -302,10 +292,27 @@ export function NewClientWizard({
                 <input value={form.website} onChange={e => set('website', e.target.value)}
                   placeholder="https://brand.com" className={inputCls} type="url" />
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Active Platforms</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {PLATFORMS.map(p => (
+                    <button key={p.id} onClick={() => togglePlatform(p.id)}
+                      className={cn(
+                        'px-3 py-2 rounded-lg border text-xs font-medium transition-all',
+                        form.platforms.includes(p.id)
+                          ? 'border-novax-border-active bg-novax-light text-novax'
+                          : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                      )}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </>
           )}
 
-          {/* ── Step 2: Voice ── */}
+          {/* ── Step 2: Voice, Audience & Competitors ── */}
           {step === 2 && (
             <>
               <div className="p-4 bg-slate-50 rounded-xl space-y-4">
@@ -326,8 +333,7 @@ export function NewClientWizard({
                       { id: 'egyptian', label: 'Egyptian (مصري)',  desc: 'Most understood dialect' },
                       { id: 'gulf',     label: 'Gulf (خليجي عام)', desc: 'UAE, Kuwait, Qatar, Oman' },
                     ] as const).map(d => (
-                      <button key={d.id}
-                        onClick={() => set('dialect', d.id)}
+                      <button key={d.id} onClick={() => set('dialect', d.id)}
                         className={cn(
                           'text-left px-3 py-2 rounded-lg border text-xs transition-all',
                           form.dialect === d.id
@@ -362,50 +368,48 @@ export function NewClientWizard({
                   ))}
                 </div>
               </div>
-            </>
-          )}
 
-          {/* ── Step 3: Publishing ── */}
-          {step === 3 && (
-            <>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">{schedPlatform} Account ID</label>
-                <p className="text-[11px] text-slate-400 mb-1.5">
-                  The account identifier for this client on the scheduling platform.
-                </p>
-                <input value={form.metricool_blog_id}
-                  onChange={e => set('metricool_blog_id', e.target.value)}
-                  placeholder="e.g. 6276264"
-                  className={inputCls} />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Active Platforms</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {PLATFORMS.map(p => (
-                    <button key={p.id} onClick={() => togglePlatform(p.id)}
-                      className={cn(
-                        'px-3 py-2 rounded-lg border text-xs font-medium transition-all',
-                        form.platforms.includes(p.id)
-                          ? 'border-novax-border-active bg-novax-light text-novax'
-                          : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                      )}>
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
+              {/* Competitors */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Posts per week — <span className="text-novax font-semibold">{form.posts_per_week}</span>
+                  Competitors <span className="text-slate-400 font-normal">(optional — add now or later)</span>
                 </label>
-                <input type="range" min={1} max={14} value={form.posts_per_week}
-                  onChange={e => set('posts_per_week', Number(e.target.value))}
-                  className="w-full h-1.5 rounded-full appearance-none bg-slate-200 accent-novax cursor-pointer" />
-                <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                  <span>1/week</span><span>14/week</span>
+                <div className="flex gap-2">
+                  <input
+                    value={form._compHandle}
+                    onChange={e => set('_compHandle', e.target.value as FormState['_compHandle'])}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCompetitor() } }}
+                    placeholder="@competitor_handle"
+                    className={`${inputCls} flex-1`}
+                  />
+                  <select
+                    value={form._compPlatform}
+                    onChange={e => set('_compPlatform', e.target.value as FormState['_compPlatform'])}
+                    className="px-2 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-novax-muted bg-white text-slate-700 cursor-pointer"
+                  >
+                    {COMP_PLATFORMS.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                  <button type="button" onClick={addCompetitor}
+                    className="p-2 rounded-lg bg-novax-light text-novax hover:bg-novax-light-hover transition-colors border border-novax-border">
+                    <Plus className="w-4 h-4" />
+                  </button>
                 </div>
+
+                {form.competitors.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {form.competitors.map(c => (
+                      <span key={c.handle}
+                        className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-novax-light border border-novax-border text-novax font-medium">
+                        {c.handle}
+                        <span className="text-novax-muted opacity-70">· {c.platform}</span>
+                        <button type="button" onClick={() => removeCompetitor(c.handle)}
+                          className="ml-0.5 text-novax-muted hover:text-red-500 transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -424,14 +428,14 @@ export function NewClientWizard({
             {step === 1 ? 'Cancel' : 'Back'}
           </button>
 
-          {step < 3 ? (
+          {step < STEPS.length ? (
             <button onClick={() => setStep(s => s + 1)} disabled={!canAdvance()}
               className="flex items-center gap-1.5 px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
               Continue
               <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={handleCreate} disabled={createClient.isPending}
+            <button onClick={handleCreate} disabled={!canAdvance() || createClient.isPending}
               className="flex items-center gap-1.5 px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60">
               {createClient.isPending
                 ? <><Loader2 className="w-4 h-4 animate-spin" />Creating…</>

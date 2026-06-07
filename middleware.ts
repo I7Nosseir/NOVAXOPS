@@ -34,10 +34,11 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // Public: API routes + landing + public approval portal + static assets + PWA files
+  // Public: API routes + landing + public portals + static assets + PWA files
   if (
     pathname.startsWith('/api/') ||
     pathname.startsWith('/approval/') ||
+    pathname.startsWith('/brief/') ||
     pathname.startsWith('/_next/') ||
     pathname === '/landing' ||
     pathname === '/manifest.json' ||

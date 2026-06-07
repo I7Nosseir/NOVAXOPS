@@ -7,6 +7,7 @@ import {
   Brain, ArrowLeft, PlusCircle,
   AlertTriangle, RefreshCw,
 } from 'lucide-react'
+import { exportStrategyPdf } from '@/lib/strategy-export'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
@@ -70,11 +71,12 @@ export default function StrategyPage() {
   const [sessionsLoading, setSessionsLoading] = useState(true)
 
   // Session + document
-  const [sessionId,   setSessionId]   = useState<string | null>(null)
-  const [strategyDoc, setStrategyDoc] = useState<StrategyDocument | null>(null)
-  const [bossBrief,   setBossBrief]   = useState<BossBrief | null>(null)
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
-  const [chatOpen,    setChatOpen]    = useState(false)
+  const [sessionId,     setSessionId]     = useState<string | null>(null)
+  const [strategyDoc,   setStrategyDoc]   = useState<StrategyDocument | null>(null)
+  const [bossBrief,     setBossBrief]     = useState<BossBrief | null>(null)
+  const [chatHistory,   setChatHistory]   = useState<ChatMessage[]>([])
+  const [chatOpen,      setChatOpen]      = useState(false)
+  const [pdfExporting,  setPdfExporting]  = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
 
@@ -449,7 +451,24 @@ export default function StrategyPage() {
               content={strategyDoc}
               bossBrief={bossBrief}
               language="english"
-              onExportPdf={() => window.print()}
+              pdfExporting={pdfExporting}
+              onExportPdf={async () => {
+                if (!strategyDoc || pdfExporting) return
+                setPdfExporting(true)
+                try {
+                  await exportStrategyPdf(
+                    strategyDoc,
+                    selectedClient?.name ?? strategyDoc.client_name ?? 'Client',
+                    selectedClient?.color,
+                    platforms,
+                    bossBrief,
+                  )
+                } catch (e) {
+                  console.error('[strategy-pdf] export failed', e)
+                } finally {
+                  setPdfExporting(false)
+                }
+              }}
               onChatOpen={() => setChatOpen(true)}
               onEditApplied={(target, newContent) => {
                 if (!strategyDoc) return

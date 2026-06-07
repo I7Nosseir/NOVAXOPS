@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { geminiJson, geminiGenerate } from '@/lib/gemini'
-import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase } from '@/lib/client-intelligence'
 import type {
   CampaignDocument,
   CampaignConcept,
@@ -481,7 +481,9 @@ export async function POST(req: NextRequest) {
   if (body.client_id) {
     const db = adminSupabase()
     if (db) {
-      body._intelligence_block = await buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => '')
+      const intelBlock = await buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => '')
+      const compBlock  = await buildCompetitorContextBlock(body.client_id, db).catch(() => '')
+      body._intelligence_block = intelBlock + compBlock
     }
   }
 

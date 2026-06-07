@@ -257,6 +257,53 @@ export interface CompetitorSnapshot {
   notes?: string
 }
 
+export interface CompetitorPost {
+  id: string
+  client_id: string
+  competitor_handle: string
+  platform: string
+  post_url?: string
+  content_type?: 'reel' | 'carousel' | 'static' | 'story' | 'video' | 'other'
+  caption?: string
+  hook_text?: string
+  likes: number
+  comments: number
+  views: number
+  shares: number
+  engagement_rate: number
+  posted_at?: string
+  scraped_at: string
+}
+
+export interface CompetitorRanking {
+  handle: string
+  platform: string
+  followers: number
+  avg_er: number
+  posting_frequency: number
+  growth_signal: 'accelerating' | 'stable' | 'declining' | 'unknown'
+}
+
+export interface CompetitorThreat {
+  handle: string
+  platform: string
+  threat_level: 'high' | 'medium' | 'low'
+  reasons: string[]
+  recommended_response: string
+}
+
+export interface CompetitorAnalysis {
+  landscape: CompetitorRanking[]
+  opportunities: string[]
+  threats: CompetitorThreat[]
+  hooks_to_avoid: string[]
+  hooks_to_try: string[]
+  recommended_formats: string[]
+  monthly_actions: string[]
+  summary: string
+  generated_at: string
+}
+
 export interface ContentRecommendation {
   title: string
   platform: string
@@ -270,6 +317,59 @@ export interface ContentMixRecommendation {
   current: Record<string, number>
   recommended: Record<string, number>
   rationale: string
+}
+
+// ── Content Brief Requests ────────────────────────────────────────────────────
+
+export type ContentType = 'static' | 'carousel' | 'reel' | 'story'
+export type BriefRequestStatus = 'pending' | 'submitted' | 'expired'
+
+export interface ContentBriefData {
+  content_type: ContentType
+  // Shared
+  visual_feeling?: string
+  // Static
+  main_message?: string
+  subject_focus?: string
+  text_on_image?: string
+  reference_links?: string[]
+  // Carousel
+  carousel_topic?: string
+  slide_count?: number
+  first_slide_type?: string
+  last_slide_cta?: string
+  text_density?: string
+  // Reel
+  key_message?: string
+  duration?: string
+  opening_style?: string
+  on_camera?: string
+  music_vibe?: string
+  reel_goal?: string
+  specific_scenes?: string
+  // Story
+  story_message?: string
+  story_purpose?: string
+  interactive_elements?: string[]
+  // Timeline
+  needed_by?: string
+  urgency?: string
+  // Submission meta
+  additional_notes?: string
+  submitter_name?: string
+}
+
+export interface ContentBriefRequest {
+  id: string
+  task_id: string
+  client_id: string
+  token: string
+  status: BriefRequestStatus
+  brief_data: ContentBriefData | null
+  expires_at: string
+  submitted_at: string | null
+  created_by: string | null
+  created_at: string
 }
 
 export interface PerformanceIntel {

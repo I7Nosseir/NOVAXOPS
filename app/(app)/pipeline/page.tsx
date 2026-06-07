@@ -2,7 +2,7 @@
 
 import { useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { LayoutGrid, List, Filter } from 'lucide-react'
+import { LayoutGrid, List, Filter, Layers } from 'lucide-react'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { useRealtime } from '@/lib/hooks/use-realtime'
 import { PipelineBoard } from '@/components/pipeline/pipeline-board'
@@ -45,6 +45,10 @@ function hasActiveFilters(f: FilterState) {
 
 function PipelineContent() {
   const [view, setView] = useState<'board' | 'list'>('board')
+  const [boardMode, setBoardMode] = useState<'full' | 'grouped'>(() => {
+    if (typeof window !== 'undefined') return (localStorage.getItem('pipeline_board_mode') as 'full' | 'grouped') ?? 'full'
+    return 'full'
+  })
   const [showFilter, setShowFilter] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const router = useRouter()
@@ -103,6 +107,28 @@ function PipelineContent() {
             )}
           </div>
 
+          {/* Board mode toggle (only when board view) */}
+          {view === 'board' && (
+            <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden text-xs">
+              <button
+                onClick={() => { setBoardMode('full'); localStorage.setItem('pipeline_board_mode', 'full') }}
+                title="Full view — all 10 stages"
+                className={cn('px-2.5 py-1.5 flex items-center gap-1 transition-colors font-medium', boardMode === 'full' ? 'bg-novax-light text-novax' : 'text-slate-400 hover:text-slate-600')}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Full
+              </button>
+              <button
+                onClick={() => { setBoardMode('grouped'); localStorage.setItem('pipeline_board_mode', 'grouped') }}
+                title="Grouped view — 5 phase bands"
+                className={cn('px-2.5 py-1.5 flex items-center gap-1 transition-colors font-medium', boardMode === 'grouped' ? 'bg-novax-light text-novax' : 'text-slate-400 hover:text-slate-600')}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Grouped
+              </button>
+            </div>
+          )}
+
           {/* View toggle */}
           <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden">
             <button
@@ -132,7 +158,7 @@ function PipelineContent() {
 
       {/* Views */}
       {view === 'board' ? (
-        <PipelineBoard initialTasks={tasks} />
+        <PipelineBoard initialTasks={tasks} boardMode={boardMode} />
       ) : (
         <TaskList tasks={tasks} />
       )}

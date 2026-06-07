@@ -11,6 +11,14 @@ export const PIPELINE_STAGES: PipelineStage[] = [
   'review', 'approval', 'scheduled', 'published', 'reporting',
 ]
 
+export const PIPELINE_GROUPS: { label: string; stages: PipelineStage[]; color: string; bg: string }[] = [
+  { label: 'Pre-Production', stages: ['strategy', 'ideas', 'calendar'], color: 'text-violet-700', bg: 'bg-violet-50' },
+  { label: 'Production',     stages: ['copy', 'design'],                color: 'text-amber-700',  bg: 'bg-amber-50'  },
+  { label: 'Quality',        stages: ['review', 'approval'],            color: 'text-rose-700',   bg: 'bg-rose-50'   },
+  { label: 'Live',           stages: ['scheduled', 'published'],        color: 'text-emerald-700',bg: 'bg-emerald-50'},
+  { label: 'Analytics',      stages: ['reporting'],                     color: 'text-slate-700',  bg: 'bg-slate-100' },
+]
+
 export const STAGE_CONFIG: Record<PipelineStage, { label: string; color: string; bg: string; border: string }> = {
   strategy:  { label: 'Strategy',  color: 'text-violet-700',  bg: 'bg-violet-50',  border: 'border-violet-200' },
   ideas:     { label: 'Ideas',     color: 'text-blue-700',    bg: 'bg-blue-50',    border: 'border-blue-200' },

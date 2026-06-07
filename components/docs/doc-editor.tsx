@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, forwardRef, useImperativeHandle } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -11,6 +11,41 @@ interface DocEditorProps {
   content: object
   onChange: (json: object) => void
   editable?: boolean
+}
+
+export interface DocEditorRef {
+  applyContent: (text: string) => void
+}
+
+// Convert AI markdown text → basic HTML for Tiptap
+function markdownToHtml(text: string): string {
+  return text
+    .split('\n\n')
+    .map(block => {
+      const trimmed = block.trim()
+      if (!trimmed) return ''
+      if (trimmed.startsWith('### ')) return `<h3>${trimmed.slice(4)}</h3>`
+      if (trimmed.startsWith('## '))  return `<h2>${trimmed.slice(3)}</h2>`
+      if (trimmed.startsWith('# '))   return `<h1>${trimmed.slice(2)}</h1>`
+      // bullet list block
+      if (trimmed.split('\n').every(l => l.trim().startsWith('- ') || l.trim().startsWith('* '))) {
+        const items = trimmed.split('\n').map(l => `<li>${l.replace(/^[-*]\s+/, '')}</li>`).join('')
+        return `<ul>${items}</ul>`
+      }
+      // ordered list block
+      if (trimmed.split('\n').every(l => /^\d+\.\s/.test(l.trim()))) {
+        const items = trimmed.split('\n').map(l => `<li>${l.replace(/^\d+\.\s+/, '')}</li>`).join('')
+        return `<ol>${items}</ol>`
+      }
+      // paragraph — inline formatting
+      const inlined = trimmed
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g,     '<em>$1</em>')
+        .replace(/\n/g,            '<br/>')
+      return `<p>${inlined}</p>`
+    })
+    .filter(Boolean)
+    .join('')
 }
 
 function ToolbarButton({
@@ -49,7 +84,10 @@ function Divider() {
   return <div className="w-px h-5 bg-slate-200 mx-0.5" />
 }
 
-export function DocEditor({ content, onChange, editable = true }: DocEditorProps) {
+export const DocEditor = forwardRef<DocEditorRef, DocEditorProps>(function DocEditor(
+  { content, onChange, editable = true },
+  ref,
+) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -61,6 +99,15 @@ export function DocEditor({ content, onChange, editable = true }: DocEditorProps
       onChange(editor.getJSON())
     },
   })
+
+  useImperativeHandle(ref, () => ({
+    applyContent(text: string) {
+      if (!editor) return
+      const html = markdownToHtml(text)
+      editor.commands.setContent(html)
+      onChange(editor.getJSON())
+    },
+  }), [editor, onChange])
 
   // Sync editable prop changes
   useEffect(() => {
@@ -161,4 +208,4 @@ export function DocEditor({ content, onChange, editable = true }: DocEditorProps
       </div>
     </div>
   )
-}
+})

@@ -81,9 +81,10 @@ export interface CreateClientInput {
   tone_energy: number
   audience: string
   key_messages: string[]
-  metricool_blog_id?: string
   platforms: string[]
-  posts_per_week: number
+  competitors?: { handle: string; platform: string }[]
+  metricool_blog_id?: string
+  posts_per_week?: number
 }
 
 export function useCreateClient() {
@@ -101,6 +102,8 @@ export function useCreateClient() {
         input.tone_formal > 60 ? 'formal' : input.tone_formal < 40 ? 'casual' : 'balanced',
         input.tone_energy > 60 ? 'playful' : input.tone_energy < 40 ? 'serious' : 'measured',
       ].join(', ')
+
+      const competitorHandles = (input.competitors ?? []).map(c => `${c.handle} (${c.platform})`)
 
       const { data, error } = await supabase
         .from('clients')
@@ -121,16 +124,34 @@ export function useCreateClient() {
             dialect: input.dialect ?? 'msa',
             website: input.website ?? '',
             platforms: input.platforms,
-            posts_per_week: input.posts_per_week,
+            posts_per_week: input.posts_per_week ?? 4,
           },
-          competitor_context_json: [],
+          competitor_context_json: competitorHandles,
           reference_links: [],
         })
         .select()
         .single()
 
       if (error) throw error
-      return mapClient(data as Record<string, unknown>)
+      const client = mapClient(data as Record<string, unknown>)
+
+      // Seed competitor_snapshots for each competitor added during onboarding
+      if (input.competitors && input.competitors.length > 0) {
+        await supabase.from('competitor_snapshots').insert(
+          input.competitors.map(c => ({
+            client_id: client.id,
+            competitor_handle: c.handle,
+            platform: c.platform,
+            followers: 0,
+            avg_er: 0,
+            posting_frequency: 0,
+            top_content_types: {},
+            captured_at: new Date().toISOString(),
+          }))
+        )
+      }
+
+      return client
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })

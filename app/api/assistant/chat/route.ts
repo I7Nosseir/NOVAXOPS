@@ -65,14 +65,81 @@ function tiptapToText(node: unknown, depth = 0): string {
 
 async function fetchClientContext(db: SupabaseClient, id: string): Promise<string> {
   try {
-    const { data } = await db.from('clients').select('name,brand_identity_json').eq('id', id).single()
+    const { data } = await db
+      .from('clients')
+      .select('name,brand_identity_json,crisis_mode,metricool_blog_id,status')
+      .eq('id', id)
+      .single()
     if (!data) return ''
     const b = data.brand_identity_json as Record<string, unknown> | null
-    const lines: string[] = [`Client: ${data.name}`]
+    const lines: string[] = [`Client: ${data.name}${data.crisis_mode ? ' [CRISIS MODE ACTIVE]' : ''}`]
     if (b?.industry)        lines.push(`Industry: ${b.industry}`)
     if (b?.tone_of_voice)   lines.push(`Tone: ${b.tone_of_voice}`)
     if (b?.target_audience) lines.push(`Audience: ${b.target_audience}`)
     if (Array.isArray(b?.key_messages)) lines.push(`Key messages: ${(b.key_messages as string[]).join(' | ')}`)
+    if (data.metricool_blog_id) lines.push(`Metricool blog ID: ${data.metricool_blog_id}`)
+    return lines.join('\n')
+  } catch { return '' }
+}
+
+// ── Metricool / publishing context for selected client ─────────────────────
+// Reads from scheduled_posts (already synced from Metricool by cron).
+// Always injected when a client is selected — gives the AI publishing awareness.
+
+async function fetchClientMetricoolContext(db: SupabaseClient, clientId: string): Promise<string> {
+  try {
+    const now = new Date()
+    const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
+    const [upcomingRes, publishedRes, draftRes] = await Promise.all([
+      // Upcoming scheduled (next 7 days)
+      db.from('scheduled_posts')
+        .select('id,platforms,caption,scheduled_at,status,metricool_post_id')
+        .eq('client_id', clientId)
+        .eq('status', 'scheduled')
+        .gte('scheduled_at', now.toISOString())
+        .lte('scheduled_at', in7days)
+        .order('scheduled_at', { ascending: true })
+        .limit(10),
+      // Published this month
+      db.from('scheduled_posts')
+        .select('id,platforms,published_at')
+        .eq('client_id', clientId)
+        .eq('status', 'published')
+        .gte('published_at', startOfMonth)
+        .limit(30),
+      // Drafts
+      db.from('scheduled_posts')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('status', 'draft')
+        .limit(1),
+    ])
+
+    const upcoming = upcomingRes.data ?? []
+    const published = publishedRes.data ?? []
+    const draftCount = (draftRes.data ?? []).length
+
+    if (!upcoming.length && !published.length && !draftCount) return ''
+
+    const lines: string[] = ['── METRICOOL / PUBLISHING STATUS ──']
+
+    if (upcoming.length > 0) {
+      lines.push(`Scheduled (next 7 days): ${upcoming.length} post${upcoming.length !== 1 ? 's' : ''}`)
+      for (const p of upcoming.slice(0, 5)) {
+        const platforms = Array.isArray(p.platforms) ? (p.platforms as string[]).join(', ') : String(p.platforms ?? '')
+        const date = p.scheduled_at ? new Date(p.scheduled_at as string).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '?'
+        const caption = typeof p.caption === 'string' ? p.caption.slice(0, 80) : ''
+        lines.push(`  • [${platforms}] ${date} — "${caption}${caption.length >= 80 ? '…' : ''}"`)
+      }
+    } else {
+      lines.push('Scheduled (next 7 days): 0 posts — calendar is empty')
+    }
+
+    lines.push(`Published this month: ${published.length} post${published.length !== 1 ? 's' : ''}`)
+    if (draftCount > 0) lines.push(`Drafts pending: ${draftCount}+`)
+
     return lines.join('\n')
   } catch { return '' }
 }
@@ -187,17 +254,24 @@ async function fetchCeoAgencyBriefing(db: SupabaseClient): Promise<string> {
   const now = new Date()
   const quarter = Math.ceil((now.getMonth() + 1) / 3)
   const year = now.getFullYear()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
   // Fetch each independently so one failure doesn't wipe out all context
   const safe = <T>(p: PromiseLike<T>) => Promise.resolve(p).catch(() => ({ data: null, error: 'fetch failed' }))
 
-  const [clientsRes, tasksRes, approvalsRes, moderationRes, ctxRes, stratRes] = await Promise.all([
-    safe(db.from('clients').select('id,name,is_in_crisis,status,brand_identity_json').eq('status', 'active')),
+  const [clientsRes, tasksRes, approvalsRes, moderationRes, ctxRes, stratRes, scheduledRes, publishedRes] = await Promise.all([
+    // crisis_mode is the real column name (NOT is_in_crisis)
+    safe(db.from('clients').select('id,name,crisis_mode,status,brand_identity_json,metricool_blog_id').eq('status', 'active')),
     safe(db.from('tasks').select('id,client_id,status,due_date,pipeline_stage').eq('status', 'active')),
     safe(db.from('approval_requests').select('id,status').eq('status', 'pending')),
     safe(db.from('moderation_items').select('id,status').eq('status', 'pending')),
     safe(db.from('client_context_bank').select('client_id,category,summary').eq('is_active', true).order('created_at', { ascending: false }).limit(40)),
     safe(db.from('client_quarterly_strategies').select('client_id,goals,themes').eq('year', year).eq('quarter', quarter)),
+    // Upcoming scheduled posts (next 7 days) — grouped by client
+    safe(db.from('scheduled_posts').select('client_id,status').eq('status', 'scheduled').gte('scheduled_at', now.toISOString()).lte('scheduled_at', in7days)),
+    // Published this month — grouped by client
+    safe(db.from('scheduled_posts').select('client_id').eq('status', 'published').gte('published_at', startOfMonth)),
   ])
 
   if (clientsRes.error) console.error('[assistant/chat] CEO briefing clients error:', clientsRes.error)
@@ -207,7 +281,8 @@ async function fetchCeoAgencyBriefing(db: SupabaseClient): Promise<string> {
   const tasks   = tasksRes.data ?? []
 
   const overdueTasks  = tasks.filter(t => t.due_date && new Date(t.due_date) < now)
-  const crisisClients = clients.filter(c => c.is_in_crisis)
+  const crisisClients = clients.filter(c => c.crisis_mode)
+
   const ctxByClient   = (ctxRes.data ?? []).reduce((acc: Record<string, string[]>, r) => {
     if (!acc[r.client_id]) acc[r.client_id] = []
     acc[r.client_id].push(`[${r.category}] ${r.summary}`)
@@ -218,24 +293,37 @@ async function fetchCeoAgencyBriefing(db: SupabaseClient): Promise<string> {
     return acc
   }, {})
 
+  // Count scheduled + published per client
+  const scheduledByClient: Record<string, number> = {}
+  for (const p of scheduledRes.data ?? []) {
+    scheduledByClient[p.client_id] = (scheduledByClient[p.client_id] ?? 0) + 1
+  }
+  const publishedByClient: Record<string, number> = {}
+  for (const p of publishedRes.data ?? []) {
+    publishedByClient[p.client_id] = (publishedByClient[p.client_id] ?? 0) + 1
+  }
+
   const lines: string[] = [
     `── AGENCY OVERVIEW ──`,
     `Active clients: ${clients.length} | Active tasks: ${tasks.length} | Overdue: ${overdueTasks.length}`,
     `Pending approvals: ${(approvalsRes.data ?? []).length} | Pending moderation: ${(moderationRes.data ?? []).length}`,
     crisisClients.length > 0 ? `CRISIS MODE: ${crisisClients.map(c => c.name).join(', ')}` : 'No clients in crisis',
     '',
-    `── PER-CLIENT INTELLIGENCE ──`,
+    `── PER-CLIENT STATUS ──`,
   ]
 
   for (const client of clients) {
     const clientTasks   = tasks.filter(t => t.client_id === client.id)
     const clientOverdue = clientTasks.filter(t => t.due_date && new Date(t.due_date) < now)
-    const ctx   = ctxByClient[client.id] ?? []
-    const strat = stratByClient[client.id]
+    const ctx       = ctxByClient[client.id] ?? []
+    const strat     = stratByClient[client.id]
+    const scheduled = scheduledByClient[client.id] ?? 0
+    const published = publishedByClient[client.id] ?? 0
     const b = client.brand_identity_json as Record<string, unknown> | null
 
-    lines.push(`\n${client.name}${client.is_in_crisis ? ' [CRISIS]' : ''} — ${b?.industry ?? 'Unknown industry'}`)
+    lines.push(`\n${client.name}${client.crisis_mode ? ' [CRISIS]' : ''} — ${b?.industry ?? 'Unknown industry'}`)
     lines.push(`  Tasks: ${clientTasks.length} active${clientOverdue.length > 0 ? `, ${clientOverdue.length} overdue` : ''}`)
+    lines.push(`  Metricool: ${scheduled} scheduled (next 7d) | ${published} published this month`)
     if (strat) lines.push(`  Q${quarter} ${year} goal: ${strat.slice(0, 120)}`)
     if (ctx.length > 0) lines.push(`  Memory: ${ctx.slice(0, 3).join(' | ')}`)
   }
@@ -251,6 +339,7 @@ function buildSystemPrompt(
   clientContext:      string,
   contextBlocks:      string[],
   perfData:           string,
+  metricoolContext:   string,
   intelligenceBlock?: string,
   ceoBriefing?:       string,
   userContext?:       string,
@@ -284,6 +373,10 @@ Current user role: ${roleName}`
 
   if (contextBlocks.length > 0) {
     prompt += `\n\n── REFERENCED CONTENT ──\n${contextBlocks.join('\n\n---\n\n')}`
+  }
+
+  if (metricoolContext) {
+    prompt += `\n\n${metricoolContext}`
   }
 
   if (perfData) {
@@ -370,10 +463,11 @@ export async function POST(req: NextRequest) {
 
   const clientInContextItems = context_items.some(i => i.type === 'client' && i.id === client_id)
 
-  const [clientContext, contextBlocks, perfData, intelligenceBlock, ceoBriefing, userContext] = await Promise.all([
+  const [clientContext, contextBlocks, perfData, metricoolContext, intelligenceBlock, ceoBriefing, userContext] = await Promise.all([
     client_id && !clientInContextItems ? fetchClientContext(db, client_id) : Promise.resolve(''),
     Promise.all(contextFetches),
     client_id && needsPerformanceData(messages) ? fetchPerformanceSummary(db, client_id) : Promise.resolve(''),
+    client_id ? fetchClientMetricoolContext(db, client_id).catch(() => '') : Promise.resolve(''),
     client_id ? buildClientIntelligenceBlock(client_id, 'chat', db).catch(() => '') : Promise.resolve(''),
     is_ceo ? fetchCeoAgencyBriefing(db).catch(err => { console.error('[assistant/chat] CEO briefing failed:', err); return '' }) : Promise.resolve(''),
     user_id && !is_ceo ? fetchUserScopedContext(db, user_id).catch(() => '') : Promise.resolve(''),
@@ -385,6 +479,7 @@ export async function POST(req: NextRequest) {
     clientContext,
     contextBlocks.filter(Boolean),
     perfData,
+    metricoolContext,
     intelligenceBlock || undefined,
     ceoBriefing || undefined,
     userContext || undefined,
