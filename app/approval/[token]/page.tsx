@@ -87,7 +87,7 @@ function CarouselMedia({ urls }: { urls: string[] }) {
 
 function NovaLogoSmall() {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/icon.svg" alt="NOVA" className="h-7 w-7 rounded" />
+  return <img src="/icon.svg" alt="NOVAX" className="h-7 w-7 rounded" />
 }
 
 export default function ApprovalPortalPage() {

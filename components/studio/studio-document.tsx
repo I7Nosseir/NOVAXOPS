@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import {
   Camera, Copy, CheckCircle, Star,
-  TriangleAlert, MessageSquare, Download, FileText, ChevronDown,
+  TriangleAlert, MessageSquare, Download, ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
@@ -37,7 +37,6 @@ export interface StudioDocumentProps {
     | null
   bossBrief?: BossBrief | null
   language?: 'english' | 'arabic'
-  onExportTxt?: () => void
   onExportPdf?: () => void
   onChatOpen?: () => void
   onEditApplied?: (target: string, newContent: string) => void
@@ -125,10 +124,9 @@ function DocumentHeader({
   clientName,
   clientColor,
   platforms,
-  onExportTxt,
   onExportPdf,
   onChatOpen,
-}: Pick<StudioDocumentProps, 'clientName' | 'clientColor' | 'platforms' | 'onExportTxt' | 'onExportPdf' | 'onChatOpen'>) {
+}: Pick<StudioDocumentProps, 'clientName' | 'clientColor' | 'platforms' | 'onExportPdf' | 'onChatOpen'>) {
   return (
     <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
       <div className="flex items-center gap-2 min-w-0">
@@ -152,15 +150,6 @@ function DocumentHeader({
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {onExportTxt && (
-          <button
-            onClick={onExportTxt}
-            className="flex items-center gap-1 text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors"
-          >
-            <FileText className="w-3 h-3" />
-            Download TXT
-          </button>
-        )}
         {onExportPdf && (
           <button
             onClick={() => {
@@ -1293,7 +1282,6 @@ export function StudioDocument({
   content,
   bossBrief,
   language,
-  onExportTxt,
   onExportPdf,
   onChatOpen,
   isLoading = false,
@@ -1317,7 +1305,6 @@ export function StudioDocument({
         clientName={clientName}
         clientColor={clientColor}
         platforms={platforms}
-        onExportTxt={onExportTxt}
         onExportPdf={onExportPdf}
         onChatOpen={onChatOpen}
       />

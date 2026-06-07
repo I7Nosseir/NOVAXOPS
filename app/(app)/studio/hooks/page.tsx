@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   Wand2, ArrowLeft, Loader2, CheckCircle, PlusCircle,
-  AlertTriangle, RefreshCw, Star, Copy, Download,
+  AlertTriangle, RefreshCw, Star, Copy,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
@@ -331,33 +331,6 @@ export default function HookLabPage() {
     setBrief('')
   }
 
-  function handleExportTxt() {
-    if (!hookDoc) return
-    const lines = [
-      `HOOK LAB EXPORT`,
-      `Client: ${selectedClient?.name ?? 'Global'} | Platform: ${platforms.join(', ')} | Boldness: ${boldness}`,
-      `Brief: ${brief}`,
-      '',
-      `TIER SUMMARY: S·${hookDoc.tier_summary?.S ?? 0} A·${hookDoc.tier_summary?.A ?? 0} B·${hookDoc.tier_summary?.B ?? 0} C·${hookDoc.tier_summary?.C ?? 0}`,
-      '',
-    ]
-    ;(hookDoc.hooks as Array<{ hook_text: string; hook_type: string; virality_tier: string; total_score: number; headline?: string; body?: string; cta?: string }>).forEach((h, i) => {
-      lines.push(`#${i + 1} [${h.virality_tier}] ${h.total_score}/30 — ${h.hook_type}`)
-      lines.push(`HOOK: ${h.hook_text}`)
-      if (h.headline) lines.push(`HEADLINE: ${h.headline}`)
-      if (h.body)     lines.push(`BODY: ${h.body}`)
-      if (h.cta)      lines.push(`CTA: ${h.cta}`)
-      lines.push('')
-    })
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `novax-hooks-${Date.now()}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
     <div className="max-w-5xl">
       {/* Header */}
@@ -382,15 +355,6 @@ export default function HookLabPage() {
           >
             <PlusCircle className="w-3.5 h-3.5" />
             New Session
-          </button>
-        )}
-        {pageState === 'document' && hookDoc && (
-          <button
-            onClick={handleExportTxt}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-novax-muted border border-novax-border rounded-lg hover:bg-novax-light transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export
           </button>
         )}
       </div>
@@ -607,7 +571,6 @@ export default function HookLabPage() {
               content={hookDoc}
               bossBrief={bossBrief}
               language={language}
-              onExportTxt={handleExportTxt}
               onExportPdf={() => window.print()}
               onChatOpen={() => setChatOpen(true)}
               onEditApplied={(target, newContent) => {

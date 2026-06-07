@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 
 function NovaLogoMark({ className }: { className?: string }) {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/icon.svg" alt="NOVA" className={className} />
+  return <img src="/icon.svg" alt="NOVAX" className={className} />
 }
 
 export default function OnboardingPage() {

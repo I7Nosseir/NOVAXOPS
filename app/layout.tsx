@@ -13,14 +13,14 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'NOVA Ops',
-  description: 'NOVA unified operations platform',
+  title: 'NOVAX Ops',
+  description: 'NOVAX unified operations platform',
   icons: { icon: '/icon.svg' },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'NOVA Ops',
+    title: 'NOVAX Ops',
   },
 }
 

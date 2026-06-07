@@ -8,7 +8,7 @@ const LETTER_DELAY = [0, 0.08, 0.16, 0.24, 0.32]
 
 function NovaxMarkLarge() {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/icon.svg" alt="NOVA" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+  return <img src="/icon.svg" alt="NOVAX" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
 }
 
 interface Props {

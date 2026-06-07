@@ -14,7 +14,7 @@ interface PublicDoc {
 
 function NovaLogoSmall() {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/icon.svg" alt="NOVA" className="w-7 h-7 rounded" />
+  return <img src="/icon.svg" alt="NOVAX" className="w-7 h-7 rounded" />
 }
 
 export default function PublicDocPage() {
@@ -60,7 +60,7 @@ export default function PublicDocPage() {
         <NovaLogoSmall/>
         <div>
           <p className="text-xs text-slate-500">Shared document via</p>
-          <p className="text-sm font-semibold text-slate-900 leading-tight">NOVA Ops</p>
+          <p className="text-sm font-semibold text-slate-900 leading-tight">NOVAX Ops</p>
         </div>
       </header>
 

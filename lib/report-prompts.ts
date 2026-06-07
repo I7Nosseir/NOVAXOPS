@@ -169,7 +169,7 @@ export function buildPaidPrompt(
   period: string,
   brand?: BrandContext
 ): string {
-  return `You are a senior paid media analyst at NOVA, a creative marketing agency.
+  return `You are a senior paid media analyst at NOVAX, a creative marketing agency.
 Write a professional Paid Media Report for ${clientName} covering ${period}.
 ${brand?.industry ? `Industry: ${brand.industry}` : ''}
 
@@ -210,7 +210,7 @@ export function buildCombinedPrompt(
   period: string,
   brand?: BrandContext
 ): string {
-  return `You are a senior social media strategist at NOVA, a creative marketing agency.
+  return `You are a senior social media strategist at NOVAX, a creative marketing agency.
 Write a Paid + Organic Combined Performance Report for ${clientName} covering ${period}.
 ${brand?.industry ? `Industry: ${brand.industry}` : ''}
 
@@ -260,7 +260,7 @@ export function buildPlatformPrompt(
   const platformName = topPlatform ? topPlatform.platform.charAt(0).toUpperCase() + topPlatform.platform.slice(1) : 'Primary Platform'
   const platformData = topPlatform ? formatPlatforms([topPlatform]) : 'No platform data available.'
 
-  return `You are a senior social media analyst at NOVA, a creative marketing agency.
+  return `You are a senior social media analyst at NOVAX, a creative marketing agency.
 Write a Platform Deep Dive Report for ${clientName} focusing on ${platformName} for ${period}.
 ${brand?.industry ? `Industry: ${brand.industry}` : ''}
 
@@ -309,7 +309,7 @@ export function buildQuarterlyPrompt(
   brand?: BrandContext
 ): string {
   const quarterMonths = data.trend.slice(-3)
-  return `You are a senior social media analyst at NOVA, a creative marketing agency.
+  return `You are a senior social media analyst at NOVAX, a creative marketing agency.
 Write a Quarterly Performance Report for ${clientName} covering ${period}.
 ${brand?.industry ? `Industry: ${brand.industry}` : ''}
 
@@ -359,7 +359,7 @@ export function buildExecutivePrompt(
   period: string,
   brand?: BrandContext
 ): string {
-  return `You are a senior analyst at NOVA, a creative marketing agency.
+  return `You are a senior analyst at NOVAX, a creative marketing agency.
 Write an Executive Summary performance report for ${clientName} covering ${period}.
 ${brand?.industry ? `Industry: ${brand.industry}` : ''}
 This report is for the agency CEO and client leadership — keep it high-level and focused on the numbers that matter most.

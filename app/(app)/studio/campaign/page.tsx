@@ -500,18 +500,6 @@ export default function CampaignIgniterPage() {
               content={campaignDoc}
               bossBrief={bossBrief}
               language="english"
-              onExportTxt={() => {
-                const lines = [
-                  `CAMPAIGN IGNITER — ${selectedClient?.name ?? 'Client'}`,
-                  `Brief: ${brief}`,
-                  `Boldness: ${boldness} | Constraint: ${constraint}`,
-                  '',
-                  `${campaignDoc.concepts?.length ?? 0} concepts generated.`,
-                ]
-                const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a'); a.href = url; a.download = `novax-campaign-${Date.now()}.txt`; a.click(); URL.revokeObjectURL(url)
-              }}
               onExportPdf={() => window.print()}
               onChatOpen={() => setChatOpen(true)}
               onEditApplied={(target, newContent) => {

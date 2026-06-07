@@ -84,7 +84,7 @@ const CEO_NAV_ITEM: NavItem = { href: '/ceo', icon: Crown, label: 'CEO Hub' }
 function NovaLogoMark({ className }: { className?: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src="/icon.svg" alt="NOVA" className={className} />
+    <img src="/icon.svg" alt="NOVAX" className={className} />
   )
 }
 
@@ -157,7 +157,7 @@ export function Sidebar() {
         <div className="flex items-center gap-3 px-5 py-5 border-b border-white/5 relative">
           <NovaLogoMark className="w-8 h-8 shrink-0" />
           <div className="flex-1">
-            <p className="text-white font-bold text-sm leading-tight tracking-widest">NOVA</p>
+            <p className="text-white font-bold text-sm leading-tight tracking-widest">NOVAX</p>
             <p className="text-slate-500 text-[11px] tracking-wide">Operations Platform</p>
           </div>
           <button

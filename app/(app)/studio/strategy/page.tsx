@@ -449,20 +449,6 @@ export default function StrategyPage() {
               content={strategyDoc}
               bossBrief={bossBrief}
               language="english"
-              onExportTxt={() => {
-                const lines = [
-                  `STRATEGY — ${selectedClient?.name ?? 'Client'} — ${quarter} ${year}`,
-                  strategyDoc.campaign_line ? `Campaign Line: ${strategyDoc.campaign_line}` : '',
-                  '', strategyDoc.positioning_statement ?? '',
-                  '', 'MONTHLY TACTICS:',
-                  ...(strategyDoc.monthly_tactics ?? []).map(m =>
-                    `\n${m.month} — ${m.role}: ${m.theme_line}\n${m.description}\nFocus: ${m.focus.join(' · ')}\nOutcome: ${m.outcome.join(' · ')}`
-                  ),
-                ]
-                const blob = new Blob([lines.filter(Boolean).join('\n')], { type: 'text/plain' })
-                const url = URL.createObjectURL(blob); const a = document.createElement('a')
-                a.href = url; a.download = `novax-strategy-${quarter}-${year}-${Date.now()}.txt`; a.click(); URL.revokeObjectURL(url)
-              }}
               onExportPdf={() => window.print()}
               onChatOpen={() => setChatOpen(true)}
               onEditApplied={(target, newContent) => {

@@ -40,17 +40,17 @@ export async function POST(req: NextRequest) {
 
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_WIDE'
-  pptx.author = 'NOVA Ops'
-  pptx.company = 'NOVA'
+  pptx.author = 'NOVAX Ops'
+  pptx.company = 'NOVAX'
 
   // ── Slide 1: Cover ─────────────────────────────────────────────────────────
   const cover = pptx.addSlide()
   cover.background = { color: BRAND.primary }
-  cover.addText('NOVA', { x: 0.6, y: 0.5, w: 3, h: 0.5, fontSize: 14, color: BRAND.accent, bold: true, fontFace: 'Calibri' })
+  cover.addText('NOVAX', { x: 0.6, y: 0.5, w: 3, h: 0.5, fontSize: 14, color: BRAND.accent, bold: true, fontFace: 'Calibri' })
   cover.addText(client_name, { x: 0.6, y: 1.4, w: 8, h: 1, fontSize: 40, color: BRAND.white, bold: true, fontFace: 'Calibri' })
   cover.addText(report_type, { x: 0.6, y: 2.6, w: 8, h: 0.6, fontSize: 22, color: BRAND.accent, fontFace: 'Calibri' })
   if (period) cover.addText(period, { x: 0.6, y: 3.4, w: 8, h: 0.4, fontSize: 14, color: '#9DCCC8', fontFace: 'Calibri' })
-  cover.addText('Prepared by NOVA Operations Platform', { x: 0.6, y: 4.8, w: 9, h: 0.3, fontSize: 10, color: '#9DCCC8', fontFace: 'Calibri' })
+  cover.addText('Prepared by NOVAX Operations Platform', { x: 0.6, y: 4.8, w: 9, h: 0.3, fontSize: 10, color: '#9DCCC8', fontFace: 'Calibri' })
 
   // ── Slide 2: KPIs ──────────────────────────────────────────────────────────
   if (data.kpis && data.kpis.length > 0) {
@@ -114,10 +114,10 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // ── Last Slide: NOVAX footer ───────────────────────────────────────────────
+  // ── Last Slide: NOVAXX footer ───────────────────────────────────────────────
   const lastSlide = pptx.addSlide()
   lastSlide.background = { color: BRAND.primary }
-  lastSlide.addText('NOVA', { x: 4, y: 2, w: 2, h: 0.8, fontSize: 32, color: BRAND.accent, bold: true, align: 'center', fontFace: 'Calibri' })
+  lastSlide.addText('NOVAX', { x: 4, y: 2, w: 2, h: 0.8, fontSize: 32, color: BRAND.accent, bold: true, align: 'center', fontFace: 'Calibri' })
   lastSlide.addText('Operations Platform', { x: 2.5, y: 2.8, w: 5, h: 0.4, fontSize: 14, color: '#9DCCC8', align: 'center', fontFace: 'Calibri' })
 
   const pptxBuffer = Buffer.from(await pptx.write({ outputType: 'arraybuffer' }) as ArrayBuffer)
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'Content-Disposition': `attachment; filename="NOVA_${safeClient}_${safeType}.pptx"`,
+      'Content-Disposition': `attachment; filename="NOVAX_${safeClient}_${safeType}.pptx"`,
     },
   })
 }

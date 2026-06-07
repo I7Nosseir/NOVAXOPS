@@ -1597,7 +1597,7 @@ function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
 
     // ── Instructions sheet ────────────────────────────────────────────────────
     const info = [
-      ['NOVA Ops — Bulk Schedule Template'],
+      ['NOVAX Ops — Bulk Schedule Template'],
       [''],
       ['Column', 'Format', 'Valid Values', 'Required'],
       ['Date', 'YYYY-MM-DD', 'e.g. 2026-06-01', 'Yes'],

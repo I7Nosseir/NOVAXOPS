@@ -8,7 +8,7 @@ import { IntroAnimation } from '@/components/intro-animation'
 
 function NovaLogo({ className }: { className?: string }) {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/nova-logo.svg" alt="NOVA" className={className} />
+  return <img src="/nova-logo.svg" alt="NOVAX" className={className} />
 }
 
 export default function LoginPage() {
@@ -25,12 +25,12 @@ export default function LoginPage() {
 
   const [showIntro] = useState(() => {
     if (typeof window === 'undefined') return false
-    return !sessionStorage.getItem('nova_intro_shown')
+    return !sessionStorage.getItem('novax_intro_shown')
   })
   const [introDone, setIntroDone] = useState(!showIntro)
 
   const handleIntroComplete = useCallback(() => {
-    sessionStorage.setItem('nova_intro_shown', '1')
+    sessionStorage.setItem('novax_intro_shown', '1')
     setIntroDone(true)
   }, [])
 
@@ -80,7 +80,7 @@ export default function LoginPage() {
 
           <div className="p-7">
             <h1 className="text-white font-semibold text-xl mb-1">Sign in</h1>
-            <p className="text-slate-500 text-sm mb-6">Access restricted to NOVA team members.</p>
+            <p className="text-slate-500 text-sm mb-6">Access restricted to NOVAX team members.</p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div style={{ animation: mounted ? 'login-field-in 0.5s cubic-bezier(.4,0,.2,1) 0.3s both' : 'none' }}>

@@ -327,7 +327,7 @@ Conduct a rigorous hashtag audit using these criteria:
     case 'crisis_checklist':
       return `You are a crisis communications specialist with experience managing brand crises on social media. Provide the complete step-by-step crisis response protocol.
 
-Generate the NOVA Agency Crisis Response Protocol for social media incidents. This is a practical operations checklist — not theory.
+Generate the NOVAX Agency Crisis Response Protocol for social media incidents. This is a practical operations checklist — not theory.
 
 PHASE 1 — DETECTION & ASSESSMENT (0–30 minutes)
 Numbered steps for the first 30 minutes after a crisis signal is detected. Include: who is alerted first, how severity is classified (use a 3-tier system: Tier 1 = isolated complaint, Tier 2 = spreading negative sentiment, Tier 3 = viral/media coverage), and what information must be gathered before any public response.
@@ -686,7 +686,7 @@ Produce a visual direction document with these 5 sections:
     // ─────────────── DEFAULT / ADMIN / CEO ───────────────
 
     default:
-      return `You are an expert assistant at NOVA, a social media and creative agency. Provide a precise, professional response to the following request. No emojis, no hashtags unless explicitly part of the task.
+      return `You are an expert assistant at NOVAX, a social media and creative agency. Provide a precise, professional response to the following request. No emojis, no hashtags unless explicitly part of the task.
 
 INPUT:
 ${input}

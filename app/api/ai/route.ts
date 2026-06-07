@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'task_analyzer':
-      prompt = `You are a senior project analyst at NOVA, a social media agency. Apply the SMART criteria framework and creative brief quality assessment to analyse this task.
+      prompt = `You are a senior project analyst at NOVAX, a social media agency. Apply the SMART criteria framework and creative brief quality assessment to analyse this task.
 
 TASK CONTEXT
 Title: ${task?.title}
@@ -230,7 +230,7 @@ No hashtags. No emojis. Be direct and specific.`
         ? 'LANGUAGE: Generate ALL THREE VARIANTS in Arabic using the dialect specified above. The "text" and "hook" fields must be in Arabic. The "label", "tone", and "framework" fields stay in English for UI display.'
         : 'LANGUAGE: Generate all variants in English.'
 
-      prompt = `You are a behavioural copywriter at NOVA agency. You apply neuroscience and persuasion science to write social media copy that maximises scroll-stop rate, emotional engagement, and conversion.
+      prompt = `You are a behavioural copywriter at NOVAX agency. You apply neuroscience and persuasion science to write social media copy that maximises scroll-stop rate, emotional engagement, and conversion.
 
 TASK CONTEXT
 Task: ${task?.title}
@@ -287,7 +287,7 @@ Return ONLY a valid JSON array, no markdown, no code fences, no explanation:
     // ─────────────────────────────────────────────────────────────────────────
     case 'researcher':
       model = ADVANCED_MODEL
-      prompt = `You are a strategic intelligence analyst at NOVA, a social media agency. Apply competitive intelligence methodology, virality science, and platform algorithm research.
+      prompt = `You are a strategic intelligence analyst at NOVAX, a social media agency. Apply competitive intelligence methodology, virality science, and platform algorithm research.
 
 TASK CONTEXT
 Task: ${task?.title}
@@ -332,7 +332,7 @@ Format each as: #Tag — [Tier] (~XK posts) — [specific reason to use for this
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'asset_finder':
-      prompt = `You are a visual direction specialist at NOVA, a social media agency. Apply visual saliency science, colour psychology, and composition theory to recommend assets.
+      prompt = `You are a visual direction specialist at NOVAX, a social media agency. Apply visual saliency science, colour psychology, and composition theory to recommend assets.
 
 TASK CONTEXT
 Task: ${task?.title}
@@ -364,7 +364,7 @@ Apply Gestalt principles: which single visual element should dominate 60% of the
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'presentation_builder':
-      prompt = `You are a management consultant building a client-facing presentation for NOVA agency. Apply the Minto Pyramid Principle: lead with the insight, support with data, end with action.
+      prompt = `You are a management consultant building a client-facing presentation for NOVAX agency. Apply the Minto Pyramid Principle: lead with the insight, support with data, end with action.
 
 TASK CONTEXT
 Task: ${task?.title}
@@ -455,7 +455,7 @@ Return ONLY the reply text. No quotes, no labels, no explanation.`
         ? '\nLANGUAGE: Generate ALL post titles, content types, and anchor event names in Arabic (Modern Standard Arabic). Return the JSON with Arabic text in the "title" and "type" fields. Keep "platform" values in English (instagram, facebook, etc.).'
         : '\nLANGUAGE: Generate all content in English.'
 
-      prompt = `You are a content strategy scientist at NOVA agency. Apply platform algorithm research, audience circadian data, narrative sequencing theory, and cultural intelligence to build a high-performance content calendar.
+      prompt = `You are a content strategy scientist at NOVAX agency. Apply platform algorithm research, audience circadian data, narrative sequencing theory, and cultural intelligence to build a high-performance content calendar.
 
 CLIENT CONTEXT
 Client: ${clientName}
@@ -691,7 +691,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
         mediaContext = `\nMEDIA: This post includes media. Write captions that reference and complement the visual content.`
       }
 
-      prompt = `You are a behavioural copywriter at NOVA, a social media agency. Apply neuroscience and persuasion science to write social media captions that maximise scroll-stop rate, emotional engagement, and conversion.
+      prompt = `You are a behavioural copywriter at NOVAX, a social media agency. Apply neuroscience and persuasion science to write social media captions that maximise scroll-stop rate, emotional engagement, and conversion.
 
 CLIENT CONTEXT
 Client: ${clientName}

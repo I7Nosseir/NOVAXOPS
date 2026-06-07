@@ -1,4 +1,4 @@
-<svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 272 72" fill="none" xmlns="http://www.w3.org/2000/svg">
   <!-- N -->
   <path d="M12 56V16h7.5l18 26.4V16H45v40h-7.5L19.5 29.6V56H12z" fill="white"/>
   <!-- O -->
@@ -9,6 +9,9 @@
   <line x1="135" y1="8" x2="108" y2="68" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
   <!-- A -->
   <path d="M147.6 56l16-40h8.4l16 40h-8.2l-3.4-8.8H159l-3.4 8.8h-8zm14-15.2h10.8L167.8 24l-6.2 16.8z" fill="white"/>
+  <!-- X -->
+  <path d="M198 16 L207 16 L233 56 L224 56 Z" fill="white"/>
+  <path d="M224 16 L233 16 L207 56 L198 56 Z" fill="white"/>
   <!-- TM mark -->
-  <text x="190" y="20" font-family="system-ui,sans-serif" font-size="8" font-weight="600" fill="white" opacity="0.65">TM</text>
+  <text x="237" y="20" font-family="system-ui,sans-serif" font-size="8" font-weight="600" fill="white" opacity="0.65">TM</text>
 </svg>

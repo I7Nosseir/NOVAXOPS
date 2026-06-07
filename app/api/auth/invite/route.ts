@@ -114,7 +114,7 @@ export async function POST(req: Request) {
     toEmail: email,
     toName: name,
     role,
-    inviterName: (inviterProfile?.name as string | undefined) ?? 'The NOVA Team',
+    inviterName: (inviterProfile?.name as string | undefined) ?? 'The NOVAX Team',
     appUrl,
     tempPassword,
   })

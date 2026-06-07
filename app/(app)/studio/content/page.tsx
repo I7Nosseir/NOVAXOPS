@@ -493,53 +493,6 @@ export default function ContentStudioPage() {
     setContentDoc(updated)
   }
 
-  function handleExportTxt() {
-    if (!contentDoc) return
-    const lines: string[] = [
-      `CONTENT STUDIO — ${selectedClient?.name ?? 'Client'}`,
-      `Type: ${contentDoc.content_type ?? 'reel'} | Platforms: ${inputs.platforms.join(', ')} | Goal: ${inputs.goal} | Language: ${inputs.language}`,
-      `Brief: ${inputs.brief}`,
-      '',
-    ]
-    const pieces = contentDoc.pieces ?? [{
-      hook: contentDoc.hook, script_sections: contentDoc.script_sections,
-      key_broll_list: contentDoc.key_broll_list, caption_preview: contentDoc.caption_preview,
-    }]
-    pieces.forEach((piece, idx) => {
-      if (pieces.length > 1) lines.push(`\n═══ PIECE ${idx + 1} ═══`)
-      if (piece.hook) {
-        lines.push(`\nHOOK [${piece.hook.tier}] ${piece.hook.score}/30`)
-        lines.push(piece.hook.text)
-      }
-      const pAny = piece as ContentPiece & { slides?: { title: string; body: string }[]; visual_direction?: string; text_overlay?: string }
-      if (pAny.slides?.length) {
-        lines.push('\nSLIDES:')
-        pAny.slides.forEach((s, i) => lines.push(`  ${i + 1}. ${s.title}\n     ${s.body}`))
-      } else if (pAny.visual_direction) {
-        lines.push(`\nVISUAL DIRECTION:\n  ${pAny.visual_direction}`)
-        if (pAny.text_overlay) lines.push(`TEXT OVERLAY: ${pAny.text_overlay}`)
-      } else if (piece.script_sections?.length) {
-        lines.push(`\nSCRIPT (${(piece as ContentPiece).total_duration ?? ''})`)
-        lines.push('─'.repeat(50))
-        for (const s of piece.script_sections) {
-          lines.push(`\n[${s.section}] — ${s.duration_estimate}`)
-          for (const l of s.lines) lines.push(`  ${l}`)
-          if (s.visual_note) lines.push(`  Visual: ${s.visual_note}`)
-        }
-      }
-      if (piece.caption_preview) { lines.push('\nCAPTION:'); lines.push(piece.caption_preview) }
-      if (piece.key_broll_list?.length) {
-        lines.push('\nB-ROLL / ASSETS NEEDED:')
-        for (const b of piece.key_broll_list) lines.push(`  - ${b}`)
-      }
-    })
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href = url; a.download = `novax-content-${Date.now()}.txt`; a.click()
-    URL.revokeObjectURL(url)
-  }
-
   function handleExportExcel() {
     if (!contentDoc) return
 
@@ -890,7 +843,6 @@ export default function ContentStudioPage() {
               content={contentDoc}
               bossBrief={bossBrief}
               language={inputs.language}
-              onExportTxt={handleExportTxt}
               onExportPdf={() => window.print()}
               onChatOpen={() => setChatOpen(true)}
               onEditApplied={handleEditApplied}

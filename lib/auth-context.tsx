@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Dev mode: no Supabase configured — use a mock admin so role preview works
       setRealUser({
         id: 'dev-admin',
-        name: 'NOVA Admin',
+        name: 'NOVAX Admin',
         email: 'admin@novax.agency',
         role: 'admin',
         department: 'creative',
