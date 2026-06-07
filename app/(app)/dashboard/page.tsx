@@ -8,11 +8,11 @@ import { usePosts } from '@/lib/hooks/use-posts'
 import { useModerationItems } from '@/lib/hooks/use-moderation'
 import { useWeeklyActivity, useAiCostMonth } from '@/lib/hooks/use-dashboard'
 import { useAuth } from '@/lib/auth-context'
-import { hasRole, vendorName, STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, formatDate, formatNumber, formatCurrency } from '@/lib/utils'
+import { hasRole, vendorName, STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, formatDate, formatNumber, formatCurrency, cn } from '@/lib/utils'
 import {
   CheckSquare, Clock, AlertCircle, MessageSquare,
   DollarSign, Calendar, Globe, TrendingUp, ArrowUpRight, ArrowDownRight,
-  Eye, Activity, RefreshCw, Heart,
+  Eye, Activity, RefreshCw, ChevronRight, X,
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -121,6 +121,205 @@ function SocialPerformanceSection() {
               </span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Client Health with recommendations ───────────────────────────────────────
+
+type ClientHealthProps = {
+  clients: ReturnType<typeof useClients>['clients']
+  tasks:   ReturnType<typeof useTasks>['tasks']
+  posts:   ReturnType<typeof usePosts>['posts']
+}
+
+function computeHealth(client: ClientHealthProps['clients'][0], tasks: ClientHealthProps['tasks'], posts: ClientHealthProps['posts']) {
+  const now         = new Date()
+  const clientTasks = tasks.filter(t => t.client_id === client.id)
+  const activeTasks = clientTasks.filter(t => t.status === 'active')
+  const scheduled   = posts.filter(p => p.client_id === client.id && p.status === 'scheduled').length
+
+  const crisisScore   = client.is_in_crisis ? 0 : 15
+  const overdueCount  = activeTasks.filter(t => t.due_date && new Date(t.due_date) < now).length
+  const overdueScore  = Math.max(0, 20 - overdueCount * 7)
+
+  const stageWeight: Record<string, number> = {
+    strategy: 1, ideas: 2, calendar: 3, copy: 4, design: 5,
+    review: 6, approval: 7, scheduled: 8, published: 9, reporting: 10,
+  }
+  const avgStage      = clientTasks.length > 0
+    ? clientTasks.reduce((s, t) => s + (stageWeight[t.pipeline_stage] ?? 1), 0) / clientTasks.length
+    : 0
+  const momentumScore = Math.round((avgStage / 10) * 30)
+  const cadenceScore  = scheduled >= 3 ? 25 : scheduled === 2 ? 18 : scheduled === 1 ? 10 : 0
+  const publishScore  = clientTasks.some(
+    t => t.pipeline_stage === 'published' || t.pipeline_stage === 'reporting' || t.status === 'completed'
+  ) ? 10 : 0
+
+  const health = crisisScore + overdueScore + momentumScore + cadenceScore + publishScore
+
+  const factors = [
+    {
+      label:   'Crisis status',
+      score:   crisisScore,
+      max:     15,
+      tip:     crisisScore < 15 ? 'Deactivate Crisis Mode from the Clients page to restore 15 pts.' : null,
+    },
+    {
+      label:   'Overdue tasks',
+      score:   overdueScore,
+      max:     20,
+      tip:     overdueScore < 20
+        ? `${overdueCount} overdue task${overdueCount > 1 ? 's' : ''} — clear them to recover up to ${20 - overdueScore} pts.`
+        : null,
+    },
+    {
+      label:   'Pipeline momentum',
+      score:   momentumScore,
+      max:     30,
+      tip:     momentumScore < 30
+        ? clientTasks.length === 0
+          ? 'Create tasks and move them through the pipeline to earn up to 30 pts.'
+          : `Tasks are averaging early stages — push work toward Design → Approval → Published to gain ${30 - momentumScore} more pts.`
+        : null,
+    },
+    {
+      label:   'Content cadence',
+      score:   cadenceScore,
+      max:     25,
+      tip:     cadenceScore < 25
+        ? `${scheduled} post${scheduled !== 1 ? 's' : ''} scheduled — queue at least 3 scheduled posts to reach full 25 pts.`
+        : null,
+    },
+    {
+      label:   'Publishing track record',
+      score:   publishScore,
+      max:     10,
+      tip:     publishScore < 10 ? 'Publish or complete at least one task to earn 10 pts.' : null,
+    },
+  ]
+
+  const healthLabel = client.is_in_crisis ? 'In Crisis' : health >= 60 ? 'Healthy' : health >= 35 ? 'At Risk' : 'Needs Attention'
+  const healthColor = health >= 60 ? '#10b981' : health >= 35 ? '#f59e0b' : '#f43f5e'
+
+  return { health, healthLabel, healthColor, factors, activeTasks, scheduled }
+}
+
+function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
+  const [selected, setSelected] = useState<string | null>(null)
+
+  const selectedClient = clients.find(c => c.id === selected)
+  const selectedHealth = selectedClient ? computeHealth(selectedClient, tasks, posts) : null
+
+  return (
+    <div className="dash-card">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-slate-900 dark:text-white">Client Health</h3>
+        <a href="/clients" className="text-xs text-novax hover:text-novax-hover font-medium">All clients →</a>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {clients.map(client => {
+          const { health, healthLabel, healthColor, activeTasks, scheduled } = computeHealth(client, tasks, posts)
+          const isSelected = selected === client.id
+          return (
+            <div
+              key={client.id}
+              onClick={() => setSelected(isSelected ? null : client.id)}
+              className={cn(
+                'p-4 rounded-xl border transition-all cursor-pointer',
+                isSelected
+                  ? 'border-novax-border-active ring-2 ring-novax-light bg-novax-light/30 dark:bg-novax/8 shadow-sm'
+                  : 'border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-novax-border/40 hover:shadow-sm dark:bg-white/[0.02]',
+              )}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: client.color }}>
+                  {client.initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">{client.name}</p>
+                  <p className="text-[10px] text-slate-400">{client.brand_identity.industry}</p>
+                </div>
+                <ChevronRight className={cn('w-3.5 h-3.5 shrink-0 transition-transform text-slate-400', isSelected && 'rotate-90 text-novax-muted')} />
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-500">{healthLabel}</span>
+                  <span className="font-semibold" style={{ color: healthColor }}>{health}%</span>
+                </div>
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${health}%`, background: healthColor }} />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400 pt-1">
+                  <span>{activeTasks.length} active</span>
+                  <span>{scheduled} scheduled</span>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+        {clients.length === 0 && (
+          <p className="col-span-4 text-sm text-slate-400 text-center py-6">No clients yet.</p>
+        )}
+      </div>
+
+      {/* Recommendations panel */}
+      {selectedClient && selectedHealth && (
+        <div className="mt-4 p-4 rounded-xl border border-novax-border bg-novax-light/20 dark:bg-novax/6 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                {selectedClient.name} — How to reach 100%
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Current score: <span className="font-semibold" style={{ color: selectedHealth.healthColor }}>{selectedHealth.health}%</span>
+                {selectedHealth.health < 100 && <> — {100 - selectedHealth.health} pts available</>}
+              </p>
+            </div>
+            <button onClick={() => setSelected(null)} className="p-1 rounded-lg hover:bg-black/5 text-slate-400 hover:text-slate-600 transition-colors shrink-0">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {selectedHealth.factors.map(f => (
+              <div key={f.label} className="flex items-start gap-3">
+                <div className="flex items-center gap-1.5 w-36 shrink-0 pt-0.5">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ background: f.score >= f.max ? '#10b981' : f.score > 0 ? '#f59e0b' : '#f43f5e' }}
+                  />
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate">{f.label}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${(f.score / f.max) * 100}%`,
+                          background: f.score >= f.max ? '#10b981' : f.score > 0 ? '#f59e0b' : '#f43f5e',
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-500 shrink-0 w-12 text-right">{f.score}/{f.max} pts</span>
+                  </div>
+                  {f.tip && (
+                    <p className="text-[10px] text-slate-500 leading-snug">{f.tip}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {selectedHealth.health >= 100 && (
+            <p className="text-xs text-emerald-600 font-medium text-center pt-1">
+              This client is at full health. Maintain the momentum.
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -344,82 +543,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Client health */}
-      <div className="dash-card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-900 dark:text-white">Client Health</h3>
-          <a href="/clients" className="text-xs text-novax hover:text-novax-hover font-medium">All clients →</a>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {clients.map(client => {
-            const now = new Date()
-            const clientTasks = tasks.filter(t => t.client_id === client.id)
-            const activeTasks = clientTasks.filter(t => t.status === 'active')
-            const scheduled   = posts.filter(p => p.client_id === client.id && p.status === 'scheduled').length
-
-            // Factor 1: crisis (15 pts)
-            const crisisScore = client.is_in_crisis ? 0 : 15
-
-            // Factor 2: overdue tasks (20 pts, -7 per overdue)
-            const overdueCount = activeTasks.filter(t => t.due_date && new Date(t.due_date) < now).length
-            const overdueScore = Math.max(0, 20 - overdueCount * 7)
-
-            // Factor 3: pipeline momentum (30 pts) — later stages score higher
-            const stageWeight: Record<string, number> = {
-              strategy: 1, ideas: 2, calendar: 3, copy: 4, design: 5,
-              review: 6, approval: 7, scheduled: 8, published: 9, reporting: 10,
-            }
-            const avgStage = clientTasks.length > 0
-              ? clientTasks.reduce((s, t) => s + (stageWeight[t.pipeline_stage] ?? 1), 0) / clientTasks.length
-              : 0
-            const momentumScore = Math.round((avgStage / 10) * 30)
-
-            // Factor 4: content cadence (25 pts) — scheduled posts queued
-            const cadenceScore = scheduled >= 3 ? 25 : scheduled === 2 ? 18 : scheduled === 1 ? 10 : 0
-
-            // Factor 5: publishing track record (10 pts)
-            const publishScore = clientTasks.some(
-              t => t.pipeline_stage === 'published' || t.pipeline_stage === 'reporting' || t.status === 'completed'
-            ) ? 10 : 0
-
-            const health = crisisScore + overdueScore + momentumScore + cadenceScore + publishScore
-            const healthLabel = client.is_in_crisis ? 'In Crisis' : health >= 60 ? 'Healthy' : health >= 35 ? 'At Risk' : 'Needs Attention'
-            const healthColor = health >= 60 ? '#10b981' : health >= 35 ? '#f59e0b' : '#f43f5e'
-
-            return (
-              <div key={client.id} className="p-4 rounded-xl border border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-novax-border/40 hover:shadow-sm dark:bg-white/[0.02] transition-all cursor-pointer">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: client.color }}>
-                    {client.initials}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{client.name}</p>
-                    <p className="text-[10px] text-slate-400">{client.brand_identity.industry}</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-500">{healthLabel}</span>
-                    <span className="font-semibold" style={{ color: healthColor }}>{health}%</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${health}%`, background: healthColor }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-400 pt-1">
-                    <span>{activeTasks.length} active</span>
-                    <span>{scheduled} scheduled</span>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-          {clients.length === 0 && (
-            <p className="col-span-4 text-sm text-slate-400 text-center py-6">No clients yet.</p>
-          )}
-        </div>
-      </div>
+      <ClientHealthSection clients={clients} tasks={tasks} posts={posts} />
     </div>
   )
 }

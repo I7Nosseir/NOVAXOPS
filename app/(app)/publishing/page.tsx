@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw, Pencil } from 'lucide-react'
@@ -233,8 +233,13 @@ function PostCard({ post }: { post: ScheduledPost }) {
       {/* Media */}
       {post.media_url && (
         <div className="relative mb-3 rounded-lg overflow-hidden bg-slate-100 aspect-video">
-          <img src={post.media_url} alt="" className="w-full h-full object-cover"/>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"/>
+          <img
+            src={post.media_url}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"/>
         </div>
       )}
 
@@ -2413,7 +2418,7 @@ function CalendarView({ onCompose }: { onCompose: () => void }) {
   )
 }
 
-export default function PublishingPage() {
+function PublishingPageContent() {
   const { posts: allPosts } = usePosts()
   const { clients } = useClients()
   const { user } = useAuth()
@@ -2579,5 +2584,13 @@ export default function PublishingPage() {
       {briefDialog && <BriefToCalendarDialog onClose={() => setBriefDialog(false)}/>}
       {bulkDialog && <BulkScheduleDialog onClose={() => setBulkDialog(false)}/>}
     </div>
+  )
+}
+
+export default function PublishingPage() {
+  return (
+    <Suspense>
+      <PublishingPageContent />
+    </Suspense>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { MobileNav } from '@/components/layout/mobile-nav'
@@ -15,6 +16,12 @@ import { ChatPanel, AssistantFab } from '@/components/assistant/chat-panel'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [chatOpen, setChatOpen] = useState(false)
+  const pathname = usePathname()
+
+  // On the dedicated /assistant page the full-page ChatPanel is already rendered.
+  // Showing the floating panel at the same time creates two simultaneous ChatPanel
+  // instances with conflicting React state, which triggers error #310.
+  const isAssistantPage = pathname === '/assistant'
 
   return (
     <ThemeProvider>
@@ -34,13 +41,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <MyTasksFloat />
             <RoleToolsPanel />
 
-            {/* Primary AI Assistant FAB */}
-            <div className="fixed bottom-6 right-6 z-50">
-              <AssistantFab onClick={() => setChatOpen(v => !v)} isOpen={chatOpen} />
-            </div>
-
-            {/* AI Assistant panel */}
-            <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+            {/* Primary AI Assistant FAB — hidden on the full-page /assistant route */}
+            {!isAssistantPage && (
+              <>
+                <div className="fixed bottom-6 right-6 z-50">
+                  <AssistantFab onClick={() => setChatOpen(v => !v)} isOpen={chatOpen} />
+                </div>
+                <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+              </>
+            )}
           </div>
         </AuthGuard>
       </SidebarProvider>
