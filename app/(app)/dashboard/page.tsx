@@ -8,41 +8,50 @@ import { usePosts } from '@/lib/hooks/use-posts'
 import { useModerationItems } from '@/lib/hooks/use-moderation'
 import { useWeeklyActivity, useAiCostMonth } from '@/lib/hooks/use-dashboard'
 import { useAuth } from '@/lib/auth-context'
-import { hasRole, vendorName, STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, formatDate, formatNumber, formatCurrency, cn } from '@/lib/utils'
+import { hasRole, vendorName, STAGE_CONFIG, PRIORITY_CONFIG, formatDate, formatNumber, formatCurrency, cn } from '@/lib/utils'
 import {
   CheckSquare, Clock, AlertCircle, MessageSquare,
   DollarSign, Calendar, Globe, TrendingUp, ArrowUpRight, ArrowDownRight,
-  Eye, Activity, RefreshCw, ChevronRight, X,
+  Eye, Activity, RefreshCw, ChevronRight, X, Heart, MessageCircle, Share2,
 } from 'lucide-react'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
 } from 'recharts'
 
-const PIE_COLORS = ['#7c3aed','#3b82f6','#06b6d4','#f59e0b','#f97316','#f43f5e','#ec4899','#6366f1','#10b981','#64748b']
+// ── Types ──────────────────────────────────────────────────────────────────────
 
-type OverviewClient = { client_id: string; name: string; reach: number; impressions: number; er: number }
+type OverviewClient = {
+  client_id: string; name: string; reach: number; impressions: number
+  er: number; posts: number; likes: number; comments: number; shares: number
+}
 type MetricoolOverview = {
   total_reach: number; total_impressions: number; avg_er: number
   total_likes: number; total_comments: number; total_shares: number
-  clients: OverviewClient[]; _mock?: boolean
+  clients: OverviewClient[]
 }
+type RecentPost = {
+  id: string; client_id: string; client_name: string; client_color: string
+  platform: string; thumbnail: string | null; caption: string
+  published_at: string | null; reach: number; likes: number; comments: number; shares: number; er: number
+}
+
+// ── Social Performance ─────────────────────────────────────────────────────────
 
 function SocialPerformanceSection() {
   const { user } = useAuth()
   const [overview, setOverview] = useState<MetricoolOverview | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading]   = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  const now = new Date()
+  const now       = new Date()
   const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  const endDate = now.toISOString().split('T')[0]
+  const endDate   = now.toISOString().split('T')[0]
 
   const fetchOverview = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     try {
-      const res = await fetch(`/api/metricool/overview?startDate=${startDate}&endDate=${endDate}`)
+      const res  = await fetch(`/api/metricool/overview?startDate=${startDate}&endDate=${endDate}`)
       if (!res.ok) return
       const data = await res.json() as MetricoolOverview
       setOverview(data)
@@ -61,7 +70,14 @@ function SocialPerformanceSection() {
   )
   if (!overview) return null
 
-  const isLive = !overview._mock
+  const kpis = [
+    { label: 'Total Reach',  value: formatNumber(overview.total_reach),      icon: Eye,           color: 'bg-blue-50 text-blue-600' },
+    { label: 'Avg ER',       value: `${overview.avg_er}%`,                   icon: Activity,      color: overview.avg_er >= 4 ? 'bg-emerald-50 text-emerald-600' : overview.avg_er >= 2 ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600' },
+    { label: 'Likes',        value: formatNumber(overview.total_likes),       icon: Heart,         color: 'bg-pink-50 text-pink-600' },
+    { label: 'Comments',     value: formatNumber(overview.total_comments),    icon: MessageCircle, color: 'bg-purple-50 text-purple-600' },
+    { label: 'Shares',       value: formatNumber(overview.total_shares),      icon: Share2,        color: 'bg-cyan-50 text-cyan-600' },
+    { label: 'Impressions',  value: formatNumber(overview.total_impressions), icon: Globe,         color: 'bg-slate-50 text-slate-600' },
+  ]
 
   return (
     <div className="dash-card">
@@ -69,66 +85,158 @@ function SocialPerformanceSection() {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-slate-900 dark:text-white">Social Performance</h3>
-            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isLive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-              {isLive ? 'LIVE' : 'DEMO'}
-            </span>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600">LIVE</span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">Month-to-date across all clients · via {vendorName(user?.role, 'Metricool')}</p>
         </div>
-        <button
-          onClick={() => fetchOverview(true)}
-          disabled={refreshing}
-          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400"
-          title={`Refresh from ${vendorName(user?.role, 'Metricool')}`}
-        >
+        <button onClick={() => fetchOverview(true)} disabled={refreshing}
+          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400">
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}/>
         </button>
       </div>
 
-      {/* Aggregate KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        {[
-          { label: 'Total Reach',   value: formatNumber(overview.total_reach),       icon: Eye,      color: 'bg-blue-50 text-blue-600' },
-          { label: 'Avg ER',        value: `${overview.avg_er}%`,                    icon: Activity, color: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Impressions',   value: formatNumber(overview.total_impressions),  icon: Globe,    color: 'bg-purple-50 text-purple-600' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="p-3 rounded-xl bg-slate-50 dark:bg-white/5">
-            <div className={`inline-flex p-1.5 rounded-lg mb-2 ${color}`}>
-              <Icon className="w-3.5 h-3.5"/>
+      {/* 6-KPI grid */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
+        {kpis.map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 text-center">
+            <div className={`inline-flex p-1.5 rounded-lg mb-1.5 ${color}`}>
+              <Icon className="w-3 h-3"/>
             </div>
-            <p className="text-lg font-bold text-slate-900 dark:text-white">{value}</p>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">{label}</p>
+            <p className="text-base font-bold text-slate-900 dark:text-white leading-tight">{value}</p>
+            <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
-      {/* Per-client breakdown */}
+      {/* Per-client breakdown with ER color coding */}
       {overview.clients.length > 0 && (
-        <div className="space-y-2">
-          {overview.clients.map(client => (
-            <div key={client.client_id} className="flex items-center gap-3">
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-300 w-32 truncate shrink-0">{client.name}</span>
-              <div className="flex-1 h-1.5 bg-slate-100 dark:bg-white/8 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${Math.min(100, overview.total_reach > 0 ? (client.reach / overview.total_reach) * 100 : 0)}%`,
-                    background: '#1B3D38',
-                  }}
-                />
+        <div className="space-y-2.5">
+          {overview.clients.map(client => {
+            const erColor = client.er >= 4 ? '#10b981' : client.er >= 2 ? '#f59e0b' : '#f43f5e'
+            const pct = overview.total_reach > 0 ? (client.reach / overview.total_reach) * 100 : 0
+            return (
+              <div key={client.client_id} className="flex items-center gap-3">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300 w-28 truncate shrink-0">{client.name}</span>
+                <div className="flex-1 h-1.5 bg-slate-100 dark:bg-white/8 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%`, background: '#1B3D38' }}/>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 w-20 text-right">{formatNumber(client.reach)} reach</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: erColor + '18', color: erColor }}>
+                    {client.er}% ER
+                  </span>
+                </div>
               </div>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 w-24 text-right shrink-0">
-                {formatNumber(client.reach)} · {client.er}% ER
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
   )
 }
 
-// ── Client Health with recommendations ───────────────────────────────────────
+// ── Latest Posts Feed ──────────────────────────────────────────────────────────
+
+function LatestPostsFeed() {
+  const [posts, setPosts]     = useState<RecentPost[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const fetchPosts = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    try {
+      const res  = await fetch('/api/metricool/recent-posts?limit=12&days=30')
+      if (!res.ok) return
+      const data = await res.json() as { posts: RecentPost[] }
+      setPosts(data.posts ?? [])
+    } catch { /* silent */ } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => { void fetchPosts() }, [fetchPosts])
+
+  if (loading) return (
+    <div className="dash-card flex items-center justify-center h-36">
+      <RefreshCw className="w-5 h-5 animate-spin text-slate-300"/>
+    </div>
+  )
+  if (posts.length === 0) return null
+
+  return (
+    <div className="dash-card">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-slate-900 dark:text-white">Latest Content</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Most recent published posts across all clients</p>
+        </div>
+        <button onClick={() => fetchPosts(true)} disabled={refreshing}
+          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400">
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}/>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        {posts.map(post => {
+          const erColor = post.er >= 4 ? '#10b981' : post.er >= 2 ? '#f59e0b' : '#f43f5e'
+          return (
+            <div key={post.id} className="group relative rounded-xl overflow-hidden border border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-white/10 transition-all hover:shadow-md">
+              {/* Thumbnail */}
+              <div className="aspect-square w-full bg-slate-100 dark:bg-white/5 relative overflow-hidden">
+                {post.thumbnail ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={post.thumbnail} alt={post.caption.slice(0, 40)} className="w-full h-full object-cover" loading="lazy"/>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-2xl font-bold" style={{ background: post.client_color + '22', color: post.client_color }}>
+                    {post.client_name.charAt(0)}
+                  </div>
+                )}
+                {/* Platform badge */}
+                <div className="absolute top-1.5 left-1.5">
+                  <PlatformIcon platform={post.platform as import('@/lib/types').SocialPlatform} size="xs"/>
+                </div>
+                {/* ER badge */}
+                {post.er > 0 && (
+                  <div className="absolute top-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm" style={{ background: erColor + 'cc', color: '#fff' }}>
+                    {post.er}%
+                  </div>
+                )}
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
+                  <div className="grid grid-cols-3 gap-1 text-center">
+                    {[
+                      { icon: Heart,         v: post.likes },
+                      { icon: MessageCircle, v: post.comments },
+                      { icon: Share2,        v: post.shares },
+                    ].map(({ icon: Icon, v }, i) => (
+                      <div key={i}>
+                        <Icon className="w-3 h-3 text-white/70 mx-auto mb-0.5"/>
+                        <p className="text-[9px] font-semibold text-white">{formatNumber(v)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {/* Footer */}
+              <div className="p-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ background: post.client_color }}/>
+                  <span className="text-[9px] font-medium text-slate-600 dark:text-slate-300 truncate">{post.client_name}</span>
+                </div>
+                {post.reach > 0 && (
+                  <p className="text-[9px] text-slate-400">{formatNumber(post.reach)} reach</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Client Health ──────────────────────────────────────────────────────────────
 
 type ClientHealthProps = {
   clients: ReturnType<typeof useClients>['clients']
@@ -162,44 +270,11 @@ function computeHealth(client: ClientHealthProps['clients'][0], tasks: ClientHea
   const health = crisisScore + overdueScore + momentumScore + cadenceScore + publishScore
 
   const factors = [
-    {
-      label:   'Crisis status',
-      score:   crisisScore,
-      max:     15,
-      tip:     crisisScore < 15 ? 'Deactivate Crisis Mode from the Clients page to restore 15 pts.' : null,
-    },
-    {
-      label:   'Overdue tasks',
-      score:   overdueScore,
-      max:     20,
-      tip:     overdueScore < 20
-        ? `${overdueCount} overdue task${overdueCount > 1 ? 's' : ''} — clear them to recover up to ${20 - overdueScore} pts.`
-        : null,
-    },
-    {
-      label:   'Pipeline momentum',
-      score:   momentumScore,
-      max:     30,
-      tip:     momentumScore < 30
-        ? clientTasks.length === 0
-          ? 'Create tasks and move them through the pipeline to earn up to 30 pts.'
-          : `Tasks are averaging early stages — push work toward Design → Approval → Published to gain ${30 - momentumScore} more pts.`
-        : null,
-    },
-    {
-      label:   'Content cadence',
-      score:   cadenceScore,
-      max:     25,
-      tip:     cadenceScore < 25
-        ? `${scheduled} post${scheduled !== 1 ? 's' : ''} scheduled — queue at least 3 scheduled posts to reach full 25 pts.`
-        : null,
-    },
-    {
-      label:   'Publishing track record',
-      score:   publishScore,
-      max:     10,
-      tip:     publishScore < 10 ? 'Publish or complete at least one task to earn 10 pts.' : null,
-    },
+    { label: 'Crisis status',          score: crisisScore,   max: 15, tip: crisisScore < 15 ? 'Deactivate Crisis Mode to restore 15 pts.' : null },
+    { label: 'Overdue tasks',          score: overdueScore,  max: 20, tip: overdueScore < 20 ? `${overdueCount} overdue — clear them to recover up to ${20 - overdueScore} pts.` : null },
+    { label: 'Pipeline momentum',      score: momentumScore, max: 30, tip: momentumScore < 30 ? clientTasks.length === 0 ? 'Create tasks and move them through the pipeline.' : 'Push work toward Design → Approval → Published.' : null },
+    { label: 'Content cadence',        score: cadenceScore,  max: 25, tip: cadenceScore < 25 ? `${scheduled} posts scheduled — queue at least 3 to reach full 25 pts.` : null },
+    { label: 'Publishing track record', score: publishScore, max: 10, tip: publishScore < 10 ? 'Publish or complete at least one task to earn 10 pts.' : null },
   ]
 
   const healthLabel = client.is_in_crisis ? 'In Crisis' : health >= 60 ? 'Healthy' : health >= 35 ? 'At Risk' : 'Needs Attention'
@@ -210,7 +285,6 @@ function computeHealth(client: ClientHealthProps['clients'][0], tasks: ClientHea
 
 function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
   const [selected, setSelected] = useState<string | null>(null)
-
   const selectedClient = clients.find(c => c.id === selected)
   const selectedHealth = selectedClient ? computeHealth(selectedClient, tasks, posts) : null
 
@@ -244,7 +318,7 @@ function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
                   <p className="text-sm font-semibold text-slate-900 truncate">{client.name}</p>
                   <p className="text-[10px] text-slate-400">{client.brand_identity.industry}</p>
                 </div>
-                <ChevronRight className={cn('w-3.5 h-3.5 shrink-0 transition-transform text-slate-400', isSelected && 'rotate-90 text-novax-muted')} />
+                <ChevronRight className={cn('w-3.5 h-3.5 shrink-0 transition-transform text-slate-400', isSelected && 'rotate-90 text-novax-muted')}/>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-[11px]">
@@ -252,7 +326,7 @@ function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
                   <span className="font-semibold" style={{ color: healthColor }}>{health}%</span>
                 </div>
                 <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${health}%`, background: healthColor }} />
+                  <div className="h-full rounded-full transition-all" style={{ width: `${health}%`, background: healthColor }}/>
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400 pt-1">
                   <span>{activeTasks.length} active</span>
@@ -267,7 +341,6 @@ function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
         )}
       </div>
 
-      {/* Recommendations panel */}
       {selectedClient && selectedHealth && (
         <div className="mt-4 p-4 rounded-xl border border-novax-border bg-novax-light/20 dark:bg-novax/6 space-y-3">
           <div className="flex items-start justify-between gap-2">
@@ -281,45 +354,30 @@ function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
               </p>
             </div>
             <button onClick={() => setSelected(null)} className="p-1 rounded-lg hover:bg-black/5 text-slate-400 hover:text-slate-600 transition-colors shrink-0">
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5"/>
             </button>
           </div>
-
           <div className="space-y-2">
             {selectedHealth.factors.map(f => (
               <div key={f.label} className="flex items-start gap-3">
                 <div className="flex items-center gap-1.5 w-36 shrink-0 pt-0.5">
-                  <div
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: f.score >= f.max ? '#10b981' : f.score > 0 ? '#f59e0b' : '#f43f5e' }}
-                  />
+                  <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: f.score >= f.max ? '#10b981' : f.score > 0 ? '#f59e0b' : '#f43f5e' }}/>
                   <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate">{f.label}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${(f.score / f.max) * 100}%`,
-                          background: f.score >= f.max ? '#10b981' : f.score > 0 ? '#f59e0b' : '#f43f5e',
-                        }}
-                      />
+                      <div className="h-full rounded-full" style={{ width: `${(f.score / f.max) * 100}%`, background: f.score >= f.max ? '#10b981' : f.score > 0 ? '#f59e0b' : '#f43f5e' }}/>
                     </div>
                     <span className="text-[10px] text-slate-500 shrink-0 w-12 text-right">{f.score}/{f.max} pts</span>
                   </div>
-                  {f.tip && (
-                    <p className="text-[10px] text-slate-500 leading-snug">{f.tip}</p>
-                  )}
+                  {f.tip && <p className="text-[10px] text-slate-500 leading-snug">{f.tip}</p>}
                 </div>
               </div>
             ))}
           </div>
-
           {selectedHealth.health >= 100 && (
-            <p className="text-xs text-emerald-600 font-medium text-center pt-1">
-              This client is at full health. Maintain the momentum.
-            </p>
+            <p className="text-xs text-emerald-600 font-medium text-center pt-1">This client is at full health. Maintain the momentum.</p>
           )}
         </div>
       )}
@@ -327,33 +385,29 @@ function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
   )
 }
 
+// ── Main page ──────────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
-  const { user } = useAuth()
-  const { tasks } = useTasks()
+  const { user }   = useAuth()
+  const { tasks }  = useTasks()
   const { clients } = useClients()
-  const { users } = useUsers()
-  const { posts } = usePosts()
+  const { users }  = useUsers()
+  const { posts }  = usePosts()
   const { items: moderationItems } = useModerationItems()
   const { data: activityData = [] } = useWeeklyActivity()
-  const { data: aiCostRaw = 0 } = useAiCostMonth()
+  const { data: aiCostRaw = 0 }    = useAiCostMonth()
 
-  const canSeeAiCost = hasRole(user, ['admin', 'ceo', 'creative_director'])
+  const canSeeAiCost          = hasRole(user, ['admin', 'ceo', 'creative_director'])
+  const canSeePipelineDetails = hasRole(user, ['admin', 'ceo', 'creative_director'])
 
   const today = new Date().toISOString().split('T')[0]
-  const activeTasks     = tasks.filter(t => t.status === 'active').length
-  const dueToday        = tasks.filter(t => t.due_date === today && t.status !== 'completed').length
-  const pendingApprovals = tasks.filter(t => t.pipeline_stage === 'approval').length
+  const activeTasks       = tasks.filter(t => t.status === 'active').length
+  const dueToday          = tasks.filter(t => t.due_date === today && t.status !== 'completed').length
+  const pendingApprovals  = tasks.filter(t => t.pipeline_stage === 'approval').length
   const pendingModeration = moderationItems.filter(m => m.status === 'pending').length
-  const postsScheduled  = posts.filter(p => p.status === 'scheduled').length
-  const postsPublished  = posts.filter(p => p.status === 'published').length
+  const postsScheduled    = posts.filter(p => p.status === 'scheduled').length
+  const postsPublished    = posts.filter(p => p.status === 'published').length
 
-  // Pipeline distribution derived from real tasks
-  const stageDistribution = PIPELINE_STAGES.map(stage => ({
-    name: STAGE_CONFIG[stage].label,
-    value: tasks.filter(t => t.pipeline_stage === stage).length,
-  }))
-
-  // Recent tasks sorted by last update
   const recentTasks = [...tasks]
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 6)
@@ -364,19 +418,13 @@ export default function DashboardPage() {
     .slice(0, 5)
 
   const statCards = [
-    { label: 'Active Tasks',       value: activeTasks,      icon: CheckSquare,   color: 'bg-blue-50 text-blue-600',      delta: `${tasks.filter(t => t.status === 'blocked').length} blocked` },
-    { label: 'Due Today',          value: dueToday,         icon: Clock,         color: 'bg-amber-50 text-amber-600',    delta: `${tasks.filter(t => t.due_date < today && t.status !== 'completed').length} overdue` },
-    { label: 'Pending Approvals',  value: pendingApprovals, icon: AlertCircle,   color: 'bg-rose-50 text-rose-600',      delta: 'Needs attention' },
-    { label: 'Pending Moderation', value: pendingModeration,icon: MessageSquare, color: 'bg-purple-50 text-purple-600',  delta: `${moderationItems.filter(m => m.status === 'escalated').length} escalated` },
-    {
-      label: 'AI Cost (Month)',
-      value: canSeeAiCost ? formatCurrency(aiCostRaw) : '—',
-      icon: DollarSign,
-      color: 'bg-emerald-50 text-emerald-600',
-      delta: canSeeAiCost ? 'via API usage log' : 'Restricted',
-    },
-    { label: 'Posts Scheduled',    value: postsScheduled,   icon: Calendar,      color: 'bg-novax-light text-novax',     delta: 'Upcoming' },
-    { label: 'Posts Published',    value: postsPublished,   icon: Globe,         color: 'bg-cyan-50 text-cyan-600',      delta: 'This month' },
+    { label: 'Active Tasks',       value: activeTasks,      icon: CheckSquare,   color: 'bg-blue-50 text-blue-600',     delta: `${tasks.filter(t => t.status === 'blocked').length} blocked` },
+    { label: 'Due Today',          value: dueToday,         icon: Clock,         color: 'bg-amber-50 text-amber-600',   delta: `${tasks.filter(t => t.due_date < today && t.status !== 'completed').length} overdue` },
+    { label: 'Pending Approvals',  value: pendingApprovals, icon: AlertCircle,   color: 'bg-rose-50 text-rose-600',     delta: 'Needs attention' },
+    { label: 'Pending Moderation', value: pendingModeration,icon: MessageSquare, color: 'bg-purple-50 text-purple-600', delta: `${moderationItems.filter(m => m.status === 'escalated').length} escalated` },
+    ...(canSeeAiCost ? [{ label: 'AI Cost (Month)', value: formatCurrency(aiCostRaw), icon: DollarSign, color: 'bg-emerald-50 text-emerald-600', delta: 'via API usage log' }] : []),
+    { label: 'Posts Scheduled',    value: postsScheduled,   icon: Calendar,      color: 'bg-novax-light text-novax',    delta: 'Upcoming' },
+    { label: 'Posts Published',    value: postsPublished,   icon: Globe,         color: 'bg-cyan-50 text-cyan-600',     delta: 'This month' },
     { label: 'Pipeline Velocity',  value: tasks.length > 0 ? '3d' : '—', icon: TrendingUp, color: 'bg-orange-50 text-orange-600', delta: 'Avg days/stage' },
   ]
 
@@ -388,7 +436,7 @@ export default function DashboardPage() {
           <div key={label} className="stat-card">
             <div className="flex items-start justify-between mb-3">
               <div className={`p-2 rounded-lg ${color}`}>
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4"/>
               </div>
               <span className="text-[11px] text-slate-400 dark:text-slate-500">{delta}</span>
             </div>
@@ -399,71 +447,43 @@ export default function DashboardPage() {
       </div>
 
       {/* Social Performance — Metricool month-to-date */}
-      <SocialPerformanceSection />
+      <SocialPerformanceSection/>
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Weekly activity — real data */}
-        <div className="lg:col-span-2 dash-card">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-slate-900 dark:text-white">Weekly Activity</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Tasks completed &amp; posts published</p>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={activityData.length > 0 ? activityData : [{ day: '—', tasks: 0, posts: 0 }]}>
-              <defs>
-                <linearGradient id="tasks" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#1B3D38" stopOpacity={0.15}/>
-                  <stop offset="95%" stopColor="#1B3D38" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="posts" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false}/>
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}/>
-              <Area type="monotone" dataKey="tasks" stroke="#1B3D38" strokeWidth={2} fill="url(#tasks)" name="Tasks completed"/>
-              <Area type="monotone" dataKey="posts" stroke="#10b981" strokeWidth={2} fill="url(#posts)" name="Posts published"/>
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+      {/* Latest Posts Feed — live thumbnails from Metricool */}
+      <LatestPostsFeed/>
 
-        {/* Pipeline distribution — real data */}
-        <div className="dash-card">
-          <h3 className="font-semibold text-slate-900 dark:text-white mb-1">Pipeline Distribution</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Tasks per stage</p>
-          <ResponsiveContainer width="100%" height={140}>
-            <PieChart>
-              <Pie
-                data={stageDistribution}
-                cx="50%" cy="50%"
-                innerRadius={35} outerRadius={60}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {stageDistribution.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]}/>)}
-              </Pie>
-              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6 }}/>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="grid grid-cols-2 gap-1 mt-2">
-            {stageDistribution.slice(0, 4).map((s, i) => (
-              <div key={s.name} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PIE_COLORS[i] }}/>
-                <span className="text-[10px] text-slate-500 truncate">{s.name}</span>
-              </div>
-            ))}
+      {/* Weekly Activity */}
+      <div className="dash-card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-slate-900 dark:text-white">Weekly Activity</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Tasks completed &amp; posts published</p>
           </div>
         </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <AreaChart data={activityData.length > 0 ? activityData : [{ day: '—', tasks: 0, posts: 0 }]}>
+            <defs>
+              <linearGradient id="tasks" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#1B3D38" stopOpacity={0.15}/>
+                <stop offset="95%" stopColor="#1B3D38" stopOpacity={0}/>
+              </linearGradient>
+              <linearGradient id="posts" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#10b981" stopOpacity={0.15}/>
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false}/>
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}/>
+            <Area type="monotone" dataKey="tasks" stroke="#1B3D38" strokeWidth={2} fill="url(#tasks)" name="Tasks completed"/>
+            <Area type="monotone" dataKey="posts"  stroke="#10b981" strokeWidth={2} fill="url(#posts)"  name="Posts published"/>
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Bottom row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent tasks — sorted by updated_at */}
+        {/* Recent tasks */}
         <div className="lg:col-span-2 dash-card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-slate-900 dark:text-white">Recent Tasks</h3>
@@ -474,7 +494,7 @@ export default function DashboardPage() {
               const stage    = STAGE_CONFIG[task.pipeline_stage]
               const priority = PRIORITY_CONFIG[task.priority]
               const client   = clients.find(c => c.id === task.client_id)
-              const user     = users.find(u => u.id === task.assigned_to)
+              const assignee = users.find(u => u.id === task.assigned_to)
               return (
                 <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-white/[0.035] transition-colors cursor-pointer group">
                   <div className="flex-1 min-w-0">
@@ -486,11 +506,13 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`hidden sm:inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${stage.bg} ${stage.color}`}>{stage.label}</span>
+                    {canSeePipelineDetails && (
+                      <span className={`hidden sm:inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${stage.bg} ${stage.color}`}>{stage.label}</span>
+                    )}
                     <span className={`hidden sm:inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${priority.bg} ${priority.color}`}>{priority.label}</span>
-                    {user && (
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ background: user.color }}>
-                        {user.initials}
+                    {assignee && (
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ background: assignee.color }}>
+                        {assignee.initials}
                       </div>
                     )}
                   </div>
@@ -503,7 +525,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Top content pieces */}
+        {/* Top content by ER */}
         <div className="dash-card">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -514,33 +536,23 @@ export default function DashboardPage() {
           </div>
           <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-0.5">
             {topPosts.map((post, i) => {
-              const client = clients.find(c => c.id === post.client_id)
-              const perf = post.performance!
-              const isUp = perf.engagement_rate >= 3
+              const client   = clients.find(c => c.id === post.client_id)
+              const perf     = post.performance!
+              const isUp     = perf.engagement_rate >= 3
               const platform = post.platforms?.[0]
+              const erColor  = perf.engagement_rate >= 4 ? '#10b981' : perf.engagement_rate >= 2 ? '#f59e0b' : '#f43f5e'
               return (
                 <div key={post.id} className="p-3 rounded-xl border border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-white/10 transition-colors">
-                  {/* Header: rank · platform · client · ER */}
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-4 h-4 rounded bg-slate-100 dark:bg-white/8 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">
-                      {i + 1}
-                    </span>
-                    {platform && (
-                      <span className="shrink-0">
-                        <PlatformIcon platform={platform} size="xs" />
-                      </span>
-                    )}
-                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 flex-1 truncate">
-                      {client?.name}
-                    </span>
-                    <span className={`text-[11px] font-bold flex items-center gap-0.5 shrink-0 ${isUp ? 'text-emerald-600' : 'text-amber-500'}`}>
-                      {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                    <span className="w-4 h-4 rounded bg-slate-100 dark:bg-white/8 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">{i + 1}</span>
+                    {platform && <span className="shrink-0"><PlatformIcon platform={platform} size="xs"/></span>}
+                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 flex-1 truncate">{client?.name}</span>
+                    <span className="text-[11px] font-bold flex items-center gap-0.5 shrink-0" style={{ color: erColor }}>
+                      {isUp ? <ArrowUpRight className="w-3 h-3"/> : <ArrowDownRight className="w-3 h-3"/>}
                       {perf.engagement_rate}%
                     </span>
                   </div>
-                  {/* Caption */}
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-2.5">{post.caption}</p>
-                  {/* Stats grid */}
                   <div className="grid grid-cols-3 gap-1 text-center">
                     {[
                       { label: 'Reach',    value: formatNumber(perf.reach) },
@@ -553,10 +565,7 @@ export default function DashboardPage() {
                       </div>
                     ))}
                   </div>
-                  {/* Date */}
-                  <p className="text-[10px] text-slate-400 mt-1.5">
-                    {formatDate(post.published_at ?? post.scheduled_at)}
-                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1.5">{formatDate(post.published_at ?? post.scheduled_at)}</p>
                 </div>
               )
             })}
@@ -568,7 +577,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Client health */}
-      <ClientHealthSection clients={clients} tasks={tasks} posts={posts} />
+      <ClientHealthSection clients={clients} tasks={tasks} posts={posts}/>
     </div>
   )
 }

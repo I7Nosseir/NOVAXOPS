@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Zap, Wand2, Brain, Flame, BarChart2, Target, TrendingUp,
-  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers, Crosshair,
+  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers, Crosshair, LineChart,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
@@ -100,6 +100,17 @@ const TOOLS = [
     gradient: false,
     dark: false,
     cta: 'Analyze Rivals',
+  },
+  {
+    href: '/studio/media-buying',
+    icon: LineChart,
+    title: 'Media Buying Plan',
+    description: '10-step pipeline. Market research, customer avatars, platform strategy, budget allocation, lead forecasting. Output: client-ready PDF in your brand style.',
+    badge: 'New',
+    badgeColor: 'bg-amber-100 text-amber-800',
+    gradient: false,
+    dark: false,
+    cta: 'Build Plan',
   },
 ]
 

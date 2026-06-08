@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
   ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2, ListTodo, ScanSearch, FileText,
-  Zap, Brain, Crown, Clapperboard,
+  Zap, Brain, Crown, Clapperboard, Flame, Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -44,11 +44,14 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Studio',
     items: [
-      { href: '/studio',          icon: Zap,          label: 'Studio' },
-      { href: '/studio/content',  icon: Sparkles,     label: 'Content Studio' },
-      { href: '/studio/hooks',    icon: Wand2,         label: 'Hook Lab' },
-      { href: '/studio/strategy', icon: Brain,         label: 'Strategy' },
-      { href: '/studio/visual',   icon: Clapperboard,  label: 'Visual Engine' },
+      { href: '/studio',               icon: Zap,         label: 'Studio',               permKey: 'studio' },
+      { href: '/studio/content',       icon: Sparkles,    label: 'Content Studio',       permKey: 'studio-content' },
+      { href: '/studio/hooks',         icon: Wand2,       label: 'Hook Lab',             permKey: 'studio-hooks' },
+      { href: '/studio/strategy',      icon: Brain,       label: 'Strategy',             permKey: 'studio-strategy' },
+      { href: '/studio/campaign',      icon: Flame,       label: 'Campaign Igniter',     permKey: 'studio-campaign' },
+      { href: '/studio/visual',        icon: Clapperboard,label: 'Visual Engine',        permKey: 'studio-visual' },
+      { href: '/studio/formats',       icon: Layers,      label: 'Peak Formats',         permKey: 'studio-formats' },
+      { href: '/studio/media-buying',  icon: TrendingUp,  label: 'Media Buying Plan',    permKey: 'studio-media-buying' },
     ],
   },
   {
@@ -56,7 +59,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/assets',        icon: Image,      label: 'Assets',        permKey: 'assets' },
       { href: '/ai-image',      icon: Wand2,      label: 'AI Image',      permKey: 'ai-image' },
-      { href: '/tools/resize',  icon: ScanSearch, label: 'Smart Resize',  permKey: 'resize' },
       { href: '/creative-eval',  icon: Sparkles,   label: 'Creative Eval',          permKey: 'creative-eval' },
       { href: '/strategy-eval', icon: Brain,      label: 'Strategy & Content Eval', permKey: 'strategy-eval' },
       { href: '/docs',          icon: FileText,   label: 'Documents',     permKey: 'docs' },
@@ -205,7 +207,6 @@ export function Sidebar() {
             )
           })()}
           {NAV_SECTIONS
-            .filter(s => s.label !== 'Studio' || isAdmin)
             .map((section, si) => {
               const visibleItems = section.items.filter(item => canSee(item.permKey))
               if (visibleItems.length === 0) return null

@@ -41,39 +41,49 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const results: { client_id: string; name: string; reach: number; impressions: number; er: number; posts: number }[] = []
+  const results: { client_id: string; name: string; reach: number; impressions: number; er: number; posts: number; likes: number; comments: number; shares: number }[] = []
   const errors: string[] = []
 
   for (const client of clients ?? []) {
     if (!client.metricool_blog_id) continue
     try {
       const stats = await getStats(client.metricool_blog_id, startDate, endDate)
+      const rawEr = stats.engagement_rate ?? stats.engagement ?? 0
       results.push({
-        client_id: client.id,
-        name: client.name,
-        reach: stats.reach ?? 0,
+        client_id:   client.id,
+        name:        client.name,
+        reach:       stats.reach       ?? 0,
         impressions: stats.impressions ?? 0,
-        er: stats.engagement_rate ?? stats.engagement ?? 0,
-        posts: 0,
+        er:          parseFloat(rawEr.toFixed(2)),
+        posts:       stats.posts       ?? 0,
+        likes:       stats.likes       ?? 0,
+        comments:    stats.comments    ?? 0,
+        shares:      stats.shares      ?? 0,
       })
     } catch (err) {
-      errors.push(`${client.name}: ${err instanceof Error ? err.message : String(err)}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[metricool/overview] ${client.name}:`, msg)
+      errors.push(`${client.name}: ${msg}`)
     }
   }
 
   const total_reach       = results.reduce((s, c) => s + c.reach, 0)
   const total_impressions = results.reduce((s, c) => s + c.impressions, 0)
-  const avg_er = results.length
-    ? parseFloat((results.reduce((s, c) => s + c.er, 0) / results.length).toFixed(2))
+  const total_likes       = results.reduce((s, c) => s + c.likes, 0)
+  const total_comments    = results.reduce((s, c) => s + c.comments, 0)
+  const total_shares      = results.reduce((s, c) => s + c.shares, 0)
+  const erResults         = results.filter(c => c.er > 0)
+  const avg_er = erResults.length
+    ? parseFloat((erResults.reduce((s, c) => s + c.er, 0) / erResults.length).toFixed(2))
     : 0
 
   return NextResponse.json({
     total_reach,
     total_impressions,
     avg_er,
-    total_likes: 0,
-    total_comments: 0,
-    total_shares: 0,
+    total_likes,
+    total_comments,
+    total_shares,
     clients: results,
     errors: errors.length > 0 ? errors : undefined,
   })

@@ -15,6 +15,7 @@ export type StudioTool =
   | 'trends'
   | 'ads'
   | 'repurpose'
+  | 'media_buying'
 
 export type SessionStatus = 'running' | 'partial' | 'complete' | 'error'
 
@@ -103,10 +104,15 @@ export interface CampaignConcept {
     implementability: number
     virality: number
   }
-  budget: 'Low' | 'Medium' | 'High'
-  timeline: 'Days' | 'Weeks' | 'Months'
+  budget: string
+  timeline: string
   risk?: string
   mitigation?: string
+  // Enhanced fields (Phase 7 output)
+  content_ladder?: string[]
+  seed_strategy?: string
+  virality_trigger?: string
+  anti_example?: string
 }
 
 // ─── Content Studio ───────────────────────────────────────────

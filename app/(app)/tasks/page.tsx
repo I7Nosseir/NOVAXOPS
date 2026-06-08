@@ -296,12 +296,8 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Task detail slide-over */}
       {selectedTask && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setSelectedTask(null)}/>
-          <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)}/>
-        </>
+        <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} />
       )}
     </div>
   )

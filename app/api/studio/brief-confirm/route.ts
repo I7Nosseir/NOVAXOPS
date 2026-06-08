@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { geminiJson } from '@/lib/gemini'
 import type { BriefConfirmation, BossBrief } from '@/lib/studio-types'
 
+export const maxDuration = 30
+
 // ─── Request shapes ───────────────────────────────────────────
 
 interface BriefConfirmBody {
@@ -86,32 +88,35 @@ async function generateBossBrief(body: BriefConfirmBody): Promise<BossBrief> {
       ? `CAMPAIGN LINE: "${strategy.campaign_line ?? ''}"\nQUARTER ROLE: "${strategy.quarter_role ?? ''}"`
       : 'Brief provided — no additional context.'
 
-  const prompt = `You are writing a Boss Brief — a 30-second executive summary of creative work.
+  const prompt = `You are writing a Boss Brief. This goes to a CEO or client who has 30 seconds between meetings. They will make a decision based on this alone.
 
 CLIENT: ${clientName}
 BRIEF: "${body.brief}"
 CONTEXT:
 ${contextBlock}
 
+BOSS BRIEF RULES:
+- No marketing jargon. No passive voice. Every sentence under 20 words.
+- Banned words: leverage, synergy, utilize, going forward, circle back, touch base, deep dive, actionable, holistic, robust, scalable, ecosystem, impactful.
+- Every block must be a fact, a number, or an action — no decoration.
+- what_we_made: format + angle. "A 60-second reel that makes the audience admit they've been doing X wrong" not "content for the brand"
+- why_it_works: name the psychological principle. "Works because social proof from peers outweighs brand claims 3:1 for this demographic" not "resonates with the audience"
+- the_one_thing: the one creative or executional decision that determines success or failure. If you can't name it, think harder.
+- do_this_now: assign it to a role with a timeframe. "Social Manager posts Tuesday 7pm — this is the peak window" not "schedule it"
+- watch_out_for: one real risk. If genuinely no meaningful risk exists, use null — but think hard first.
+
 Return ONLY valid JSON (no markdown, no explanation):
 {
-  "what_we_made": "One sentence — the concrete deliverable in plain language",
-  "why_it_works": "One sentence — the strategic reason this will perform",
-  "the_one_thing": "THE single most important thing — one memorable sentence",
-  "do_this_now": "One concrete next action for the client or team",
-  "watch_out_for": "One real risk or constraint the team must know — or null"
-}
-
-Rules:
-- what_we_made: name the format and core angle (e.g. "A carousel that reframes the objection that X is too expensive")
-- why_it_works: reference the audience tension or platform insight it exploits
-- the_one_thing: a single sentence — NOT a list
-- do_this_now: operational, specific, actionable
-- watch_out_for: timing conflict, brand voice risk, platform policy, or null`
+  "what_we_made": "One sentence — format + core angle + who it's for",
+  "why_it_works": "One sentence — name the specific psychological principle and the evidence",
+  "the_one_thing": "The single creative or executional decision that determines whether this succeeds",
+  "do_this_now": "One specific next action with a role and a timeframe — max 2 sentences",
+  "watch_out_for": "One real, specific risk — or null"
+}`
 
   return await geminiJson<BossBrief>(prompt, undefined, {
-    temperature:     0.4,
-    maxOutputTokens: 350,
+    temperature:     0.35,
+    maxOutputTokens: 800,
   })
 }
 
@@ -188,7 +193,7 @@ Rules:
   try {
     const parsed = await geminiJson<BriefConfirmation>(prompt, undefined, {
       temperature:     0.3,
-      maxOutputTokens: 400,
+      maxOutputTokens: 800,
     })
     return NextResponse.json(parsed)
   } catch {

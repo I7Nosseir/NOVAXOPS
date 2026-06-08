@@ -156,7 +156,8 @@ async function fetchDocumentContext(db: SupabaseClient, id: string): Promise<str
       // Tiptap JSON (ProseMirror)
       text = tiptapToText(data.content).replace(/\n{3,}/g, '\n\n').trim()
     }
-    return `Document: "${data.title}"\n${text.slice(0, 4000)}`
+    // Include the id so the AI can reference it in doc_edit signals
+    return `Document [id:${id}]: "${data.title}"\n${text.slice(0, 4000)}`
   } catch { return '' }
 }
 
@@ -405,7 +406,18 @@ Current user role: ${roleName}`
 - Do not give the user orders, mandates, or unsolicited strategic directives. Be a helpful assistant, not a consultant billing by the word.
 - When editing or rewriting, return the full revised version — never just describe changes
 - When creating content, produce it in full — not a plan or outline unless asked
-- When referencing data, cite actual numbers`
+- When referencing data, cite actual numbers
+
+── DOCUMENT EDITING ──
+When the user asks you to edit, rewrite, format, reorganise, or improve a document that is listed in REFERENCED CONTENT above (identified by "Document [id:<uuid>]"), you MUST respond with ONLY this JSON on the very first line, with no text before it, followed by a brief explanation on the next lines:
+{"type":"doc_edit","doc_id":"<the exact uuid from the id field>","content":"<full markdown of the new document content>"}
+
+Rules for doc_edit responses:
+- Use markdown formatting in the content field: # for H1 headings (large text), ## for H2 (medium), ### for H3 (small), **bold**, *italic*, - for bullet lists, 1. for numbered lists
+- The content field must be the COMPLETE new document, not just the changed parts
+- Escape all double quotes and newlines in the content field as \\n and \\"
+- Only output the JSON signal when the user is explicitly asking to edit/rewrite/format a specific document
+- For reading, summarising, or asking questions about a document, respond normally without the JSON signal`
 
   return prompt
 }

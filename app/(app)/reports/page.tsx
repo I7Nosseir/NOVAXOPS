@@ -13,7 +13,9 @@ import {
   AlertCircle, Activity, Calendar, RefreshCw, Sparkles, Printer, Check,
   Heart, MessageCircle, Share2, Users, Link2,
   Folder, FolderOpen, ChevronDown, ChevronRight, ChevronUp, Trash2,
+  Megaphone, CreditCard, MousePointerClick, Percent, ToggleLeft, ToggleRight,
 } from 'lucide-react'
+import type { PaidAdsData } from '@/lib/report-prompts'
 
 // ─── Brand palette ─────────────────────────────────────────────────────────────
 const B = {
@@ -235,7 +237,7 @@ type LivePlatform = {
 type LiveTrendPoint = { month: string; reach: number; impressions: number; er: number }
 type AIReportNarrative = {
   executive?: string; reach?: string; engagement?: string; platform?: string
-  trend?: string; audience?: string; follower?: string; formats?: string
+  trend?: string; audience?: string; follower?: string; formats?: string; paid_ads?: string
 }
 type AIReport = {
   narrative: AIReportNarrative
@@ -270,6 +272,7 @@ type ReportDataJson = {
   topPostGroups?: TopPostGroup[]
   narrative?: AIReportNarrative
   aiMeta?: AIReport['meta']
+  paidAdsData?: PaidAdsData | null
 }
 
 // ─── Custom tooltip ────────────────────────────────────────────────────────────
@@ -293,7 +296,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 // ─── Master Monthly Report ──────────────────────────────────────────────────────
 
 function MasterMonthlyReport({
-  client, period, logoUrl, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport, language = 'en',
+  client, period, logoUrl, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport, language = 'en', paidAdsData,
 }: {
   client: string
   period: string
@@ -305,6 +308,7 @@ function MasterMonthlyReport({
   topPostGroups?: TopPostGroup[] | null
   aiReport?: AIReport | null
   language?: 'en' | 'ar'
+  paidAdsData?: PaidAdsData | null
 }) {
   const platformData = (livePlatforms ?? [])
     .filter(p => p.reach > 0 || p.impressions > 0 || p.likes > 0 || p.comments > 0)
@@ -334,7 +338,9 @@ function MasterMonthlyReport({
     <div className="space-y-6">
 
       {/* ── Cover ─────────────────────────────────────────── */}
-      <CoverPage client={client} period={period} logoUrl={logoUrl}/>
+      <div className="report-cover-page">
+        <CoverPage client={client} period={period} logoUrl={logoUrl}/>
+      </div>
 
       {/* ── Section: The Numbers That Matter ─────────────── */}
       <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
@@ -410,14 +416,14 @@ function MasterMonthlyReport({
               </div>
               <div>
                 <p className="text-2xl font-bold tabular-nums" style={{ color: B.primary }}>
-                  {Number(liveStats.engagement_rate).toFixed(1)}%
+                  {Math.round(Number(liveStats.engagement_rate))}%
                 </p>
                 <p className="text-xs font-semibold text-slate-500">Interaction Rate</p>
               </div>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed sm:ml-6 max-w-lg">
               Out of every 100 people who saw your content,{' '}
-              <strong className="text-slate-700">{Number(liveStats.engagement_rate).toFixed(1)} of them</strong>{' '}
+              <strong className="text-slate-700">{Math.round(Number(liveStats.engagement_rate))} of them</strong>{' '}
               liked, commented, or shared it. This measures how much your content is connecting with your audience.
               {prevStats?.engagement_rate != null && deltaStr(liveStats.engagement_rate, prevStats.engagement_rate) !== '—' && (
                 <span> That is <strong className="text-slate-700">{deltaStr(liveStats.engagement_rate, prevStats.engagement_rate)}</strong> compared to last month.</span>
@@ -426,6 +432,139 @@ function MasterMonthlyReport({
           </div>
         )}
       </div>
+
+      {/* ── Section: Paid Advertising ─────────────────────── */}
+      {paidAdsData && paidAdsData.spend && (
+        <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
+          <ReportPageHeader client={client} period={period} logoUrl={logoUrl}/>
+          <SectionLabel n={sec()} label="Paid Advertising"/>
+          <SectionTitle
+            title="Paid Advertising Performance"
+            subtitle={`${paidAdsData.platform} advertising results for ${period}. These figures are sourced directly from the ads manager.`}
+          />
+
+          {/* KPI grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
+            {([
+              {
+                label: 'Total Ad Spend',
+                value: `${paidAdsData.currency} ${Number(paidAdsData.spend).toLocaleString()}`,
+                icon: CreditCard,
+                explanation: 'Total amount invested in paid advertising this month',
+                always: true,
+              },
+              paidAdsData.reach ? {
+                label: 'Paid Reach',
+                value: formatNumber(Number(paidAdsData.reach)),
+                icon: Users,
+                explanation: 'Unique people who saw your paid ads — each person counted once',
+                always: true,
+              } : null,
+              paidAdsData.impressions ? {
+                label: 'Paid Impressions',
+                value: formatNumber(Number(paidAdsData.impressions)),
+                icon: Eye,
+                explanation: 'Total times your ads appeared on screens, including repeat views',
+                always: true,
+              } : null,
+              paidAdsData.clicks ? {
+                label: 'Link Clicks',
+                value: formatNumber(Number(paidAdsData.clicks)),
+                icon: MousePointerClick,
+                explanation: 'Number of times people clicked through from your ad',
+                always: true,
+              } : null,
+              paidAdsData.ctr ? {
+                label: 'Click-Through Rate',
+                value: `${paidAdsData.ctr}%`,
+                icon: Percent,
+                explanation: 'Out of everyone who saw your ad, this percentage clicked it',
+                always: true,
+              } : null,
+              paidAdsData.cpc ? {
+                label: `Cost Per Click`,
+                value: `${paidAdsData.currency} ${paidAdsData.cpc}`,
+                icon: Activity,
+                explanation: 'Average amount paid for each person who clicked your ad',
+                always: true,
+              } : null,
+              paidAdsData.cpm ? {
+                label: 'CPM (per 1,000 views)',
+                value: `${paidAdsData.currency} ${paidAdsData.cpm}`,
+                icon: BarChart2,
+                explanation: 'How much it cost to get your ad seen by 1,000 people',
+                always: true,
+              } : null,
+              paidAdsData.conversions ? {
+                label: 'Conversions / Results',
+                value: formatNumber(Number(paidAdsData.conversions)),
+                icon: Check,
+                explanation: 'Number of desired actions completed through your ads',
+                always: true,
+              } : null,
+              paidAdsData.roas ? {
+                label: 'ROAS',
+                value: `${paidAdsData.roas}x`,
+                icon: TrendingUp,
+                explanation: 'For every unit spent, this is how much in revenue was generated',
+                always: true,
+              } : null,
+            ].filter(Boolean) as { label: string; value: string; icon: React.ComponentType<{className?: string; style?: React.CSSProperties}>; explanation: string; always: boolean }[])
+              .map(({ label, value, icon: Icon, explanation }) => (
+                <div key={label} className="rounded-2xl border border-slate-100 p-5" style={{ background: B.light }}>
+                  <div className="mb-3">
+                    <div className="p-2 rounded-lg w-fit" style={{ background: 'rgba(27,61,56,0.1)' }}>
+                      <Icon className="w-4 h-4" style={{ color: B.primary }}/>
+                    </div>
+                  </div>
+                  <p className="text-3xl font-bold text-slate-900 mb-1 tabular-nums">{value}</p>
+                  <p className="text-xs font-semibold mb-2" style={{ color: B.muted }}>{label}</p>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">{explanation}</p>
+                </div>
+              ))
+            }
+          </div>
+
+          {/* Paid vs Organic reach comparison */}
+          {paidAdsData.reach && liveStats?.reach ? (
+            <div className="rounded-2xl border border-slate-100 p-5 mb-5">
+              <p className="text-sm font-bold text-slate-800 mb-1">Paid vs Organic Reach</p>
+              <p className="text-xs text-slate-400 mb-4">How your paid advertising reach compared to organic content reach this month</p>
+              <div className="space-y-3">
+                {[
+                  { label: 'Paid Reach', value: Number(paidAdsData.reach), color: B.primary },
+                  { label: 'Organic Reach', value: liveStats.reach, color: B.accent },
+                ].map(row => {
+                  const max = Math.max(Number(paidAdsData.reach), liveStats.reach, 1)
+                  const pct = Math.max((row.value / max) * 100, 2)
+                  return (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between mb-1.5 text-xs">
+                        <span className="font-semibold text-slate-700">{row.label}</span>
+                        <span className="font-bold tabular-nums" style={{ color: row.color }}>{formatNumber(row.value)}</span>
+                      </div>
+                      <div className="h-2.5 bg-slate-100 rounded-full">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: row.color }}/>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {/* AI narrative for paid ads */}
+          {aiReport?.narrative.paid_ads && (
+            <div className="rounded-xl border border-slate-100 p-5">
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-1 h-5 rounded-full shrink-0" style={{ background: B.accent }}/>
+                <h3 className="text-sm font-bold text-slate-800">What the Paid Data Tells Us</h3>
+              </div>
+              <p className="text-sm text-slate-600 leading-7">{renderInline(aiReport.narrative.paid_ads)}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Section: Are You Reaching More People ─────────── */}
       {trendData.length > 0 && (
@@ -488,7 +627,7 @@ function MasterMonthlyReport({
                   return (
                     <div className="bg-white border border-slate-200 rounded-xl shadow-lg px-4 py-3 text-xs">
                       <p className="font-semibold text-slate-700 mb-1">{props.label}</p>
-                      <p className="text-slate-800"><strong>{props.payload[0].value}%</strong> interaction rate</p>
+                      <p className="text-slate-800"><strong>{Math.round(Number(props.payload[0].value))}%</strong> interaction rate</p>
                     </div>
                   )
                 }}/>
@@ -515,7 +654,7 @@ function MasterMonthlyReport({
                       <td className="p-3 font-semibold text-slate-800">{t.month}</td>
                       <td className="p-3 text-right font-bold text-slate-800">{t.reach > 0 ? formatNumber(t.reach) : '—'}</td>
                       <td className="p-3 text-right text-slate-600">{t.impressions > 0 ? formatNumber(t.impressions) : '—'}</td>
-                      <td className="p-3 text-right font-bold" style={{ color: B.primary }}>{t.er > 0 ? `${Number(t.er).toFixed(1)}%` : '—'}</td>
+                      <td className="p-3 text-right font-bold" style={{ color: B.primary }}>{t.er > 0 ? `${Math.round(Number(t.er))}%` : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -612,7 +751,7 @@ function MasterMonthlyReport({
                         </div>
                       )}
                       <div className="flex items-center gap-1 text-slate-500 ml-auto">
-                        <span className="font-semibold" style={{ color: B.primary }}>{Number(p.engagement_rate).toFixed(1)}%</span>
+                        <span className="font-semibold" style={{ color: B.primary }}>{Math.round(Number(p.engagement_rate))}%</span>
                         <span>interaction rate</span>
                       </div>
                     </div>
@@ -756,13 +895,14 @@ function MasterMonthlyReport({
 
           <div className="space-y-6">
             {([
-              { key: 'executive',  en: 'Month Overview',             ar: 'نظرة عامة على الشهر' },
-              { key: 'reach',      en: 'How Your Content Spread',     ar: 'كيف انتشر محتواك' },
-              { key: 'engagement', en: 'How People Reacted',          ar: 'كيف تفاعل الجمهور' },
-              { key: 'platform',   en: 'Which Platforms Worked Best', ar: 'أفضل المنصات أداءً' },
-              { key: 'trend',      en: 'Are You Growing?',            ar: 'هل أنت في تنامٍ؟' },
-              { key: 'audience',   en: 'About Your Audience',         ar: 'عن جمهورك' },
-              { key: 'follower',   en: 'Follower Growth',             ar: 'نمو المتابعين' },
+              { key: 'executive',  en: 'Month Overview',                 ar: 'نظرة عامة على الشهر' },
+              { key: 'reach',      en: 'How Your Content Spread',         ar: 'كيف انتشر محتواك' },
+              { key: 'engagement', en: 'How People Reacted',              ar: 'كيف تفاعل الجمهور' },
+              { key: 'platform',   en: 'Which Platforms Worked Best',     ar: 'أفضل المنصات أداءً' },
+              { key: 'trend',      en: 'Are You Growing?',                ar: 'هل أنت في تنامٍ؟' },
+              { key: 'formats',    en: 'Publishing Frequency',            ar: 'وتيرة النشر' },
+              { key: 'audience',   en: 'Depth of Audience Interaction',   ar: 'عمق تفاعل الجمهور' },
+              { key: 'follower',   en: 'Follower Growth',                 ar: 'نمو المتابعين' },
             ] as { key: keyof AIReportNarrative; en: string; ar: string }[])
               .filter(({ key }) => !!aiReport!.narrative[key])
               .map(({ key, en, ar }) => (
@@ -836,6 +976,14 @@ export default function ReportsPage() {
   const [exportingPdf, setExportingPdf]           = useState(false) // unused but kept for future
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(ALL_PLATFORMS)
   const [language, setLanguage]                   = useState<'en' | 'ar'>('en')
+
+  // ── Paid ads ──────────────────────────────────────────
+  const [includePaidAds, setIncludePaidAds]        = useState(false)
+  const [paidAdsData, setPaidAdsData]              = useState<PaidAdsData>({
+    platform: 'Meta Ads', spend: '', currency: 'AED',
+    impressions: '', reach: '', clicks: '', ctr: '', cpc: '', cpm: '',
+    conversions: '', roas: '', campaignName: '',
+  })
 
   // ── Library ──────────────────────────────────────────
   const [savedReports, setSavedReports]           = useState<SavedReport[]>([])
@@ -968,12 +1116,13 @@ export default function ReportsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId:   selectedClient,
-          reportType: 'monthly',
-          startDate:  range.startDate,
-          endDate:    range.endDate,
-          platforms:  selectedPlatforms,
+          clientId:    selectedClient,
+          reportType:  'monthly',
+          startDate:   range.startDate,
+          endDate:     range.endDate,
+          platforms:   selectedPlatforms,
           language,
+          paidAdsData: includePaidAds && paidAdsData.spend ? paidAdsData : null,
         }),
       })
       const data = await res.json() as {
@@ -1032,6 +1181,7 @@ export default function ReportsPage() {
                 topPostGroups:  data.topPostGroups,
                 narrative:      data.narrative,
                 aiMeta:         data.meta,
+                paidAdsData:    includePaidAds && paidAdsData.spend ? paidAdsData : null,
               },
             }),
           }).then(() => fetchLibrary()).catch(() => {})
@@ -1153,6 +1303,105 @@ export default function ReportsPage() {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Paid Ads toggle + form */}
+          <div className="border-t border-slate-100 pt-3 mt-4">
+            <button
+              onClick={() => setIncludePaidAds(v => !v)}
+              className="flex items-center gap-2.5 w-full text-left group"
+            >
+              <div className="flex items-center gap-2">
+                {includePaidAds
+                  ? <ToggleRight className="w-5 h-5" style={{ color: B.primary }}/>
+                  : <ToggleLeft className="w-5 h-5 text-slate-400"/>}
+                <Megaphone className="w-3.5 h-3.5 text-slate-400"/>
+                <span className={cn('text-xs font-semibold transition-colors', includePaidAds ? 'text-slate-800' : 'text-slate-500')}>
+                  Include Paid Ads Data
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 ml-1">
+                {includePaidAds ? 'Enter your ads manager totals below' : 'Add Meta, TikTok, or Google ad results to the report'}
+              </span>
+            </button>
+
+            {includePaidAds && (
+              <div className="mt-3 p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Platform</label>
+                    <select
+                      value={paidAdsData.platform}
+                      onChange={e => setPaidAdsData(p => ({ ...p, platform: e.target.value }))}
+                      className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                    >
+                      {['Meta Ads', 'TikTok Ads', 'Google Ads', 'Snapchat Ads', 'LinkedIn Ads', 'Multi-platform'].map(pl => (
+                        <option key={pl} value={pl}>{pl}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Currency</label>
+                    <select
+                      value={paidAdsData.currency}
+                      onChange={e => setPaidAdsData(p => ({ ...p, currency: e.target.value }))}
+                      className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                    >
+                      {['AED', 'USD', 'EUR', 'SAR', 'GBP', 'EGP'].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {paidAdsData.campaignName !== undefined && (
+                    <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+                      <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Campaign Name (optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. May Brand Awareness"
+                        value={paidAdsData.campaignName ?? ''}
+                        onChange={e => setPaidAdsData(p => ({ ...p, campaignName: e.target.value }))}
+                        className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {([
+                    { key: 'spend',       label: 'Total Spend',           placeholder: '5000',    prefix: paidAdsData.currency },
+                    { key: 'impressions', label: 'Paid Impressions',      placeholder: '120000',  prefix: null },
+                    { key: 'reach',       label: 'Paid Reach',            placeholder: '85000',   prefix: null },
+                    { key: 'clicks',      label: 'Link Clicks',           placeholder: '3200',    prefix: null },
+                    { key: 'ctr',         label: 'CTR %',                 placeholder: '2.6',     prefix: null, suffix: '%' },
+                    { key: 'cpc',         label: 'Cost Per Click',        placeholder: '1.56',    prefix: paidAdsData.currency },
+                    { key: 'cpm',         label: 'CPM (per 1K)',          placeholder: '12.50',   prefix: paidAdsData.currency },
+                    { key: 'conversions', label: 'Conversions / Results', placeholder: '180',     prefix: null },
+                    { key: 'roas',        label: 'ROAS',                  placeholder: '3.2',     prefix: null, suffix: 'x' },
+                  ] as { key: keyof PaidAdsData; label: string; placeholder: string; prefix: string | null; suffix?: string }[]).map(({ key, label, placeholder, prefix, suffix }) => (
+                    <div key={key} className="flex flex-col gap-1">
+                      <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
+                      <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white focus-within:border-novax-border transition-colors">
+                        {prefix && <span className="px-2 text-xs text-slate-400 bg-slate-50 border-r border-slate-200 shrink-0">{prefix}</span>}
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder={placeholder}
+                          value={paidAdsData[key] as string}
+                          onChange={e => setPaidAdsData(p => ({ ...p, [key]: e.target.value }))}
+                          className="flex-1 px-2.5 py-1.5 text-sm text-slate-700 outline-none bg-transparent min-w-0"
+                        />
+                        {suffix && <span className="px-2 text-xs text-slate-400 bg-slate-50 border-l border-slate-200 shrink-0">{suffix}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Export totals from your ads manager for the report period and enter them above. Only Total Spend is required — leave other fields blank if unavailable.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Platform selector */}
@@ -1332,6 +1581,7 @@ export default function ReportsPage() {
             topPostGroups={topPostGroups}
             aiReport={aiReport}
             language={language}
+            paidAdsData={includePaidAds && paidAdsData.spend ? paidAdsData : null}
           />
         </div>
       ) : (

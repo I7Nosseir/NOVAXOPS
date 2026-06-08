@@ -3,7 +3,7 @@
 import { AlertTriangle, CheckCircle, Clock } from 'lucide-react'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useTasks } from '@/lib/hooks/use-tasks'
-import { STAGE_CONFIG, formatDate, cn } from '@/lib/utils'
+import { STAGE_CONFIG, formatDate, isOverdue, cn } from '@/lib/utils'
 
 const CAPACITY = 8 // max tasks per person before overload
 
@@ -12,7 +12,7 @@ export default function WorkloadPage() {
   const { tasks: allTasks } = useTasks()
   const members = users.map(user => {
     const tasks = allTasks.filter(t => t.assigned_to === user.id && t.status === 'active')
-    const overdue = tasks.filter(t => new Date(t.due_date) < new Date('2026-05-01'))
+    const overdue = tasks.filter(t => t.due_date && isOverdue(t.due_date))
     const highPriority = tasks.filter(t => t.priority === 'urgent' || t.priority === 'high')
     const load = tasks.length / CAPACITY
     return { user, tasks, overdue, highPriority, load }
@@ -106,7 +106,7 @@ export default function WorkloadPage() {
                   <div className="space-y-1.5">
                     {tasks.slice(0, 4).map(task => {
                       const stage = STAGE_CONFIG[task.pipeline_stage]
-                      const isTaskOverdue = new Date(task.due_date) < new Date('2026-05-01')
+                      const isTaskOverdue = task.due_date ? isOverdue(task.due_date) : false
                       return (
                         <div key={task.id} className="flex items-center gap-2 py-1">
                           <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full border', stage.color, stage.bg, stage.border)}>

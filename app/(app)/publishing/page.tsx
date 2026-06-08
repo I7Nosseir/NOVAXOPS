@@ -131,7 +131,20 @@ function PreviewDialog({ post, onClose }: { post: ScheduledPost; onClose: () => 
   const { clients } = useClients()
   const client = clients.find(c => c.id === post.client_id)
   const status = STATUS_CONFIG[post.status]
-  const isVideo = /\.(mp4|mov|webm|avi|m4v|mkv|wmv|flv)(\?|$)/i.test(post.media_url ?? '')
+  const slides = post.media_urls ?? (post.media_url ? [post.media_url] : [])
+  const isCarousel = slides.length > 1
+  const [slideIndex, setSlideIndex] = useState(0)
+  const currentSlide = slides[slideIndex] ?? ''
+  const isVideo = /\.(mp4|mov|webm|avi|m4v|mkv|wmv|flv)(\?|$)/i.test(currentSlide)
+
+  function prev(e: React.MouseEvent) {
+    e.stopPropagation()
+    setSlideIndex(i => (i - 1 + slides.length) % slides.length)
+  }
+  function next(e: React.MouseEvent) {
+    e.stopPropagation()
+    setSlideIndex(i => (i + 1) % slides.length)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -150,7 +163,9 @@ function PreviewDialog({ post, onClose }: { post: ScheduledPost; onClose: () => 
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-900 leading-none">{client?.name}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Post Preview</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {isCarousel ? `Carousel · ${slides.length} slides` : 'Post Preview'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -159,27 +174,59 @@ function PreviewDialog({ post, onClose }: { post: ScheduledPost; onClose: () => 
         </div>
 
         {/* Media */}
-        {post.media_url && (
+        {slides.length > 0 && (
           <div className="relative bg-slate-900 aspect-square overflow-hidden">
             {isVideo ? (
               <video
-                src={post.media_url}
+                key={currentSlide}
+                src={currentSlide}
                 controls
                 className="w-full h-full object-contain"
               />
             ) : (
               <img
-                src={post.media_url}
-                alt=""
+                key={currentSlide}
+                src={currentSlide}
+                alt={isCarousel ? `Slide ${slideIndex + 1}` : ''}
                 className="w-full h-full object-contain"
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
               />
+            )}
+
+            {/* Carousel navigation */}
+            {isCarousel && (
+              <>
+                <button
+                  onClick={prev}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4"/>
+                </button>
+                <button
+                  onClick={next}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4"/>
+                </button>
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                  {slides.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={e => { e.stopPropagation(); setSlideIndex(i) }}
+                      className={cn(
+                        'w-1.5 h-1.5 rounded-full transition-colors',
+                        i === slideIndex ? 'bg-white' : 'bg-white/40'
+                      )}
+                    />
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
 
         {/* Body */}
-        <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+        <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-72">
           {/* Status + time */}
           <div className="flex items-center justify-between">
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${status.bg} ${status.color}`}>
@@ -211,7 +258,6 @@ function PreviewDialog({ post, onClose }: { post: ScheduledPost; onClose: () => 
             ))}
           </div>
 
-          {/* Metricool ID — admin debug info */}
           {post.metricool_post_id && (
             <p className="text-[9px] text-slate-300 font-mono">ID: {post.metricool_post_id}</p>
           )}

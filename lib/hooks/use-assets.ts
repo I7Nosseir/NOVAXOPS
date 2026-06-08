@@ -16,16 +16,21 @@ function mapAsset(row: Record<string, unknown>): Asset {
   }
 }
 
-export function useAssets(clientId?: string) {
-  const { data: assets = [], isLoading, error } = useQuery({
-    queryKey: ['assets', clientId],
+export function useAssets(clientId?: string, source?: Asset['source']) {
+  const { data: assets = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['assets', clientId, source],
     queryFn: async () => {
       let query = supabase.from('assets').select('*').order('created_at', { ascending: false })
       if (clientId) query = query.eq('client_id', clientId)
+      if (source) query = query.eq('source', source)
       const { data, error } = await query
       if (error) throw error
       return (data ?? []).map(mapAsset)
     },
   })
-  return { assets, isLoading, error }
+  return { assets, isLoading, error, refetch }
+}
+
+export function useAIGenerations(clientId?: string) {
+  return useAssets(clientId, 'ai')
 }

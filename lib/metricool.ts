@@ -439,9 +439,11 @@ async function fetchNetworkPosts(
       network: String(p.network ?? network),
       impressions,
       reach,
-      likes:    Number(p.likes    ?? raw.likesCount    ?? raw.likeCount    ?? 0),
-      comments: Number(p.comments ?? raw.commentsCount ?? raw.commentCount ?? 0),
-      shares:   Number(p.shares   ?? raw.sharesCount   ?? raw.shareCount   ?? raw.retweets ?? 0),
+      // Facebook returns "reactions" (all reaction types), not "likes"
+      likes:    Number(p.likes    ?? raw.reactions    ?? raw.likesCount    ?? raw.likeCount    ?? 0),
+      // X/Twitter returns "replies" instead of "comments"
+      comments: Number(p.comments ?? raw.replies      ?? raw.commentsCount ?? raw.commentCount ?? 0),
+      shares:   Number(p.shares   ?? raw.sharesCount  ?? raw.shareCount   ?? raw.retweets     ?? 0),
       views:    videoViews,
       url:      postUrl.startsWith('http') ? postUrl : undefined,
     }
@@ -451,8 +453,9 @@ async function fetchNetworkPosts(
 /**
  * Fetch posts across all (or a subset of) networks for a date range.
  * Networks that return 400/403 (not connected) are skipped silently.
+ * Exported for use by the recent-posts API route.
  */
-async function fetchPostsList(
+export async function fetchPostsList(
   blogId: string | number,
   startDate: string,
   endDate: string,

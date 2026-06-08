@@ -4,7 +4,7 @@ import type { ScheduledPost, PostPerformance, SocialPlatform } from '@/lib/types
 
 function mapPost(row: Record<string, unknown>): ScheduledPost {
   const perf = row.performance_data as Record<string, unknown>
-  const mediaUrls = (row.media_urls as string[]) ?? []
+  const mediaUrls = ((row.media_urls as string[]) ?? []).filter(Boolean)
   return {
     id: row.id as string,
     task_id: row.task_id as string,
@@ -12,6 +12,7 @@ function mapPost(row: Record<string, unknown>): ScheduledPost {
     platforms: (row.platforms as SocialPlatform[]) ?? [],
     caption: row.caption as string,
     media_url: mediaUrls[0],
+    media_urls: mediaUrls.length > 0 ? mediaUrls : undefined,
     scheduled_at: row.scheduled_at as string,
     status: row.status as ScheduledPost['status'],
     metricool_post_id: row.metricool_post_id as string | undefined,

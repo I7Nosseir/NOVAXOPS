@@ -2,7 +2,7 @@
 // POST /api/studio/campaign/generate
 // Campaign Igniter — 7-phase sequential pipeline.
 // Each phase saves to session immediately on completion.
-// Returns CampaignDocument & { boss_brief: BossBrief }
+// Returns { campaign: CampaignDocument, boss_brief: BossBrief }
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -15,6 +15,8 @@ import type {
   SignalReport,
 } from '@/lib/studio-types'
 import { pickRandomDomains } from '@/lib/studio-campaign-domains'
+
+export const maxDuration = 300
 
 // ─── Request type ─────────────────────────────────────────────
 
@@ -40,11 +42,7 @@ interface CampaignGenerateBody {
 
 // ─── Phase-save helper ────────────────────────────────────────
 
-async function savePhase(
-  sessionId: string,
-  phase: string,
-  output: unknown,
-): Promise<void> {
+async function savePhase(sessionId: string, phase: string, output: unknown): Promise<void> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     await fetch(`${baseUrl}/api/studio/session/${sessionId}`, {
@@ -53,7 +51,7 @@ async function savePhase(
       body:    JSON.stringify({ phase, output }),
     })
   } catch {
-    // Non-blocking — phase save failure should never stop generation
+    // Non-blocking
   }
 }
 
@@ -71,236 +69,270 @@ function parseJson<T>(text: string, fallback: T): T {
   }
 }
 
-// ─── Phase 1: Cultural Tension Mining (Sonnet → Gemini) ──────
+// ─── Phase 1: Cultural Tension Mining ────────────────────────
 
 async function runPhase1(
   body: CampaignGenerateBody,
 ): Promise<Array<{ tension: string; evidence: string; opportunity: string }>> {
   const tensionsContext = body.signal_report?.cultural_tensions
-    ? `Known cultural tensions from Signal Report:\n${JSON.stringify(body.signal_report.cultural_tensions, null, 2)}\n\nExpand and deepen these with additional tensions relevant to ${body.industry}.`
-    : `No pre-computed Signal Report available. Generate tensions from your knowledge of ${body.industry}.`
+    ? `Pre-computed signal report tensions:\n${JSON.stringify(body.signal_report.cultural_tensions, null, 2)}\n\nExpand, deepen, and add 3–4 more tensions specific to ${body.client_name} and their audience.`
+    : `No Signal Report available. Generate from deep knowledge of ${body.industry} and the target audience.`
 
-  const prompt = `You are mining cultural tensions for a campaign targeting: ${body.target_audience}
-Industry: ${body.industry}
-Client: ${body.client_name}
-${body._intelligence_block ?? ''}
+  const prompt = `You are a cultural intelligence analyst who has spent 10 years studying consumer psychology in ${body.industry}.
+Your job: surface the tensions that make audiences stop mid-scroll, feel understood, and act.
+
+TARGET AUDIENCE: ${body.target_audience}
+INDUSTRY: ${body.industry}
+CLIENT: ${body.client_name}
+${body._intelligence_block ? `\nCLIENT INTELLIGENCE:\n${body._intelligence_block}` : ''}
 
 ${tensionsContext}
 
-A tension = something the audience simultaneously WANTS AND RESISTS.
-Example: "People love skincare but feel guilty about how complicated it's become."
-Example: "People want to be seen as successful but are tired of brands selling hustle."
+WHAT A REAL TENSION LOOKS LIKE:
+A tension = something the audience WANTS and simultaneously RESISTS, FEARS, or FEELS GUILTY ABOUT.
+Bad example: "People want beauty products but worry about price" — this is just a price objection.
+Good example: "People in ${body.industry} publicly celebrate natural beauty while privately spending aggressively on products that promise artificial transformation — then feel shame about both."
+The good version has: a want, a contradiction in behavior, and an emotional undercurrent.
 
-Find 5-7 specific, actionable tensions. Each must be grounded in real audience psychology — not generic.
+TENSION MINING RULES:
+1. Each tension must name a specific want AND a specific contradiction or resistance. Generic = rejected.
+2. Evidence must describe an observable behavior pattern — what people DO, not what they say.
+3. The opportunity must be counterintuitive: what does this tension ENABLE a brave brand to do that others won't?
+4. At least 2 tensions must reflect something that has SHIFTED in 2024–2025 (cultural, economic, or behavioral change).
+5. At least 1 must be a "second-order tension" — the tension beneath the tension. The thing audiences won't admit even to themselves.
+6. At least 1 must be platform-specific: something specific to how ${(body.current_platforms ?? ['social media']).join(' and ')} users behave in ${body.industry}.
 
-Return ONLY valid JSON array — no markdown, no extra text:
+Generate 6–7 tensions. Reject any that could apply to any brand in any industry.
+
+Return ONLY a valid JSON array — no markdown, no extra text:
 [
   {
-    "tension": "One sentence: [People love X but feel/resist/fear Y]",
-    "evidence": "One sentence: where this shows up (social behavior, search patterns, cultural signals)",
-    "opportunity": "One sentence: what a brand could do with this tension"
+    "tension": "One sentence: [Audience] simultaneously [wants X] and [resists/fears/feels guilty about Y]",
+    "evidence": "One sentence: The observable behavior that proves this tension exists right now",
+    "opportunity": "One sentence: What this tension enables a brand to do that competitors are too scared to attempt"
   }
 ]`
 
-  const result = await geminiJson<Array<{ tension: string; evidence: string; opportunity: string }>>(
-    prompt,
-    undefined,
-    { temperature: 0.5, maxOutputTokens: 1200 },
+  return geminiJson<Array<{ tension: string; evidence: string; opportunity: string }>>(
+    prompt, undefined, { temperature: 0.6, maxOutputTokens: 4000 },
   )
-  return result
 }
 
-// ─── Phase 2: Constraint Inversion (Sonnet → Gemini) ─────────
+// ─── Phase 2: Constraint Inversion ───────────────────────────
 
-async function runPhase2(
-  industry: string,
-): Promise<Array<{ rule: string; inversion: string }>> {
-  const prompt = `List 5 unwritten marketing rules that EVERY brand in ${industry} follows without questioning.
-Then invert each rule deliberately and with intention.
+async function runPhase2(industry: string, client_name: string): Promise<Array<{ rule: string; inversion: string }>> {
+  const prompt = `You are a creative strategist who specializes in breaking category conventions in ${industry}.
 
-Return ONLY valid JSON array — no markdown, no extra text:
+List 6 unwritten marketing rules that EVERY brand in ${industry} follows without questioning.
+These are the rules that make all the brands look and sound the same.
+Examples of what you're looking for:
+- "Every luxury brand shows aspirational lifestyles rather than actual product use"
+- "Every fitness brand shows transformation, not the boring daily process"
+- "Every food brand uses close-up product photography with perfect lighting"
+
+For ${industry}, find the specific rules that have become so normalized they're invisible.
+Then invert each rule deliberately, specifically, and with creative intention.
+
+A good inversion is not just "don't do X" — it's "actively do the opposite in a way that creates narrative."
+
+Return ONLY a valid JSON array — no markdown, no extra text:
 [
   {
-    "rule": "One sentence: what every brand does",
-    "inversion": "One sentence: what happens if a brand breaks this rule publicly and on purpose — be specific and actionable"
+    "rule": "One sentence: the unwritten rule every ${industry} brand follows",
+    "inversion": "One sentence: the specific, actionable opposite — what a brand actually does if they break this rule publicly and on purpose"
   }
 ]`
 
   return geminiJson<Array<{ rule: string; inversion: string }>>(
-    prompt,
-    undefined,
-    { temperature: 0.5, maxOutputTokens: 800 },
+    prompt, undefined, { temperature: 0.55, maxOutputTokens: 2000 },
   )
 }
 
-// ─── Phase 3: Cross-Domain Stimulation (Haiku → Gemini) ──────
+// ─── Phase 3: Cross-Domain Stimulation ───────────────────────
 
-async function runPhase3(
-  domains: string[],
-  industry: string,
-  client_name: string,
-): Promise<string[]> {
-  const prompt = `You are generating creative campaign seeds using cross-domain thinking.
+async function runPhase3(domains: string[], industry: string, client_name: string): Promise<string[]> {
+  const prompt = `You are applying cross-domain thinking to generate campaign seeds for ${client_name} (${industry}).
 
-Brand: ${client_name} (${industry})
-Three thinking lenses to apply: ${domains.join(', ')}
+Three thinking lenses: ${domains.join(', ')}
 
-For each lens, answer: "If this campaign was designed by a ${domains[0]}, what would the core mechanic be?"
-These are NOT themes to copy — they are thinking lenses.
-A game designer asks: "What is the reward loop?"
-A street artist asks: "What is the unexpected surface or medium?"
-A chess grandmaster asks: "What is the move no one sees coming?"
+Each lens is a mental model from a different field. The goal is NOT to copy the domain — it's to think like someone from that domain would think about the campaign problem.
 
-Generate 3 raw concept seeds — one per domain. Wild. No judgment. No filtering.
+How each domain sees the world:
+- A game designer asks: "What is the reward loop? What makes someone come back tomorrow?"
+- A street artist asks: "Where is the unexpected surface? What's the medium no brand has claimed yet?"
+- A chess grandmaster asks: "What is the three-move sequence? What do I do so the competitor's response helps me?"
+- A neuroscientist asks: "What triggers the dopamine response? What creates anticipation versus satisfaction?"
+- A stand-up comedian asks: "What is the setup that everyone nods at, and what is the punchline that flips it?"
+- A documentary filmmaker asks: "What is the truth everyone knows but no one has said out loud yet?"
+- A fashion designer asks: "What makes something a status signal? How do you make ordinary behavior feel exclusive?"
 
-Return ONLY 3 lines — one seed per line, no numbering, no JSON.`
+For each of the three lenses (${domains.join(', ')}), generate one raw campaign seed.
+Wild. Unexpected. No self-editing. No feasibility filter. Just the concept.
 
-  const text = await geminiGenerate(prompt, undefined, {
-    temperature:     0.4,
-    maxOutputTokens: 300,
-  })
+Return ONLY 3 lines — one seed per line, no numbering, no JSON, no labels.`
+
+  const text = await geminiGenerate(prompt, undefined, { temperature: 0.55, maxOutputTokens: 1000 })
   const lines = text
     .split('\n')
     .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
     .filter(Boolean)
     .slice(0, 3)
 
-  if (lines.length < 3) {
-    return [
-      `A ${domains[0]} would build a campaign with a reward mechanic — the audience earns something real`,
-      `A ${domains[1]} would find the unexpected surface — not where brands usually show up`,
-      `A ${domains[2]} would structure the campaign so the opponent's move is already answered`,
-    ]
-  }
-  return lines
+  return lines.length >= 3 ? lines : [
+    `A ${domains[0]} would build a campaign with a reward loop — the audience earns something real for participating`,
+    `A ${domains[1]} would find the unexpected surface — not where brands usually show up in ${industry}`,
+    `A ${domains[2]} would structure the campaign so the competitor's most likely response becomes the campaign's second chapter`,
+  ]
 }
 
-// ─── Phase 4: Divergent Ideation (Opus → Gemini high-temp) ───
+// ─── Phase 4: Divergent Ideation ─────────────────────────────
 
 async function runPhase4(
-  tensions: Array<{ tension: string }>,
-  inversions: Array<{ inversion: string }>,
+  tensions: Array<{ tension: string; opportunity: string }>,
+  inversions: Array<{ rule: string; inversion: string }>,
   seeds: string[],
   boldness: CampaignGenerateBody['boldness'],
   targetAudience: string,
+  clientName: string,
+  industry: string,
 ): Promise<string[]> {
   const boldnessModifier =
     boldness === 'red_bull'
-      ? 'Include at least 5 concepts that would make any brand manager uncomfortable. Push further than feels safe.'
+      ? 'Include at least 5 concepts that would make a brand manager immediately say no. Push past discomfort into genuine provocation. If it feels safe, it is not bold enough.'
       : boldness === 'disrupting'
-        ? 'Include at least 3 concepts that challenge industry conventions directly.'
+        ? 'Include at least 3 concepts that directly challenge the way the industry behaves. Not edgy for the sake of it — specifically targeted disruption.'
         : boldness === 'nuanced'
-          ? 'Prioritize unexpected elegance over shock value. Subtle subversions that reward attention.'
-          : 'Keep concepts executable and on-brand while still being genuinely interesting.'
+          ? 'Prioritize unexpected elegance over shock. Concepts that reward close attention. Subversions that only the audience notices.'
+          : 'Keep concepts executable and brand-aligned while still being genuinely surprising. Polished but not predictable.'
 
-  const prompt = `You are generating 15 raw campaign concepts. No filtering. No judgment. Budget is irrelevant. Feasibility is irrelevant.
+  const prompt = `You are generating 20 raw campaign concepts for ${clientName} (${industry}).
+No filtering. No judgment. Budget is irrelevant. Production scale is irrelevant. Career safety is irrelevant.
+This is a pure divergent ideation session. The filter comes in the next phase.
 
-Target audience: ${targetAudience}
+TARGET AUDIENCE: ${targetAudience}
 
-Cultural tensions to activate:
-${tensions.map((t) => `- ${t.tension}`).join('\n')}
+CULTURAL TENSIONS TO ACTIVATE (use at least 3):
+${tensions.map((t) => `• ${t.tension}\n  OPPORTUNITY: ${t.opportunity}`).join('\n\n')}
 
-Industry rules to break:
-${inversions.map((i) => `- ${i.inversion}`).join('\n')}
+INDUSTRY RULES TO BREAK (use at least 2):
+${inversions.map((i) => `• RULE: ${i.rule}\n  BROKEN AS: ${i.inversion}`).join('\n\n')}
 
-Cross-domain seeds:
-${seeds.map((s) => `- ${s}`).join('\n')}
+CROSS-DOMAIN SEEDS (use at least one from each):
+${seeds.map((s, i) => `• SEED ${i + 1}: ${s}`).join('\n')}
 
-RULES:
-- 15 concepts minimum
-- Each concept: one sentence only. No explanation yet.
-- Include at least 2 rooted in a specific cultural tension above
-- Include at least 1 inspired by each cross-domain seed
-- ${boldnessModifier}
-- Include concepts that feel too simple AND concepts that feel too complex
+MANDATORY DIVERSITY REQUIREMENTS — your 20 concepts must include:
+✓ At least 3 that directly activate a cultural tension from the list above
+✓ At least 1 from each cross-domain seed above
+✓ At least 2 that could go genuinely viral within 24 hours with zero budget — concepts so simple and true that people share immediately
+✓ At least 2 that use a completely unexpected medium or surface (NOT a social media post — think physical space, product packaging, email, SMS, audio, retail, etc.)
+✓ At least 2 that put the audience in an uncomfortable but irresistible position — concepts that create productive tension
+✓ At least 1 that a brand lawyer would immediately flag — but that would be completely legal
+✓ At least 1 that involves real people (employees, critics, strangers) in an unexpected role
+✓ ${boldnessModifier}
 
-Return ONLY 15 lines — one concept per line, no numbering, no bullets.`
+OUTPUT FORMAT:
+- Exactly 20 lines
+- One concept per line — one sentence only
+- No explanation. No justification. No numbering. No bullets.
+- Each concept must be specific to ${clientName} and ${industry} — not generic
 
-  const text = await geminiGenerate(prompt, undefined, {
-    temperature:     0.8,
-    maxOutputTokens: 3000,
-  })
+Generate now:`
+
+  const text = await geminiGenerate(prompt, undefined, { temperature: 0.85, maxOutputTokens: 8192 })
   const lines = text
     .split('\n')
     .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
     .filter(Boolean)
-    .slice(0, 15)
+    .slice(0, 20)
 
-  return lines.length >= 7 ? lines : [
-    'Invite your most vocal critics to design the next campaign with you',
-    'Give your product away to one person a day for 30 days and document what they do with it',
-    'Run every ad from the perspective of someone who tried the product and it failed',
-    'Create a campaign that works only if people talk about it — silence makes it disappear',
-    'Partner with a competitor on one piece of content that benefits both audiences equally',
-    'Document the supply chain in real time — every step, unfiltered',
-    'Let the audience vote on what product gets discontinued next',
+  return lines.length >= 8 ? lines : [
+    `Invite your most vocal critics to co-write the next campaign brief with you — publish the unedited transcript`,
+    `Give the product to 30 strangers with one rule: document everything that goes wrong`,
+    `Run every ad from the perspective of a customer who tried it and it didn't work — and what happened next`,
+    `Create a campaign that only exists if people talk about it — silence makes it disappear in 24 hours`,
+    `Partner with the one competitor you'd never partner with on a single piece of content that benefits both audiences`,
+    `Document every step of the supply chain in real time — the boring parts, the mistakes, the delays`,
+    `Let the audience vote on which product feature gets removed next — and actually do it`,
+    `Commission a report from the audience on everything wrong with the industry — publish it with your logo on it`,
   ]
 }
 
-// ─── Phase 5: Participatory Mechanics (Sonnet → Gemini) ──────
+// ─── Phase 5: Participatory Mechanics ────────────────────────
 
 async function runPhase5(
   concepts: string[],
   targetAudience: string,
 ): Promise<Array<{ concept: string; mechanic_type: string; mechanic_description: string }>> {
-  const top7 = concepts.slice(0, 7)
+  const top10 = concepts.slice(0, 10)
 
-  const prompt = `For each of these 7 campaign concepts, design how the audience BECOMES the campaign.
+  const prompt = `For each of these campaign concepts, design the participatory mechanic — exactly how the audience BECOMES the campaign.
 
-Target audience: ${targetAudience}
+TARGET AUDIENCE: ${targetAudience}
 
-Examples of what great participatory mechanics look like:
-- Duolingo's death hoax: audiences mourned and resurrected Duo
-- Vaseline Verified: audiences tested the hacks themselves
-- McDonald's illegal flowers: pedestrians photographed them daily
+Great participatory mechanics create the feeling that the audience is co-authoring something real:
+- Duolingo's death hoax: audiences mourned publicly → Duo came back from the dead → UGC explosion
+- Vaseline Verified: audiences tested the viral hacks → posted results → brand amplified the honest outcomes
+- McDonald's Floating Menu: pedestrians photographed a floating billboard daily → organic city-by-city spread
+- Dove Real Beauty: women defined beauty in their own words → brand used their words verbatim in ads
 
-Mechanic types: UGC trigger / Opinion mechanic / Mystery / Physical action / Duet-reaction / Share-to-unlock
+Mechanic types:
+- UGC trigger: audience creates content as the direct response
+- Opinion mechanic: audience is asked to take a public position
+- Mystery: incomplete information drives investigation and sharing
+- Physical action: audience does something in the real world
+- Duet/reaction: audience adds themselves to brand content
+- Share-to-unlock: content only becomes available when shared
+- Social proof trigger: participation becomes visible to peers
+- Co-creation: audience literally makes something with the brand
 
 Concepts:
-${top7.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+${top10.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
-Return ONLY valid JSON array — no markdown, no extra text:
+Return ONLY a valid JSON array — no markdown, no extra text:
 [
   {
     "concept": "exact concept text from above",
-    "mechanic_type": "one of the mechanic types above",
-    "mechanic_description": "one sentence: exactly how the audience participates"
+    "mechanic_type": "one mechanic type from the list",
+    "mechanic_description": "Two sentences: exactly how the audience participates AND what they feel while doing it"
   }
 ]`
 
   return geminiJson<Array<{ concept: string; mechanic_type: string; mechanic_description: string }>>(
-    prompt,
-    undefined,
-    { temperature: 0.5, maxOutputTokens: 800 },
+    prompt, undefined, { temperature: 0.5, maxOutputTokens: 4000 },
   )
 }
 
-// ─── Phase 6: Convergent Scoring (Haiku → Gemini) ────────────
+// ─── Phase 6: Convergent Scoring ─────────────────────────────
 
 interface ScoredConcept {
-  concept:          string
-  mechanic_type:    string
+  concept:              string
+  mechanic_type:        string
   mechanic_description: string
-  boldness:         number
-  implementability: number
-  virality:         number
+  boldness:             number
+  implementability:     number
+  virality:             number
 }
 
 async function runPhase6(
   conceptsWithMechanics: Array<{ concept: string; mechanic_type: string; mechanic_description: string }>,
   constraint: CampaignGenerateBody['constraint'],
 ): Promise<ScoredConcept[]> {
-  const prompt = `Score each campaign concept on three dimensions (1-10 each).
+  const prompt = `You are scoring campaign concepts on three dimensions. Be ruthlessly honest — do not cluster scores around 7.
 
 Concepts to score:
-${conceptsWithMechanics.map((c, i) => `${i + 1}. ${c.concept}\nMechanic: ${c.mechanic_description}`).join('\n\n')}
+${conceptsWithMechanics.map((c, i) => `${i + 1}. ${c.concept}\nMechanic (${c.mechanic_type}): ${c.mechanic_description}`).join('\n\n')}
 
-Scoring definitions:
-- Boldness: 1=safe/expected, 10=completely unexpected/industry-challenging
-- Implementability: 10=doable in 3 days with no budget, 1=needs Netflix production budget
-- Virality: 10=almost guaranteed sharing, 1=no inherent spread mechanism
+SCORING DEFINITIONS:
+- Boldness (1–10): 1 = what every brand in this category already does, 10 = genuinely unexpected, risks discomfort
+- Implementability (1–10): 10 = any team member could launch this in 3 days with their phone, 1 = requires Netflix production budget and 6 months
+- Virality (1–10): 10 = nearly guaranteed organic sharing — the concept itself IS the share mechanic, 1 = no inherent reason to spread
 
-Return ONLY valid JSON array — no markdown, no extra text:
+CALIBRATION:
+- A score of 6 means "above average." A score of 8 means "genuinely exceptional." A score of 10 should be rare.
+- Boldness and virality are correlated but not the same. A cheap UGC mechanic can be viral without being bold.
+- Implementability score of 5 = needs a small production budget and 2 weeks.
+
+Return ONLY a valid JSON array — no markdown, no extra text:
 [
   {
     "concept": "exact concept text",
@@ -312,151 +344,247 @@ Return ONLY valid JSON array — no markdown, no extra text:
   }
 ]`
 
-  const scored = await geminiJson<ScoredConcept[]>(prompt, undefined, {
-    temperature:     0.4,
-    maxOutputTokens: 800,
-  })
+  const scored = await geminiJson<ScoredConcept[]>(prompt, undefined, { temperature: 0.3, maxOutputTokens: 4000 })
 
-  // Apply filters from spec:
-  // implementability < 4 kept only if virality = 9-10
-  // boldness < 5 excluded
   let filtered = scored.filter((c) => {
     if (c.boldness < 5) return false
     if (c.implementability < 4 && c.virality < 9) return false
     return true
   })
 
-  // Apply constraint modifiers
   if (constraint === 'budget') {
-    // Penalize high-production concepts — lower their effective score
     filtered = filtered.map((c) => ({
       ...c,
       implementability: c.implementability > 7 ? c.implementability - 2 : c.implementability,
     }))
   } else if (constraint === 'brand_safe') {
-    // Remove boldness > 8
     filtered = filtered.filter((c) => c.boldness <= 8)
+  } else if (constraint === 'timeline') {
+    filtered = filtered.filter((c) => c.implementability >= 6)
   }
 
-  // Sort by composite score
-  filtered.sort(
-    (a, b) => b.boldness + b.virality - (a.boldness + a.virality),
-  )
+  filtered.sort((a, b) => (b.boldness + b.virality) - (a.boldness + a.virality))
 
   return filtered.length > 0 ? filtered : scored.slice(0, 5)
 }
 
-// ─── Phase 7: Execution Briefs (Opus → Gemini high-temp) ─────
+// ─── Phase 7: Execution Briefs ────────────────────────────────
 
 async function runPhase7(
   topConcepts: ScoredConcept[],
   body: CampaignGenerateBody,
-  tensions: Array<{ tension: string }>,
+  tensions: Array<{ tension: string; evidence: string; opportunity: string }>,
 ): Promise<CampaignConcept[]> {
   const top5 = topConcepts.slice(0, 5)
 
-  const prompt = `You are writing full execution briefs for the top campaign concepts.
+  const prompt = `You are a world-class creative strategist. You have led breakthrough campaigns for iconic brands across ${body.industry}.
+Your execution briefs are legendary because they are specific enough that a junior social media manager can execute without a single clarifying question, yet creative enough that agencies study them.
 
-Client: ${body.client_name} (${body.industry})
+This 7-phase ideation pipeline has just completed. The concepts below have survived:
+cultural tension mining → constraint inversion → cross-domain stimulation → 20-concept divergent ideation → participatory mechanic design → convergent scoring.
+
+Only the top ${top5.length} survived the filter. Now write their complete execution briefs.
+
+═══════════════════════════════════════════════════
+CLIENT CONTEXT
+═══════════════════════════════════════════════════
+Brand: ${body.client_name}
+Industry: ${body.industry}
 Target audience: ${body.target_audience}
 Platforms: ${body.current_platforms.join(', ')}
 Brand voice: ${body.brand_voice ?? 'Not specified'}
+${body._intelligence_block ? `\nClient intelligence:\n${body._intelligence_block}` : ''}
 
-Cultural tensions activated in this campaign:
-${tensions.map((t) => `- ${t.tension}`).join('\n')}
+═══════════════════════════════════════════════════
+CULTURAL TENSIONS THIS CAMPAIGN ACTIVATES
+═══════════════════════════════════════════════════
+${tensions.map((t) => `• TENSION: ${t.tension}\n  EVIDENCE: ${t.evidence}\n  OPPORTUNITY: ${t.opportunity}`).join('\n\n')}
 
-Concepts to brief (${top5.length} total):
-${top5.map((c, i) => `Concept ${i + 1}: ${c.concept}
-Mechanic type: ${c.mechanic_type}
-Mechanic: ${c.mechanic_description}
-Scores: Boldness ${c.boldness}/10, Implementability ${c.implementability}/10, Virality ${c.virality}/10`).join('\n\n')}
+═══════════════════════════════════════════════════
+TOP CONCEPTS (survived 7-phase filter)
+═══════════════════════════════════════════════════
+${top5.map((c, i) => `CONCEPT ${i + 1}: "${c.concept}"
+  Mechanic: ${c.mechanic_type} — ${c.mechanic_description}
+  Pipeline scores: Boldness ${c.boldness}/10 | Implementability ${c.implementability}/10 | Virality ${c.virality}/10`).join('\n\n')}
 
-For each concept, write a complete execution brief. "Core idea" must be one sentence — if you can't say it in one sentence, it's too complex.
+═══════════════════════════════════════════════════
+EXECUTION BRIEF REQUIREMENTS
+═══════════════════════════════════════════════════
 
-Return ONLY valid JSON array — no markdown, no extra text:
+Write a complete, production-ready brief for each of the ${top5.length} concepts above.
+
+FIELD-BY-FIELD REQUIREMENTS:
+
+1. campaign_name
+   Maximum 3 words. Must be ownable — not a description. Not a tagline. A NAME.
+   Test: would you put this on a deck slide and be proud of it?
+
+2. tagline
+   One punchy line. It must survive being printed on a billboard with zero context.
+   No brand name in the tagline. No verbs like "discover" or "experience."
+
+3. core_idea
+   ONE sentence. Start with an active verb. If it needs two sentences, it is not clear enough yet.
+   This is the sentence a CEO reads in the elevator and either nods or asks a follow-up question.
+
+4. why_it_works
+   Name a SPECIFIC psychological or behavioral principle (e.g., "Reactance theory", "Social facilitation", "Peak-end rule", "Beneffectance bias", "Identity-protective cognition") followed by one sentence showing exactly how it applies to THIS audience in THIS context. No generic psychology.
+
+5. cultural_tension
+   Quote the exact tension from the list above that this concept activates. Do not paraphrase.
+
+6. platform
+   "Primary: [platform] — [specific native content format e.g. 'Instagram Reels 9:16' or 'TikTok Stitch' or 'LinkedIn Document post'] | Secondary: [platform] — [format for amplification]"
+
+7. execution_steps
+   7 steps. Each step format: "[Role] — [specific action] → [specific measurable or observable outcome]"
+   Bad: "Post the content" — Good: "Social Manager — Schedule the seed Reel for Tuesday 7:30 PM → catches the primary engagement window before competitor posting peaks at 9 PM"
+   Steps must be sequential and assignable to a specific team role.
+
+8. content_ladder
+   3-item array. Shows how the content ESCALATES over 3 weeks.
+   Format: "Week [N]: [Exact content format] — [Specific hook type] — [Expected audience response]"
+   Example: "Week 1: Single Reel (no brand name, just the tension stated plainly) — curiosity hook — comments ask 'is this us?'"
+   The escalation should make the audience feel like they're watching something build toward a revelation.
+
+9. seed_strategy
+   One paragraph. Answer: Who are the FIRST 20 people to receive this content (before any public launch)?
+   Be specific: are they micro-influencers in [specific niche]? Loyal customers from [specific cohort]? Industry journalists? Employees? Critics?
+   What do they receive? What specific action are they asked to take? Why were they chosen over everyone else?
+
+10. virality_trigger
+    Describe the EXACT moment when a neutral observer feels compelled to share this.
+    Write it as a scene: "When [specific person] sees [specific thing happen], they immediately [specific action] because [specific psychological reason]."
+    This is not the same as the participation mechanic — this is the involuntary response of someone who didn't even participate.
+
+11. participation_mechanic
+    One sentence. The specific action the audience takes that makes them part of the campaign.
+    Must be simple enough to explain in 10 seconds.
+
+12. shareable_moment
+    Describe one specific image, video frame, or piece of text that this campaign will DEFINITELY produce — something visual enough to screenshot and share.
+    Be specific about what it looks like. Not "authentic UGC" — describe the actual frame.
+
+13. scoring
+    Use the pipeline scores from above exactly as-is.
+
+14. budget
+    One of: "Low (<$500)" or "Medium ($500–$5,000)" or "High (>$5,000)"
+
+15. timeline
+    Be specific: "3 days" / "1 week" / "10 days" / "3 weeks" / "6 weeks" — not just "Days" or "Weeks"
+
+16. risk
+    The ONE specific thing that kills this campaign in the first 72 hours. Not a generic risk.
+
+17. mitigation
+    The specific action taken in the first 48 hours to prevent the risk above. Not generic advice.
+
+18. anti_example
+    Name a real campaign (brand + year if you know it) that attempted something similar and failed or underperformed.
+    One sentence: what specifically went wrong.
+    One sentence: what this concept does fundamentally differently to avoid the same outcome.
+
+═══════════════════════════════════════════════════
+OUTPUT
+═══════════════════════════════════════════════════
+
+Return ONLY a valid JSON array of exactly ${top5.length} objects.
+All 18 fields are required for every object.
+No markdown fences. No trailing commas. No comments inside the JSON.
+
 [
   {
-    "campaign_name": "3 words max",
-    "tagline": "The idea in one punchy line",
-    "core_idea": "One sentence. The entire concept.",
-    "why_it_works": "The psychological principle by name + how it applies here",
-    "cultural_tension": "Which tension from the list above does this activate?",
-    "platform": "Primary platform + secondary",
-    "execution_steps": ["Step 1 — who does what", "Step 2", "Step 3", "Step 4", "Step 5"],
-    "participation_mechanic": "Exactly how the audience becomes part of this",
-    "shareable_moment": "The specific frame, screenshot, or moment they will share",
+    "campaign_name": "...",
+    "tagline": "...",
+    "core_idea": "...",
+    "why_it_works": "...",
+    "cultural_tension": "...",
+    "platform": "...",
+    "execution_steps": ["...", "...", "...", "...", "...", "...", "..."],
+    "content_ladder": ["Week 1: ...", "Week 2: ...", "Week 3: ..."],
+    "seed_strategy": "...",
+    "virality_trigger": "...",
+    "participation_mechanic": "...",
+    "shareable_moment": "...",
     "scoring": { "boldness": 0, "implementability": 0, "virality": 0 },
-    "budget": "Low",
-    "timeline": "Days",
-    "risk": "One-line risk",
-    "mitigation": "One-line mitigation"
+    "budget": "...",
+    "timeline": "...",
+    "risk": "...",
+    "mitigation": "...",
+    "anti_example": "..."
   }
 ]`
 
-  const text = await geminiGenerate(prompt, undefined, {
-    temperature:     0.8,
-    maxOutputTokens: 3000,
-  })
+  const text = await geminiGenerate(prompt, undefined, { temperature: 0.75, maxOutputTokens: 32000 })
   return parseJson<CampaignConcept[]>(text, top5.map((c, i) => ({
-    campaign_name: `Concept ${i + 1}`,
-    tagline:       c.concept,
-    core_idea:     c.concept,
-    why_it_works:  'Cialdini social proof principle — audiences adopt behaviors they see peers perform',
-    cultural_tension: tensions[0]?.tension ?? 'Core audience tension',
-    platform:      body.current_platforms[0] ?? 'Instagram',
-    execution_steps: [
-      'Define the core mechanic with the team',
-      'Produce the seed content',
-      'Launch to initial audience segment',
-      'Amplify UGC that emerges',
-      'Measure participation rate vs. reach',
+    campaign_name:          `Concept ${i + 1}`,
+    tagline:                c.concept,
+    core_idea:              c.concept,
+    why_it_works:           'Social proof via observation learning — audiences adopt behaviors they see their peers perform first',
+    cultural_tension:       tensions[0]?.tension ?? 'Core audience tension',
+    platform:               body.current_platforms[0] ?? 'Instagram',
+    execution_steps:        [
+      'Creative Director — define the core mechanic and brief the production team → aligned execution brief',
+      'Social Manager — identify the seed audience of 20 and brief them → confirmed seed list',
+      'Designer — produce the seed content piece → final creative asset',
+      'Social Manager — distribute to seed audience → first organic reactions captured',
+      'Social Manager — monitor for organic spread signals → initial participation rate measured',
+      'Creative Director — amplify top-performing organic responses → second wave of reach',
+      'Account Manager — report participation rate and share metrics to client → campaign performance review',
     ],
+    content_ladder:          [
+      'Week 1: Seed content (minimal branding) — curiosity hook — audience asks questions',
+      'Week 2: Brand response to audience questions — credibility hook — sustained engagement',
+      'Week 3: Audience-generated content amplified — social proof hook — organic reach peak',
+    ],
+    seed_strategy:          'Identify 20 genuine customers who have previously engaged with brand content. Send them the campaign concept privately, ask them to be the first to respond publicly. Do not ask for positive framing — ask for honest reaction.',
+    virality_trigger:       `When a bystander sees peers genuinely engaging with ${body.client_name}'s content on their terms, they share it because it feels real rather than manufactured — something rare enough to be worth sending to someone.`,
     participation_mechanic: c.mechanic_description,
-    shareable_moment:       'The moment when the audience sees their own contribution reflected back',
-    scoring: { boldness: c.boldness, implementability: c.implementability, virality: c.virality },
-    budget:   c.implementability >= 7 ? 'Low' : c.implementability >= 4 ? 'Medium' : 'High',
-    timeline: c.implementability >= 7 ? 'Days' : c.implementability >= 4 ? 'Weeks' : 'Months',
-    risk:        'Audience may not participate at expected rate',
-    mitigation:  'Seed with 10 authentic first participants before public launch',
+    shareable_moment:       'The moment when the audience response is amplified by the brand — the frame where the person feels seen by a brand for the first time',
+    scoring:                { boldness: c.boldness, implementability: c.implementability, virality: c.virality },
+    budget:                 c.implementability >= 7 ? 'Low (<$500)' : c.implementability >= 4 ? 'Medium ($500–$5,000)' : 'High (>$5,000)',
+    timeline:               c.implementability >= 7 ? '3–5 days' : c.implementability >= 4 ? '2–3 weeks' : '6+ weeks',
+    risk:                   'Seed audience shares without context, stripping the campaign narrative before it builds',
+    mitigation:             'Brief seed audience with a one-paragraph context note. Ask them to share with the campaign framing intact, not in isolation.',
+    anti_example:           'Generic UGC campaigns that launched without seeding have low initial participation — this concept avoids that by guaranteeing a first wave of authentic response before any public launch.',
   })))
 }
 
-// ─── Boss Brief (Haiku → Gemini) ─────────────────────────────
+// ─── Boss Brief ───────────────────────────────────────────────
 
-async function buildBossBrief(
-  topConcept: CampaignConcept,
-  body: CampaignGenerateBody,
-): Promise<BossBrief> {
-  const prompt = `Write a Boss Brief for this campaign concept. For a busy executive with 30 seconds.
+async function buildBossBrief(topConcept: CampaignConcept, body: CampaignGenerateBody): Promise<BossBrief> {
+  const prompt = `Write a Boss Brief for this campaign. For a CEO or client with 30 seconds between meetings.
 
 Campaign: "${topConcept.campaign_name}" — ${topConcept.tagline}
 Client: ${body.client_name} (${body.industry})
 Core idea: ${topConcept.core_idea}
 Why it works: ${topConcept.why_it_works}
+How the audience participates: ${topConcept.participation_mechanic}
+Virality trigger: ${topConcept.virality_trigger ?? 'Organic sharing driven by authentic participation'}
 Risk: ${topConcept.risk ?? 'None identified'}
 
 BOSS BRIEF RULES:
-- No marketing jargon. No passive voice. No sentence over 20 words.
-- Never use: leverage, synergy, utilize, going forward, circle back, touch base, deep dive, actionable insights, move the needle
-- Every block must be evidenced or actionable — no decoration
-- Written for someone in back-to-back meetings
+- No marketing jargon. No passive voice. Every sentence must be under 20 words.
+- Never write: leverage, synergy, utilize, going forward, circle back, touch base, deep dive, actionable insights, move the needle, holistic, robust, scalable, ecosystem.
+- Every block must be either a fact, a number, or an action — no decoration.
+- Written for someone in back-to-back meetings who will make a decision based on this alone.
+- "The One Thing" must be the single most important creative or executional decision — the one that makes or breaks this campaign.
+- "Do This Now" must be the literal next action — specific enough to assign to a person with a deadline.
 
 Return ONLY valid JSON — no markdown, no extra text:
 {
-  "what_we_made": "One sentence: what was built and for whom",
-  "why_it_works": "One sentence: cite the specific data or psychological principle",
-  "the_one_thing": "The single most important line — the one asset they must get right",
-  "do_this_now": "Immediate next action. Two sentences max.",
-  "watch_out_for": "One-sentence risk. Omit this key if there is no meaningful risk."
+  "what_we_made": "One sentence: what was built and for whom — include the campaign name",
+  "why_it_works": "One sentence: cite the specific psychological principle and the evidence",
+  "the_one_thing": "The single creative or executional decision that determines whether this succeeds or fails",
+  "do_this_now": "Specific next action with a person and a timeframe. Two sentences max.",
+  "watch_out_for": "One-sentence risk. Only include if there is a meaningful risk worth flagging."
 }`
 
-  return geminiJson<BossBrief>(prompt, undefined, {
-    temperature:     0.4,
-    maxOutputTokens: 350,
-  })
+  return geminiJson<BossBrief>(prompt, undefined, { temperature: 0.4, maxOutputTokens: 1000 })
 }
 
-// ─── Handler ─────────────────────────────────────────────────
+// ─── Handler ──────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   let body: CampaignGenerateBody
@@ -477,13 +605,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'AI provider not configured' }, { status: 503 })
   }
 
-  // Inject client intelligence into first-phase prompt
+  // Inject client intelligence
   if (body.client_id) {
     const db = adminSupabase()
     if (db) {
       const intelBlock = await buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => '')
       const compBlock  = await buildCompetitorContextBlock(body.client_id, db).catch(() => '')
-      body._intelligence_block = intelBlock + compBlock
+      body._intelligence_block = [intelBlock, compBlock].filter(Boolean).join('\n\n')
     }
   }
 
@@ -495,27 +623,23 @@ export async function POST(req: NextRequest) {
     tensions = await runPhase1(body)
     if (body.session_id) await savePhase(body.session_id, 'tensions', tensions)
   } catch {
-    tensions = [
-      {
-        tension:     `Consumers in ${body.industry} want premium results but resist the premium price signal`,
-        evidence:    'Price sensitivity alongside aspiration is a dominant consumer pattern in this category',
-        opportunity: 'A brand that democratizes the premium result without the premium aesthetic',
-      },
-    ]
+    tensions = [{
+      tension:     `Consumers in ${body.industry} want premium results but simultaneously resist the price signal that would signal quality`,
+      evidence:    'Price sensitivity coexists with aspiration — audiences research premium options then buy mid-tier and justify it',
+      opportunity: 'A brand that democratizes the premium result and openly acknowledges the price tension wins the audience that felt judged by the category',
+    }]
   }
 
   // ── Phase 2 — Constraint Inversion ────────────────────────
   let inversions: Array<{ rule: string; inversion: string }> = []
   try {
-    inversions = await runPhase2(body.industry)
+    inversions = await runPhase2(body.industry, body.client_name)
     if (body.session_id) await savePhase(body.session_id, 'inversions', inversions)
   } catch {
-    inversions = [
-      {
-        rule:      `Every ${body.industry} brand shows aspirational results`,
-        inversion: 'Show the failure, the process, and the doubt — document what actually goes wrong',
-      },
-    ]
+    inversions = [{
+      rule:      `Every ${body.industry} brand shows aspirational results rather than the real process`,
+      inversion: 'Document the failure, the doubt, and the boring daily process — make the audience feel seen in the struggle rather than judged by the result',
+    }]
   }
 
   // ── Phase 3 — Cross-Domain Stimulation ────────────────────
@@ -525,22 +649,22 @@ export async function POST(req: NextRequest) {
     if (body.session_id) await savePhase(body.session_id, 'seeds', { domains, seeds })
   } catch {
     seeds = [
-      `A ${domains[0]} would design a reward loop into every touchpoint`,
-      `A ${domains[1]} would find the unexpected medium, not the expected channel`,
-      `A ${domains[2]} would make the first move look like a mistake`,
+      `A ${domains[0]} would design a reward loop into every touchpoint — participation earns something real`,
+      `A ${domains[1]} would find the unexpected medium — not where ${body.industry} brands usually show up`,
+      `A ${domains[2]} would make the first move look like a mistake so the competitor's response becomes the campaign's second chapter`,
     ]
   }
 
   // ── Phase 4 — Divergent Ideation ──────────────────────────
   let rawConcepts: string[] = []
   try {
-    rawConcepts = await runPhase4(tensions, inversions, seeds, body.boldness, body.target_audience)
+    rawConcepts = await runPhase4(tensions, inversions, seeds, body.boldness, body.target_audience, body.client_name, body.industry)
     if (body.session_id) await savePhase(body.session_id, 'raw_concepts', rawConcepts)
   } catch {
     rawConcepts = [
-      `Invite critics to test the product publicly and document everything`,
-      `Give away the product to 30 people with zero marketing — just observation`,
-      `Run a campaign that only works if people talk about it — silence ends it`,
+      `Invite critics to test the product publicly and document everything unfiltered`,
+      `Give away the product to 30 people with one rule: document everything that goes wrong`,
+      `Run a campaign that only exists if people talk about it — silence ends it in 24 hours`,
     ]
   }
 
@@ -550,10 +674,10 @@ export async function POST(req: NextRequest) {
     conceptsWithMechanics = await runPhase5(rawConcepts, body.target_audience)
     if (body.session_id) await savePhase(body.session_id, 'mechanics', conceptsWithMechanics)
   } catch {
-    conceptsWithMechanics = rawConcepts.slice(0, 7).map((c) => ({
+    conceptsWithMechanics = rawConcepts.slice(0, 10).map((c) => ({
       concept:              c,
       mechanic_type:        'UGC trigger',
-      mechanic_description: 'Audience shares their own version of the core concept',
+      mechanic_description: 'Audience shares their own version of the core concept, feeling like co-authors rather than consumers',
     }))
   }
 
@@ -564,8 +688,7 @@ export async function POST(req: NextRequest) {
     if (body.session_id) await savePhase(body.session_id, 'scored_concepts', scoredConcepts)
   } catch {
     scoredConcepts = conceptsWithMechanics.map((c) => ({
-      ...c,
-      boldness: 7, implementability: 6, virality: 7,
+      ...c, boldness: 7, implementability: 6, virality: 7,
     }))
   }
 
@@ -574,28 +697,27 @@ export async function POST(req: NextRequest) {
   try {
     concepts = await runPhase7(scoredConcepts, body, tensions)
     if (body.session_id) await savePhase(body.session_id, 'concepts', concepts)
-  } catch {
+  } catch (err) {
+    console.error('[campaign/generate Phase 7]', err instanceof Error ? err.message : err)
     concepts = scoredConcepts.slice(0, 3).map((c, i) => ({
-      campaign_name: `Concept ${i + 1}`,
-      tagline:       c.concept,
-      core_idea:     c.concept,
-      why_it_works:  'Social proof principle — audiences adopt behaviors they see peers perform',
-      cultural_tension: tensions[0]?.tension ?? 'Core audience tension',
-      platform:      body.current_platforms[0] ?? 'Instagram',
-      execution_steps: [
-        'Define the core mechanic',
-        'Produce the seed content',
-        'Launch to initial segment',
-        'Amplify emerging UGC',
-        'Measure participation rate',
-      ],
+      campaign_name:          `Concept ${i + 1}`,
+      tagline:                c.concept,
+      core_idea:              c.concept,
+      why_it_works:           'Social proof via observation learning',
+      cultural_tension:       tensions[0]?.tension ?? 'Core audience tension',
+      platform:               body.current_platforms[0] ?? 'Instagram',
+      execution_steps:        ['Define the mechanic', 'Produce seed content', 'Launch to seed audience', 'Amplify organic responses', 'Measure participation rate'],
+      content_ladder:         ['Week 1: Seed content — curiosity hook', 'Week 2: Brand responds — credibility hook', 'Week 3: UGC amplified — social proof'],
+      seed_strategy:          '20 genuine customers briefed privately before public launch',
+      virality_trigger:       'The moment when audience participation is reflected back by the brand — feels real, not manufactured',
       participation_mechanic: c.mechanic_description,
-      shareable_moment:       'The moment audience sees their contribution reflected back',
-      scoring: { boldness: c.boldness, implementability: c.implementability, virality: c.virality },
-      budget:   c.implementability >= 7 ? 'Low' : c.implementability >= 4 ? 'Medium' : 'High',
-      timeline: c.implementability >= 7 ? 'Days' : c.implementability >= 4 ? 'Weeks' : 'Months',
-      risk:        'Lower-than-expected participation rate',
-      mitigation:  'Seed with authentic participants before public launch',
+      shareable_moment:       'The specific frame where the audience sees their contribution amplified by the brand',
+      scoring:                { boldness: c.boldness, implementability: c.implementability, virality: c.virality },
+      budget:                 c.implementability >= 7 ? 'Low (<$500)' : c.implementability >= 4 ? 'Medium ($500–$5,000)' : 'High (>$5,000)',
+      timeline:               c.implementability >= 7 ? '3–5 days' : '2–3 weeks',
+      risk:                   'Seed audience shares without campaign context',
+      mitigation:             'Brief seed audience with context note before any public launch',
+      anti_example:           'Generic UGC campaigns without seeding fail at launch due to low initial participation',
     }))
   }
 
@@ -606,15 +728,12 @@ export async function POST(req: NextRequest) {
     the_one_thing: concepts[0]?.tagline ?? 'The core campaign hook',
     do_this_now:   'Align the team on Concept 1 and assign ownership of the first execution step.',
   }
-
   try {
     if (concepts.length > 0) {
       bossBrief = await buildBossBrief(concepts[0], body)
     }
     if (body.session_id) await savePhase(body.session_id, 'boss_brief', bossBrief)
-  } catch {
-    // Keep the safe fallback above
-  }
+  } catch { /* keep fallback */ }
 
   // ── Mark session complete ──────────────────────────────────
   if (body.session_id) {
@@ -625,18 +744,18 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: 'complete' }),
       })
-    } catch {
-      // Non-blocking
-    }
+    } catch { /* non-blocking */ }
   }
 
-  const document: CampaignDocument & { boss_brief: BossBrief } = {
-    cultural_tensions: tensions,
-    inverted_rules:    inversions,
-    creative_domains:  domains,
-    concepts,
-    boss_brief:        bossBrief,
-  }
-
-  return NextResponse.json(document)
+  // ── Response — campaign nested under 'campaign' key ────────
+  // The page reads data.campaign and data.boss_brief separately.
+  return NextResponse.json({
+    campaign: {
+      cultural_tensions: tensions,
+      inverted_rules:    inversions,
+      creative_domains:  domains,
+      concepts,
+    } satisfies CampaignDocument,
+    boss_brief: bossBrief,
+  })
 }

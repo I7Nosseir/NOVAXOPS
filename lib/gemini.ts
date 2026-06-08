@@ -31,7 +31,7 @@ export async function geminiGenerate(
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
       temperature:      options.temperature      ?? 0.3,
-      maxOutputTokens:  options.maxOutputTokens  ?? 2000,
+      maxOutputTokens:  options.maxOutputTokens  ?? 8192,
       ...(options.jsonMode ? { responseMimeType: 'application/json' } : {}),
     },
   }

@@ -19,7 +19,7 @@ async function synthesiseWithGemini(prompt: string): Promise<string> {
 
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.3, maxOutputTokens: 2500, responseMimeType: 'application/json' },
+    generationConfig: { temperature: 0.3, maxOutputTokens: 8192, responseMimeType: 'application/json' },
   }
 
   const res = await fetch(url, {
@@ -48,7 +48,7 @@ async function synthesiseWithAnthropic(prompt: string): Promise<string> {
 
   const msg = await client.messages.create({
     model:      'claude-sonnet-4-6',
-    max_tokens: 2500,
+    max_tokens: 8192,
     messages:   [{ role: 'user', content: prompt }],
     system:     'You are a market intelligence analyst. Output valid JSON only — no markdown, no text outside the JSON.',
   })

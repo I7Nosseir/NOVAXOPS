@@ -3,6 +3,8 @@ import { anthropic, AI_MODELS } from '@/lib/ai-client'
 import { geminiJson } from '@/lib/gemini'
 import type { VisualApproach, VisualDocument, VisualInputs } from '@/lib/studio-types'
 
+export const maxDuration = 120
+
 const SYSTEM = `You are a world-class AI video director and prompt engineer.
 You produce cinematic, hyper-realistic video content using AI image tools (Midjourney, Seedream 4.5, Nanobanana Pro) and AI video tools (Kling, Higgsfield, Veo3).
 
@@ -167,7 +169,7 @@ export async function POST(req: NextRequest) {
     if (hasAnthropic) {
       const response = await anthropic.messages.create({
         model: AI_MODELS.primary,
-        max_tokens: 8000,
+        max_tokens: 16000,
         temperature: 0.7,
         system: SYSTEM,
         messages: [{ role: 'user', content: prompt }],
@@ -179,7 +181,7 @@ export async function POST(req: NextRequest) {
       doc = await geminiJson<VisualDocument>(
         prompt,
         SYSTEM,
-        { temperature: 0.7, maxOutputTokens: 8000 },
+        { temperature: 0.7, maxOutputTokens: 16000 },
       )
     }
 

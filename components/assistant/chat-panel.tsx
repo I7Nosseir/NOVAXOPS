@@ -5,19 +5,31 @@ import {
   X, Send, Sparkles, User, Bot,
   FileText, Layers, CheckSquare, Building2,
   ExternalLink, Copy, Check, Loader2, PenLine,
+  History, Plus, AlertTriangle, Clipboard, ClipboardCheck,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
 import type { ContextSearchResult } from '@/app/api/assistant/context/route'
+import {
+  useChatSessions, type StoredSession,
+  MAX_MESSAGES, WARN_MESSAGES, loadMostRecentSession,
+} from '@/lib/hooks/use-chat-sessions'
 
 // ── Types ─────────────────────────────────────────────────────
 
+interface DocEditSignal {
+  docId:     string
+  content:   string   // full markdown
+  remainder: string   // any explanation text that follows the JSON
+}
+
 interface ChatMessage {
-  id:      string
-  role:    'user' | 'assistant'
-  content: string
+  id:       string
+  role:     'user' | 'assistant'
+  content:  string
+  docEdit?: { docId: string; content: string }
 }
 
 interface ContextItem {
@@ -63,6 +75,27 @@ const ASSISTANT_CAPABILITIES_REPLY = `I'm the NOVAX Assistant. Here's what I can
 
 **Slash commands:** /summarize · /rewrite · /shorten · /brief · /caption · /translate
 **@ references:** type @ to attach a client, document, session, or task as context`
+
+// ── Doc-edit signal parser ─────────────────────────────────────
+
+function tryParseDocEdit(text: string): DocEditSignal | null {
+  const trimmed = text.trimStart()
+  if (!trimmed.startsWith('{"type":"doc_edit"')) return null
+  try {
+    let depth = 0
+    let end   = -1
+    const start = trimmed.indexOf('{')
+    if (start === -1) return null
+    for (let i = start; i < trimmed.length; i++) {
+      if (trimmed[i] === '{') depth++
+      else if (trimmed[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+    }
+    if (end === -1) return null
+    const parsed = JSON.parse(trimmed.slice(start, end + 1)) as { type?: string; doc_id?: string; content?: string }
+    if (parsed.type !== 'doc_edit' || !parsed.doc_id || !parsed.content) return null
+    return { docId: parsed.doc_id, content: parsed.content, remainder: trimmed.slice(end + 1).trim() }
+  } catch { return null }
+}
 
 // ── @ mention hook ─────────────────────────────────────────────
 // query is null when @ is not active.
@@ -123,22 +156,79 @@ function resizeTextarea(el: HTMLTextAreaElement) {
   el.style.height = `${Math.min(el.scrollHeight, 128)}px`
 }
 
+// ── Doc edit card ──────────────────────────────────────────────
+
+function DocEditCard({ docEdit, contextItems }: { docEdit: { docId: string; content: string }; contextItems: ContextItem[] }) {
+  const [applyState, setApplyState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+
+  const docLabel = contextItems.find(c => c.id === docEdit.docId)?.label ?? 'Document'
+
+  const apply = async () => {
+    if (applyState !== 'idle') return
+    setApplyState('loading')
+    try {
+      const res = await fetch(`/api/docs/${docEdit.docId}/ai-edit`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ content: docEdit.content }),
+      })
+      if (!res.ok) throw new Error('Apply failed')
+      setApplyState('done')
+    } catch {
+      setApplyState('error')
+    }
+  }
+
+  return (
+    <div className="border border-novax-border bg-novax-light/60 rounded-xl p-3 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <FileText className="w-4 h-4 text-novax-muted shrink-0" />
+        <span className="text-xs font-bold text-novax uppercase tracking-wide">Document Edit Ready</span>
+      </div>
+      <p className="text-xs text-slate-600 leading-relaxed">
+        AI has prepared edits for <span className="font-semibold">"{docLabel}"</span>. Review the preview, then apply.
+      </p>
+      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-28 overflow-y-auto">
+        <pre className="text-[11px] text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
+          {docEdit.content.slice(0, 600)}{docEdit.content.length > 600 ? '\n…' : ''}
+        </pre>
+      </div>
+      <div className="flex items-center gap-2">
+        {applyState === 'done' ? (
+          <Link
+            href={`/docs/${docEdit.docId}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition-colors"
+          >
+            <Check className="w-3 h-3" /> Applied — Open Document
+          </Link>
+        ) : (
+          <button
+            onClick={() => void apply()}
+            disabled={applyState === 'loading'}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-novax text-white rounded-lg text-xs font-semibold hover:bg-novax-hover transition-colors disabled:opacity-60"
+          >
+            {applyState === 'loading'
+              ? <><Loader2 className="w-3 h-3 animate-spin" /> Applying…</>
+              : <><PenLine className="w-3 h-3" /> Apply to Document</>}
+          </button>
+        )}
+        {applyState === 'error' && (
+          <span className="text-xs text-red-600">Failed — try again</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Message bubble ─────────────────────────────────────────────
 
 function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextItems: ContextItem[] }) {
-  const [copied,  setCopied]  = useState(false)
-  const [applied, setApplied] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const copy = useCallback(async () => {
     await navigator.clipboard.writeText(msg.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }, [msg.content])
-
-  const applyToDoc = useCallback((docId: string) => {
-    window.dispatchEvent(new CustomEvent('novax:apply-to-doc', { detail: { docId, text: msg.content } }))
-    setApplied(true)
-    setTimeout(() => setApplied(false), 3000)
   }, [msg.content])
 
   if (msg.role === 'user') {
@@ -149,6 +239,23 @@ function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextI
         </div>
         <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0 mt-1">
           <User className="w-3 h-3 text-slate-500" />
+        </div>
+      </div>
+    )
+  }
+
+  // Doc-edit signal — show the Apply card (+ any explanation below it)
+  if (msg.docEdit) {
+    return (
+      <div className="flex gap-2">
+        <div className="w-6 h-6 rounded-full bg-novax-light border border-novax-border flex items-center justify-center shrink-0 mt-1">
+          <Bot className="w-3 h-3 text-novax-muted" />
+        </div>
+        <div className="max-w-[90%] space-y-2">
+          <DocEditCard docEdit={msg.docEdit} contextItems={docContextItems} />
+          {msg.content && (
+            <p className="text-xs text-slate-500 leading-relaxed px-1">{msg.content}</p>
+          )}
         </div>
       </div>
     )
@@ -178,28 +285,6 @@ function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextI
               : <><Copy className="w-2.5 h-2.5" /> Copy</>}
           </button>
         </div>
-
-        {/* Apply to document buttons — shown for each doc in context */}
-        {docContextItems.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {docContextItems.map(doc => (
-              <button
-                key={doc.id}
-                onClick={() => applyToDoc(doc.id)}
-                className={cn(
-                  'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors',
-                  applied
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                    : 'bg-novax-light border-novax-border text-novax hover:bg-novax hover:text-white',
-                )}
-              >
-                {applied
-                  ? <><Check className="w-3 h-3" /> Applied to "{doc.label}"</>
-                  : <><PenLine className="w-3 h-3" /> Apply to "{doc.label}"</>}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )
@@ -208,14 +293,23 @@ function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextI
 // ── Streaming bubble ───────────────────────────────────────────
 
 function StreamingBubble({ text }: { text: string }) {
+  const isDocEdit = text.trimStart().startsWith('{"type":"doc_edit"')
   return (
     <div className="flex gap-2">
       <div className="w-6 h-6 rounded-full bg-novax-light border border-novax-border flex items-center justify-center shrink-0 mt-1">
         <Bot className="w-3 h-3 text-novax-muted" />
       </div>
       <div className="max-w-[90%] bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-        {text}
-        <span className="inline-block w-1.5 h-4 bg-novax-accent ml-0.5 animate-pulse align-text-bottom rounded-sm" />
+        {isDocEdit ? (
+          <span className="flex items-center gap-1.5 text-novax-muted italic text-xs">
+            <Loader2 className="w-3 h-3 animate-spin" /> Preparing document edits…
+          </span>
+        ) : (
+          <>
+            {text}
+            <span className="inline-block w-1.5 h-4 bg-novax-accent ml-0.5 animate-pulse align-text-bottom rounded-sm" />
+          </>
+        )}
       </div>
     </div>
   )
@@ -255,6 +349,16 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
   const [streamingText,  setStreamingText]  = useState('')
   const [errorMsg,       setErrorMsg]       = useState<string | null>(null)
 
+  // ── Session persistence ────────────────────────────────────────
+  const { sessions, upsert: upsertSession, remove: removeSession } = useChatSessions()
+  const [sessionId,         setSessionId]         = useState(() => crypto.randomUUID())
+  const [sessionCreatedAt,  setSessionCreatedAt]  = useState(() => new Date().toISOString())
+  const [handoffBlock,      setHandoffBlock]      = useState<string | null>(null)
+  const [generatingHandoff, setGeneratingHandoff] = useState(false)
+  const [showHandoffModal,  setShowHandoffModal]  = useState(false)
+  const [showHistory,       setShowHistory]       = useState(false)
+  const [copiedHandoff,     setCopiedHandoff]     = useState(false)
+
   // @ mention
   const [atQuery, setAtQuery] = useState<string | null>(null)
   const [atStart, setAtStart] = useState(0)
@@ -266,8 +370,11 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef       = useRef<HTMLTextAreaElement>(null)
   const panelRef       = useRef<HTMLDivElement>(null)
+  const historyRef     = useRef<HTMLDivElement>(null)
 
-  const isCeo = user?.role === 'ceo' || user?.role === 'admin'
+  const isCeo             = user?.role === 'ceo' || user?.role === 'admin'
+  const sessionIsComplete = messages.length >= MAX_MESSAGES
+  const sessionNearLimit  = messages.length >= WARN_MESSAGES && !sessionIsComplete
 
   // Auto-scroll
   useEffect(() => {
@@ -280,6 +387,67 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [open, fullPage])
+
+  // Load most recent incomplete session on mount
+  useEffect(() => {
+    const recent = loadMostRecentSession()
+    if (!recent || recent.messages.length === 0) return
+    setSessionId(recent.id)
+    setSessionCreatedAt(recent.created_at)
+    setMessages(recent.messages as ChatMessage[])
+    if (recent.client_id) setSelectedClient(recent.client_id)
+    if (recent.is_complete) {
+      if (recent.handoff_block) setHandoffBlock(recent.handoff_block)
+      setShowHandoffModal(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-save after every message exchange
+  useEffect(() => {
+    if (!sessionId || messages.length === 0) return
+    const title      = messages.find(m => m.role === 'user')?.content.slice(0, 60) ?? 'Chat'
+    const clientData = clients.find(c => c.id === selectedClient)
+    upsertSession({
+      id:            sessionId,
+      title,
+      created_at:    sessionCreatedAt,
+      updated_at:    new Date().toISOString(),
+      messages:      messages as StoredSession['messages'],
+      client_id:     selectedClient || undefined,
+      client_name:   clientData?.name,
+      is_complete:   messages.length >= MAX_MESSAGES,
+      handoff_block: handoffBlock ?? undefined,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, handoffBlock])
+
+  // Kick off handoff generation once we're within 4 messages of the limit
+  useEffect(() => {
+    if (messages.length >= WARN_MESSAGES && !handoffBlock && !generatingHandoff) {
+      void generateHandoff()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length])
+
+  // Show modal once complete + block is ready
+  useEffect(() => {
+    if (messages.length >= MAX_MESSAGES && handoffBlock && !showHandoffModal) {
+      setShowHandoffModal(true)
+    }
+  }, [messages.length, handoffBlock, showHandoffModal])
+
+  // Close history dropdown on outside click
+  useEffect(() => {
+    if (!showHistory) return
+    const handler = (e: MouseEvent) => {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setShowHistory(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showHistory])
 
   // ── Send message — must be defined before early return (Rules of Hooks) ──────
   // immediateText bypasses the input state (used by quick-send buttons)
@@ -357,7 +525,17 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
         }
       }
 
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: full || 'No response.' }])
+      const docEditSignal = tryParseDocEdit(full)
+      if (docEditSignal) {
+        setMessages(prev => [...prev, {
+          id:      crypto.randomUUID(),
+          role:    'assistant',
+          content: docEditSignal.remainder,
+          docEdit: { docId: docEditSignal.docId, content: docEditSignal.content },
+        }])
+      } else {
+        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: full || 'No response.' }])
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.'
       setErrorMsg(msg)
@@ -462,7 +640,120 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
+  const generateHandoff = useCallback(async () => {
+    if (generatingHandoff || handoffBlock) return
+    setGeneratingHandoff(true)
+    try {
+      const clientData = clients.find(c => c.id === selectedClient)
+      const res  = await fetch('/api/assistant/handoff', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          messages:    messages.map(m => ({ role: m.role, content: m.content })),
+          client_name: clientData?.name,
+        }),
+      })
+      const data = await res.json() as { block?: string }
+      if (data.block) setHandoffBlock(data.block)
+    } catch {
+      const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content ?? ''
+      setHandoffBlock(
+        `[CONTEXT HANDOFF]\n\nSession: ${messages.length} messages\nClient: ${clients.find(c => c.id === selectedClient)?.name ?? 'None'}\nLast topic: ${lastUserMsg.slice(0, 120)}\n\nPaste this at the start of your next chat to continue.`
+      )
+    } finally {
+      setGeneratingHandoff(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatingHandoff, handoffBlock, messages, selectedClient, clients])
+
+  const newChat = useCallback(() => {
+    setSessionId(crypto.randomUUID())
+    setSessionCreatedAt(new Date().toISOString())
+    setMessages([])
+    setContextItems([])
+    setSelectedClient('')
+    setErrorMsg(null)
+    setHandoffBlock(null)
+    setShowHandoffModal(false)
+    setShowHistory(false)
+    setStreaming(false)
+    setStreamingText('')
+    setTimeout(() => inputRef.current?.focus(), 0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const loadSession = useCallback((session: StoredSession) => {
+    setSessionId(session.id)
+    setSessionCreatedAt(session.created_at)
+    setMessages(session.messages as ChatMessage[])
+    setSelectedClient(session.client_id ?? '')
+    setHandoffBlock(session.handoff_block ?? null)
+    setErrorMsg(null)
+    setShowHistory(false)
+    if (session.is_complete && session.handoff_block) {
+      setShowHandoffModal(true)
+    }
+  }, [])
+
   // ── Render ────────────────────────────────────────────────────
+
+  // ── Handoff modal ────────────────────────────────────────────
+  const handoffModal = showHandoffModal ? (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between rounded-t-2xl" style={{ background: '#1B3D38' }}>
+          <div>
+            <p className="text-sm font-bold text-white">Chat Limit Reached</p>
+            <p className="text-[11px] text-white/60 mt-0.5">{MAX_MESSAGES} messages — copy the block below to continue in a new chat</p>
+          </div>
+          <button onClick={() => setShowHandoffModal(false)} className="text-white/60 hover:text-white transition-colors">
+            <X className="w-4 h-4"/>
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Copy this context block and paste it at the start of your new chat to pick up exactly where you left off.
+          </p>
+          {generatingHandoff ? (
+            <div className="flex items-center gap-2 p-4 bg-slate-50 rounded-xl">
+              <Loader2 className="w-4 h-4 text-slate-400 animate-spin"/>
+              <span className="text-sm text-slate-500">Preparing your context handoff…</span>
+            </div>
+          ) : (
+            <div className="relative">
+              <textarea
+                readOnly
+                value={handoffBlock ?? ''}
+                rows={10}
+                className="w-full text-xs font-mono text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-4 resize-none outline-none focus:border-slate-300 leading-relaxed"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(handoffBlock ?? '').catch(() => {})
+                  setCopiedHandoff(true)
+                  setTimeout(() => setCopiedHandoff(false), 2000)
+                }}
+                className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-medium text-slate-600 hover:border-slate-300 transition-all shadow-sm"
+              >
+                {copiedHandoff
+                  ? <><ClipboardCheck className="w-3 h-3 text-emerald-600"/> Copied</>
+                  : <><Clipboard className="w-3 h-3"/> Copy</>}
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => { setShowHandoffModal(false); newChat() }}
+            className="w-full py-3 rounded-xl text-sm font-bold text-white transition-colors"
+            style={{ background: '#1B3D38' }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#163330')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#1B3D38')}
+          >
+            Start New Chat
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
 
   const content = (
     <div
@@ -511,14 +802,73 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
             </select>
           </div>
 
-          {messages.length > 0 && (
-            <button
-              onClick={clearChat}
-              className="text-white/50 hover:text-white/90 transition-colors text-[10px] font-medium px-1"
-            >
-              Clear
-            </button>
+          {/* History dropdown — full page only */}
+          {fullPage && (
+            <div className="relative" ref={historyRef}>
+              <button
+                onClick={() => setShowHistory(v => !v)}
+                className={cn(
+                  'flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] transition-colors',
+                  showHistory ? 'bg-white/20 text-white' : 'bg-white/10 hover:bg-white/15 text-white/70',
+                )}
+              >
+                <History className="w-3 h-3"/>
+                <span>History</span>
+              </button>
+              {showHistory && (
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Recent Chats</p>
+                    <button
+                      onClick={() => { setShowHistory(false); newChat() }}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-novax hover:text-novax-hover transition-colors"
+                    >
+                      <Plus className="w-3 h-3"/> New
+                    </button>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {sessions.length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-slate-400">No saved chats yet</p>
+                    ) : sessions.slice(0, 15).map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => loadSession(s)}
+                        className={cn(
+                          'w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-slate-50 transition-colors border-b border-slate-50/80 last:border-0',
+                          s.id === sessionId && 'bg-novax-light/50',
+                        )}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-slate-800 truncate">{s.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {s.client_name && <span className="text-[10px] text-novax-muted truncate max-w-[80px]">{s.client_name}</span>}
+                            <span className="text-[10px] text-slate-400">{new Date(s.updated_at).toLocaleDateString()}</span>
+                            {s.is_complete && (
+                              <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full shrink-0">Complete</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); removeSession(s.id) }}
+                          className="text-slate-300 hover:text-red-400 transition-colors shrink-0 mt-0.5"
+                        >
+                          <X className="w-3 h-3"/>
+                        </button>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
+
+          <button
+            onClick={newChat}
+            className="text-white/50 hover:text-white/90 transition-colors text-[10px] font-medium px-1"
+            title="Start new chat"
+          >
+            New
+          </button>
 
           {/* Open full page — only show when NOT already on full page */}
           {!fullPage && (
@@ -542,6 +892,37 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-slate-50/50">
+
+        {/* Approaching limit warning */}
+        {sessionNearLimit && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 shrink-0">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0"/>
+            <span className="flex-1">{MAX_MESSAGES - messages.length} messages remaining before this chat closes.</span>
+            {generatingHandoff && <Loader2 className="w-3 h-3 animate-spin shrink-0"/>}
+          </div>
+        )}
+
+        {/* Chat complete — show button to re-open handoff */}
+        {sessionIsComplete && !showHandoffModal && (
+          <div className="flex flex-col items-center gap-2.5 py-4 text-center">
+            <p className="text-sm font-semibold text-slate-700">This chat has reached its limit</p>
+            <p className="text-xs text-slate-400 max-w-[220px]">Start a new chat to continue. Use the context block to carry your work forward.</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowHandoffModal(true)}
+                className="px-3 py-1.5 text-xs font-semibold border border-novax-border text-novax rounded-lg hover:bg-novax-light transition-colors"
+              >
+                View Context Block
+              </button>
+              <button
+                onClick={newChat}
+                className="px-3 py-1.5 text-xs font-semibold bg-novax text-white rounded-lg hover:bg-novax-hover transition-colors"
+              >
+                New Chat
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Empty state */}
         {messages.length === 0 && !streaming && (
@@ -602,12 +983,7 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
           <MessageBubble
             key={msg.id}
             msg={msg}
-            docContextItems={
-              // Only show "Apply" on assistant replies, and only when there are doc context items
-              msg.role === 'assistant' && i > 0
-                ? contextItems.filter(c => c.type === 'document')
-                : []
-            }
+            docContextItems={msg.role === 'assistant' && i > 0 ? contextItems : []}
           />
         ))}
 
@@ -719,7 +1095,7 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
         {/* Textarea + send */}
         <div className={cn(
           'flex items-end gap-2 bg-slate-50 border rounded-xl px-3 py-2 transition-all',
-          streaming
+          streaming || sessionIsComplete
             ? 'border-slate-200 opacity-70'
             : 'border-slate-200 focus-within:border-novax-muted focus-within:ring-2 focus-within:ring-novax-light',
         )}>
@@ -728,15 +1104,15 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything… @ to reference, / for commands"
+            placeholder={sessionIsComplete ? 'Chat limit reached — start a new chat above' : 'Ask anything… @ to reference, / for commands'}
             rows={1}
-            disabled={streaming}
-            className="flex-1 text-sm text-slate-800 bg-transparent outline-none resize-none placeholder:text-slate-400 overflow-y-auto leading-relaxed"
+            disabled={streaming || sessionIsComplete}
+            className="flex-1 text-sm text-slate-800 bg-transparent outline-none resize-none placeholder:text-slate-400 overflow-y-auto leading-relaxed disabled:cursor-not-allowed"
             style={{ height: 'auto', minHeight: '24px', maxHeight: '128px' }}
           />
           <button
             onClick={() => void sendMessage()}
-            disabled={!input.trim() || streaming}
+            disabled={!input.trim() || streaming || sessionIsComplete}
             className={cn(
               'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mb-0.5 transition-all',
               input.trim() && !streaming
@@ -759,10 +1135,11 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
     </div>
   )
 
-  if (fullPage) return content
+  if (fullPage) return <>{handoffModal}{content}</>
 
   return (
     <>
+      {handoffModal}
       {/* Mobile backdrop */}
       <div
         className="fixed inset-0 bg-black/20 z-40 sm:hidden"

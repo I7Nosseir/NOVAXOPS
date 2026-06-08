@@ -126,36 +126,46 @@ async function callGemini(prompt: string): Promise<{ text: string; inputTokens: 
 // Maps Gemini ### Header names to narrative keys used by the frontend.
 
 const SECTION_KEY_MAP: Record<string, string> = {
-  'executive summary':            'executive',
-  'reach & impressions analysis': 'reach',
-  'reach and impressions analysis': 'reach',
-  'engagement analysis':          'engagement',
-  'platform performance':         'platform',
-  'trend analysis':               'trend',
-  'audience insights':            'audience',
-  'follower growth & reach':      'follower',
-  'follower growth and reach':    'follower',
-  'content performance patterns': 'formats',
-  'format performance':           'formats',
-  'organic reach & efficiency':   'reach',
-  'organic reach and efficiency': 'reach',
-  'engagement quality':           'engagement',
-  'platform distribution':        'platform',
-  'channel mix analysis':         'channel',
-  'paid vs organic synergy':      'synergy',
-  'paid vs organic':              'synergy',
-  'organic performance analysis': 'reach',
-  'quarterly performance overview': 'quarterly_overview',
-  'month-by-month analysis':      'monthly_breakdown',
-  'growth analysis':              'trend',
-  'portfolio overview':           'portfolio',
-  'performance highlights':       'highlights',
-  'audience & engagement quality': 'audience',
-  'audience and engagement quality': 'audience',
-  'campaign analysis':            'channel',
-  'spend & efficiency':           'efficiency',
-  'spend and efficiency':         'efficiency',
-  'creative performance':         'creative',
+  'executive summary':                          'executive',
+  'reach & impressions analysis':               'reach',
+  'reach and impressions analysis':             'reach',
+  'engagement analysis':                        'engagement',
+  'platform performance':                       'platform',
+  'trend analysis':                             'trend',
+  'audience insights':                          'audience',
+  'audience engagement':                        'audience',
+  'audience interaction depth':                 'audience',
+  'audience & engagement quality':              'audience',
+  'audience and engagement quality':            'audience',
+  'follower growth & reach':                    'follower',
+  'follower growth and reach':                  'follower',
+  'content performance patterns':               'formats',
+  'format performance':                         'formats',
+  'content frequency & publishing cadence':     'formats',
+  'content frequency and publishing cadence':   'formats',
+  'content frequency':                          'formats',
+  'publishing cadence':                         'formats',
+  'organic reach & efficiency':                 'reach',
+  'organic reach and efficiency':               'reach',
+  'engagement quality':                         'engagement',
+  'platform distribution':                      'platform',
+  'channel mix analysis':                       'channel',
+  'paid vs organic synergy':                    'synergy',
+  'paid vs organic':                            'synergy',
+  'organic performance analysis':               'reach',
+  'quarterly performance overview':             'quarterly_overview',
+  'month-by-month analysis':                    'monthly_breakdown',
+  'growth analysis':                            'trend',
+  'portfolio overview':                         'portfolio',
+  'performance highlights':                     'highlights',
+  'campaign analysis':                          'channel',
+  'spend & efficiency':                         'efficiency',
+  'spend and efficiency':                       'efficiency',
+  'creative performance':                       'creative',
+  'paid media performance':                     'paid_ads',
+  'paid advertising':                           'paid_ads',
+  'paid advertising performance':               'paid_ads',
+  'paid performance':                           'paid_ads',
 }
 
 function parseSections(text: string): Record<string, string> {
@@ -254,7 +264,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { clientId, reportType = 'monthly', startDate, endDate, platforms, language } = body as typeof body & { platforms?: string[]; language?: 'en' | 'ar' }
+  const { clientId, reportType = 'monthly', startDate, endDate, platforms, language, paidAdsData } = body as typeof body & { platforms?: string[]; language?: 'en' | 'ar'; paidAdsData?: import('@/lib/report-prompts').PaidAdsData | null }
 
   if (!clientId || !startDate || !endDate) {
     return NextResponse.json(
@@ -309,7 +319,8 @@ export async function POST(req: NextRequest) {
         client.name,
         period,
         client.brand,
-        language
+        language,
+        paidAdsData ?? null
       )
       const { text: raw, inputTokens, outputTokens } = await callGemini(prompt)
       narrative = parseSections(raw)

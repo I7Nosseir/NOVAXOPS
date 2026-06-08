@@ -2,15 +2,63 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Copy, Star, Filter, X, HardDrive, FolderOpen, FileText, Image, Film, File, ChevronRight, RefreshCw, Loader2, Unlink, ExternalLink, AlertCircle, Layers } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import Link from 'next/link'
+import { Search, Copy, Star, Filter, X, HardDrive, FolderOpen, FileText, Image, Film, File, ChevronRight, RefreshCw, Loader2, Unlink, ExternalLink, AlertCircle, Layers, ChevronDown } from 'lucide-react'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
+import { supabase } from '@/lib/supabase'
 import { formatDate, formatNumber, cn } from '@/lib/utils'
 import type { SocialPlatform } from '@/lib/types'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 
 const TEMPLATE_TAGS = ['Product Launch', 'Engagement', 'Educational', 'Behind the Scenes', 'Social Proof', 'Seasonal', 'Promotional']
+
+// ─── Studio Output types ────────────────────────────────────────────────────────
+
+interface StudioSession {
+  id: string
+  title: string | null
+  tool_type: string
+  client_id: string | null
+  created_at: string
+  updated_at: string
+  status: string | null
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  content:     'Content Studio',
+  hooks:       'Hook Lab',
+  strategy:    'Strategy',
+  campaign:    'Campaign Igniter',
+  postmortem:  'Post-Mortem',
+  visual:      'Visual Studio',
+  inspiration: 'Inspiration',
+  formats:     'Format Generator',
+}
+
+const TOOL_COLORS: Record<string, string> = {
+  content:     'bg-blue-50 text-blue-700 border-blue-200',
+  hooks:       'bg-purple-50 text-purple-700 border-purple-200',
+  strategy:    'bg-novax-light text-novax border-novax-border',
+  campaign:    'bg-amber-50 text-amber-700 border-amber-200',
+  postmortem:  'bg-red-50 text-red-700 border-red-200',
+  visual:      'bg-emerald-50 text-emerald-700 border-emerald-200',
+  inspiration: 'bg-pink-50 text-pink-700 border-pink-200',
+  formats:     'bg-orange-50 text-orange-700 border-orange-200',
+}
+
+const TOOL_PATHS: Record<string, string> = {
+  content:     '/studio/content',
+  hooks:       '/studio/hooks',
+  strategy:    '/studio/strategy',
+  campaign:    '/studio/campaign',
+  postmortem:  '/studio/postmortem',
+  visual:      '/studio/visual',
+  inspiration: '/studio/inspiration',
+  formats:     '/studio/formats',
+}
 
 type LibraryItem = {
   id: string; task_id: string; client_id: string; template_name: string
@@ -287,7 +335,7 @@ function DrivePanel() {
 
 // ─── Main Library Page ──────────────────────────────────────────────────────────
 
-type ActiveTab = 'templates' | 'drive'
+type ActiveTab = 'templates' | 'studio' | 'drive'
 
 const LS_KEY = (userId: string) => `novax_library_saves_${userId}`
 
@@ -297,6 +345,32 @@ export default function LibraryPage() {
   const { user } = useAuth()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<ActiveTab>('templates')
+  const [studioClientFilter, setStudioClientFilter] = useState<string>('all')
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set())
+
+  const { data: studioSessions = [], isLoading: sessionsLoading } = useQuery<StudioSession[]>({
+    queryKey: ['studio_sessions_library'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('studio_sessions')
+        .select('id,title,tool_type,client_id,created_at,updated_at,status')
+        .order('created_at', { ascending: false })
+        .limit(300)
+      if (error) throw error
+      return (data ?? []) as StudioSession[]
+    },
+    enabled: activeTab === 'studio',
+    staleTime: 60_000,
+  })
+
+  const toggleClientExpand = (key: string) => {
+    setExpandedClients(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState<string>('all')
@@ -376,6 +450,14 @@ export default function LibraryPage() {
         >
           <Filter className="w-3.5 h-3.5"/>
           Content Templates
+        </button>
+        <button
+          onClick={() => setActiveTab('studio')}
+          className={cn('flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+            activeTab === 'studio' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+        >
+          <Layers className="w-3.5 h-3.5"/>
+          Studio Outputs
         </button>
         <button
           onClick={() => setActiveTab('drive')}
@@ -526,12 +608,165 @@ export default function LibraryPage() {
         </>
       )}
 
+      {/* ── Studio Outputs Tab ── */}
+      {activeTab === 'studio' && (
+        <StudioOutputsPanel
+          sessions={studioSessions}
+          clients={clients}
+          loading={sessionsLoading}
+          clientFilter={studioClientFilter}
+          onClientFilterChange={setStudioClientFilter}
+          expandedClients={expandedClients}
+          onToggleClient={toggleClientExpand}
+        />
+      )}
+
       {/* ── Drive Tab ── */}
       {activeTab === 'drive' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <DrivePanel/>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Studio Outputs Panel ──────────────────────────────────────────────────────
+
+interface StudioOutputsPanelProps {
+  sessions:            StudioSession[]
+  clients:             Array<{ id: string; name: string; color?: string; initials?: string }>
+  loading:             boolean
+  clientFilter:        string
+  onClientFilterChange: (v: string) => void
+  expandedClients:     Set<string>
+  onToggleClient:      (key: string) => void
+}
+
+function StudioOutputsPanel({
+  sessions,
+  clients,
+  loading,
+  clientFilter,
+  onClientFilterChange,
+  expandedClients,
+  onToggleClient,
+}: StudioOutputsPanelProps) {
+  // Group sessions by client, applying filter
+  const filtered = clientFilter === 'all'
+    ? sessions
+    : sessions.filter(s => s.client_id === clientFilter)
+
+  const grouped = filtered.reduce<Record<string, { color?: string; initials?: string; sessions: StudioSession[] }>>(
+    (acc, session) => {
+      const client = clients.find(c => c.id === session.client_id)
+      const key = client ? client.name : 'No Client'
+      if (!acc[key]) acc[key] = { color: client?.color, initials: client?.initials, sessions: [] }
+      acc[key].sessions.push(session)
+      return acc
+    },
+    {},
+  )
+
+  const clientKeys = Object.keys(grouped).sort((a, b) => {
+    if (a === 'No Client') return 1
+    if (b === 'No Client') return -1
+    return a.localeCompare(b)
+  })
+
+  return (
+    <div className="space-y-5">
+      {/* Filter bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <select
+          value={clientFilter}
+          onChange={e => onClientFilterChange(e.target.value)}
+          className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 outline-none focus:border-novax-muted bg-white"
+        >
+          <option value="all">All Clients</option>
+          {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <p className="text-sm text-slate-500 ml-auto">{filtered.length} outputs</p>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center gap-2 py-8 justify-center text-slate-400 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading studio outputs…
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && filtered.length === 0 && (
+        <div className="py-16 text-center">
+          <Layers className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">No studio outputs yet.</p>
+          <Link href="/studio" className="inline-block mt-3 text-xs text-novax-muted hover:text-novax font-medium transition-colors">
+            Open Studio
+          </Link>
+        </div>
+      )}
+
+      {/* Client folders */}
+      {!loading && clientKeys.map(clientName => {
+        const { color, initials, sessions: clientSessions } = grouped[clientName]
+        const isExpanded = expandedClients.has(clientName) || expandedClients.size === 0
+        return (
+          <div key={clientName} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            {/* Folder header */}
+            <button
+              onClick={() => onToggleClient(clientName)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {color ? (
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: color }}>
+                    {initials}
+                  </div>
+                ) : (
+                  <div className="w-7 h-7 rounded-lg bg-slate-200 flex items-center justify-center shrink-0">
+                    <FolderOpen className="w-3.5 h-3.5 text-slate-500" />
+                  </div>
+                )}
+                <span className="text-sm font-semibold text-slate-800">{clientName}</span>
+                <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{clientSessions.length}</span>
+              </div>
+              {isExpanded
+                ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                : <ChevronRight className="w-4 h-4 text-slate-400" />}
+            </button>
+
+            {/* Session list */}
+            {isExpanded && (
+              <div className="border-t border-slate-100 divide-y divide-slate-100">
+                {clientSessions.map(session => (
+                  <div key={session.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
+                    <span className={cn(
+                      'shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize',
+                      TOOL_COLORS[session.tool_type] ?? 'bg-slate-100 text-slate-600 border-slate-200',
+                    )}>
+                      {TOOL_LABELS[session.tool_type] ?? session.tool_type}
+                    </span>
+                    <p className="flex-1 text-sm text-slate-700 truncate min-w-0">
+                      {session.title ?? 'Untitled Session'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 shrink-0">
+                      {formatDate(session.created_at)}
+                    </p>
+                    <Link
+                      href={TOOL_PATHS[session.tool_type] ?? '/studio'}
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-novax-muted bg-novax-light border border-novax-border rounded-lg hover:bg-novax-light-hover transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Open
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

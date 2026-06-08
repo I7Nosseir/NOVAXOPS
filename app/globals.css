@@ -1577,6 +1577,13 @@ html.dark .search-glass:focus {
     break-after: page !important;
     page-break-after: always !important;
     min-height: 230mm;
+    display: flex;
+    flex-direction: column;
+  }
+  .report-cover-page > * {
+    flex: 1;
+    min-height: 230mm;
+    border-radius: 0 !important;
   }
   .print-break-before {
     break-before: page !important;

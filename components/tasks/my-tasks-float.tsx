@@ -222,12 +222,8 @@ export function MyTasksFloat() {
         </div>
       )}
 
-      {/* Task detail slide-over — rendered outside the float panel so it overlays everything */}
       {selectedTask && (
-        <>
-          <div className="fixed inset-0 z-50" onClick={() => setSelectedTask(null)}/>
-          <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)}/>
-        </>
+        <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} />
       )}
     </>
   )

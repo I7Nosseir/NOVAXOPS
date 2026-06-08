@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Zap, Wand2, Brain, Target, AlertCircle, Plus, RefreshCw, Trash2, Loader2 } from 'lucide-react'
+import { Zap, Wand2, Brain, Target, AlertCircle, Plus, RefreshCw, Trash2, Loader2, LineChart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { StudioSession } from '@/lib/studio-types'
 
@@ -31,7 +31,8 @@ const TOOL_CONFIG: Record<
   intel:     { icon: AlertCircle,label: 'Intelligence'      },
   trends:    { icon: Zap,        label: 'Trends'            },
   ads:       { icon: Target,     label: 'Ads'               },
-  repurpose: { icon: RefreshCw,  label: 'Repurpose'         },
+  repurpose:    { icon: RefreshCw,  label: 'Repurpose'          },
+  media_buying: { icon: LineChart,  label: 'Media Buying Plan'  },
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────

@@ -1,37 +1,126 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const STYLE_SUFFIXES: Record<string, string> = {
-  photorealistic: 'photorealistic, professional photography, high resolution, sharp detail, studio quality',
-  cinematic:      'cinematic photography, film still, dramatic lighting, anamorphic, color graded, shallow depth of field',
-  product:        'product photography, clean white background, studio lighting, commercial advertising, sharp focus',
-  lifestyle:      'lifestyle photography, natural light, authentic moment, warm tones, candid, editorial',
-  illustration:   'digital illustration, vector art, vibrant colors, clean lines, graphic design',
-  abstract:       'abstract art, bold colors, dynamic composition, modern digital art, creative',
+  photorealistic: 'photorealistic, professional photography, 8K ultra-high resolution, razor-sharp detail, professional studio lighting, high dynamic range, perfect exposure, masterful composition',
+  cinematic:      'cinematic photography, film still, dramatic chiaroscuro lighting, anamorphic lens, professional color grading, shallow depth of field, 4K cinema quality, epic atmosphere, bokeh background',
+  product:        'commercial product photography, seamless white background, multi-point professional studio lighting, ultra-sharp focus, advertising campaign quality, 8K detail, pristine product clarity',
+  lifestyle:      'lifestyle photography, natural golden hour light, authentic candid editorial, warm film tones, magazine quality, professional editorial photography, environmental storytelling',
+  illustration:   'professional digital illustration, intricate fine detail, vibrant harmonious color palette, clean precise vector-like lines, premium graphic design, print-ready quality',
+  abstract:       'fine art abstract, bold dynamic color field, masterful compositional balance, gallery quality, cutting-edge digital art, ultra-high resolution, museum-worthy',
 }
 
-// Models that use the generateContent endpoint (Gemini native image models)
+const QUALITY_SUFFIX = ', professional quality, no artifacts, no blur, no distortion, no watermarks'
+
 const GEMINI_IMAGE_MODELS = new Set([
   'gemini-2.5-flash-image',
   'gemini-3.1-flash-image-preview',
   'gemini-3-pro-image-preview',
 ])
 
-// Models that use the predict endpoint (Imagen 4)
 const IMAGEN_MODELS = new Set([
   'imagen-4.0-generate-001',
   'imagen-4.0-fast-generate-001',
   'imagen-4.0-ultra-generate-001',
 ])
 
+interface RefImage {
+  id: string
+  data: string
+  mime: string
+}
+
+interface ResizeToggles {
+  hasText: boolean
+  hasLogo: boolean
+  hasSubject: boolean
+  extendBackground: boolean
+}
+
+type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } }
+
+function extractMentions(prompt: string): string[] {
+  const matches = prompt.match(/@ref\d+/g) ?? []
+  return [...new Set(matches)].map(m => m.slice(1))
+}
+
+function buildResizerPrompt(aspectRatio: string, toggles: ResizeToggles): string {
+  const arLabel: Record<string, string> = {
+    '1:1': '1:1 square', '9:16': '9:16 vertical portrait',
+    '16:9': '16:9 horizontal landscape', '4:5': '4:5 portrait', '3:4': '3:4 portrait',
+  }
+  const arName = arLabel[aspectRatio] ?? aspectRatio
+
+  const parts: string[] = [
+    `You are a professional image compositor. Your task: recompose the attached reference image into a ${arName} aspect ratio.`,
+    '',
+    'ABSOLUTE RULES (every rule is mandatory with zero exceptions):',
+    '1. Reproduce every visual element with exact fidelity — colors, tones, contrast, shadows, highlights, and lighting must be identical to the reference',
+    '2. This is RECOMPOSITION only, not reimagination — do not add, remove, or alter any element',
+    '3. Output sharpness and detail must match or exceed the reference — no softening, blurring, or quality loss anywhere',
+    '4. Maintain the same photographic/visual style, depth of field, and atmosphere as the reference',
+  ]
+
+  if (toggles.extendBackground) {
+    parts.push('5. CANVAS EXTENSION: Expand the canvas to reach the target aspect ratio. Fill new areas by seamlessly continuing the background using the identical colors, textures, gradients, lighting direction, and atmosphere already present in the reference. The extension must be invisible — a viewer should not be able to tell where the original ended.')
+  } else {
+    parts.push('5. SMART CROP: Crop to the target aspect ratio. Prioritize keeping all key elements (especially any labeled subjects, text, logos) fully within the frame. Optimize framing for visual balance.')
+  }
+
+  if (toggles.hasText) {
+    parts.push(
+      '',
+      'TEXT — VERBATIM REPRODUCTION (MANDATORY):',
+      '- Read every character of text visible in the reference image and reproduce it identically, character by character',
+      '- Match the exact typeface, font weight, letter-spacing, line-height, size, and color',
+      '- Reproduce text at the same position relative to other composition elements',
+      '- Text edges must be razor-sharp and perfectly legible at full resolution — zero blur or distortion',
+      '- Reproduce all text effects: shadows, outlines, glows, gradients if present',
+      '- If the text is large/headline text, give it maximum priority in the crop/extend decision',
+    )
+  }
+
+  if (toggles.hasLogo) {
+    parts.push(
+      '',
+      'LOGO / BRAND MARK — PRECISION REPRODUCTION (CRITICAL — THIS IS THE HIGHEST PRIORITY):',
+      '- The logo in the reference must be reproduced as a pixel-faithful copy — NOT generated from memory',
+      '- Visually scan the reference logo carefully: note its exact shape, proportions, internal linework, crest details, letterforms, shields, emblems, symbols',
+      '- Reproduce every fine line, every curve, every internal element exactly as it appears in the reference',
+      '- Logo edges must be razor-crisp with zero softening, rounding, or approximation',
+      '- Maintain exact logo scale and position relative to the composition',
+      '- DO NOT substitute with a similar-looking logo from training data — only reproduce what you see in the reference',
+      '- If the logo contains an emblem or crest, every internal detail must be accurate and sharp',
+    )
+  }
+
+  if (toggles.hasSubject) {
+    parts.push(
+      '',
+      'SUBJECT PRESERVATION:',
+      '- The primary subject (person/product/vehicle/object) must be fully visible and never cropped',
+      '- Preserve exact appearance, pose, expression, clothing details, and all fine visual elements',
+      '- Maintain the subject\'s spatial relationship to background elements and frame edges',
+      '- Subject proportions and scale relative to the frame must match the reference',
+    )
+  }
+
+  parts.push('', 'Output only the recomposed image. No commentary or explanation.')
+  return parts.join('\n')
+}
+
 /**
  * POST /api/ai-image/generate
- * Body: { prompt, style, aspectRatio, negativePrompt?, model? }
  *
- * Supports:
- *   - Gemini native image models (gemini-2.5-flash-image, gemini-3.1-flash-image-preview, gemini-3-pro-image-preview)
- *     → uses generateContent API, aspect ratio baked into prompt
- *   - Imagen 4 (imagen-4.0-generate-001, imagen-4.0-fast-generate-001, imagen-4.0-ultra-generate-001)
- *     → uses predict API, native aspect ratio parameter
+ * Modes:
+ *   generate (default): prompt-driven generation with optional reference images and @-mentions
+ *   resize: reference-image-driven recomposition to a new aspect ratio (Gemini only)
+ *
+ * Body:
+ *   { prompt, style, aspectRatio, negativePrompt?, model?, referenceImages?, mode?, resizeToggles? }
+ *
+ * referenceImages: [{ id: 'ref1', data: base64, mime: 'image/png' }, ...] max 5
+ * Prompt can contain @ref1, @ref2 etc. — images injected in mention order for Gemini models.
+ * Imagen 4 models do not support reference images.
  *
  * Returns: { imageData: base64String, mimeType: string }
  */
@@ -47,58 +136,101 @@ export async function POST(req: NextRequest) {
     aspectRatio?: string
     negativePrompt?: string
     model?: string
-    referenceImageData?: string
-    referenceMime?: string
+    referenceImages?: RefImage[]
+    mode?: 'generate' | 'resize'
+    resizeToggles?: ResizeToggles
   }
   try { body = await req.json() as typeof body } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
   const {
-    prompt,
+    prompt = '',
     style = 'photorealistic',
     aspectRatio = '1:1',
     negativePrompt = '',
     model = 'gemini-2.5-flash-image',
-    referenceImageData,
-    referenceMime = 'image/png',
+    referenceImages = [],
+    mode = 'generate',
+    resizeToggles,
   } = body
 
-  if (!prompt?.trim()) {
+  const isResize = mode === 'resize'
+
+  if (!isResize && !prompt.trim()) {
     return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
   }
 
-  const styleSuffix = STYLE_SUFFIXES[style] ?? STYLE_SUFFIXES.photorealistic
-  const fullPrompt = `${prompt.trim()}. ${styleSuffix}`
+  if (isResize && referenceImages.length === 0) {
+    return NextResponse.json({ error: 'A source image is required for resize mode.' }, { status: 400 })
+  }
+
+  const refs = referenceImages.slice(0, 5)
   const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
   try {
     // ── Gemini native image models (generateContent) ───────────────────────────
     if (GEMINI_IMAGE_MODELS.has(model)) {
-      // Aspect ratio baked into prompt since generateContent doesn't have a native param
-      const arLabel: Record<string, string> = {
-        '1:1': 'square 1:1 aspect ratio',
-        '9:16': 'vertical 9:16 portrait aspect ratio, taller than wide',
-        '16:9': 'horizontal 16:9 landscape aspect ratio, wider than tall',
-        '4:5': 'portrait 4:5 aspect ratio',
-        '3:4': 'portrait 3:4 aspect ratio',
+      const reqParts: GeminiPart[] = []
+
+      if (isResize) {
+        // Resize mode: source image + precision resizer instruction
+        const sourceRef = refs[0]
+        const toggles: ResizeToggles = resizeToggles ?? {
+          hasText: false, hasLogo: false, hasSubject: false, extendBackground: true,
+        }
+        const resizerInstruction = buildResizerPrompt(aspectRatio, toggles)
+        reqParts.push({ text: 'Source image to recompose:' })
+        reqParts.push({ inlineData: { mimeType: sourceRef.mime, data: sourceRef.data } })
+        reqParts.push({ text: resizerInstruction })
+      } else {
+        // Generate mode: build styled prompt
+        const styleSuffix = STYLE_SUFFIXES[style] ?? STYLE_SUFFIXES.photorealistic
+        // Limit user prompt to 2000 chars to avoid context issues with large images
+        const cappedPrompt = prompt.trim().slice(0, 2000)
+        const fullPrompt = `${cappedPrompt}. ${styleSuffix}${QUALITY_SUFFIX}`
+
+        const arLabel: Record<string, string> = {
+          '1:1': 'square 1:1 aspect ratio',
+          '9:16': 'vertical 9:16 portrait aspect ratio, taller than wide',
+          '16:9': 'horizontal 16:9 landscape aspect ratio, wider than tall',
+          '4:5': 'portrait 4:5 aspect ratio',
+          '3:4': 'portrait 3:4 aspect ratio',
+        }
+        const arHint = arLabel[aspectRatio] ?? 'square 1:1 aspect ratio'
+        const finalPrompt = `${fullPrompt}. Compose the image in a ${arHint}.`
+          + (negativePrompt?.trim() ? ` Avoid: ${negativePrompt.trim()}.` : '')
+
+        if (refs.length > 0) {
+          const mentionedIds = extractMentions(finalPrompt)
+          const mentionedRefs = mentionedIds
+            .map(id => refs.find(r => r.id === id))
+            .filter((r): r is RefImage => r !== undefined)
+          const unmentionedRefs = refs.filter(r => !mentionedIds.includes(r.id))
+
+          for (const ref of mentionedRefs) {
+            reqParts.push({ text: `Reference image (@${ref.id}):` })
+            reqParts.push({ inlineData: { mimeType: ref.mime, data: ref.data } })
+          }
+
+          if (unmentionedRefs.length > 0) {
+            reqParts.push({ text: 'Additional reference images for visual context:' })
+            for (const ref of unmentionedRefs) {
+              reqParts.push({ text: `(@${ref.id}):` })
+              reqParts.push({ inlineData: { mimeType: ref.mime, data: ref.data } })
+            }
+          }
+
+          const mentionNote = mentionedRefs.length > 0
+            ? 'Use each @-referenced image exactly as indicated in the prompt below.'
+            : 'Use the reference images above as visual inspiration, maintaining their subjects, products, logos, or characters faithfully.'
+          reqParts.push({ text: `${mentionNote} Now create: ${finalPrompt}` })
+        } else {
+          reqParts.push({ text: finalPrompt })
+        }
       }
-      const arHint = arLabel[aspectRatio] ?? 'square 1:1 aspect ratio'
-      const finalPrompt = `${fullPrompt}. Compose the image in a ${arHint}.`
-        + (negativePrompt?.trim() ? ` Avoid: ${negativePrompt.trim()}.` : '')
 
       const url = `${BASE}/${model}:generateContent?key=${apiKey}`
-
-      // Build request parts — prepend reference image if supplied
-      type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } }
-      const reqParts: GeminiPart[] = []
-      if (referenceImageData) {
-        reqParts.push({ inlineData: { mimeType: referenceMime, data: referenceImageData } })
-        reqParts.push({ text: `Using the above reference image as visual inspiration (maintain its subject, product, logo, or character faithfully), create: ${finalPrompt}` })
-      } else {
-        reqParts.push({ text: finalPrompt })
-      }
-
       const payload = {
         contents: [{ role: 'user', parts: reqParts }],
         generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
@@ -141,13 +273,22 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Imagen 4 (predict) ─────────────────────────────────────────────────────
+    // ── Imagen 4 (predict) — no reference image or resize support ─────────────
     if (IMAGEN_MODELS.has(model)) {
-      // Imagen 4 only supports these aspect ratios — map 4:5 to the closest (3:4)
+      if (isResize) {
+        return NextResponse.json({
+          error: 'Resize mode requires a Gemini model. Imagen 4 does not support reference image input via this API. Please switch to Flash Image, Flash Image Preview, or Pro Image Preview.',
+        }, { status: 400 })
+      }
+
       const IMAGEN_AR_MAP: Record<string, string> = {
         '1:1': '1:1', '9:16': '9:16', '16:9': '16:9', '4:3': '4:3', '3:4': '3:4', '4:5': '3:4',
       }
       const imagenAR = IMAGEN_AR_MAP[aspectRatio] ?? '1:1'
+
+      const styleSuffix = STYLE_SUFFIXES[style] ?? STYLE_SUFFIXES.photorealistic
+      const cappedPrompt = prompt.trim().slice(0, 2000)
+      const fullPrompt = `${cappedPrompt}. ${styleSuffix}${QUALITY_SUFFIX}`
 
       const url = `${BASE}/${model}:predict?key=${apiKey}`
       const payload = {
@@ -156,6 +297,7 @@ export async function POST(req: NextRequest) {
           sampleCount: 1,
           aspectRatio: imagenAR,
           personGeneration: 'ALLOW_ALL',
+          enhancePrompt: true,
           ...(negativePrompt?.trim() ? { negativePrompt: negativePrompt.trim() } : {}),
         },
       }

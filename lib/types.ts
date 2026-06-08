@@ -167,7 +167,7 @@ export interface AIResponse {
 export interface Asset {
   id: string
   task_id: string
-  source: 'upload' | 'drive'
+  source: 'upload' | 'drive' | 'ai'
   type: 'image' | 'video' | 'illustration' | 'icon' | 'document'
   file_url: string
   thumbnail_url: string
@@ -183,6 +183,7 @@ export interface ScheduledPost {
   platforms: SocialPlatform[]
   caption: string
   media_url?: string
+  media_urls?: string[]
   scheduled_at: string
   status: 'draft' | 'scheduled' | 'published' | 'failed'
   metricool_post_id?: string

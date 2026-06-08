@@ -1052,12 +1052,6 @@ function StrategyToolDocument({ doc }: { doc: StrategyDocument }) {
 // ─── CAMPAIGN TOOL renderer ───────────────────────────────────────────────────
 
 function CampaignToolDocument({ doc }: { doc: CampaignDocument }) {
-  const BUDGET_BADGE: Record<string, string> = {
-    Low: 'bg-emerald-100 text-emerald-700',
-    Medium: 'bg-amber-100 text-amber-700',
-    High: 'bg-red-100 text-red-700',
-  }
-
   // CampaignDocument uses cultural_tensions (array), inverted_rules (array), creative_domains
   const tensions = doc.cultural_tensions ?? []
   const rules = doc.inverted_rules ?? []
@@ -1176,24 +1170,82 @@ function CampaignToolDocument({ doc }: { doc: CampaignDocument }) {
             </div>
           )}
 
+          {/* CONTENT LADDER */}
+          {concept.content_ladder && concept.content_ladder.length > 0 && (
+            <div className="px-6 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Content Ladder</p>
+              <div className="space-y-2">
+                {concept.content_ladder.map((week, j) => (
+                  <div key={j} className="flex items-start gap-3 bg-slate-50 rounded-lg p-3">
+                    <span className="text-xs font-black text-novax shrink-0 w-5">{j + 1}</span>
+                    <p className="text-xs text-slate-700 leading-relaxed">{week}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SEED STRATEGY */}
+          {concept.seed_strategy && (
+            <div className="bg-violet-50 border border-violet-200 rounded-xl mx-6 p-4 my-2">
+              <p className="text-[10px] tracking-wider text-violet-600 font-bold uppercase mb-2">Seed Strategy</p>
+              <p className="text-sm text-violet-900">{concept.seed_strategy}</p>
+            </div>
+          )}
+
+          {/* VIRALITY TRIGGER */}
+          {concept.virality_trigger && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl mx-6 p-4 my-2">
+              <p className="text-[10px] tracking-wider text-emerald-600 font-bold uppercase mb-2">Virality Trigger</p>
+              <p className="text-sm text-emerald-900 italic">{concept.virality_trigger}</p>
+            </div>
+          )}
+
+          {/* ANTI EXAMPLE */}
+          {concept.anti_example && (
+            <div className="bg-red-50 border border-red-200 rounded-xl mx-6 p-4 my-2">
+              <p className="text-[10px] tracking-wider text-red-600 font-bold uppercase mb-2">What Went Wrong Before</p>
+              <p className="text-sm text-red-900">{concept.anti_example}</p>
+            </div>
+          )}
+
+          {/* RISK + MITIGATION */}
+          {(concept.risk || concept.mitigation) && (
+            <div className="px-6 py-3 bg-amber-50/60 border-t border-amber-100">
+              {concept.risk && (
+                <p className="text-xs text-amber-800 mb-1">
+                  <span className="font-bold uppercase text-[10px] tracking-wider mr-1.5">Risk:</span>
+                  {concept.risk}
+                </p>
+              )}
+              {concept.mitigation && (
+                <p className="text-xs text-amber-700">
+                  <span className="font-bold uppercase text-[10px] tracking-wider mr-1.5">Mitigation:</span>
+                  {concept.mitigation}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Card footer */}
           <div className="px-6 py-3 border-t border-slate-100 flex items-center gap-2 flex-wrap">
             <span
               className={cn(
                 'text-xs font-medium rounded-full px-2.5 py-1',
-                BUDGET_BADGE[concept.budget] ?? 'bg-slate-100 text-slate-600',
+                concept.budget?.toLowerCase().startsWith('low')
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : concept.budget?.toLowerCase().startsWith('medium')
+                    ? 'bg-amber-100 text-amber-700'
+                    : concept.budget?.toLowerCase().startsWith('high')
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-slate-100 text-slate-600',
               )}
             >
-              {concept.budget} budget
+              {concept.budget}
             </span>
             <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-2.5 py-1">
               {concept.timeline}
             </span>
-            {concept.risk && (
-              <span className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-full px-2.5 py-1">
-                Risk: {concept.risk}
-              </span>
-            )}
           </div>
         </div>
       ))}

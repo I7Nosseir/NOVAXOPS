@@ -39,6 +39,10 @@ const C = {
 }
 
 // ── Fonts are Helvetica (built-in) — no registration needed ──────────────────
+// react-pdf wraps text automatically inside Text, but View containers with
+// explicit heights or overflow:hidden will clip. All content views use
+// paddingBottom to stay clear of the footer, and Text nodes always flex:1.
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -345,7 +349,7 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
   return (
     <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="01 — Strategic Foundation" accentColor={accentColor} />
-      <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
+      <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 72 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 24 }}>Strategic Foundation</Text>
 
         {/* Positioning statement — hero block */}
