@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import sharp from 'sharp'
 
 const STYLE_SUFFIXES: Record<string, string> = {
   photorealistic: 'photorealistic, professional photography, 8K ultra-high resolution, razor-sharp detail, professional studio lighting, high dynamic range, perfect exposure, masterful composition',
@@ -23,6 +24,14 @@ const IMAGEN_MODELS = new Set([
   'imagen-4.0-ultra-generate-001',
 ])
 
+const AR_VALUES: Record<string, { w: number; h: number }> = {
+  '1:1':  { w: 1,  h: 1  },
+  '4:5':  { w: 4,  h: 5  },
+  '9:16': { w: 9,  h: 16 },
+  '16:9': { w: 16, h: 9  },
+  '3:4':  { w: 3,  h: 4  },
+}
+
 interface RefImage {
   id: string
   data: string
@@ -41,6 +50,19 @@ type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: str
 function extractMentions(prompt: string): string[] {
   const matches = prompt.match(/@ref\d+/g) ?? []
   return [...new Set(matches)].map(m => m.slice(1))
+}
+
+// Auto-select model: upgrade to Pro when logo or text precision is needed
+function selectResizeModel(toggles: ResizeToggles, userModel?: string): string {
+  const precisionRequired = toggles.hasLogo || toggles.hasText
+  if (userModel && GEMINI_IMAGE_MODELS.has(userModel)) {
+    // Auto-upgrade Flash → Pro when logo/text precision matters
+    if (precisionRequired && userModel === 'gemini-3.1-flash-image-preview') {
+      return 'gemini-3-pro-image-preview'
+    }
+    return userModel
+  }
+  return precisionRequired ? 'gemini-3-pro-image-preview' : 'gemini-3.1-flash-image-preview'
 }
 
 function buildResizerPrompt(aspectRatio: string, toggles: ResizeToggles): string {
@@ -108,22 +130,6 @@ function buildResizerPrompt(aspectRatio: string, toggles: ResizeToggles): string
   return parts.join('\n')
 }
 
-/**
- * POST /api/ai-image/generate
- *
- * Modes:
- *   generate (default): prompt-driven generation with optional reference images and @-mentions
- *   resize: reference-image-driven recomposition to a new aspect ratio (Gemini only)
- *
- * Body:
- *   { prompt, style, aspectRatio, negativePrompt?, model?, referenceImages?, mode?, resizeToggles? }
- *
- * referenceImages: [{ id: 'ref1', data: base64, mime: 'image/png' }, ...] max 5
- * Prompt can contain @ref1, @ref2 etc. — images injected in mention order for Gemini models.
- * Imagen 4 models do not support reference images.
- *
- * Returns: { imageData: base64String, mimeType: string }
- */
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
@@ -149,7 +155,7 @@ export async function POST(req: NextRequest) {
     style = 'photorealistic',
     aspectRatio = '1:1',
     negativePrompt = '',
-    model = 'gemini-2.5-flash-image',
+    model = 'gemini-3.1-flash-image-preview',
     referenceImages = [],
     mode = 'generate',
     resizeToggles,
@@ -169,65 +175,184 @@ export async function POST(req: NextRequest) {
   const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
   try {
-    // ── Gemini native image models (generateContent) ───────────────────────────
+    // ── Resize mode ────────────────────────────────────────────────────────────
+    if (isResize) {
+      const sourceRef = refs[0]
+      const toggles: ResizeToggles = resizeToggles ?? {
+        hasText: false, hasLogo: false, hasSubject: false, extendBackground: true,
+      }
+
+      const sourceBuffer = Buffer.from(sourceRef.data, 'base64')
+      const sourceMeta = await sharp(sourceBuffer).metadata()
+      const srcW = sourceMeta.width ?? 1000
+      const srcH = sourceMeta.height ?? 1000
+      const srcAR = srcW / srcH
+
+      const targetRatio = AR_VALUES[aspectRatio] ?? { w: 1, h: 1 }
+      const targetAR = targetRatio.w / targetRatio.h
+
+      // ── Path A: Pure crop — Sharp only, zero AI ──────────────────────────────
+      if (!toggles.extendBackground) {
+        let cropW: number, cropH: number
+
+        if (Math.abs(targetAR - srcAR) < 0.01) {
+          // Same AR — return as-is
+          cropW = srcW; cropH = srcH
+        } else if (targetAR < srcAR) {
+          // Target is taller/narrower — crop the sides
+          cropH = srcH
+          cropW = Math.round(srcH * targetAR)
+        } else {
+          // Target is wider/shorter — crop top/bottom
+          cropW = srcW
+          cropH = Math.round(srcW / targetAR)
+        }
+
+        // Clamp to source dimensions
+        cropW = Math.min(cropW, srcW)
+        cropH = Math.min(cropH, srcH)
+
+        const position: string = toggles.hasSubject ? 'attention' : 'centre'
+
+        const cropped = await sharp(sourceBuffer)
+          .resize(cropW, cropH, { fit: 'cover', position })
+          .png()
+          .toBuffer()
+
+        return NextResponse.json({
+          imageData: cropped.toString('base64'),
+          mimeType: 'image/png',
+        })
+      }
+
+      // ── Path B: Extension — AI generates background, Sharp composites original ──
+
+      // If Imagen selected, fall back to best Gemini model
+      const resizeModel = selectResizeModel(toggles, GEMINI_IMAGE_MODELS.has(model) ? model : undefined)
+      const resizerInstruction = buildResizerPrompt(aspectRatio, toggles)
+
+      const reqParts: GeminiPart[] = [
+        { text: 'Source image to recompose:' },
+        { inlineData: { mimeType: sourceRef.mime, data: sourceRef.data } },
+        { text: resizerInstruction },
+      ]
+
+      const url = `${BASE}/${resizeModel}:generateContent?key=${apiKey}`
+      const payload = {
+        contents: [{ role: 'user', parts: reqParts }],
+        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const json = await res.json() as {
+        candidates?: {
+          content?: { parts?: { inlineData?: { data?: string; mimeType?: string }; text?: string }[] }
+          finishReason?: string
+        }[]
+        error?: { message?: string }
+      }
+
+      if (!res.ok || json.error) {
+        console.error('[ai-image/resize] API error:', json.error?.message)
+        return NextResponse.json({ error: json.error?.message ?? `API error ${res.status}` }, { status: res.status })
+      }
+
+      const resParts = json.candidates?.[0]?.content?.parts ?? []
+      const imagePart = resParts.find(p => p.inlineData?.data)
+
+      if (!imagePart?.inlineData?.data) {
+        const finishReason = json.candidates?.[0]?.finishReason
+        const modelText = resParts.find(p => p.text)?.text?.slice(0, 300)
+        const reason = finishReason === 'SAFETY'
+          ? 'Blocked by safety filters — try a different image.'
+          : modelText
+            ? `Model response: ${modelText}`
+            : 'No image returned. Try a different source image.'
+        return NextResponse.json({ error: reason }, { status: 502 })
+      }
+
+      // ── Sharp compositing: overlay original pixels on AI-generated canvas ─────
+      // This preserves logos, text, colors, and subject with pixel-perfect fidelity.
+      // AI output only contributes the extended background area.
+      const aiBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
+      const aiMeta = await sharp(aiBuffer).metadata()
+      const aiW = aiMeta.width ?? srcW
+      const aiH = aiMeta.height ?? srcH
+
+      // Scale source to fit inside AI canvas maintaining exact source AR
+      const scale = Math.min(aiW / srcW, aiH / srcH)
+      const scaledW = Math.round(srcW * scale)
+      const scaledH = Math.round(srcH * scale)
+      const left = Math.round((aiW - scaledW) / 2)
+      const top = Math.round((aiH - scaledH) / 2)
+
+      const scaledSource = await sharp(sourceBuffer)
+        .resize(scaledW, scaledH, { fit: 'fill' })
+        .png()
+        .toBuffer()
+
+      const composited = await sharp(aiBuffer)
+        .composite([{ input: scaledSource, left, top }])
+        .png()
+        .toBuffer()
+
+      return NextResponse.json({
+        imageData: composited.toString('base64'),
+        mimeType: 'image/png',
+      })
+    }
+
+    // ── Generate mode ──────────────────────────────────────────────────────────
+
     if (GEMINI_IMAGE_MODELS.has(model)) {
       const reqParts: GeminiPart[] = []
 
-      if (isResize) {
-        // Resize mode: source image + precision resizer instruction
-        const sourceRef = refs[0]
-        const toggles: ResizeToggles = resizeToggles ?? {
-          hasText: false, hasLogo: false, hasSubject: false, extendBackground: true,
+      const styleSuffix = STYLE_SUFFIXES[style] ?? STYLE_SUFFIXES.photorealistic
+      const cappedPrompt = prompt.trim().slice(0, 2000)
+      const fullPrompt = `${cappedPrompt}. ${styleSuffix}${QUALITY_SUFFIX}`
+
+      const arLabel: Record<string, string> = {
+        '1:1': 'square 1:1 aspect ratio',
+        '9:16': 'vertical 9:16 portrait aspect ratio, taller than wide',
+        '16:9': 'horizontal 16:9 landscape aspect ratio, wider than tall',
+        '4:5': 'portrait 4:5 aspect ratio',
+        '3:4': 'portrait 3:4 aspect ratio',
+      }
+      const arHint = arLabel[aspectRatio] ?? 'square 1:1 aspect ratio'
+      const finalPrompt = `${fullPrompt}. Compose the image in a ${arHint}.`
+        + (negativePrompt?.trim() ? ` Avoid: ${negativePrompt.trim()}.` : '')
+
+      if (refs.length > 0) {
+        const mentionedIds = extractMentions(finalPrompt)
+        const mentionedRefs = mentionedIds
+          .map(id => refs.find(r => r.id === id))
+          .filter((r): r is RefImage => r !== undefined)
+        const unmentionedRefs = refs.filter(r => !mentionedIds.includes(r.id))
+
+        for (const ref of mentionedRefs) {
+          reqParts.push({ text: `Reference image (@${ref.id}):` })
+          reqParts.push({ inlineData: { mimeType: ref.mime, data: ref.data } })
         }
-        const resizerInstruction = buildResizerPrompt(aspectRatio, toggles)
-        reqParts.push({ text: 'Source image to recompose:' })
-        reqParts.push({ inlineData: { mimeType: sourceRef.mime, data: sourceRef.data } })
-        reqParts.push({ text: resizerInstruction })
-      } else {
-        // Generate mode: build styled prompt
-        const styleSuffix = STYLE_SUFFIXES[style] ?? STYLE_SUFFIXES.photorealistic
-        // Limit user prompt to 2000 chars to avoid context issues with large images
-        const cappedPrompt = prompt.trim().slice(0, 2000)
-        const fullPrompt = `${cappedPrompt}. ${styleSuffix}${QUALITY_SUFFIX}`
 
-        const arLabel: Record<string, string> = {
-          '1:1': 'square 1:1 aspect ratio',
-          '9:16': 'vertical 9:16 portrait aspect ratio, taller than wide',
-          '16:9': 'horizontal 16:9 landscape aspect ratio, wider than tall',
-          '4:5': 'portrait 4:5 aspect ratio',
-          '3:4': 'portrait 3:4 aspect ratio',
-        }
-        const arHint = arLabel[aspectRatio] ?? 'square 1:1 aspect ratio'
-        const finalPrompt = `${fullPrompt}. Compose the image in a ${arHint}.`
-          + (negativePrompt?.trim() ? ` Avoid: ${negativePrompt.trim()}.` : '')
-
-        if (refs.length > 0) {
-          const mentionedIds = extractMentions(finalPrompt)
-          const mentionedRefs = mentionedIds
-            .map(id => refs.find(r => r.id === id))
-            .filter((r): r is RefImage => r !== undefined)
-          const unmentionedRefs = refs.filter(r => !mentionedIds.includes(r.id))
-
-          for (const ref of mentionedRefs) {
-            reqParts.push({ text: `Reference image (@${ref.id}):` })
+        if (unmentionedRefs.length > 0) {
+          reqParts.push({ text: 'Additional reference images for visual context:' })
+          for (const ref of unmentionedRefs) {
+            reqParts.push({ text: `(@${ref.id}):` })
             reqParts.push({ inlineData: { mimeType: ref.mime, data: ref.data } })
           }
-
-          if (unmentionedRefs.length > 0) {
-            reqParts.push({ text: 'Additional reference images for visual context:' })
-            for (const ref of unmentionedRefs) {
-              reqParts.push({ text: `(@${ref.id}):` })
-              reqParts.push({ inlineData: { mimeType: ref.mime, data: ref.data } })
-            }
-          }
-
-          const mentionNote = mentionedRefs.length > 0
-            ? 'Use each @-referenced image exactly as indicated in the prompt below.'
-            : 'Use the reference images above as visual inspiration, maintaining their subjects, products, logos, or characters faithfully.'
-          reqParts.push({ text: `${mentionNote} Now create: ${finalPrompt}` })
-        } else {
-          reqParts.push({ text: finalPrompt })
         }
+
+        const mentionNote = mentionedRefs.length > 0
+          ? 'Use each @-referenced image exactly as indicated in the prompt below.'
+          : 'Use the reference images above as visual inspiration, maintaining their subjects, products, logos, or characters faithfully.'
+        reqParts.push({ text: `${mentionNote} Now create: ${finalPrompt}` })
+      } else {
+        reqParts.push({ text: finalPrompt })
       }
 
       const url = `${BASE}/${model}:generateContent?key=${apiKey}`
@@ -273,14 +398,8 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Imagen 4 (predict) — no reference image or resize support ─────────────
+    // ── Imagen 4 (predict) ─────────────────────────────────────────────────────
     if (IMAGEN_MODELS.has(model)) {
-      if (isResize) {
-        return NextResponse.json({
-          error: 'Resize mode requires a Gemini model. Imagen 4 does not support reference image input via this API. Please switch to Flash Image, Flash Image Preview, or Pro Image Preview.',
-        }, { status: 400 })
-      }
-
       const IMAGEN_AR_MAP: Record<string, string> = {
         '1:1': '1:1', '9:16': '9:16', '16:9': '16:9', '4:3': '4:3', '3:4': '3:4', '4:5': '3:4',
       }
@@ -331,6 +450,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Unknown model: ${model}` }, { status: 400 })
 
   } catch (err) {
+    console.error('[ai-image/generate]', err)
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Network error' },
       { status: 502 },

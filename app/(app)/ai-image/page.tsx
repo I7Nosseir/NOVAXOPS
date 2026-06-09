@@ -450,6 +450,8 @@ export default function AIImagePage() {
   const [resizeToggles, setResizeToggles] = useState({ hasText: false, hasLogo: false, hasSubject: false, extendBackground: true })
   const [resizing, setResizing] = useState(false)
   const [resizeError, setResizeError] = useState<string | null>(null)
+  const [detecting, setDetecting] = useState(false)
+  const [autoDetected, setAutoDetected] = useState<{ hasText: boolean; hasLogo: boolean; hasSubject: boolean } | null>(null)
 
   // Text on Visuals
   const [tovItems, setTovItems] = useState<TOVItem[]>([{ id: 'tov-1', text: '', role: 'headline' }])
@@ -506,6 +508,26 @@ export default function AIImagePage() {
     setTimeout(() => { ta.focus(); ta.setSelectionRange(start + mention.length, start + mention.length) }, 0)
   }
 
+  const runDetect = async (data: string, mime: string) => {
+    setDetecting(true); setAutoDetected(null)
+    try {
+      const res = await fetch('/api/ai-image/detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData: data, mimeType: mime }),
+      })
+      const result = await res.json() as { hasText?: boolean; hasLogo?: boolean; hasSubject?: boolean }
+      const detected = {
+        hasText: Boolean(result.hasText),
+        hasLogo: Boolean(result.hasLogo),
+        hasSubject: Boolean(result.hasSubject),
+      }
+      setAutoDetected(detected)
+      setResizeToggles(t => ({ ...t, ...detected }))
+    } catch { /* ignore — toggles stay at current values */ }
+    finally { setDetecting(false) }
+  }
+
   const handleResizeSourceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -515,6 +537,7 @@ export default function AIImagePage() {
       const [meta, data] = dataUrl.split(',')
       const mime = meta.match(/data:([^;]+)/)?.[1] ?? 'image/png'
       setResizeSource({ data, mime })
+      void runDetect(data, mime)
     }
     reader.readAsDataURL(file)
     e.target.value = ''
@@ -525,6 +548,7 @@ export default function AIImagePage() {
     if (!imageData) return
     setResizeSource({ data: imageData, mime: imageMime })
     setActiveTab('resize')
+    void runDetect(imageData, imageMime)
   }
 
   const handleGenerate = async () => {
@@ -913,14 +937,31 @@ export default function AIImagePage() {
             </p>
 
             {resizeSource ? (
-              <div className="relative rounded-xl overflow-hidden border border-slate-200">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`data:${resizeSource.mime};base64,${resizeSource.data}`} alt="Source" className="w-full h-36 object-cover" />
-                <button onClick={() => setResizeSource(null)}
-                  className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-                <p className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-2 py-1">Source loaded — pick target AR and resize</p>
+              <div className="space-y-2">
+                <div className="relative rounded-xl overflow-hidden border border-slate-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`data:${resizeSource.mime};base64,${resizeSource.data}`} alt="Source" className="w-full h-36 object-cover" />
+                  <button onClick={() => { setResizeSource(null); setAutoDetected(null) }}
+                    className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  {detecting && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 flex items-center gap-1.5 px-2 py-1.5">
+                      <RefreshCw className="w-3 h-3 text-white animate-spin shrink-0" />
+                      <p className="text-white text-[10px]">Analysing image content…</p>
+                    </div>
+                  )}
+                  {!detecting && autoDetected && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 flex items-center gap-1.5 px-2 py-1.5">
+                      <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <p className="text-white text-[10px]">Auto-detected:</p>
+                      {autoDetected.hasText    && <span className="text-[9px] font-semibold bg-white/20 text-white px-1.5 py-0.5 rounded">Text</span>}
+                      {autoDetected.hasLogo    && <span className="text-[9px] font-semibold bg-white/20 text-white px-1.5 py-0.5 rounded">Logo</span>}
+                      {autoDetected.hasSubject && <span className="text-[9px] font-semibold bg-white/20 text-white px-1.5 py-0.5 rounded">Subject</span>}
+                      {!autoDetected.hasText && !autoDetected.hasLogo && !autoDetected.hasSubject && <span className="text-white/70 text-[9px]">Background only</span>}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
@@ -958,10 +999,13 @@ export default function AIImagePage() {
             <div>
               <div className="flex items-center gap-1.5 mb-3">
                 <p className="text-xs font-semibold text-slate-600">What&apos;s in your image?</p>
-                <div className="group relative">
+                {autoDetected && !detecting && (
+                  <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">Auto-set</span>
+                )}
+                <div className="group relative ml-auto">
                   <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
-                  <div className="absolute left-0 top-5 w-56 bg-slate-800 text-white text-[10px] p-2.5 rounded-lg shadow-lg z-20 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity leading-relaxed">
-                    Each toggle activates precision-enforcement instructions for that element type.
+                  <div className="absolute right-0 top-5 w-56 bg-slate-800 text-white text-[10px] p-2.5 rounded-lg shadow-lg z-20 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity leading-relaxed">
+                    Detected automatically from your image. Each toggle activates precision-enforcement instructions. You can override any toggle.
                   </div>
                 </div>
               </div>
@@ -969,13 +1013,18 @@ export default function AIImagePage() {
                 <Toggle checked={resizeToggles.hasText} onChange={v => setResizeToggles(t => ({ ...t, hasText: v }))} label="Contains text or headline" description="Verbatim reproduction — every character identical" />
                 <Toggle checked={resizeToggles.hasLogo} onChange={v => setResizeToggles(t => ({ ...t, hasLogo: v }))} label="Contains a logo or brand mark" description="Pixel-precise copy — fine lines, emblems, crests" />
                 <Toggle checked={resizeToggles.hasSubject} onChange={v => setResizeToggles(t => ({ ...t, hasSubject: v }))} label="Contains a person or product" description="Subject kept fully visible, never cropped" />
-                <Toggle checked={resizeToggles.extendBackground} onChange={v => setResizeToggles(t => ({ ...t, extendBackground: v }))} label="Extend background" description={resizeToggles.extendBackground ? 'Background seamlessly extended to fill new canvas' : 'Image will be cropped to fit new ratio'} />
+                <Toggle checked={resizeToggles.extendBackground} onChange={v => setResizeToggles(t => ({ ...t, extendBackground: v }))} label="Extend background" description={resizeToggles.extendBackground ? 'AI extends canvas · original pixels composited back on top' : 'Sharp crops to target ratio — no AI involved'} />
               </div>
             </div>
 
             {/* Gemini model picker for resize */}
             <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Model <span className="font-normal text-slate-400">(Gemini required)</span></label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-600">Model <span className="font-normal text-slate-400">(Gemini required)</span></label>
+                {(resizeToggles.hasLogo || resizeToggles.hasText) && model === 'gemini-3.1-flash-image-preview' && (
+                  <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Auto-upgrading to Pro</span>
+                )}
+              </div>
               <div className="space-y-1">
                 {MODELS.filter(m => m.supportsRef).map(m => (
                   <button key={m.id} onClick={() => setModel(m.id)}
