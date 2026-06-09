@@ -452,6 +452,7 @@ export default function AIImagePage() {
   const [resizeError, setResizeError] = useState<string | null>(null)
   const [detecting, setDetecting] = useState(false)
   const [autoDetected, setAutoDetected] = useState<{ hasText: boolean; hasLogo: boolean; hasSubject: boolean } | null>(null)
+  const [sourceDimensions, setSourceDimensions] = useState<{ w: number; h: number } | null>(null)
 
   // Text on Visuals
   const [tovItems, setTovItems] = useState<TOVItem[]>([{ id: 'tov-1', text: '', role: 'headline' }])
@@ -528,15 +529,25 @@ export default function AIImagePage() {
     finally { setDetecting(false) }
   }
 
+  const getImageDimensions = (data: string, mime: string): Promise<{ w: number; h: number }> =>
+    new Promise(resolve => {
+      const img = new Image()
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+      img.onerror = () => resolve({ w: 0, h: 0 })
+      img.src = `data:${mime};base64,${data}`
+    })
+
   const handleResizeSourceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => {
+    reader.onload = async ev => {
       const dataUrl = ev.target?.result as string
       const [meta, data] = dataUrl.split(',')
       const mime = meta.match(/data:([^;]+)/)?.[1] ?? 'image/png'
       setResizeSource({ data, mime })
+      const dims = await getImageDimensions(data, mime)
+      if (dims.w > 0) setSourceDimensions(dims)
       void runDetect(data, mime)
     }
     reader.readAsDataURL(file)
@@ -547,7 +558,9 @@ export default function AIImagePage() {
   const handleResizeCurrent = () => {
     if (!imageData) return
     setResizeSource({ data: imageData, mime: imageMime })
+    setSourceDimensions(null)
     setActiveTab('resize')
+    void getImageDimensions(imageData, imageMime).then(dims => { if (dims.w > 0) setSourceDimensions(dims) })
     void runDetect(imageData, imageMime)
   }
 
@@ -941,7 +954,7 @@ export default function AIImagePage() {
                 <div className="relative rounded-xl overflow-hidden border border-slate-200">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`data:${resizeSource.mime};base64,${resizeSource.data}`} alt="Source" className="w-full h-36 object-cover" />
-                  <button onClick={() => { setResizeSource(null); setAutoDetected(null) }}
+                  <button onClick={() => { setResizeSource(null); setAutoDetected(null); setSourceDimensions(null) }}
                     className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center">
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1036,6 +1049,31 @@ export default function AIImagePage() {
                 ))}
               </div>
             </div>
+
+            {(() => {
+              if (!sourceDimensions || !resizeToggles.extendBackground) return null
+              const srcAR = sourceDimensions.w / sourceDimensions.h
+              const tgt = ASPECT_RATIOS.find(a => a.id === aspectRatio)
+              if (!tgt) return null
+              const tgtAR = tgt.w / tgt.h
+              const ratio = Math.max(srcAR / tgtAR, tgtAR / srcAR)
+              if (ratio < 1.7) return null
+              const isExtreme = ratio >= 2.5
+              return (
+                <div className={cn('rounded-xl border px-3 py-2.5 text-xs leading-relaxed', isExtreme ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700')}>
+                  <p className="font-semibold mb-0.5">{isExtreme ? 'Extreme AR change' : 'Large AR change'} ({(srcAR).toFixed(2)} → {(tgtAR).toFixed(2)})</p>
+                  <p className="text-[10px] leading-relaxed opacity-80">
+                    {isExtreme
+                      ? 'The original image will occupy less than 35% of the output canvas. The extension area is too large for faithful background extension — try Smart Crop instead.'
+                      : 'The extension area is large. AI may not perfectly match the background. Consider Smart Crop if fidelity is critical.'}
+                  </p>
+                  <button onClick={() => setResizeToggles(t => ({ ...t, extendBackground: false }))}
+                    className="mt-1.5 text-[10px] font-semibold underline">
+                    Switch to Smart Crop
+                  </button>
+                </div>
+              )
+            })()}
 
             <button onClick={handleResize} disabled={!resizeSource || resizing}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">

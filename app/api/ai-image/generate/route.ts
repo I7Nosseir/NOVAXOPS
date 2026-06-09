@@ -126,6 +126,17 @@ function buildResizerPrompt(aspectRatio: string, toggles: ResizeToggles): string
     )
   }
 
+  parts.push(
+    '',
+    'STRICT FIDELITY — THESE RULES OVERRIDE EVERYTHING ELSE:',
+    '- Preserve every element already present in the reference exactly as-is: text, logos, people, products, brand marks',
+    '- DO NOT add new text, headlines, captions, or typographic elements that do NOT already exist in the reference',
+    '- DO NOT add new logos, brand marks, or symbols that do NOT already exist in the reference',
+    '- DO NOT add new objects, vehicles, or props not visible in the reference',
+    '- DO NOT infer or complete partially cut-off elements — if something is cropped at the frame edge, do not extend or generate the unseen portion in the extension area',
+    '- Extension areas (new canvas) should only contain background environment: sky, floor, walls, ambient light, bokeh, architecture — not new subjects',
+  )
+
   parts.push('', 'Output only the recomposed image. No commentary or explanation.')
   return parts.join('\n')
 }
@@ -277,8 +288,10 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Sharp compositing: overlay original pixels on AI-generated canvas ─────
-      // This preserves logos, text, colors, and subject with pixel-perfect fidelity.
-      // AI output only contributes the extended background area.
+      // Only applied when the source covers ≥50% of the target canvas area.
+      // For large AR inversions (e.g. 16:9→9:16, coverage ~32%), the source is
+      // only a thin strip — compositing destroys the composition. In those cases
+      // Gemini's full recomposition is correct and compositing is skipped.
       const aiBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
       const aiMeta = await sharp(aiBuffer).metadata()
       const aiW = aiMeta.width ?? srcW
@@ -288,6 +301,18 @@ export async function POST(req: NextRequest) {
       const scale = Math.min(aiW / srcW, aiH / srcH)
       const scaledW = Math.round(srcW * scale)
       const scaledH = Math.round(srcH * scale)
+
+      const coverage = (scaledW * scaledH) / (aiW * aiH)
+
+      if (coverage < 0.5) {
+        // Source covers <50% of canvas — trust Gemini's full recomposition directly
+        return NextResponse.json({
+          imageData: imagePart.inlineData.data,
+          mimeType: imagePart.inlineData.mimeType ?? 'image/png',
+        })
+      }
+
+      // Source covers ≥50% — composite original pixels back for pixel-perfect fidelity
       const left = Math.round((aiW - scaledW) / 2)
       const top = Math.round((aiH - scaledH) / 2)
 
