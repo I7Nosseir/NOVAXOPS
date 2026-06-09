@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useProjects } from '@/lib/hooks/use-projects'
+import { useRealtime } from '@/lib/hooks/use-realtime'
 import { formatDate, cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import type { Client, UserRole } from '@/lib/types'
@@ -545,6 +546,7 @@ export default function ClientsPage() {
   const { clients } = useClients()
   const updateClient = useUpdateClient()
   const { user } = useAuth()
+  useRealtime('clients', ['clients'])
   const [selected, setSelected] = useState<Client | null>(null)
   const [search, setSearch] = useState('')
   const [showWizard, setShowWizard] = useState(false)

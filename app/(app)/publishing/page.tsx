@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
 import type { SchedulePostInput } from '@/lib/hooks/use-posts'
 import { useClients } from '@/lib/hooks/use-clients'
+import { useRealtime } from '@/lib/hooks/use-realtime'
 import { PLATFORM_CONFIG, formatDateTime, formatDate, formatNumber, cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import type { ScheduledPost, SocialPlatform } from '@/lib/types'
@@ -2584,6 +2585,7 @@ function PublishingPageContent() {
   const { clients } = useClients()
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  useRealtime('scheduled_posts', ['posts'])
   const searchParams = useSearchParams()
   const [compose, setCompose] = useState(false)
   const [templateCaption, setTemplateCaption] = useState('')

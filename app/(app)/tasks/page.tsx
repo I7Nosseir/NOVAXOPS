@@ -6,6 +6,7 @@ import { useTasks } from '@/lib/hooks/use-tasks'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
+import { useRealtime } from '@/lib/hooks/use-realtime'
 import { TaskDetailPanel } from '@/components/tasks/task-detail-panel'
 import {
   STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, TASK_SUBTYPES,
@@ -26,6 +27,7 @@ export default function TasksPage() {
   const { tasks, isLoading } = useTasks()
   const { clients } = useClients()
   const { users } = useUsers()
+  useRealtime('tasks', ['tasks'])
 
   // Filters
   const [search, setSearch] = useState('')

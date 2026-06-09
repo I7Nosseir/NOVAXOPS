@@ -8,6 +8,7 @@ import { usePosts } from '@/lib/hooks/use-posts'
 import { useModerationItems } from '@/lib/hooks/use-moderation'
 import { useWeeklyActivity, useAiCostMonth } from '@/lib/hooks/use-dashboard'
 import { useAuth } from '@/lib/auth-context'
+import { useRealtimeMulti } from '@/lib/hooks/use-realtime'
 import { hasRole, vendorName, STAGE_CONFIG, PRIORITY_CONFIG, formatDate, formatNumber, formatCurrency, cn } from '@/lib/utils'
 import {
   CheckSquare, Clock, AlertCircle, MessageSquare,
@@ -396,6 +397,11 @@ export default function DashboardPage() {
   const { items: moderationItems } = useModerationItems()
   const { data: activityData = [] } = useWeeklyActivity()
   const { data: aiCostRaw = 0 }    = useAiCostMonth()
+  useRealtimeMulti([
+    { table: 'tasks',            queryKey: ['tasks'] },
+    { table: 'moderation_items', queryKey: ['moderation'] },
+    { table: 'scheduled_posts',  queryKey: ['posts'] },
+  ])
 
   const canSeeAiCost          = hasRole(user, ['admin', 'ceo', 'creative_director'])
   const canSeePipelineDetails = hasRole(user, ['admin', 'ceo', 'creative_director'])
