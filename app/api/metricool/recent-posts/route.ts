@@ -34,24 +34,28 @@ export interface ClientGroup {
   platforms:    PlatformSection[]
 }
 
+// Canonical display order for platforms
+const PLATFORM_ORDER = ['instagram', 'tiktok', 'facebook', 'linkedin', 'youtube', 'twitter']
+
 /**
- * GET /api/metricool/recent-posts?perPlatform=8&days=30
+ * GET /api/metricool/recent-posts?perPlatform=8&days=60
  *
- * Returns posts grouped by client → platform, each platform sorted by
- * publish date descending. Handles instagram_reel as a separate Metricool
- * endpoint — reels appear in the Instagram section with post_type='reel'.
+ * Returns posts grouped by client → platform (sorted newest-first).
+ * Connected platforms that returned 0 posts still appear as empty sections.
+ * Handles instagram_reel / facebook_reel as sub-types of instagram / facebook.
+ * Deduplicates by post ID to prevent double-counting across endpoint variants.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const perPlatform = Math.min(Number(searchParams.get('perPlatform') ?? searchParams.get('perClient') ?? searchParams.get('limit') ?? '8'), 30)
-  const days        = Math.min(Number(searchParams.get('days') ?? '30'), 90)
+  const days        = Math.min(Number(searchParams.get('days') ?? '60'), 90)
 
   if (!HAS_METRICOOL || !HAS_DB) {
     return NextResponse.json({ posts: [], grouped: [], error: 'Metricool or database not configured.' })
   }
 
-  const { createClient } = await import('@supabase/supabase-js')
-  const { fetchPostsList } = await import('@/lib/metricool')
+  const { createClient }               = await import('@supabase/supabase-js')
+  const { fetchPostsList, getConnectedNetworks, resolveNetworkToBase } = await import('@/lib/metricool')
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -65,88 +69,94 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ posts: [], grouped: [], error: error.message })
 
-  const endDate  = new Date()
+  const endDate   = new Date()
   const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000)
   const startStr  = startDate.toISOString().split('T')[0]
   const endStr    = endDate.toISOString().split('T')[0]
 
-  // Per-client → per-platform map: client_id → platform → posts[]
-  const clientMap = new Map<string, { name: string; color: string; byPlatform: Map<string, RecentPost[]> }>()
-
-  for (const client of clients ?? []) {
-    if (!client.metricool_blog_id) continue
-    try {
-      const posts = await fetchPostsList(String(client.metricool_blog_id), startStr, endStr)
-
-      for (const p of posts) {
-        const raw = p as typeof p & Record<string, unknown>
-
-        // Thumbnail is already resolved in fetchNetworkPosts
-        const thumb = typeof p.thumbnail === 'string' && p.thumbnail.startsWith('http')
-          ? p.thumbnail
-          : null
-
-        const pubDate = String(p.publishDate ?? raw.publishedAt ?? raw.created_at ?? raw.publishedDate ?? '')
-        if (!pubDate) continue   // skip posts with no date — can't sort them
-
-        const er = Number(p.engagementRate ?? p.engagement_rate ?? p.engagement ?? 0)
-
-        // content_type injected by fetchNetworkPosts from the endpoint name
-        const ct = p.content_type ?? 'unknown'
-        let post_type: RecentPost['post_type'] =
-          ct === 'reel'     ? 'reel'     :
-          ct === 'story'    ? 'story'    :
-          ct === 'video'    ? 'video'    :
-          ct === 'short'    ? 'video'    :
-          ct === 'carousel' ? 'carousel' :
-          ct === 'post'     ? 'post'     : 'unknown'
-
-        // Secondary inference for cases where content_type is 'post' but raw fields reveal more
-        if (post_type === 'post') {
-          const rawType = String(raw.type ?? raw.postType ?? raw.contentType ?? '').toLowerCase()
-          if (rawType.includes('reel'))                                 post_type = 'reel'
-          else if (rawType.includes('carousel') || rawType.includes('album')) post_type = 'carousel'
-          else if (rawType.includes('video'))                           post_type = 'video'
-        }
-
-        const platform = String(p.network ?? p.platform ?? 'unknown').toLowerCase()
-
-        const post: RecentPost = {
-          id:           String(p.id ?? `${client.id}-${pubDate}`),
-          client_id:    client.id,
-          client_name:  client.name,
-          client_color: client.color ?? '#1B3D38',
-          platform,
-          post_type,
-          thumbnail:    thumb,
-          caption:      String(p.text ?? p.title ?? '').slice(0, 200),
-          published_at: pubDate,
-          reach:        Number(p.reach    ?? 0),
-          likes:        Number(p.likes    ?? 0),
-          comments:     Number(p.comments ?? 0),
-          shares:       Number(p.shares   ?? 0),
-          er:           parseFloat(er.toFixed(2)),
-        }
-
-        if (!clientMap.has(client.id)) {
-          clientMap.set(client.id, { name: client.name, color: client.color ?? '#1B3D38', byPlatform: new Map() })
-        }
-        const entry = clientMap.get(client.id)!
-        if (!entry.byPlatform.has(platform)) entry.byPlatform.set(platform, [])
-        entry.byPlatform.get(platform)!.push(post)
-      }
-    } catch (err) {
-      console.error(`[recent-posts] ${client.name}:`, err instanceof Error ? err.message : err)
-    }
-  }
-
-  // Platform display order preference
-  const PLATFORM_ORDER = ['instagram', 'tiktok', 'facebook', 'linkedin', 'youtube', 'twitter']
-
   const grouped: ClientGroup[] = []
 
-  for (const [client_id, { name, color, byPlatform }] of clientMap.entries()) {
-    const platforms: PlatformSection[] = []
+  await Promise.all((clients ?? []).map(async (client) => {
+    if (!client.metricool_blog_id) return
+    const blogId = String(client.metricool_blog_id)
+
+    // Fetch posts and connected networks in parallel
+    const [rawPosts, connectedNetworks] = await Promise.allSettled([
+      fetchPostsList(blogId, startStr, endStr),
+      getConnectedNetworks(blogId),
+    ])
+
+    const posts    = rawPosts.status        === 'fulfilled' ? rawPosts.value        : []
+    const networks = connectedNetworks.status === 'fulfilled' ? connectedNetworks.value : []
+
+    // Derive connected base platforms from network names (instagram_reel → instagram)
+    const connectedPlatforms = new Set<string>()
+    for (const net of networks) {
+      const base = typeof resolveNetworkToBase === 'function' ? resolveNetworkToBase(net) : net.replace(/_reel$|_story$|_short$/, '')
+      connectedPlatforms.add(base)
+    }
+
+    // Build platform→posts map; deduplicate posts by ID
+    const byPlatform = new Map<string, RecentPost[]>()
+    const seenIds    = new Set<string>()
+
+    // Pre-seed with connected platforms so they show even with 0 posts
+    for (const plt of connectedPlatforms) byPlatform.set(plt, [])
+
+    for (const p of posts) {
+      const raw = p as typeof p & Record<string, unknown>
+
+      // Resolve publish date — supports ISO string, numeric ms timestamp, and many field names
+      const rawDate = p.publishDate ?? raw.postedAt ?? raw.publishedAt ?? raw.created_at ?? raw.createdAt ?? raw.date ?? raw.timestamp
+      let published_at: string | null = null
+      if (typeof rawDate === 'number' && rawDate > 0) {
+        published_at = new Date(rawDate).toISOString()
+      } else if (typeof rawDate === 'string' && rawDate.length > 0 && rawDate !== 'undefined') {
+        published_at = rawDate
+      }
+      // Allow posts with no date — they sort to the end
+
+      const er = Number(p.engagementRate ?? p.engagement_rate ?? p.engagement ?? 0)
+
+      // content_type is now set by fetchNetworkPosts via detectContentType (mediaType-aware)
+      const ct = p.content_type ?? 'unknown'
+      const post_type: RecentPost['post_type'] =
+        ct === 'reel'     ? 'reel'     :
+        ct === 'story'    ? 'story'    :
+        ct === 'video'    ? 'video'    :
+        ct === 'short'    ? 'video'    :
+        ct === 'carousel' ? 'carousel' :
+        ct === 'post'     ? 'post'     : 'unknown'
+
+      const platform = String(p.network ?? p.platform ?? 'unknown').toLowerCase()
+      const postId   = String(p.id ?? `${client.id}-${platform}-${published_at ?? Math.random()}`)
+
+      // Deduplicate: same post can come from both 'instagram' and 'instagram_reel' endpoints
+      if (seenIds.has(postId)) continue
+      seenIds.add(postId)
+
+      const thumb = typeof p.thumbnail === 'string' && p.thumbnail.startsWith('http') ? p.thumbnail : null
+
+      const post: RecentPost = {
+        id:           postId,
+        client_id:    client.id,
+        client_name:  client.name,
+        client_color: client.color ?? '#1B3D38',
+        platform,
+        post_type,
+        thumbnail:    thumb,
+        caption:      String(p.text ?? p.title ?? '').slice(0, 200),
+        published_at,
+        reach:        Number(p.reach    ?? 0),
+        likes:        Number(p.likes    ?? 0),
+        comments:     Number(p.comments ?? 0),
+        shares:       Number(p.shares   ?? 0),
+        er:           parseFloat(er.toFixed(2)),
+      }
+
+      if (!byPlatform.has(platform)) byPlatform.set(platform, [])
+      byPlatform.get(platform)!.push(post)
+    }
 
     // Sort platforms: preferred order first, then alphabetical
     const sortedPlatforms = [...byPlatform.keys()].sort((a, b) => {
@@ -158,25 +168,36 @@ export async function GET(req: NextRequest) {
       return a.localeCompare(b)
     })
 
-    for (const platform of sortedPlatforms) {
+    const platforms: PlatformSection[] = sortedPlatforms.map(platform => {
       const raw = byPlatform.get(platform)!
-      // Sort by publish date descending, take top N
-      const sorted = raw
-        .sort((a, b) => new Date(b.published_at!).getTime() - new Date(a.published_at!).getTime())
-        .slice(0, perPlatform)
-      platforms.push({ platform, post_count: sorted.length, posts: sorted })
-    }
+      // Sort by date descending; posts with no date go to the end
+      const sorted = raw.sort((a, b) => {
+        if (!a.published_at && !b.published_at) return 0
+        if (!a.published_at) return 1
+        if (!b.published_at) return -1
+        return new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+      }).slice(0, perPlatform)
+      return { platform, post_count: sorted.length, posts: sorted }
+    })
+
+    // Only include this client if it has at least one connected platform
+    if (platforms.length === 0) return
 
     const total_posts = platforms.reduce((s, p) => s + p.post_count, 0)
-    if (total_posts === 0) continue
 
-    grouped.push({ client_id, client_name: name, client_color: color, total_posts, platforms })
-  }
+    grouped.push({
+      client_id:    client.id,
+      client_name:  client.name,
+      client_color: client.color ?? '#1B3D38',
+      total_posts,
+      platforms,
+    })
+  }))
 
   // Sort clients by most recent post across all their platforms
   grouped.sort((a, b) => {
-    const latestA = a.platforms[0]?.posts[0]?.published_at ?? ''
-    const latestB = b.platforms[0]?.posts[0]?.published_at ?? ''
+    const latestA = a.platforms.find(p => p.posts[0]?.published_at)?.posts[0]?.published_at ?? ''
+    const latestB = b.platforms.find(p => p.posts[0]?.published_at)?.posts[0]?.published_at ?? ''
     return new Date(latestB).getTime() - new Date(latestA).getTime()
   })
 

@@ -296,14 +296,22 @@ function LatestPostsFeed() {
                     <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                       {platformLabel(section.platform)}
                     </span>
-                    <span className="text-[9px] text-slate-400">· {section.post_count}</span>
+                    <span className="text-[9px] text-slate-400">
+                      {section.post_count > 0 ? `· ${section.post_count}` : '· connected'}
+                    </span>
                   </div>
-                  {/* Horizontal scroll row */}
-                  <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
-                    {section.posts.map(post => (
-                      <PostCard key={post.id} post={post}/>
-                    ))}
-                  </div>
+                  {/* Horizontal scroll row or empty state */}
+                  {section.posts.length > 0 ? (
+                    <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+                      {section.posts.map(post => (
+                        <PostCard key={post.id} post={post}/>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="h-10 flex items-center px-3 rounded-lg bg-slate-50 dark:bg-white/3 border border-dashed border-slate-200 dark:border-white/8">
+                      <span className="text-[10px] text-slate-400">No recent posts</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

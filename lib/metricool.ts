@@ -429,6 +429,11 @@ function resolveNetwork(network: string): { platform: string; content_type: Metr
   }
 }
 
+/** Returns just the canonical base platform name for a network endpoint string. */
+export function resolveNetworkToBase(network: string): string {
+  return resolveNetwork(network).platform
+}
+
 /**
  * Fetch published posts with analytics for one network.
  * Returns [] if the network is not connected to the blog (400/403) or has no data.
@@ -482,11 +487,33 @@ async function fetchNetworkPosts(
       ''
     )
 
+    // Detect actual content type from the post's own fields.
+    // Instagram Graph API returns mediaType: 'REEL'/'IMAGE'/'CAROUSEL_ALBUM'/'VIDEO'.
+    // This overrides the endpoint-level content_type for regular platform calls (where
+    // content_type is 'post') so reels in the /instagram feed are correctly classified.
+    let detectedContentType = content_type
+    if (content_type === 'post') {
+      const mt = String(r.mediaType ?? r.media_type ?? r.postType ?? r.post_type ?? r.type ?? '').toLowerCase()
+      if (mt.includes('reel'))                                      detectedContentType = 'reel'
+      else if (mt.includes('carousel') || mt.includes('album'))    detectedContentType = 'carousel'
+      else if (mt.includes('story'))                               detectedContentType = 'story'
+      else if (mt === 'video' || mt.includes('short'))             detectedContentType = 'video'
+      else if (basePlatform === 'tiktok' || basePlatform === 'youtube') detectedContentType = 'video'
+    }
+
+    // Date: Metricool may return publishDate as ISO string OR Unix ms timestamp.
+    // Try all known field names and normalize to ISO string.
+    const rawDate = p.publishDate ?? r.postedAt ?? r.publishedAt ?? r.created_at ?? r.createdAt ?? r.date ?? r.timestamp
+    const publishDate: string | undefined = typeof rawDate === 'number' && rawDate > 0
+      ? new Date(rawDate).toISOString()
+      : typeof rawDate === 'string' && rawDate.length > 0 ? rawDate : p.publishDate
+
     return {
       ...p,
       // Normalise to base platform so callers don't see "instagram_reel" as a separate platform
-      network:      basePlatform,
-      content_type,
+      network:       basePlatform,
+      content_type:  detectedContentType,
+      publishDate,
       impressions,
       reach,
       likes:    Number(p.likes    ?? r.reactions    ?? r.likesCount    ?? r.likeCount    ?? 0),
