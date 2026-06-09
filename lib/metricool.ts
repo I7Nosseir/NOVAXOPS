@@ -396,16 +396,48 @@ export interface MetricoolPostAnalytics {
   permalink?: string
   // Post content
   thumbnail?: string
+  thumbnailUrl?: string
+  coverImageUrl?: string
+  imageUrl?: string
   text?: string
   title?: string
+  // Content type — injected by fetchNetworkPosts from the endpoint network name
+  content_type?: 'reel' | 'story' | 'post' | 'video' | 'carousel' | 'short'
 }
 
-const ANALYTICS_NETWORKS = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'youtube'] as const
+// Metricool uses separate analytics endpoints per content type.
+// instagram_reel / facebook_reel are distinct from instagram / facebook.
+// We normalise the network name back to the base platform after fetching.
+const ANALYTICS_NETWORKS = [
+  'instagram', 'instagram_reel',
+  'facebook',  'facebook_reel',
+  'linkedin',
+  'tiktok',
+  'twitter',
+  'youtube',
+] as const
+
+// Maps a Metricool network endpoint name to a canonical display platform + content_type.
+// e.g. "instagram_reel" → { platform: "instagram", content_type: "reel" }
+function resolveNetwork(network: string): { platform: string; content_type: MetricoolPostAnalytics['content_type'] } {
+  switch (network) {
+    case 'instagram_reel':  return { platform: 'instagram', content_type: 'reel' }
+    case 'instagram_story': return { platform: 'instagram', content_type: 'story' }
+    case 'facebook_reel':   return { platform: 'facebook',  content_type: 'reel' }
+    case 'youtube_short':   return { platform: 'youtube',   content_type: 'short' }
+    default:                return { platform: network,     content_type: 'post' }
+  }
+}
 
 /**
  * Fetch published posts with analytics for one network.
- * Returns [] if the network is not connected to the blog (400) or has no data.
+ * Returns [] if the network is not connected to the blog (400/403) or has no data.
  * Dates must be full ISO datetime: "2026-05-01" → "2026-05-01T00:00:00"
+ *
+ * network_reel variants (instagram_reel, facebook_reel) are normalised:
+ *   - p.network  → base platform (instagram / facebook)
+ *   - p.content_type → 'reel'
+ * This keeps getPlatformStats, reports, etc. showing a single platform row per brand.
  */
 async function fetchNetworkPosts(
   blogId: string | number,
@@ -420,32 +452,50 @@ async function fetchNetworkPosts(
   try {
     raw = await mFetch<Record<string, unknown>>(`/analytics/posts/${network}?${params}`)
   } catch (err) {
-    // 400/403 = network not connected to this blog — not an error worth surfacing
+    // 400/403/404 = network not connected to this blog — skip silently
     const msg = err instanceof Error ? err.message : ''
-    if (msg.includes('400') || msg.includes('403')) return []
+    if (msg.includes('400') || msg.includes('403') || msg.includes('404')) return []
     throw err
   }
   const items = Array.isArray(raw.data) ? raw.data : Array.isArray(raw) ? raw : []
+  const { platform: basePlatform, content_type } = resolveNetwork(network)
+  const isVideoNetwork = network === 'instagram_reel' || network === 'facebook_reel'
+    || network === 'tiktok' || network === 'youtube' || network === 'youtube_short'
+
   return (items as MetricoolPostAnalytics[]).map(p => {
-    const raw = p as MetricoolPostAnalytics & Record<string, unknown>
-    // TikTok and YouTube report "views"/"videoViews" instead of reach/impressions
-    const videoViews = Number(raw.videoViews ?? raw.views ?? 0)
-    const impressions = Number(p.impressions ?? 0) > 0 ? Number(p.impressions)
-      : (network === 'tiktok' || network === 'youtube') ? videoViews : 0
+    const r = p as MetricoolPostAnalytics & Record<string, unknown>
+    const videoViews = Number(r.videoViews ?? r.views ?? 0)
+    const impressions = Number(p.impressions ?? 0) > 0
+      ? Number(p.impressions)
+      : (network === 'tiktok' || network === 'youtube' || network === 'youtube_short') ? videoViews : 0
     const reach = Number(p.reach ?? 0) > 0 ? Number(p.reach) : impressions
-    const postUrl = String(p.url ?? p.link ?? p.permalink ?? raw.postUrl ?? raw.postLink ?? '')
+    const postUrl = String(p.url ?? p.link ?? p.permalink ?? r.postUrl ?? r.postLink ?? '')
+
+    // Thumbnail: reels return thumbnailUrl or coverImageUrl; images return imageUrl or thumbnail
+    const thumbnail = String(
+      r.thumbnailUrl   ??
+      r.coverImageUrl  ??
+      p.thumbnail      ??
+      r.imageUrl       ??
+      r.image          ??
+      r.mediaUrl       ??
+      ''
+    )
+
     return {
       ...p,
-      network: String(p.network ?? network),
+      // Normalise to base platform so callers don't see "instagram_reel" as a separate platform
+      network:      basePlatform,
+      content_type,
       impressions,
       reach,
-      // Facebook returns "reactions" (all reaction types), not "likes"
-      likes:    Number(p.likes    ?? raw.reactions    ?? raw.likesCount    ?? raw.likeCount    ?? 0),
-      // X/Twitter returns "replies" instead of "comments"
-      comments: Number(p.comments ?? raw.replies      ?? raw.commentsCount ?? raw.commentCount ?? 0),
-      shares:   Number(p.shares   ?? raw.sharesCount  ?? raw.shareCount   ?? raw.retweets     ?? 0),
+      likes:    Number(p.likes    ?? r.reactions    ?? r.likesCount    ?? r.likeCount    ?? 0),
+      comments: Number(p.comments ?? r.replies      ?? r.commentsCount ?? r.commentCount ?? 0),
+      shares:   Number(p.shares   ?? r.sharesCount  ?? r.shareCount    ?? r.retweets     ?? 0),
       views:    videoViews,
       url:      postUrl.startsWith('http') ? postUrl : undefined,
+      thumbnail: thumbnail.startsWith('http') ? thumbnail : (p.thumbnail ?? undefined),
+      isVideo:   isVideoNetwork,
     }
   })
 }

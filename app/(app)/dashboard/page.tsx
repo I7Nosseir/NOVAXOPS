@@ -37,9 +37,17 @@ type RecentPost = {
   thumbnail: string | null; caption: string
   published_at: string | null; reach: number; likes: number; comments: number; shares: number; er: number
 }
-type ClientPostGroup = {
-  client_id: string; client_name: string; client_color: string; posts: RecentPost[]
+type PlatformSection = { platform: string; post_count: number; posts: RecentPost[] }
+type ClientGroup = {
+  client_id: string; client_name: string; client_color: string
+  total_posts: number; platforms: PlatformSection[]
 }
+
+const PLATFORM_LABELS: Record<string, string> = {
+  instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook',
+  linkedin: 'LinkedIn', youtube: 'YouTube', twitter: 'X (Twitter)',
+}
+function platformLabel(p: string) { return PLATFORM_LABELS[p] ?? p.charAt(0).toUpperCase() + p.slice(1) }
 
 // ── Social Performance ─────────────────────────────────────────────────────────
 
@@ -140,16 +148,19 @@ function SocialPerformanceSection() {
   )
 }
 
-// ── Post card (shared between client sections) ────────────────────────────────
+// ── Post card ─────────────────────────────────────────────────────────────────
 
 function PostCard({ post }: { post: RecentPost }) {
-  const erColor = post.er >= 4 ? '#10b981' : post.er >= 2 ? '#f59e0b' : '#f43f5e'
+  const erColor   = post.er >= 4 ? '#10b981' : post.er >= 2 ? '#f59e0b' : '#f43f5e'
   const typeLabel = post.post_type === 'reel' ? 'Reel' : post.post_type === 'story' ? 'Story' : post.post_type === 'carousel' ? 'Album' : post.post_type === 'video' ? 'Video' : null
+  const dateStr   = post.published_at
+    ? new Date(post.published_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+    : null
 
   return (
-    <div className="group relative rounded-xl overflow-hidden border border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-white/10 transition-all hover:shadow-md shrink-0 w-32 sm:w-36">
+    <div className="group relative rounded-xl overflow-hidden border border-slate-100 dark:border-white/6 hover:border-slate-200 dark:hover:border-white/10 transition-all hover:shadow-md shrink-0 w-32 sm:w-36 bg-white dark:bg-slate-900">
       {/* Thumbnail */}
-      <div className="aspect-square w-full bg-slate-100 dark:bg-white/5 relative overflow-hidden">
+      <div className="aspect-[4/5] w-full bg-slate-100 dark:bg-white/5 relative overflow-hidden">
         {post.thumbnail ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.thumbnail} alt={post.caption.slice(0, 40)} className="w-full h-full object-cover" loading="lazy"/>
@@ -158,25 +169,21 @@ function PostCard({ post }: { post: RecentPost }) {
             {post.client_name.charAt(0)}
           </div>
         )}
-        {/* Platform badge */}
-        <div className="absolute top-1.5 left-1.5">
-          <PlatformIcon platform={post.platform as import('@/lib/types').SocialPlatform} size="xs"/>
-        </div>
-        {/* Post type badge (Reel / Story / Album) */}
+        {/* Post type badge (top-left) */}
         {typeLabel && (
-          <div className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-black/50 text-white backdrop-blur-sm">
+          <div className="absolute top-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm">
             {typeLabel}
           </div>
         )}
-        {/* ER badge */}
+        {/* ER badge (top-right) */}
         {post.er > 0 && (
           <div className="absolute top-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm" style={{ background: erColor + 'cc', color: '#fff' }}>
             {post.er}%
           </div>
         )}
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
-          <p className="text-[9px] text-white/80 leading-tight line-clamp-2 mb-1.5">{post.caption.slice(0, 80)}</p>
+        <div className="absolute inset-0 bg-black/72 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
+          <p className="text-[9px] text-white/85 leading-tight line-clamp-3 mb-1.5">{post.caption.slice(0, 100)}</p>
           <div className="grid grid-cols-3 gap-1 text-center">
             {[
               { icon: Heart,         v: post.likes    },
@@ -191,15 +198,13 @@ function PostCard({ post }: { post: RecentPost }) {
           </div>
         </div>
       </div>
-      {/* Footer */}
-      <div className="px-2 py-1.5">
+      {/* Footer — date prominent */}
+      <div className="px-2 py-2 space-y-0.5">
+        {dateStr && (
+          <p className="text-[10px] font-semibold text-slate-700 dark:text-slate-200">{dateStr}</p>
+        )}
         {post.reach > 0 && (
           <p className="text-[9px] text-slate-400">{formatNumber(post.reach)} reach</p>
-        )}
-        {post.published_at && (
-          <p className="text-[8px] text-slate-300 dark:text-slate-500 truncate">
-            {new Date(post.published_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-          </p>
         )}
       </div>
     </div>
@@ -209,26 +214,31 @@ function PostCard({ post }: { post: RecentPost }) {
 // ── Latest Posts Feed ──────────────────────────────────────────────────────────
 
 function LatestPostsFeed() {
-  const [grouped,    setGrouped]    = useState<ClientPostGroup[]>([])
+  const [grouped,    setGrouped]    = useState<ClientGroup[]>([])
   const [loading,    setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
   const fetchPosts = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     try {
-      const res  = await fetch('/api/metricool/recent-posts?perClient=6&days=30')
+      const res  = await fetch('/api/metricool/recent-posts?perPlatform=8&days=30')
       if (!res.ok) return
-      const data = await res.json() as { grouped?: ClientPostGroup[]; posts?: RecentPost[] }
+      const data = await res.json() as { grouped?: ClientGroup[]; posts?: RecentPost[] }
       if (data.grouped?.length) {
         setGrouped(data.grouped)
       } else if (data.posts?.length) {
-        // Fallback: build groups from flat list
-        const map = new Map<string, ClientPostGroup>()
+        // Fallback: build client→platform groups from flat list
+        const clientMap = new Map<string, ClientGroup>()
         for (const p of data.posts) {
-          if (!map.has(p.client_id)) map.set(p.client_id, { client_id: p.client_id, client_name: p.client_name, client_color: p.client_color, posts: [] })
-          map.get(p.client_id)!.posts.push(p)
+          if (!clientMap.has(p.client_id)) {
+            clientMap.set(p.client_id, { client_id: p.client_id, client_name: p.client_name, client_color: p.client_color, total_posts: 0, platforms: [] })
+          }
+          const group = clientMap.get(p.client_id)!
+          let section = group.platforms.find(s => s.platform === p.platform)
+          if (!section) { section = { platform: p.platform, post_count: 0, posts: [] }; group.platforms.push(section) }
+          section.posts.push(p); section.post_count++; group.total_posts++
         }
-        setGrouped([...map.values()])
+        setGrouped([...clientMap.values()])
       }
     } catch { /* silent */ } finally {
       setLoading(false)
@@ -245,13 +255,17 @@ function LatestPostsFeed() {
   )
   if (grouped.length === 0) return null
 
+  const totalPlatforms = grouped.reduce((s, g) => s + g.platforms.length, 0)
+
   return (
     <div className="dash-card">
-      {/* Header */}
+      {/* Section header */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="font-semibold text-slate-900 dark:text-white">Latest Content</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{grouped.length} client{grouped.length !== 1 ? 's' : ''} · last 30 days</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {grouped.length} client{grouped.length !== 1 ? 's' : ''} · {totalPlatforms} platform{totalPlatforms !== 1 ? 's' : ''} · last 30 days
+          </p>
         </div>
         <button onClick={() => fetchPosts(true)} disabled={refreshing}
           className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400">
@@ -259,29 +273,45 @@ function LatestPostsFeed() {
         </button>
       </div>
 
-      {/* Per-client sections */}
-      <div className="space-y-6">
-        {grouped.map(group => (
+      {/* Per-client blocks */}
+      <div className="space-y-8">
+        {grouped.map((group, gi) => (
           <div key={group.client_id}>
-            {/* Client header */}
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: group.client_color }}/>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{group.client_name}</span>
-              <span className="text-[9px] text-slate-400 ml-1">{group.posts.length} post{group.posts.length !== 1 ? 's' : ''}</span>
-              {/* Platform breakdown */}
-              <div className="flex items-center gap-1 ml-auto">
-                {[...new Set(group.posts.map(p => p.platform))].slice(0, 4).map(platform => (
-                  <PlatformIcon key={platform} platform={platform as import('@/lib/types').SocialPlatform} size="xs"/>
-                ))}
-              </div>
+            {/* Client name bar */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-3 h-3 rounded-full shrink-0" style={{ background: group.client_color }}/>
+              <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{group.client_name}</span>
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-white/8 text-slate-500 dark:text-slate-400">
+                {group.total_posts} posts
+              </span>
             </div>
-            {/* Horizontal scroll row */}
-            <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
-              {group.posts.map(post => (
-                <PostCard key={post.id} post={post}/>
+
+            {/* Per-platform sub-sections */}
+            <div className="space-y-4 pl-5">
+              {group.platforms.map(section => (
+                <div key={section.platform}>
+                  {/* Platform sub-header */}
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <PlatformIcon platform={section.platform as import('@/lib/types').SocialPlatform} size="xs"/>
+                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                      {platformLabel(section.platform)}
+                    </span>
+                    <span className="text-[9px] text-slate-400">· {section.post_count}</span>
+                  </div>
+                  {/* Horizontal scroll row */}
+                  <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+                    {section.posts.map(post => (
+                      <PostCard key={post.id} post={post}/>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-            {/* Thin separator */}
+
+            {/* Divider between clients */}
+            {gi < grouped.length - 1 && (
+              <div className="mt-6 border-t border-slate-100 dark:border-white/5"/>
+            )}
           </div>
         ))}
       </div>
