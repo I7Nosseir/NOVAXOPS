@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { ChevronDown, Loader2, Save, Zap, Plus, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronDown, Loader2, Save, Zap, Plus, RefreshCw, FileText, Upload, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 interface QuarterStrategy {
   id?: string
@@ -106,6 +107,12 @@ export function StrategyTab({ clientId, clientName }: { clientId: string; client
   const [qOpen, setQOpen] = useState(true)
   const [mOpen, setMOpen] = useState(true)
 
+  // PDF upload state
+  const [pdfOpen, setPdfOpen] = useState(false)
+  const [pdfUploading, setPdfUploading] = useState(false)
+  const [uploadedPdfs, setUploadedPdfs] = useState<{ name: string; url: string; savedAt: string }[]>([])
+  const pdfRef = useRef<HTMLInputElement>(null)
+
   const loadQuarterStrategy = async (year: number, quarter: number) => {
     setQLoading(true)
     try {
@@ -187,6 +194,37 @@ export function StrategyTab({ clientId, clientName }: { clientId: string; client
       }
     } catch { /* non-critical */ }
     finally { setQGenerating(false) }
+  }
+
+  const handlePdfUpload = async (file: File) => {
+    if (!file || file.type !== 'application/pdf') return
+    if (!supabase) return
+    setPdfUploading(true)
+    try {
+      const safeName = file.name.replace(/\s+/g, '_')
+      const path = `strategy-pdfs/${clientId}/${Date.now()}_${safeName}`
+      const { error: upErr } = await supabase.storage
+        .from('assets')
+        .upload(path, file, { contentType: 'application/pdf' })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
+      await fetch(`/api/clients/${clientId}/context-bank`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: 'Client Instructions',
+          summary: `Strategy document: ${file.name}`,
+          full_text: `Strategy PDF uploaded.\nFilename: ${file.name}\nURL: ${publicUrl}`,
+          source_type: 'document',
+        }),
+      })
+      setUploadedPdfs(prev => [...prev, { name: file.name, url: publicUrl, savedAt: new Date().toISOString() }])
+    } catch (err) {
+      console.error('[strategy-pdf]', err)
+    } finally {
+      setPdfUploading(false)
+      if (pdfRef.current) pdfRef.current.value = ''
+    }
   }
 
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]
@@ -402,6 +440,64 @@ export function StrategyTab({ clientId, clientName }: { clientId: string; client
                   </button>
                   {mUpdate && <span className="text-[11px] text-emerald-600 font-medium">Saved</span>}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Strategy PDF Upload */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setPdfOpen(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-slate-500"/>
+            <p className="text-sm font-semibold text-slate-700">Strategy Documents</p>
+          </div>
+          <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform', !pdfOpen && '-rotate-90')}/>
+        </button>
+
+        {pdfOpen && (
+          <div className="p-4 space-y-3">
+            <p className="text-xs text-slate-500">Upload PDF strategy documents. They are saved to the Context Bank so AI tools can reference them.</p>
+
+            <input
+              ref={pdfRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handlePdfUpload(f) }}
+            />
+            <button
+              onClick={() => pdfRef.current?.click()}
+              disabled={pdfUploading}
+              className="flex items-center gap-2 px-4 py-2 border border-dashed border-slate-300 hover:border-novax-border rounded-lg text-xs text-slate-500 hover:text-novax transition-colors disabled:opacity-50 w-full justify-center"
+            >
+              {pdfUploading
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>Uploading...</>
+                : <><Upload className="w-3.5 h-3.5"/>Upload PDF</>}
+            </button>
+
+            {uploadedPdfs.length > 0 && (
+              <div className="space-y-2">
+                {uploadedPdfs.map((pdf, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-2 bg-novax-light rounded-lg border border-novax-border">
+                    <FileText className="w-3.5 h-3.5 text-novax shrink-0"/>
+                    <p className="text-xs text-novax font-medium flex-1 truncate">{pdf.name}</p>
+                    <a
+                      href={pdf.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="text-novax-muted hover:text-novax transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5"/>
+                    </a>
+                  </div>
+                ))}
+                <p className="text-[11px] text-slate-400">Saved to Context Bank — visible in the Context tab</p>
               </div>
             )}
           </div>

@@ -106,13 +106,18 @@ export async function GET(req: NextRequest) {
     for (const p of posts) {
       const raw = p as typeof p & Record<string, unknown>
 
-      // Resolve publish date — supports ISO string, numeric ms timestamp, and many field names
-      const rawDate = p.publishDate ?? raw.postedAt ?? raw.publishedAt ?? raw.created_at ?? raw.createdAt ?? raw.date ?? raw.timestamp
+      // publishDate is already normalized by fetchNetworkPosts (handles object/number/string formats).
+      // Fallback for any edge cases: check timestamp (number) and other raw fields.
       let published_at: string | null = null
-      if (typeof rawDate === 'number' && rawDate > 0) {
-        published_at = new Date(rawDate).toISOString()
-      } else if (typeof rawDate === 'string' && rawDate.length > 0 && rawDate !== 'undefined') {
-        published_at = rawDate
+      if (typeof p.publishDate === 'string' && p.publishDate.length > 0) {
+        published_at = p.publishDate
+      } else {
+        const rawFallback = raw.timestamp ?? raw.createTime ?? raw.created ?? raw.date
+        if (typeof rawFallback === 'number' && rawFallback > 0) {
+          published_at = new Date(rawFallback).toISOString()
+        } else if (typeof rawFallback === 'string' && rawFallback.length > 0) {
+          published_at = rawFallback
+        }
       }
       // Allow posts with no date — they sort to the end
 
@@ -129,13 +134,20 @@ export async function GET(req: NextRequest) {
         ct === 'post'     ? 'post'     : 'unknown'
 
       const platform = String(p.network ?? p.platform ?? 'unknown').toLowerCase()
-      const postId   = String(p.id ?? `${client.id}-${platform}-${published_at ?? Math.random()}`)
+      // p.id is normalized from postId/videoId/openId by fetchNetworkPosts
+      const postId   = String(p.id ?? raw.postId ?? raw.videoId ?? raw.openId ?? `${client.id}-${platform}-${published_at}`)
 
       // Deduplicate: same post can come from both 'instagram' and 'instagram_reel' endpoints
       if (seenIds.has(postId)) continue
       seenIds.add(postId)
 
       const thumb = typeof p.thumbnail === 'string' && p.thumbnail.startsWith('http') ? p.thumbnail : null
+
+      // Caption: each platform uses a different field name
+      //   Instagram → content   Facebook → text   TikTok → videoDescription
+      const caption = String(
+        raw.content ?? raw.videoDescription ?? p.text ?? p.title ?? ''
+      ).slice(0, 200)
 
       const post: RecentPost = {
         id:           postId,
@@ -145,7 +157,7 @@ export async function GET(req: NextRequest) {
         platform,
         post_type,
         thumbnail:    thumb,
-        caption:      String(p.text ?? p.title ?? '').slice(0, 200),
+        caption,
         published_at,
         reach:        Number(p.reach    ?? 0),
         likes:        Number(p.likes    ?? 0),

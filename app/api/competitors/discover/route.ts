@@ -54,7 +54,7 @@ Return ONLY valid JSON — no markdown, no explanation:
       raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
     } else if (HAS_GEMINI) {
       const { geminiGenerate } = await import('@/lib/gemini')
-      raw = await geminiGenerate(prompt, undefined, { jsonMode: true, maxOutputTokens: 800 })
+      raw = await geminiGenerate(prompt, undefined, { maxOutputTokens: 800 })
     } else {
       return NextResponse.json({ error: 'No AI provider configured' }, { status: 503 })
     }

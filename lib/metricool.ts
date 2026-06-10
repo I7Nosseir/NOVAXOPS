@@ -435,6 +435,34 @@ export function resolveNetworkToBase(network: string): string {
 }
 
 /**
+ * Extract a publish date string from a raw Metricool post object.
+ * Handles three formats Metricool uses across platforms:
+ *   - Object: { dateTime: '2026-05-26T13:29:28', timezone: 'Europe/Madrid' }  (Instagram, Facebook)
+ *   - Number: Unix milliseconds timestamp  (Facebook timestamp field)
+ *   - String: ISO 8601 with optional offset  (TikTok createTime, others)
+ */
+function extractMetricoolDate(r: Record<string, unknown>): string | undefined {
+  const candidates = [
+    r.publishDate, r.postedAt, r.publishedAt,
+    r.createTime, r.created, r.created_at, r.createdAt,
+    r.date, r.timestamp,
+  ]
+  for (const raw of candidates) {
+    if (raw == null) continue
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+      // Instagram / Facebook date object: { dateTime: string, timezone: string }
+      const dt = (raw as Record<string, unknown>).dateTime
+      if (typeof dt === 'string' && dt.length > 0) return dt
+    } else if (typeof raw === 'number' && raw > 0) {
+      return new Date(raw).toISOString()
+    } else if (typeof raw === 'string' && raw.length > 0) {
+      return raw
+    }
+  }
+  return undefined
+}
+
+/**
  * Fetch published posts with analytics for one network.
  * Returns [] if the network is not connected to the blog (400/403) or has no data.
  * Dates must be full ISO datetime: "2026-05-01" → "2026-05-01T00:00:00"
@@ -474,14 +502,17 @@ async function fetchNetworkPosts(
       ? Number(p.impressions)
       : (network === 'tiktok' || network === 'youtube' || network === 'youtube_short') ? videoViews : 0
     const reach = Number(p.reach ?? 0) > 0 ? Number(p.reach) : impressions
-    const postUrl = String(p.url ?? p.link ?? p.permalink ?? r.postUrl ?? r.postLink ?? '')
+    // Post URL field names: Instagram → url, Facebook → link, TikTok → shareUrl
+    const postUrl = String(p.url ?? p.link ?? r.shareUrl ?? p.permalink ?? r.postUrl ?? r.postLink ?? '')
 
-    // Thumbnail: reels return thumbnailUrl or coverImageUrl; images return imageUrl or thumbnail
+    // Thumbnail field names vary by platform:
+    //   Instagram: imageUrl   Facebook: picture   TikTok: coverImageUrl
     const thumbnail = String(
       r.thumbnailUrl   ??
       r.coverImageUrl  ??
       p.thumbnail      ??
       r.imageUrl       ??
+      r.picture        ??
       r.image          ??
       r.mediaUrl       ??
       ''
@@ -501,18 +532,18 @@ async function fetchNetworkPosts(
       else if (basePlatform === 'tiktok' || basePlatform === 'youtube') detectedContentType = 'video'
     }
 
-    // Date: Metricool may return publishDate as ISO string OR Unix ms timestamp.
-    // Try all known field names and normalize to ISO string.
-    const rawDate = p.publishDate ?? r.postedAt ?? r.publishedAt ?? r.created_at ?? r.createdAt ?? r.date ?? r.timestamp
-    const publishDate: string | undefined = typeof rawDate === 'number' && rawDate > 0
-      ? new Date(rawDate).toISOString()
-      : typeof rawDate === 'string' && rawDate.length > 0 ? rawDate : p.publishDate
+    // Date: parse all Metricool date formats (object, number, string) via helper
+    const publishDate = extractMetricoolDate(r)
+
+    // Post ID: normalize platform-specific field names to a common "id"
+    const postId = String(r.postId ?? r.videoId ?? r.id ?? r.openId ?? '')
 
     return {
       ...p,
       // Normalise to base platform so callers don't see "instagram_reel" as a separate platform
       network:       basePlatform,
       content_type:  detectedContentType,
+      id:            postId || undefined,
       publishDate,
       impressions,
       reach,
@@ -564,7 +595,10 @@ export async function getConnectedNetworks(blogId: string | number): Promise<str
           cache: 'no-store',
           headers: { 'X-Mc-Auth': requireToken() },
         })
-        return res.status !== 403 ? network : null
+        // Only mark as connected if: HTTP 200 AND response is JSON (not an HTML redirect page)
+        if (!res.ok) return null
+        const ct = res.headers.get('content-type') ?? ''
+        return ct.includes('json') ? network : null
       } catch {
         return null
       }

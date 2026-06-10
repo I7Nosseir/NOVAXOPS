@@ -124,8 +124,13 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
       })
       toast.success('Task created')
       handleClose()
-    } catch {
-      // Error is displayed inline via createTask.isError
+    } catch (err) {
+      // Scroll to top of form so the error banner is visible
+      setTimeout(() => {
+        const form = document.querySelector('[data-create-task-form]')
+        form?.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 50)
+      void err // error is displayed via createTask.isError
     }
   }
 
@@ -136,6 +141,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
       <div className="fixed inset-0 bg-black/30 z-50" onClick={handleClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
+          data-create-task-form
           className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto pointer-events-auto"
           onClick={e => e.stopPropagation()}
         >
@@ -189,7 +195,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
             {/* Error banner */}
             {createTask.isError && (
               <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-100 text-xs text-red-600">
-                {createTask.error instanceof Error ? createTask.error.message : 'Failed to create task. Please try again.'}
+                {(createTask.error as { message?: string })?.message ?? 'Failed to create task. Please try again.'}
               </div>
             )}
 
