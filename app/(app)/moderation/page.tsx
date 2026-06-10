@@ -243,10 +243,25 @@ export default function ModerationPage() {
       </div>
 
       {filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-          <CheckCircle className="w-8 h-8 mb-2 text-emerald-400"/>
-          <p className="font-medium text-slate-600">All clear!</p>
-          <p className="text-sm">No {filter !== 'all' ? filter : ''} items to review</p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <CheckCircle className="w-8 h-8 mb-3 text-emerald-400"/>
+          <p className="font-medium text-slate-600 mb-1">
+            {filter === 'all' ? 'No items in queue' : `No ${filter} items`}
+          </p>
+          {allItems.length === 0 ? (
+            <div className="max-w-sm space-y-1">
+              <p className="text-sm text-slate-400">
+                Comments and DMs appear here once the messaging platform webhook is active.
+              </p>
+              <p className="text-xs text-slate-400 mt-2">
+                Configure the webhook URL in Settings to start receiving items.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">
+              All {filter} items have been handled.
+            </p>
+          )}
         </div>
       )}
     </div>

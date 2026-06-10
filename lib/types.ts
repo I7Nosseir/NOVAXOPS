@@ -132,9 +132,9 @@ export interface Project {
 
 export interface Task {
   id: string
-  project_id: string
+  project_id: string | null
   client_id: string
-  assigned_to: string
+  assigned_to: string | null
   title: string
   description: string
   final_submission?: string | null
@@ -142,7 +142,7 @@ export interface Task {
   priority: Priority
   status: TaskStatus
   sub_type?: string | null
-  due_date: string
+  due_date: string | null
   created_at: string
   updated_at: string
   tags: string[]

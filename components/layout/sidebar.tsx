@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
@@ -93,7 +93,6 @@ function NovaLogoMark({ className }: { className?: string }) {
 
 export function Sidebar() {
   const pathname = usePathname()
-  const router = useRouter()
   const { user, signOut } = useAuth()
   const { open, setOpen } = useSidebar()
   const isAdmin = user?.role === 'admin'
@@ -118,7 +117,8 @@ export function Sidebar() {
 
   const handleSignOut = async () => {
     await signOut()
-    router.push('/login')
+    // Full page navigation clears SSR session cookies correctly
+    window.location.href = '/login'
   }
 
   const handleNavClick = () => {

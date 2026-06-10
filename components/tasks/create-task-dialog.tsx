@@ -3,7 +3,10 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, FileText, Paperclip, Sheet } from 'lucide-react'
-import { cn, STAGE_CONFIG, PIPELINE_STAGES } from '@/lib/utils'
+import {
+  cn, STAGE_CONFIG, PIPELINE_STAGES,
+  getSubtypesForStage, PREDEFINED_TAGS, STAGE_TAG_SUGGESTIONS,
+} from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
@@ -38,6 +41,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const [projectId, setProjectId] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
   const [stage, setStage] = useState<PipelineStage>(defaultStage ?? 'strategy')
+  const [subType, setSubType] = useState<string | null>(null)
   const [priority, setPriority] = useState<Priority>('medium')
   const [dueDate, setDueDate] = useState('')
   const [tagInput, setTagInput] = useState('')
@@ -47,6 +51,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const [docSearch, setDocSearch] = useState('')
   const [showDocPicker, setShowDocPicker] = useState(false)
 
+  // Fetch existing tags from DB for custom tag autocomplete
   const { data: tagRows = [] } = useQuery<{ tags: string[] | null }[]>({
     queryKey: ['task-tags'],
     queryFn: async () => {
@@ -57,14 +62,29 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
     enabled: open,
   })
 
-  const existingTags = useMemo(() => {
+  // Flat unique list of all tags ever used (from DB)
+  const existingDbTags = useMemo(() => {
     const flat = tagRows.flatMap(r => r.tags ?? [])
     return [...new Set(flat)].sort()
   }, [tagRows])
 
-  const tagSuggestions = existingTags.filter(
-    t => !tags.includes(t) && (tagInput === '' || t.toLowerCase().includes(tagInput.toLowerCase()))
-  )
+  // Tag suggestions: stage-based first (highlighted), then predefined, then custom DB tags
+  const tagSuggestions = useMemo(() => {
+    const stageSuggestedSet = new Set(STAGE_TAG_SUGGESTIONS[stage] ?? [])
+    const allPredefined = PREDEFINED_TAGS.flatMap(g => g.tags)
+    const dbCustom = existingDbTags.filter(t => !allPredefined.includes(t))
+
+    const candidates = [
+      ...(STAGE_TAG_SUGGESTIONS[stage] ?? []),
+      ...allPredefined.filter(t => !stageSuggestedSet.has(t)),
+      ...dbCustom,
+    ].filter(t => !tags.includes(t))
+
+    const q = tagInput.toLowerCase()
+    const filtered = q ? candidates.filter(t => t.toLowerCase().includes(q)) : candidates
+
+    return filtered.slice(0, 20).map(t => ({ tag: t, isStage: stageSuggestedSet.has(t) }))
+  }, [tagInput, tags, stage, existingDbTags])
 
   const { data: allDocs = [] } = useQuery<DocOption[]>({
     queryKey: ['docs'],
@@ -82,9 +102,18 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
 
   const filteredProjects = projects.filter(p => !clientId || p.client_id === clientId)
 
+  // When stage changes, reset sub_type if it no longer belongs to the new stage's subtypes
+  const handleStageChange = (newStage: PipelineStage) => {
+    setStage(newStage)
+    const subtypes = getSubtypesForStage(newStage)
+    if (subType && !subtypes.find(s => s.label === subType)) {
+      setSubType(null)
+    }
+  }
+
   const reset = () => {
     setTitle(''); setDescription(''); setFinalSubmission(''); setClientId(''); setProjectId('')
-    setAssignedTo(''); setStage(defaultStage ?? 'strategy'); setPriority('medium')
+    setAssignedTo(''); setStage(defaultStage ?? 'strategy'); setSubType(null); setPriority('medium')
     setDueDate(''); setTagInput(''); setTags([])
     setLinkedDocIds([]); setDocSearch(''); setShowDocPicker(false)
     createTask.reset()
@@ -118,23 +147,25 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
         pipeline_stage: stage,
         priority,
         status: 'active',
+        sub_type: subType,
         due_date: dueDate || null,
         tags,
-        linked_doc_ids: linkedDocIds.length > 0 ? linkedDocIds : undefined,
+        linked_doc_ids: linkedDocIds,
       })
       toast.success('Task created')
       handleClose()
     } catch (err) {
-      // Scroll to top of form so the error banner is visible
       setTimeout(() => {
         const form = document.querySelector('[data-create-task-form]')
         form?.scrollTo({ top: 0, behavior: 'smooth' })
       }, 50)
-      void err // error is displayed via createTask.isError
+      void err // error displayed via createTask.isError
     }
   }
 
   if (!open) return null
+
+  const stageSubtypes = getSubtypesForStage(stage)
 
   return (
     <>
@@ -232,7 +263,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
               <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Stage</label>
               <select
                 value={stage}
-                onChange={e => setStage(e.target.value as PipelineStage)}
+                onChange={e => handleStageChange(e.target.value as PipelineStage)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 outline-none focus:border-novax-muted bg-white"
               >
                 {PIPELINE_STAGES.map(s => (
@@ -240,6 +271,41 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
                 ))}
               </select>
             </div>
+
+            {/* Sub-type — only shown when the selected stage has subtypes */}
+            {stageSubtypes.length > 0 && (
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                  Type
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {subType && (
+                    <button
+                      type="button"
+                      onClick={() => setSubType(null)}
+                      className="text-[10px] px-2 py-0.5 rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-red-300 hover:text-red-400 transition-colors"
+                    >
+                      None
+                    </button>
+                  )}
+                  {stageSubtypes.map(st => (
+                    <button
+                      key={st.label}
+                      type="button"
+                      onClick={() => setSubType(subType === st.label ? null : st.label)}
+                      className={cn(
+                        'text-[10px] font-medium px-2.5 py-1 rounded-full border transition-all',
+                        subType === st.label
+                          ? `${st.bg} ${st.color} border-transparent`
+                          : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50',
+                      )}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Priority */}
             <div>
@@ -321,22 +387,37 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
                     if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput) }
                     if (e.key === ',') { e.preventDefault(); addTag(tagInput) }
                   }}
-                  placeholder={tags.length === 0 ? 'Type or pick from existing…' : ''}
+                  placeholder={tags.length === 0 ? 'Type or pick from suggestions…' : ''}
                   className="flex-1 min-w-[80px] text-xs text-slate-700 placeholder:text-slate-400 outline-none bg-transparent"
                 />
               </div>
+
+              {/* Tag suggestions: stage-based (highlighted) + predefined + custom DB tags */}
               {tagFocused && tagSuggestions.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {tagSuggestions.slice(0, 15).map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onMouseDown={e => { e.preventDefault(); addTag(tag) }}
-                      className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-novax-light hover:text-novax border border-transparent hover:border-novax-border text-slate-500 transition-colors"
-                    >
-                      #{tag}
-                    </button>
-                  ))}
+                <div className="mt-1.5 space-y-1.5">
+                  {/* Stage label when not filtering */}
+                  {!tagInput && (
+                    <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider px-0.5">
+                      {STAGE_CONFIG[stage].label} suggestions · all predefined tags
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {tagSuggestions.map(({ tag, isStage }) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onMouseDown={e => { e.preventDefault(); addTag(tag) }}
+                        className={cn(
+                          'text-[10px] px-2 py-0.5 rounded-md border transition-colors',
+                          isStage
+                            ? 'bg-novax-light border-novax-border text-novax hover:bg-novax-light-hover'
+                            : 'bg-slate-100 border-transparent text-slate-500 hover:bg-novax-light hover:text-novax hover:border-novax-border',
+                        )}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

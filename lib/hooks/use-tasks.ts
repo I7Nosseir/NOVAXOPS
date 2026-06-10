@@ -32,9 +32,9 @@ export type CreateTaskPayload = {
 function mapTask(row: Record<string, unknown>): Task {
   return {
     id: row.id as string,
-    project_id: (row.project_id as string) ?? '',
+    project_id: (row.project_id as string) ?? null,
     client_id: row.client_id as string,
-    assigned_to: (row.assigned_to as string) ?? '',
+    assigned_to: (row.assigned_to as string) ?? null,
     title: row.title as string,
     description: (row.description as string) ?? '',
     final_submission: (row.final_submission as string) ?? null,
@@ -42,7 +42,7 @@ function mapTask(row: Record<string, unknown>): Task {
     priority: row.priority as Task['priority'],
     status: row.status as Task['status'],
     sub_type: (row.sub_type as string) ?? null,
-    due_date: (row.due_date as string) ?? '',
+    due_date: (row.due_date as string) ?? null,
     tags: (row.tags as string[]) ?? [],
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,

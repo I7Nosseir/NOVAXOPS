@@ -517,7 +517,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
                       <p className="text-sm text-slate-700 font-medium">{task.title}</p>
                       <p className="text-[11px] text-slate-400 mt-0.5 capitalize">{task.pipeline_stage?.replace(/_/g, ' ')}</p>
                     </div>
-                    <span className="text-[10px] text-slate-400 shrink-0">{formatDate(task.due_date)}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">{task.due_date ? formatDate(task.due_date) : '—'}</span>
                   </div>
                 ))}
               </div>

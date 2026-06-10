@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/types'
 
@@ -18,6 +18,38 @@ function mapProject(row: Record<string, unknown>): Project {
     },
     created_at: row.created_at as string,
   }
+}
+
+export interface CreateProjectInput {
+  name: string
+  client_id: string
+  start_date: string
+  end_date: string
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: CreateProjectInput) => {
+      const { data, error } = await supabase
+        .from('projects')
+        .insert({
+          name: input.name,
+          client_id: input.client_id,
+          status: 'active',
+          start_date: input.start_date,
+          end_date: input.end_date,
+          quarter_strategy: { goals: [], themes: [], kpis: [] },
+        })
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
 }
 
 export function useProjects(clientId?: string) {

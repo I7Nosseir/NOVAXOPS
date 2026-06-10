@@ -37,12 +37,12 @@ function CarouselMedia({ urls }: { urls: string[] }) {
   return (
     <div className="mb-4 relative">
       {/* Main media */}
-      <div className="rounded-xl overflow-hidden bg-slate-100 aspect-square">
+      <div className="rounded-xl overflow-hidden bg-slate-100 aspect-square flex items-center justify-center">
         {isVideo(url)
           // eslint-disable-next-line jsx-a11y/media-has-caption
-          ? <video src={url} controls className="w-full h-full object-cover"/>
+          ? <video src={url} controls className="w-full h-full object-contain"/>
           // eslint-disable-next-line @next/next/no-img-element
-          : <img src={url} alt={`Slide ${idx + 1}`} className="w-full h-full object-cover"/>
+          : <img src={url} alt={`Slide ${idx + 1}`} className="w-full h-full object-contain"/>
         }
       </div>
 
@@ -261,12 +261,12 @@ export default function ApprovalPortalPage() {
                       <video
                         src={allUrls[0]}
                         controls
-                        className="mb-4 w-full rounded-xl bg-slate-100 max-h-64 object-cover"
+                        className="mb-4 w-full rounded-xl bg-slate-100 max-h-64 object-contain"
                       />
                     ) : (
-                      <div className="mb-4 rounded-xl overflow-hidden bg-slate-100">
+                      <div className="mb-4 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={allUrls[0]} alt="" className="w-full object-cover max-h-72"/>
+                        <img src={allUrls[0]} alt="" className="w-full object-contain max-h-72"/>
                       </div>
                     )
                   }

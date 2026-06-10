@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const HAS_DB = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+const HAS_DB     = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
 const HAS_CLAUDE = !!process.env.ANTHROPIC_API_KEY
+const HAS_GEMINI = !!process.env.GEMINI_API_KEY
 
 interface PerformancePost {
   caption: string
@@ -19,8 +20,8 @@ interface PerformancePost {
  * POST /api/performance/analyze
  * Body: { client_id: string }
  *
- * Pulls all performance snapshots for a client, sends to Claude for pattern analysis,
- * saves result to clients.performance_intel.
+ * Pulls all performance snapshots for a client, sends to Claude (or Gemini fallback)
+ * for pattern analysis, saves result to clients.performance_intel.
  */
 export async function POST(req: NextRequest) {
   let body: { client_id?: string }
@@ -32,16 +33,13 @@ export async function POST(req: NextRequest) {
   if (!client_id) return NextResponse.json({ error: 'client_id required' }, { status: 400 })
 
   if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
-  if (!HAS_CLAUDE) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
+  if (!HAS_CLAUDE && !HAS_GEMINI) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
 
   const { createClient } = await import('@supabase/supabase-js')
-  const Anthropic = (await import('@anthropic-ai/sdk')).default
-
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
   const { data: client } = await supabase
     .from('clients')
@@ -146,16 +144,26 @@ Return a JSON object with EXACTLY this structure:
 }
 No hashtags, no emojis. Return only valid JSON.`
 
-  try {
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
-    })
+  let rawText = ''
 
-    const rawText = message.content[0].type === 'text' ? message.content[0].text : ''
+  try {
+    if (HAS_CLAUDE) {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      rawText = message.content[0].type === 'text' ? message.content[0].text : ''
+    } else {
+      // Gemini fallback
+      const { geminiGenerate } = await import('@/lib/gemini')
+      rawText = await geminiGenerate(prompt, undefined, { maxOutputTokens: 2000 })
+    }
+
     const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return NextResponse.json({ error: 'Non-JSON response from Claude' }, { status: 500 })
+    if (!jsonMatch) return NextResponse.json({ error: 'Non-JSON AI response' }, { status: 500 })
 
     const intel = JSON.parse(jsonMatch[0]) as Record<string, unknown>
 
@@ -166,6 +174,7 @@ No hashtags, no emojis. Return only valid JSON.`
 
     return NextResponse.json({ intel })
   } catch (err) {
+    console.error('[performance/analyze]', err)
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
 }

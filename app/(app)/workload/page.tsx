@@ -114,7 +114,7 @@ export default function WorkloadPage() {
                           </span>
                           <p className="flex-1 text-xs text-slate-700 truncate">{task.title}</p>
                           <span className={cn('text-[10px] font-medium shrink-0', isTaskOverdue ? 'text-red-500' : 'text-slate-400')}>
-                            {formatDate(task.due_date)}
+                            {task.due_date ? formatDate(task.due_date) : '—'}
                           </span>
                           <span className={cn('w-1.5 h-1.5 rounded-full shrink-0',
                             task.priority === 'urgent' ? 'bg-red-400' : task.priority === 'high' ? 'bg-orange-400' : task.priority === 'medium' ? 'bg-amber-400' : 'bg-slate-300'

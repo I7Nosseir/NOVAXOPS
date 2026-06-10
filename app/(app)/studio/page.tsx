@@ -169,15 +169,13 @@ export default function StudioPage() {
       </div>
 
       {/* Recent sessions */}
-      <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Recent Sessions</p>
-        <StudioSessionList
-          sessions={sessions}
-          onSessionClick={handleSessionClick}
-          onNewSession={handleNewSession}
-          isLoading={sessionsLoading}
-        />
-      </div>
+      <StudioSessionList
+        sessions={sessions}
+        onSessionClick={handleSessionClick}
+        onNewSession={handleNewSession}
+        onDeleteSession={(id) => setSessions(prev => prev.filter(s => s.id !== id))}
+        isLoading={sessionsLoading}
+      />
 
       {/* Power tools */}
       <div>

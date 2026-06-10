@@ -11,7 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Task, AgentType, PipelineStage, Priority, TaskStatus, ContentBriefRequest, ContentBriefData } from '@/lib/types'
 import { BriefRequestButton } from './brief-request-button'
-import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, timeAgo, getSubtypesForStage, getSubtypeStyle, cn } from '@/lib/utils'
+import { STAGE_CONFIG, PIPELINE_STAGES, PRIORITY_CONFIG, formatDate, formatDateTime, timeAgo, getSubtypesForStage, getSubtypeStyle, PREDEFINED_TAGS, STAGE_TAG_SUGGESTIONS, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
@@ -962,29 +962,78 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   {task.tags.map(tag => (
                     <span key={tag} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
                       #{tag}
-                      <button onClick={() => updateTask.mutate({ id: task.id, tags: task.tags.filter(t => t !== tag) })} className="text-slate-400 hover:text-slate-700 leading-none">×</button>
+                      <button
+                        onClick={() => updateTask.mutate({ id: task.id, tags: task.tags.filter(t => t !== tag) })}
+                        className="text-slate-400 hover:text-slate-700 leading-none"
+                      >
+                        ×
+                      </button>
                     </span>
                   ))}
                   {editingField === 'tags' ? (
-                    <input
-                      value={draftTagInput}
-                      autoFocus
-                      placeholder="tag, enter"
-                      onChange={e => setDraftTagInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' || e.key === ',') {
-                          e.preventDefault()
-                          const tag = draftTagInput.trim().replace(/^#/, '')
-                          if (tag && !task.tags.includes(tag)) updateTask.mutate({ id: task.id, tags: [...task.tags, tag] })
-                          setDraftTagInput(''); setEditingField(null)
-                        }
-                        if (e.key === 'Escape') { setDraftTagInput(''); setEditingField(null) }
-                      }}
-                      onBlur={() => { setDraftTagInput(''); setEditingField(null) }}
-                      className="text-xs border border-novax-border rounded-md px-2 py-0.5 outline-none focus:border-novax-muted w-24"
-                    />
+                    <div className="w-full mt-1 space-y-1.5">
+                      <input
+                        value={draftTagInput}
+                        autoFocus
+                        placeholder="type or pick below…"
+                        onChange={e => setDraftTagInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ',') {
+                            e.preventDefault()
+                            const tag = draftTagInput.trim().replace(/^#/, '')
+                            if (tag && !task.tags.includes(tag)) {
+                              updateTask.mutate({ id: task.id, tags: [...task.tags, tag] })
+                            }
+                            setDraftTagInput('')
+                          }
+                          if (e.key === 'Escape') { setDraftTagInput(''); setEditingField(null) }
+                        }}
+                        onBlur={() => setTimeout(() => { setDraftTagInput(''); setEditingField(null) }, 150)}
+                        className="text-xs border border-novax-border rounded-lg px-2 py-1.5 outline-none focus:border-novax-muted w-full"
+                      />
+                      {/* Stage-based + predefined tag suggestions */}
+                      {(() => {
+                        const stageSuggestedSet = new Set(STAGE_TAG_SUGGESTIONS[task.pipeline_stage] ?? [])
+                        const allPredefined = PREDEFINED_TAGS.flatMap(g => g.tags)
+                        const candidates = [
+                          ...(STAGE_TAG_SUGGESTIONS[task.pipeline_stage] ?? []),
+                          ...allPredefined.filter(t => !stageSuggestedSet.has(t)),
+                        ].filter(t =>
+                          !task.tags.includes(t) &&
+                          (!draftTagInput || t.toLowerCase().includes(draftTagInput.toLowerCase()))
+                        ).slice(0, 14)
+                        if (!candidates.length) return null
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {candidates.map(t => (
+                              <button
+                                key={t}
+                                type="button"
+                                onMouseDown={e => {
+                                  e.preventDefault()
+                                  if (!task.tags.includes(t)) {
+                                    updateTask.mutate({ id: task.id, tags: [...task.tags, t] })
+                                  }
+                                }}
+                                className={cn(
+                                  'text-[10px] px-2 py-0.5 rounded-md border transition-colors',
+                                  stageSuggestedSet.has(t)
+                                    ? 'bg-novax-light border-novax-border text-novax hover:bg-novax-light-hover'
+                                    : 'bg-slate-100 border-transparent text-slate-500 hover:bg-novax-light hover:text-novax hover:border-novax-border',
+                                )}
+                              >
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        )
+                      })()}
+                    </div>
                   ) : (
-                    <button onClick={() => setEditingField('tags')} className="text-[11px] px-2 py-0.5 rounded-md border border-dashed border-slate-300 text-slate-400 hover:border-novax-border hover:text-novax transition-colors">
+                    <button
+                      onClick={() => setEditingField('tags')}
+                      className="text-[11px] px-2 py-0.5 rounded-md border border-dashed border-slate-300 text-slate-400 hover:border-novax-border hover:text-novax transition-colors"
+                    >
                       + tag
                     </button>
                   )}

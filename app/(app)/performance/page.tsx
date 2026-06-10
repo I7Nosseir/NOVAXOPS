@@ -697,21 +697,26 @@ const INDUSTRY_BENCHMARKS = [
 ]
 
 function BenchmarksTab({ clientId }: { clientId: string }) {
-  const [posts, setPosts] = useState<PerformancePost[]>([])
+  const [posts, setPosts]   = useState<PerformancePost[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!clientId) return
+    setLoading(true)
     fetch(`/api/performance/posts?client_id=${clientId}`)
       .then(r => r.json() as Promise<{ posts?: PerformancePost[] }>)
       .then(data => setPosts(data.posts ?? []))
       .catch(() => {})
+      .finally(() => setLoading(false))
   }, [clientId])
 
   const platformER: Record<string, number> = {}
   for (const plat of [...new Set(posts.map(p => p.platform))]) {
-    const items = posts.filter(p => p.platform === plat)
+    const items = posts.filter(p => p.platform === plat && p.engagement_rate > 0)
     if (items.length) platformER[plat] = items.reduce((s, p) => s + p.engagement_rate, 0) / items.length
   }
+
+  const hasAnyER = Object.keys(platformER).length > 0
 
   const chartData = INDUSTRY_BENCHMARKS.map(b => ({
     platform: b.label,
@@ -719,22 +724,44 @@ function BenchmarksTab({ clientId }: { clientId: string }) {
     benchmark: b.benchmark_er,
   }))
 
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1,2,3].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse"/>)}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Client ER vs Industry Benchmark</p>
-        <p className="text-xs text-slate-400 mb-4">Benchmarks from 2025–2026 industry averages (Social Insider, Hootsuite)</p>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={chartData} barGap={6}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-            <XAxis dataKey="platform" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
-            <Tooltip formatter={(v, n) => [`${v}%`, n === 'client' ? 'Client' : 'Industry Avg']} contentStyle={{ fontSize: 12, borderRadius: 10 }}/>
-            <Legend wrapperStyle={{ fontSize: 11 }}/>
-            <Bar dataKey="client" name="Client ER" fill={B.primary} radius={[3,3,0,0]}/>
-            <Bar dataKey="benchmark" name="Industry Avg" fill={B.accent} radius={[3,3,0,0]}/>
-          </BarChart>
-        </ResponsiveContainer>
+        <p className="text-xs text-slate-400 mb-4">
+          Benchmarks from 2025–2026 industry averages (Social Insider, Hootsuite).
+          {!hasAnyER && ' Sync performance data to compare your client against these numbers.'}
+        </p>
+
+        {hasAnyER ? (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} barGap={6}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+              <XAxis dataKey="platform" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}/>
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit="%"/>
+              <Tooltip formatter={(v, n) => [`${v}%`, n === 'client' ? 'Client' : 'Industry Avg']} contentStyle={{ fontSize: 12, borderRadius: 10 }}/>
+              <Legend wrapperStyle={{ fontSize: 11 }}/>
+              <Bar dataKey="client" name="Client ER" fill={B.primary} radius={[3,3,0,0]}/>
+              <Bar dataKey="benchmark" name="Industry Avg" fill={B.accent} radius={[3,3,0,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <BarChart2 className="w-8 h-8 text-slate-200 mb-2"/>
+            <p className="text-sm text-slate-500 font-medium">No performance data yet</p>
+            <p className="text-xs text-slate-400 mt-1 max-w-xs">
+              Run a performance sync from the Content tab or post and let analytics accumulate. The chart will populate automatically.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -757,13 +784,25 @@ function BenchmarksTab({ clientId }: { clientId: string }) {
                 </span>
               </div>
               <div className="flex items-center gap-4 text-xs">
-                <div><p className="font-bold text-slate-900">{clientER != null ? `${clientER.toFixed(1)}%` : '—'}</p><p className="text-slate-400">Client ER</p></div>
-                <div><p className="font-bold text-slate-500">{b.benchmark_er}%</p><p className="text-slate-400">Industry avg</p></div>
+                <div>
+                  <p className={cn('font-bold', clientER != null ? 'text-slate-900' : 'text-slate-300')}>
+                    {clientER != null ? `${clientER.toFixed(1)}%` : '—'}
+                  </p>
+                  <p className="text-slate-400">Client ER</p>
+                </div>
+                <div>
+                  <p className="font-bold text-slate-500">{b.benchmark_er}%</p>
+                  <p className="text-slate-400">Industry avg</p>
+                </div>
               </div>
             </div>
           )
         })}
       </div>
+
+      <p className="text-[11px] text-slate-400 text-center">
+        Industry averages are global 2025–2026 benchmarks and vary by niche. Use as directional reference only.
+      </p>
     </div>
   )
 }
