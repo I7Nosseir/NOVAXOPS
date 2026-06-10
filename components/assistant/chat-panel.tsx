@@ -549,6 +549,65 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, messages, contextItems, selectedClient, isCeo, user?.role, user?.id, streaming])
 
+  // ── These three useCallbacks MUST be before the early return ─────────────────
+  // Moving them below `if (!open && !fullPage) return null` causes React error #310
+  // (hook count mismatch between renders) because hooks must be called unconditionally.
+
+  const generateHandoff = useCallback(async () => {
+    if (generatingHandoff || handoffBlock) return
+    setGeneratingHandoff(true)
+    try {
+      const clientData = clients.find(c => c.id === selectedClient)
+      const res  = await fetch('/api/assistant/handoff', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          messages:    messages.map(m => ({ role: m.role, content: m.content })),
+          client_name: clientData?.name,
+        }),
+      })
+      const data = await res.json() as { block?: string }
+      if (data.block) setHandoffBlock(data.block)
+    } catch {
+      const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content ?? ''
+      setHandoffBlock(
+        `[CONTEXT HANDOFF]\n\nSession: ${messages.length} messages\nClient: ${clients.find(c => c.id === selectedClient)?.name ?? 'None'}\nLast topic: ${lastUserMsg.slice(0, 120)}\n\nPaste this at the start of your next chat to continue.`
+      )
+    } finally {
+      setGeneratingHandoff(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatingHandoff, handoffBlock, messages, selectedClient, clients])
+
+  const newChat = useCallback(() => {
+    setSessionId(crypto.randomUUID())
+    setSessionCreatedAt(new Date().toISOString())
+    setMessages([])
+    setContextItems([])
+    setSelectedClient('')
+    setErrorMsg(null)
+    setHandoffBlock(null)
+    setShowHandoffModal(false)
+    setShowHistory(false)
+    setStreaming(false)
+    setStreamingText('')
+    setTimeout(() => inputRef.current?.focus(), 0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const loadSession = useCallback((session: StoredSession) => {
+    setSessionId(session.id)
+    setSessionCreatedAt(session.created_at)
+    setMessages(session.messages as ChatMessage[])
+    setSelectedClient(session.client_id ?? '')
+    setHandoffBlock(session.handoff_block ?? null)
+    setErrorMsg(null)
+    setShowHistory(false)
+    if (session.is_complete && session.handoff_block) {
+      setShowHandoffModal(true)
+    }
+  }, [])
+
   if (!open && !fullPage) return null
 
   // ── Input change handler ──────────────────────────────────────
@@ -639,61 +698,6 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
     setStreamingText('')
     setTimeout(() => inputRef.current?.focus(), 0)
   }
-
-  const generateHandoff = useCallback(async () => {
-    if (generatingHandoff || handoffBlock) return
-    setGeneratingHandoff(true)
-    try {
-      const clientData = clients.find(c => c.id === selectedClient)
-      const res  = await fetch('/api/assistant/handoff', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          messages:    messages.map(m => ({ role: m.role, content: m.content })),
-          client_name: clientData?.name,
-        }),
-      })
-      const data = await res.json() as { block?: string }
-      if (data.block) setHandoffBlock(data.block)
-    } catch {
-      const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content ?? ''
-      setHandoffBlock(
-        `[CONTEXT HANDOFF]\n\nSession: ${messages.length} messages\nClient: ${clients.find(c => c.id === selectedClient)?.name ?? 'None'}\nLast topic: ${lastUserMsg.slice(0, 120)}\n\nPaste this at the start of your next chat to continue.`
-      )
-    } finally {
-      setGeneratingHandoff(false)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generatingHandoff, handoffBlock, messages, selectedClient, clients])
-
-  const newChat = useCallback(() => {
-    setSessionId(crypto.randomUUID())
-    setSessionCreatedAt(new Date().toISOString())
-    setMessages([])
-    setContextItems([])
-    setSelectedClient('')
-    setErrorMsg(null)
-    setHandoffBlock(null)
-    setShowHandoffModal(false)
-    setShowHistory(false)
-    setStreaming(false)
-    setStreamingText('')
-    setTimeout(() => inputRef.current?.focus(), 0)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const loadSession = useCallback((session: StoredSession) => {
-    setSessionId(session.id)
-    setSessionCreatedAt(session.created_at)
-    setMessages(session.messages as ChatMessage[])
-    setSelectedClient(session.client_id ?? '')
-    setHandoffBlock(session.handoff_block ?? null)
-    setErrorMsg(null)
-    setShowHistory(false)
-    if (session.is_complete && session.handoff_block) {
-      setShowHandoffModal(true)
-    }
-  }, [])
 
   // ── Render ────────────────────────────────────────────────────
 
