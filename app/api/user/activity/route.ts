@@ -4,24 +4,46 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
 
-// POST — called by the client-side activity tracker on navigation
+async function getSessionUser() {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  return { supabase, user }
+}
+
+// POST — upserts the authenticated user's last_seen + current_page.
+// user_id from the body is IGNORED — always derived from the session.
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { user_id?: string; current_page?: string }
-    if (!body.user_id) {
-      return NextResponse.json({ error: 'user_id required' }, { status: 400 })
-    }
+    const { user } = await getSessionUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const body = await req.json() as { current_page?: string }
+
+    // Resolve the internal profile id from auth_id
     const db  = createAdminClient()
-    const now = new Date().toISOString()
+    const { data: profile } = await db
+      .from('users')
+      .select('id')
+      .eq('auth_id', user.id)
+      .single()
 
+    if (!profile) return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
+
+    const now = new Date().toISOString()
     const { error } = await db
       .from('user_activity')
       .upsert(
         {
-          user_id:      body.user_id,
+          user_id:      profile.id,
           last_seen:    now,
           current_page: body.current_page ?? null,
           updated_at:   now,
@@ -41,22 +63,32 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET — returns all users joined with their activity + API call count this month
+// GET — returns all users with activity + API usage. Admin/CEO only.
 export async function GET(_req: NextRequest) {
   try {
+    const { user, supabase } = await getSessionUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Check role
+    const { data: profile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('auth_id', user.id)
+      .single()
+
+    if (!profile || !['admin', 'ceo'].includes(profile.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const db = createAdminClient()
 
-    // Fetch all users
     const { data: users, error: usersErr } = await db
       .from('users')
       .select('id, name, email, role, avatar_url')
       .order('name')
 
-    if (usersErr) {
-      return NextResponse.json({ error: usersErr.message }, { status: 500 })
-    }
+    if (usersErr) return NextResponse.json({ error: usersErr.message }, { status: 500 })
 
-    // Fetch all activity rows
     const { data: activity } = await db
       .from('user_activity')
       .select('user_id, last_seen, current_page')
@@ -65,7 +97,6 @@ export async function GET(_req: NextRequest) {
       (activity ?? []).map(a => [a.user_id, a])
     )
 
-    // Fetch per-user API call counts this month from api_usage
     const monthStart = new Date()
     monthStart.setDate(1)
     monthStart.setHours(0, 0, 0, 0)
@@ -75,7 +106,6 @@ export async function GET(_req: NextRequest) {
       .select('user_id')
       .gte('created_at', monthStart.toISOString())
 
-    // Count calls per user
     const callCountMap = new Map<string, number>()
     for (const row of usageCounts ?? []) {
       if (row.user_id) {

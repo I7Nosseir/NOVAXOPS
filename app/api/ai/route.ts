@@ -115,7 +115,9 @@ interface AIRequest {
   commentText?: string; commenterName?: string; postCaption?: string; platform?: string
   brief?: string; month?: string; frequency?: string; language?: 'en' | 'ar'
   media_url?: string  // public image or video URL — images passed as vision block, videos as text context
-  imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video'
+  imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video' | 'text'
+  textContent?: string
+  platforms?: string[]
   evalMode?: 'strategy' | 'content'
 }
 
@@ -568,6 +570,13 @@ The "anchor" field is null for regular posts and a string (event name) for ancho
     // ─────────────────────────────────────────────────────────────────────────
     case 'creative_eval': {
       const fileType = body.fileType ?? 'image'
+      const evalPlatforms: string[] = Array.isArray(body.platforms) && body.platforms.length > 0
+        ? body.platforms as string[]
+        : []
+      const platformLine = evalPlatforms.length > 0
+        ? `Target Platforms: ${evalPlatforms.join(', ')}`
+        : 'Target Platforms: General social media'
+
       if (body.imageBase64 && body.mimeType) {
         const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const
         const mt = validTypes.includes(body.mimeType as typeof validTypes[number])
@@ -579,13 +588,19 @@ The "anchor" field is null for regular posts and a string (event name) for ancho
         }
       }
 
-      prompt = `You are a creative performance scientist specialising in social media virality. Apply neuroscience, behavioural psychology, and platform algorithm research to evaluate this creative asset with clinical precision.
+      const isTextMode = fileType === 'text'
+      const textBlock  = isTextMode && body.textContent
+        ? `\nCONTENT TO EVALUATE:\n"""\n${body.textContent}\n"""\n`
+        : ''
+
+      prompt = `You are a creative performance scientist specialising in social media virality. Apply neuroscience, behavioural psychology, and platform algorithm research to evaluate this creative ${isTextMode ? 'copy/script' : 'asset'} with clinical precision.
 
 CLIENT CONTEXT
 Client: ${clientName}
 Brand Voice: ${brandVoice}
 Target Audience: ${audience}
-Asset Type: ${fileType}${fileType === 'video' ? '\nNote: You are analysing the first frame of the video — evaluate hook strength and opening composition.' : ''}
+Asset Type: ${isTextMode ? 'Written copy / script' : fileType}${fileType === 'video' ? '\nNote: You are analysing the first frame of the video — evaluate hook strength and opening composition.' : ''}
+${platformLine}${textBlock}
 
 SCORING DIMENSIONS — score each 0–100 based strictly on what you observe. Be calibrated: 85+ is genuinely exceptional. A score of 70 means "good, above average." A score of 50 means "average, would be scrolled past by most."
 
@@ -621,7 +636,11 @@ SCORING DIMENSIONS — score each 0–100 based strictly on what you observe. Be
    Evaluate: Which STEPPS elements are present? Content that earns saves = practical value. Content that earns shares = social currency + emotional arousal. Score based on density of STEPPS triggers present.
 
 7. PLATFORM FIT
-   Evaluate: Aspect ratio optimisation (9:16 for Reels/TikTok, 1:1 or 4:5 for Instagram feed), text density (Facebook penalises >20% text overlay), sound-off clarity (85% of Facebook video watched muted — Nielsen), mobile-first composition, platform-native style (does it look native or cross-posted?).
+   Target platforms: ${evalPlatforms.length > 0 ? evalPlatforms.join(', ') : 'general social media'}
+   Evaluate: ${isTextMode
+     ? 'Copy length vs platform norms, caption style, CTA format, hashtag usage, tone-of-voice fit per platform.'
+     : 'Aspect ratio optimisation (9:16 for Reels/TikTok, 1:1 or 4:5 for Instagram feed), text density (Facebook penalises >20% text overlay), sound-off clarity (85% of Facebook video watched muted — Nielsen), mobile-first composition, platform-native style (does it look native or cross-posted?).'}
+   ${evalPlatforms.length > 0 ? `Focus specifically on fit for: ${evalPlatforms.join(', ')}.` : ''}
 
 WEIGHTED OVERALL SCORE
 overall = (thumb_stop_rate × 0.25) + (emotional_resonance × 0.20) + (brand_coherence × 0.15) + (message_clarity × 0.15) + (visual_quality × 0.10) + (share_save_potential × 0.10) + (platform_fit × 0.05)
@@ -651,7 +670,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
   "platform_recommendations": ["<Platform: specific technical reason>"],
   "ab_test_suggestion": "<Control: X vs Variant: Y — what to measure>",
   "strengths": ["<evidence-based observation referencing what you see>"],
-  "improvements": ["<specific, measurable improvement with expected outcome>"]${body.fileType === 'video' ? ',\n  "hook_analysis": "<Frame-by-frame: what fires in 0-3s, what fails, scroll-stop probability estimate>"' : ''}
+  "improvements": ["<specific, measurable improvement with expected outcome>"]${fileType === 'video' ? ',\n  "hook_analysis": "<Frame-by-frame: what fires in 0-3s, what fails, scroll-stop probability estimate>"' : isTextMode ? ',\n  "hook_analysis": "<First sentence / opening hook analysis: does it create a curiosity gap, promise value, or pattern-interrupt?>"' : ''}
 }`
       break
     }

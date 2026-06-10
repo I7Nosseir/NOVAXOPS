@@ -2,24 +2,34 @@
 // GET    /api/studio/inspiration  — list saved board items
 // POST   /api/studio/inspiration  — save an item to board
 // DELETE /api/studio/inspiration  — remove an item from board
+// All methods require authentication.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase'
 import { randomUUID } from 'crypto'
 
-// ─── DB detection ─────────────────────────────────────────────
+// ─── Auth helper ──────────────────────────────────────────────
 
-const HAS_DB = !!(
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
-
-function adminSupabase() {
-  return createClient(
+async function getCallerProfile() {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
   )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('id, role')
+    .eq('auth_id', user.id)
+    .single()
+
+  return profile ?? null
 }
 
 // ─── Types ────────────────────────────────────────────────────
@@ -48,30 +58,30 @@ type CreateInput = Omit<InspirationBoardItem, 'id' | 'created_at'> & { client_id
 // ─── GET /api/studio/inspiration ─────────────────────────────
 
 export async function GET(req: NextRequest) {
+  const caller = await getCallerProfile()
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
   const client_id = searchParams.get('client_id') ?? undefined
   const saved_by  = searchParams.get('saved_by')  ?? undefined
   const personal  = searchParams.get('personal') === 'true'
 
-  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
-
-  const db = adminSupabase()
+  const db = createAdminClient()
   let query = db
     .from('inspiration_board')
     .select('*')
     .order('created_at', { ascending: false })
 
   if (personal) {
-    // Personal library: items where client_id IS NULL
-    query = query.is('client_id', null)
-    if (saved_by) query = query.eq('saved_by', saved_by)
+    // Personal library: items where client_id IS NULL, scoped to authenticated user
+    query = query.is('client_id', null).eq('saved_by', caller.id)
   } else {
     if (client_id) query = query.eq('client_id', client_id)
-    if (saved_by)  query = query.eq('saved_by',  saved_by)
+    // Only admins/CEOs can fetch all items; others must supply a saved_by or client_id
+    if (saved_by) query = query.eq('saved_by', saved_by)
   }
 
   const { data, error } = await query
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ items: data ?? [] })
@@ -80,8 +90,10 @@ export async function GET(req: NextRequest) {
 // ─── POST /api/studio/inspiration ────────────────────────────
 
 export async function POST(req: NextRequest) {
-  let body: CreateInput
+  const caller = await getCallerProfile()
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  let body: CreateInput
   try {
     body = await req.json()
   } catch {
@@ -95,13 +107,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
-
   const now  = new Date().toISOString()
   const item: InspirationBoardItem = {
     id:            randomUUID(),
     client_id:     body.client_id ?? null,
-    saved_by:      body.saved_by    ?? null,
+    saved_by:      caller.id,             // always derived from authenticated session
     platform:      body.platform,
     content_type:  body.content_type,
     title:         body.title,
@@ -113,11 +123,11 @@ export async function POST(req: NextRequest) {
     industry:      body.industry,
     published_at:  body.published_at,
     notes:         body.notes,
-    tags:          body.tags         ?? [],
+    tags:          body.tags ?? [],
     created_at:    now,
   }
 
-  const db = adminSupabase()
+  const db = createAdminClient()
   const { data, error } = await db
     .from('inspiration_board')
     .insert(item)
@@ -132,16 +142,29 @@ export async function POST(req: NextRequest) {
 // ─── DELETE /api/studio/inspiration ──────────────────────────
 
 export async function DELETE(req: NextRequest) {
+  const caller = await getCallerProfile()
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  if (!id) {
-    return NextResponse.json({ error: 'id is required' }, { status: 400 })
+  const db = createAdminClient()
+
+  // Fetch item first to verify ownership (admins/CEOs can delete any item)
+  const { data: item } = await db
+    .from('inspiration_board')
+    .select('saved_by')
+    .eq('id', id)
+    .single()
+
+  if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const isPrivileged = ['admin', 'ceo'].includes(caller.role)
+  if (!isPrivileged && item.saved_by !== caller.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
-
-  const db = adminSupabase()
   const { error } = await db
     .from('inspiration_board')
     .delete()

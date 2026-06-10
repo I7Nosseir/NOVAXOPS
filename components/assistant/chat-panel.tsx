@@ -6,6 +6,7 @@ import {
   FileText, Layers, CheckSquare, Building2,
   ExternalLink, Copy, Check, Loader2, PenLine,
   History, Plus, AlertTriangle, Clipboard, ClipboardCheck,
+  FilePlus,
 } from 'lucide-react'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
@@ -21,17 +22,16 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────
 
-interface DocEditSignal {
-  docId:     string
-  content:   string   // full markdown
-  remainder: string   // any explanation text that follows the JSON
-}
+type DocSignal =
+  | { kind: 'edit';   docId: string; content: string; remainder: string }
+  | { kind: 'create'; title: string; content: string; remainder: string }
 
 interface ChatMessage {
-  id:       string
-  role:     'user' | 'assistant'
-  content:  string
-  docEdit?: { docId: string; content: string }
+  id:        string
+  role:      'user' | 'assistant'
+  content:   string
+  docEdit?:  { docId: string; content: string }
+  docCreate?: { title: string; content: string; clientId?: string }
 }
 
 interface ContextItem {
@@ -69,6 +69,8 @@ const ASSISTANT_CAPABILITIES_REPLY = `I'm the NOVAX Assistant. Here's what I can
 
 - Answer questions about any client, project, task, or studio session — use @ to reference them
 - Edit or rewrite content (captions, scripts, copy) — paste it in and ask
+- **Edit a document** — @ mention a document and ask me to rewrite/format it; I'll prepare the changes and show an Apply button
+- **Create a new document** — ask me to "create a document" or "write a brief as a document"; I'll draft it and show an approval card
 - Analyze performance data for any active client
 - Generate hooks, captions, briefs, or full content structures
 - Translate to Arabic
@@ -78,25 +80,49 @@ const ASSISTANT_CAPABILITIES_REPLY = `I'm the NOVAX Assistant. Here's what I can
 **Slash commands:** /summarize · /rewrite · /shorten · /brief · /caption · /translate
 **@ references:** type @ to attach a client, document, session, or task as context`
 
-// ── Doc-edit signal parser ─────────────────────────────────────
+// ── Doc signal parser (handles doc_edit + doc_create) ─────────
+// Uses a string-aware JSON-end finder so } inside content strings
+// don't prematurely terminate the brace counter.
 
-function tryParseDocEdit(text: string): DocEditSignal | null {
+function findJsonEnd(text: string, start: number): number {
+  let depth = 0
+  let inString = false
+  let escape   = false
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]
+    if (escape)                     { escape = false; continue }
+    if (ch === '\\' && inString)    { escape = true;  continue }
+    if (ch === '"')                 { inString = !inString; continue }
+    if (inString)                   continue
+    if (ch === '{')                 depth++
+    else if (ch === '}')            { depth--; if (depth === 0) return i }
+  }
+  return -1
+}
+
+function tryParseSignal(text: string): DocSignal | null {
   const trimmed = text.trimStart()
-  if (!trimmed.startsWith('{"type":"doc_edit"')) return null
+  if (!trimmed.startsWith('{"type":"doc_')) return null
+  const start = trimmed.indexOf('{')
+  if (start === -1) return null
+  const end = findJsonEnd(trimmed, start)
+  if (end === -1) return null
   try {
-    let depth = 0
-    let end   = -1
-    const start = trimmed.indexOf('{')
-    if (start === -1) return null
-    for (let i = start; i < trimmed.length; i++) {
-      if (trimmed[i] === '{') depth++
-      else if (trimmed[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+    const parsed = JSON.parse(trimmed.slice(start, end + 1)) as {
+      type?:    string
+      doc_id?:  string
+      title?:   string
+      content?: string
     }
-    if (end === -1) return null
-    const parsed = JSON.parse(trimmed.slice(start, end + 1)) as { type?: string; doc_id?: string; content?: string }
-    if (parsed.type !== 'doc_edit' || !parsed.doc_id || !parsed.content) return null
-    return { docId: parsed.doc_id, content: parsed.content, remainder: trimmed.slice(end + 1).trim() }
-  } catch { return null }
+    const remainder = trimmed.slice(end + 1).trim()
+    if (parsed.type === 'doc_edit' && parsed.doc_id && parsed.content) {
+      return { kind: 'edit', docId: parsed.doc_id, content: parsed.content, remainder }
+    }
+    if (parsed.type === 'doc_create' && parsed.title && parsed.content) {
+      return { kind: 'create', title: parsed.title, content: parsed.content, remainder }
+    }
+  } catch { /* fall through */ }
+  return null
 }
 
 // ── @ mention hook ─────────────────────────────────────────────
@@ -175,6 +201,10 @@ function DocEditCard({ docEdit, contextItems }: { docEdit: { docId: string; cont
         body:    JSON.stringify({ content: docEdit.content }),
       })
       if (!res.ok) throw new Error('Apply failed')
+      // Update the editor in real-time if the document is open in the same window
+      window.dispatchEvent(new CustomEvent('novax:apply-to-doc', {
+        detail: { docId: docEdit.docId, text: docEdit.content },
+      }))
       setApplyState('done')
     } catch {
       setApplyState('error')
@@ -222,6 +252,77 @@ function DocEditCard({ docEdit, contextItems }: { docEdit: { docId: string; cont
   )
 }
 
+// ── Doc create card ────────────────────────────────────────────
+
+function DocCreateCard({ docCreate }: { docCreate: { title: string; content: string; clientId?: string } }) {
+  const [state,    setState]    = useState<'pending' | 'creating' | 'done' | 'error'>('pending')
+  const [newDocId, setNewDocId] = useState<string | null>(null)
+
+  const approve = async () => {
+    if (state !== 'pending') return
+    setState('creating')
+    try {
+      const res = await fetch('/api/docs/ai-create', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          title:     docCreate.title,
+          content:   docCreate.content,
+          client_id: docCreate.clientId ?? null,
+        }),
+      })
+      if (!res.ok) throw new Error('Create failed')
+      const data = await res.json() as { id: string }
+      setNewDocId(data.id)
+      setState('done')
+    } catch {
+      setState('error')
+    }
+  }
+
+  return (
+    <div className="border border-emerald-200 bg-emerald-50/50 rounded-xl p-3 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <FilePlus className="w-4 h-4 text-emerald-600 shrink-0" />
+        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">New Document Ready</span>
+      </div>
+      <p className="text-xs text-slate-600 leading-relaxed">
+        Approve to create <span className="font-semibold">"{docCreate.title}"</span> as a new document.
+      </p>
+      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-28 overflow-y-auto">
+        <pre className="text-[11px] text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
+          {docCreate.content.slice(0, 600)}{docCreate.content.length > 600 ? '\n…' : ''}
+        </pre>
+      </div>
+      <div className="flex items-center gap-2">
+        {state === 'done' && newDocId ? (
+          <Link
+            href={`/docs/${newDocId}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition-colors"
+          >
+            <Check className="w-3 h-3" /> Created — Open Document
+          </Link>
+        ) : (
+          <>
+            <button
+              onClick={() => void approve()}
+              disabled={state === 'creating'}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-60"
+            >
+              {state === 'creating'
+                ? <><Loader2 className="w-3 h-3 animate-spin" /> Creating…</>
+                : <><FilePlus className="w-3 h-3" /> Create Document</>}
+            </button>
+            {state === 'error' && (
+              <span className="text-xs text-red-600">Failed — try again</span>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Message bubble ─────────────────────────────────────────────
 
 function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextItems: ContextItem[] }) {
@@ -246,15 +347,16 @@ function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextI
     )
   }
 
-  // Doc-edit signal — show the Apply card (+ any explanation below it)
-  if (msg.docEdit) {
+  // Doc signal — show Apply card or Create card (+ any explanation below)
+  if (msg.docEdit || msg.docCreate) {
     return (
       <div className="flex gap-2">
         <div className="w-6 h-6 rounded-full bg-novax-light border border-novax-border flex items-center justify-center shrink-0 mt-1">
           <Bot className="w-3 h-3 text-novax-muted" />
         </div>
         <div className="max-w-[90%] space-y-2">
-          <DocEditCard docEdit={msg.docEdit} contextItems={docContextItems} />
+          {msg.docEdit   && <DocEditCard   docEdit={msg.docEdit}     contextItems={docContextItems} />}
+          {msg.docCreate && <DocCreateCard docCreate={msg.docCreate} />}
           {msg.content && (
             <p className="text-xs text-slate-500 leading-relaxed px-1">{msg.content}</p>
           )}
@@ -310,16 +412,16 @@ function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextI
 // ── Streaming bubble ───────────────────────────────────────────
 
 function StreamingBubble({ text }: { text: string }) {
-  const isDocEdit = text.trimStart().startsWith('{"type":"doc_edit"')
+  const isDocSignal = text.trimStart().startsWith('{"type":"doc_')
   return (
     <div className="flex gap-2">
       <div className="w-6 h-6 rounded-full bg-novax-light border border-novax-border flex items-center justify-center shrink-0 mt-1">
         <Bot className="w-3 h-3 text-novax-muted" />
       </div>
       <div className="max-w-[90%] bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-        {isDocEdit ? (
+        {isDocSignal ? (
           <span className="flex items-center gap-1.5 text-novax-muted italic text-xs">
-            <Loader2 className="w-3 h-3 animate-spin" /> Preparing document edits…
+            <Loader2 className="w-3 h-3 animate-spin" /> Preparing document…
           </span>
         ) : (
           <>
@@ -579,13 +681,20 @@ export function ChatPanel({
         }
       }
 
-      const docEditSignal = tryParseDocEdit(full)
-      if (docEditSignal) {
+      const signal = tryParseSignal(full)
+      if (signal?.kind === 'edit') {
         setMessages(prev => [...prev, {
           id:      crypto.randomUUID(),
           role:    'assistant',
-          content: docEditSignal.remainder,
-          docEdit: { docId: docEditSignal.docId, content: docEditSignal.content },
+          content: signal.remainder,
+          docEdit: { docId: signal.docId, content: signal.content },
+        }])
+      } else if (signal?.kind === 'create') {
+        setMessages(prev => [...prev, {
+          id:       crypto.randomUUID(),
+          role:     'assistant',
+          content:  signal.remainder,
+          docCreate: { title: signal.title, content: signal.content, clientId: selectedClient || undefined },
         }])
       } else {
         setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: full || 'No response.' }])

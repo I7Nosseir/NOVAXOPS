@@ -1,20 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase'
 
-function adminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return null
-  return createClient(url, key)
+async function getCallerProfile() {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('id, role')
+    .eq('auth_id', user.id)
+    .single()
+
+  return profile ?? null
 }
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const caller = await getCallerProfile()
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id: clientId } = await params
-  const db = adminSupabase()
-  if (!db) return NextResponse.json({ error: 'DB not configured' }, { status: 503 })
+  const db = createAdminClient()
 
   const { data, error } = await db
     .from('client_context_bank')
@@ -34,16 +50,17 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const caller = await getCallerProfile()
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id: clientId } = await params
-  const db = adminSupabase()
-  if (!db) return NextResponse.json({ error: 'DB not configured' }, { status: 503 })
+  const db = createAdminClient()
 
   let body: {
     category: string
     summary: string
     full_text: string
     source_type?: string
-    created_by?: string
   }
   try {
     body = await req.json()
@@ -54,13 +71,13 @@ export async function POST(
   const { data, error } = await db
     .from('client_context_bank')
     .insert({
-      client_id: clientId,
-      category: body.category,
-      summary: body.summary,
-      full_text: body.full_text,
+      client_id:   clientId,
+      category:    body.category,
+      summary:     body.summary,
+      full_text:   body.full_text,
       source_type: body.source_type ?? 'manual',
-      created_by: body.created_by ?? null,
-      is_active: true,
+      created_by:  caller.id,           // always from authenticated session
+      is_active:   true,
     })
     .select()
     .single()
@@ -77,9 +94,11 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const caller = await getCallerProfile()
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id: clientId } = await params
-  const db = adminSupabase()
-  if (!db) return NextResponse.json({ error: 'DB not configured' }, { status: 503 })
+  const db = createAdminClient()
 
   let body: { entry_id: string; is_active?: boolean; category?: string; summary?: string; full_text?: string }
   try {
@@ -107,9 +126,11 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const caller = await getCallerProfile()
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { id: clientId } = await params
-  const db = adminSupabase()
-  if (!db) return NextResponse.json({ error: 'DB not configured' }, { status: 503 })
+  const db = createAdminClient()
 
   const { searchParams } = new URL(req.url)
   const entryId = searchParams.get('entry_id')

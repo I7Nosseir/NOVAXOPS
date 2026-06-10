@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/api-auth'
 
 function adminSupabase() {
   return createClient(
@@ -12,6 +13,7 @@ const HAS_DB = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_S
 
 // POST /api/studio/content — create a new studio session
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth(); if ('error' in auth) return auth.error
   let body: {
     client_id?: string
     created_by?: string

@@ -1146,6 +1146,75 @@ export default function SettingsPage() {
             ))}
           </div>
 
+          {/* Security Audit Plan — admin/CEO only */}
+          {canManageKillSwitch && (
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3 mt-6">Security Audit Checklist</h4>
+              <div className="space-y-2">
+                {[
+                  {
+                    area:   'Row-Level Security (RLS)',
+                    status: 'verified',
+                    detail: 'All Supabase tables have RLS enabled. Policies enforced per role. Admin client (`createAdminClient`) used only in server-side API routes — never exposed to browser.',
+                  },
+                  {
+                    area:   'SQL Injection',
+                    status: 'verified',
+                    detail: 'All DB access via Supabase client SDK (parameterised queries). No raw `rpc()` or string-interpolated SQL anywhere in the codebase.',
+                  },
+                  {
+                    area:   'IDOR — Insecure Direct Object References',
+                    status: 'review',
+                    detail: 'Document, task, and asset IDs are exposed in URLs. All API routes must verify ownership or RLS before returning data. Audit `/api/docs/[id]`, `/api/studio/content/[id]` routes.',
+                  },
+                  {
+                    area:   'File Upload Security',
+                    status: 'review',
+                    detail: 'Asset uploads go to Supabase Storage. File type validated client-side only — add server-side MIME check. Max 500MB enforced by bucket policy. No executable files accepted.',
+                  },
+                  {
+                    area:   'AI Rate Limiting',
+                    status: 'verified',
+                    detail: '10 requests/user/minute enforced in API middleware. Kill switch blocks all generation routes instantly when toggled.',
+                  },
+                  {
+                    area:   'API Key Exposure',
+                    status: 'verified',
+                    detail: 'All keys in `.env.local` / Vercel env vars. No keys in client bundles. `NEXT_PUBLIC_` prefix only used for Supabase URL and anon key (safe by design).',
+                  },
+                  {
+                    area:   'XSS — Cross-Site Scripting',
+                    status: 'verified',
+                    detail: 'React escapes JSX by default. `react-markdown` used with `remark-gfm` — no `dangerouslySetInnerHTML` in production paths. Tiptap editor sanitises HTML.',
+                  },
+                  {
+                    area:   'Auth Token Handling',
+                    status: 'verified',
+                    detail: 'Supabase handles all token lifecycle via `@supabase/ssr`. `middleware.ts` refreshes sessions on every request. No custom JWT implementation.',
+                  },
+                ].map(({ area, status, detail }) => (
+                  <div key={area} className="flex items-start gap-3 p-3.5 bg-white rounded-xl border border-slate-200">
+                    <div className={cn('mt-0.5 p-1.5 rounded-lg shrink-0', status === 'verified' ? 'bg-emerald-50' : 'bg-amber-50')}>
+                      {status === 'verified'
+                        ? <CheckCircle className="w-3.5 h-3.5 text-emerald-600"/>
+                        : <AlertCircle className="w-3.5 h-3.5 text-amber-500"/>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-xs font-semibold text-slate-900">{area}</p>
+                        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+                          status === 'verified' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
+                          {status === 'verified' ? 'Verified' : 'Needs Review'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">{detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* AI Kill Switch — admin/CEO only */}
           {canManageKillSwitch && (
             <div>

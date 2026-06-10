@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { requireRole } from '@/lib/api-auth'
 
 export async function GET(req: NextRequest) {
+  const auth = await requireRole(['admin', 'ceo']); if ('error' in auth) return auth.error
   const { searchParams } = new URL(req.url)
   const client_id = searchParams.get('client_id')
   const year = searchParams.get('year')
@@ -29,6 +31,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(['admin', 'ceo']); if ('error' in auth) return auth.error
   let body: {
     client_id: string
     year: number

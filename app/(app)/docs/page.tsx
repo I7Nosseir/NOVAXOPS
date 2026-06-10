@@ -1,14 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet } from 'lucide-react'
+import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet, Upload } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
+import * as XLSX from 'xlsx'
+
+// Convert plain text to minimal Tiptap JSON
+function textToTiptap(text: string): object {
+  const paragraphs = text.split(/\n/).map(line => ({
+    type: 'paragraph',
+    content: line.trim() ? [{ type: 'text', text: line }] : undefined,
+  }))
+  return { type: 'doc', content: paragraphs }
+}
 
 interface Document {
   id: string
@@ -34,6 +44,8 @@ export default function DocsPage() {
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [shareDoc, setShareDoc] = useState<Document | null>(null)
+  const [importing, setImporting] = useState(false)
+  const importRef = useRef<HTMLInputElement>(null)
 
   const { data: docs = [], isLoading } = useQuery<Document[]>({
     queryKey: ['docs'],
@@ -89,6 +101,49 @@ export default function DocsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['docs'] }),
   })
 
+  const handleImport = async (file: File) => {
+    setImporting(true)
+    try {
+      let text = ''
+      const name = file.name.replace(/\.[^.]+$/, '')
+
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
+        const ab = await file.arrayBuffer()
+        const wb = XLSX.read(ab, { type: 'array' })
+        const parts: string[] = []
+        for (const sheetName of wb.SheetNames) {
+          const ws = wb.Sheets[sheetName]
+          const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false })
+          if (csv.trim()) parts.push(`${sheetName}\n${csv}`)
+        }
+        text = parts.join('\n\n')
+      } else {
+        // .docx or .txt — basic text read
+        text = await file.text()
+        // Strip XML/binary for docx
+        if (file.name.endsWith('.docx')) {
+          text = text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
+        }
+      }
+
+      const content = textToTiptap(text)
+      const r = await fetch('/api/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: name, content }),
+      })
+      const json = await r.json() as Document
+      if (!r.ok) throw new Error()
+      queryClient.invalidateQueries({ queryKey: ['docs'] })
+      router.push(`/docs/${json.id}`)
+    } catch {
+      // silent — user can retry
+    } finally {
+      setImporting(false)
+      if (importRef.current) importRef.current.value = ''
+    }
+  }
+
   const filtered = regularDocs.filter(doc => {
     const matchSearch = doc.title.toLowerCase().includes(search.toLowerCase())
     const matchClient = clientFilter ? doc.client_id === clientFilter : true
@@ -106,6 +161,16 @@ export default function DocsPage() {
           <p className="text-sm text-slate-500 mt-0.5">Collaborative docs linked to clients and projects</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => importRef.current?.click()}
+            disabled={importing}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+          >
+            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Import
+          </button>
+          <input ref={importRef} type="file" accept=".txt,.xlsx,.xls,.csv,.docx" className="hidden"
+            onChange={e => e.target.files?.[0] && void handleImport(e.target.files[0])}/>
           <button
             onClick={() => createDoc.mutate({ title: 'Untitled Spreadsheet', doc_type: 'sheet' })}
             disabled={createDoc.isPending}

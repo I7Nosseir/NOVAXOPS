@@ -1,13 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   Loader2, Brain, Target, AlertTriangle, CheckCircle, TrendingUp, Zap,
   BarChart2, Users, Compass, Layers, Activity, SplitSquareVertical,
-  Flame, Monitor, ChevronDown,
+  Flame, Monitor, ChevronDown, FileText,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
+import * as XLSX from 'xlsx'
+
+async function extractFileText(file: File): Promise<string> {
+  if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
+    const ab = await file.arrayBuffer()
+    const wb = XLSX.read(ab, { type: 'array' })
+    const lines: string[] = []
+    for (const name of wb.SheetNames) {
+      const ws = wb.Sheets[name]
+      const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false })
+      if (csv.trim()) lines.push(`[Sheet: ${name}]\n${csv}`)
+    }
+    return lines.join('\n\n')
+  }
+  if (file.name.endsWith('.txt')) return file.text()
+  // docx: try basic text extraction via reading as text
+  const raw = await file.text()
+  const cleaned = raw.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
+  return cleaned || '(Could not auto-extract — paste content manually)'
+}
 
 type EvalMode = 'strategy' | 'content'
 
@@ -175,10 +195,22 @@ export default function StrategyEvalPage() {
   const [clientId, setClientId] = useState('')
   const [platform, setPlatform] = useState('instagram')
   const [text, setText] = useState('')
+  const [docFileName, setDocFileName] = useState('')
   const [evaluating, setEvaluating] = useState(false)
   const [strategyResult, setStrategyResult] = useState<StrategyResult | null>(null)
   const [contentResult, setContentResult] = useState<ContentResult | null>(null)
   const [evalError, setEvalError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleImportFile = async (f: File) => {
+    setDocFileName(f.name)
+    try {
+      const extracted = await extractFileText(f)
+      setText(extracted)
+    } catch {
+      setText('(Could not extract file content — paste manually)')
+    }
+  }
 
   const selectedClient = clients.find(c => c.id === clientId)
 
@@ -289,9 +321,25 @@ export default function StrategyEvalPage() {
 
           {/* Textarea */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              {mode === 'strategy' ? 'Strategy Document or Brief' : 'Copy, Caption, or Script'}
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700">
+                {mode === 'strategy' ? 'Strategy Document or Brief' : 'Copy, Caption, or Script'}
+              </label>
+              <div className="flex items-center gap-2">
+                {docFileName && (
+                  <span className="text-[10px] text-novax-muted font-medium truncate max-w-[100px]">{docFileName}</span>
+                )}
+                <button onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-novax font-medium border border-slate-200 rounded-lg px-2 py-1 hover:bg-slate-50 transition-colors">
+                  <FileText className="w-3 h-3"/>
+                  Import
+                </button>
+                <input ref={fileInputRef} type="file"
+                  accept=".txt,.csv,.xlsx,.xls,.docx"
+                  className="hidden"
+                  onChange={e => e.target.files?.[0] && void handleImportFile(e.target.files[0])}/>
+              </div>
+            </div>
             <textarea
               value={text}
               onChange={e => setText(e.target.value)}
@@ -302,7 +350,7 @@ export default function StrategyEvalPage() {
               className="w-full px-3.5 py-3 text-sm border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white resize-none leading-relaxed placeholder:text-slate-300"
             />
             <p className="text-[10px] text-slate-400 mt-1">
-              {text.length > 0 ? `${text.length} characters` : 'No minimum length — longer input produces more accurate scoring'}
+              {text.length > 0 ? `${text.length} characters` : 'No minimum — longer input produces more accurate scoring · .txt .xlsx .csv .docx supported'}
             </p>
           </div>
 

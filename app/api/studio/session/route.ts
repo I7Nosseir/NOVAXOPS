@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { StudioSession, StudioTool } from '@/lib/studio-types'
+import { requireAuth } from '@/lib/api-auth'
 
 // ─── DB helpers ──────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ function adminSupabase() {
 // ─── GET /api/studio/session ──────────────────────────────────
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth(); if ('error' in auth) return auth.error
   const { searchParams } = new URL(req.url)
   const tool       = searchParams.get('tool')       ?? undefined
   const client_id  = searchParams.get('client_id')  ?? undefined
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
 // ─── POST /api/studio/session ────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth(); if ('error' in auth) return auth.error
   let body: {
     name?: string
     tool?: StudioTool

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireRole } from '@/lib/api-auth'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 
@@ -53,6 +54,7 @@ interface CrisisRequest {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(['admin', 'ceo']); if ('error' in auth) return auth.error
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({ error: 'GEMINI_API_KEY is not configured.' }, { status: 500 })
   }

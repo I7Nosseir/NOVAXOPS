@@ -168,6 +168,9 @@ export async function PATCH(req: NextRequest) {
 
   const { token, decisions, client_note } = body
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 })
+  if (Object.keys(decisions ?? {}).length > 100) {
+    return NextResponse.json({ error: 'Too many decisions in a single submission' }, { status: 400 })
+  }
 
   const db = adminSupabase()
 

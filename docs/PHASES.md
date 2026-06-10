@@ -168,19 +168,19 @@
 
 ---
 
-## Phase 11 — User Tracking · Security · Document Import ⬜
+## Phase 11 — User Tracking · Security · Document Import ✅ COMPLETE
 **Scope:** User activity page, security audit, content eval upgrades, Excel/doc import.
-**SQL migrations needed:** `031_user_activity.sql`
+**SQL migrations needed:** `031_user_activity.sql` ← run in Supabase SQL editor
 
 | # | Item | Status |
 |---|---|---|
-| 11.1 | User activity tracking page: live status, page, API calls per user | ⬜ |
-| 11.2 | Per-user API call count from `api_usage` table | ⬜ |
-| 11.3 | Content eval: accept doc/Excel/text input | ⬜ |
-| 11.4 | Content eval: multiple platform selection | ⬜ |
-| 11.5 | Strategy eval: accept doc/Excel input | ⬜ |
-| 11.6 | Excel/Word upload → native `documents` table entry | ⬜ |
-| 11.7 | Deep security audit plan documented (SQL injection, RLS gaps, IDOR, file upload) | ⬜ |
+| 11.1 | User activity tracking page: live status, page, API calls per user | ✅ |
+| 11.2 | Per-user API call count from `api_usage` table | ✅ |
+| 11.3 | Content eval: accept doc/Excel/text input | ✅ |
+| 11.4 | Content eval: multiple platform selection | ✅ |
+| 11.5 | Strategy eval: accept doc/Excel input | ✅ |
+| 11.6 | Excel/Word upload → native `documents` table entry | ✅ |
+| 11.7 | Deep security audit plan documented (SQL injection, RLS gaps, IDOR, file upload) | ✅ |
 
 ---
 
