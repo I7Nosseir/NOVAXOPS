@@ -58,6 +58,8 @@ export function useTasks(filters?: TaskFilters) {
   const { data: tasks = [], isLoading, error } = useQuery({
     queryKey: ['tasks', filters],
     queryFn: async () => {
+      // clientIds: undefined = no restriction; [] = user has no assigned clients (return nothing)
+      if (filters?.clientIds !== undefined && filters.clientIds.length === 0) return [] as Task[]
       let query = supabase.from('tasks').select('*').order('created_at', { ascending: false })
       if (filters?.clientIds?.length) query = query.in('client_id', filters.clientIds)
       if (filters?.projectId) query = query.eq('project_id', filters.projectId)

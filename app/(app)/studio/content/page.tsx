@@ -8,7 +8,7 @@ import {
   AlertTriangle, RefreshCw,
   Film, LayoutGrid, Image, Sheet,
   FileDown, Calendar, CheckCircle2, XCircle, AlertCircle,
-  TrendingUp, Star,
+  TrendingUp, Star, Minus, Plus,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -19,6 +19,8 @@ import { StudioDocument } from '@/components/studio/studio-document'
 import { StudioChatbot } from '@/components/studio/studio-chatbot'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
 import { StudioSaveActions } from '@/components/studio/studio-save-actions'
+import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
+import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
 import type {
   StructuredQuestion,
   ContentDocument,
@@ -101,16 +103,31 @@ interface JudgmentResult {
 }
 
 interface ContentInputs {
-  client_id:    string
-  platforms:    string[]
-  audience:     'B2C' | 'B2B'
-  goal:         string
-  cta:          string
-  brief:        string
-  language:     'english' | 'arabic'
-  dialect:      'egyptian' | 'saudi'
-  content_type: 'reel' | 'carousel' | 'static'
-  piece_count:  1 | 2 | 3
+  client_id:      string
+  platforms:      string[]
+  audience:       'B2C' | 'B2B'
+  goal:           string
+  cta:            string
+  brief:          string
+  language:       'english' | 'arabic'
+  dialect:        'egyptian' | 'saudi'
+  reel_count:     number
+  carousel_count: number
+  static_count:   number
+}
+
+function getDominantType(inp: ContentInputs): 'reel' | 'carousel' | 'static' {
+  if (inp.reel_count >= inp.carousel_count && inp.reel_count >= inp.static_count) return 'reel'
+  if (inp.carousel_count >= inp.static_count) return 'carousel'
+  return 'static'
+}
+
+function buildContentPlan(inp: ContentInputs): Array<{ type: 'reel' | 'carousel' | 'static' }> {
+  return [
+    ...Array(inp.reel_count).fill(null).map(() => ({ type: 'reel' as const })),
+    ...Array(inp.carousel_count).fill(null).map(() => ({ type: 'carousel' as const })),
+    ...Array(inp.static_count).fill(null).map(() => ({ type: 'static' as const })),
+  ]
 }
 
 type RawHook = {
@@ -145,16 +162,17 @@ export default function ContentStudioPage() {
   const [error,      setError]      = useState<string | null>(null)
 
   const [inputs, setInputs] = useState<ContentInputs>({
-    client_id:    params?.get('client') ?? '',
-    platforms:    ['Instagram'],
-    audience:     'B2C',
-    goal:         'Engagement',
-    cta:          '',
-    brief:        params?.get('brief') ?? '',
-    language:     'english',
-    dialect:      'egyptian',
-    content_type: 'reel',
-    piece_count:  1,
+    client_id:      params?.get('client') ?? '',
+    platforms:      ['Instagram'],
+    audience:       'B2C',
+    goal:           'Engagement',
+    cta:            '',
+    brief:          params?.get('brief') ?? '',
+    language:       'english',
+    dialect:        'egyptian',
+    reel_count:     1,
+    carousel_count: 0,
+    static_count:   0,
   })
 
   const [pausedQuestion,   setPausedQuestion]   = useState<StructuredQuestion | null>(null)
@@ -282,7 +300,7 @@ export default function ContentStudioPage() {
             audience:     inputs.audience,
             client_name:  selectedClient?.name,
             brand_voice:  selectedClient?.brand_identity?.tone_of_voice,
-            content_type: inputs.content_type,
+            content_type: getDominantType(inputs),
             language:     inputs.language,
           }),
         })
@@ -320,7 +338,7 @@ export default function ContentStudioPage() {
             platform:     inp.platforms[0],
             goal:         inp.goal,
             brand_voice:  selectedClient?.brand_identity?.tone_of_voice,
-            content_type: inp.content_type,
+            content_type: piece.type,
             language:     inp.language,
           }),
         })
@@ -352,7 +370,7 @@ export default function ContentStudioPage() {
             brief:        inputs.brief,
             language:     inputs.language,
             dialect:      inputs.dialect,
-            content_type: inputs.content_type,
+            content_type: getDominantType(inputs),
           },
           clientName:  selectedClient?.name,
           clientColor: selectedClient?.color,
@@ -427,8 +445,19 @@ export default function ContentStudioPage() {
     if (!inputs.brief.trim()) return
     setError(null)
 
+    const totalPieces = inputs.reel_count + inputs.carousel_count + inputs.static_count
+    if (totalPieces === 0) return
+
+    const contentPlan = buildContentPlan(inputs)
+
+    const typeSummary = [
+      inputs.reel_count     > 0 ? `${inputs.reel_count}R`     : '',
+      inputs.carousel_count > 0 ? `${inputs.carousel_count}C` : '',
+      inputs.static_count   > 0 ? `${inputs.static_count}S`   : '',
+    ].filter(Boolean).join('+')
+
     const clientName = selectedClient?.name ?? 'Unknown Client'
-    const name = `${clientName} — ${inputs.content_type} × ${inputs.piece_count}`
+    const name = `${clientName} — ${typeSummary} (${totalPieces} piece${totalPieces > 1 ? 's' : ''})`
     setSessionName(name)
 
     setLoadingSteps(INITIAL_LOADING_STEPS.map((s, i) => ({ ...s, status: i === 0 ? 'active' : 'pending' })))
@@ -511,29 +540,32 @@ export default function ContentStudioPage() {
       const hooks = hookData.hooks ?? []
       completeStep(3)
 
-      // Step 5: Pick top N hooks for N pieces
+      // Step 5: Rank hooks, cycle if total pieces > 20
       startStep(4)
       const rankedHooks = [...hooks].sort((a, b) => b.total_score - a.total_score)
-      const selectedHooks = rankedHooks.slice(0, inputs.piece_count)
+      // Assign hooks to each piece in the content plan, cycling through ranked list
+      const assignedHooks = contentPlan.map((_, i) => rankedHooks[i % rankedHooks.length])
       completeStep(4)
 
-      // Step 6: Generate content for each hook (sequential to avoid rate limits)
+      // Step 6: Generate content for each piece (sequential to respect rate limits)
       startStep(5)
       const scriptResults: RawScript[] = []
-      for (const hook of selectedHooks) {
+      for (let i = 0; i < contentPlan.length; i++) {
+        const hook      = assignedHooks[i]
+        const pieceType = contentPlan[i].type
         const res = await fetch(`/api/studio/content/${sid ?? 'new'}/script`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...inputs,
-            content_type:     inputs.content_type,
-            hook:             hook.hook_text,
-            hook_type:        hook.hook_type,
-            brand_voice:      selectedClient?.brand_identity?.tone_of_voice,
-            key_messages:     selectedClient?.brand_identity?.key_messages,
-            client_name:      selectedClient?.name,
+            content_type:      pieceType,
+            hook:              hook.hook_text,
+            hook_type:         hook.hook_type,
+            brand_voice:       selectedClient?.brand_identity?.tone_of_voice,
+            key_messages:      selectedClient?.brand_identity?.key_messages,
+            client_name:       selectedClient?.name,
             emotional_trigger: emotionalTrigger,
-            signal_report:    signalReport,
+            signal_report:     signalReport,
           }),
         })
         const data = await res.json() as { script?: RawScript; error?: string }
@@ -555,7 +587,7 @@ export default function ContentStudioPage() {
           body: JSON.stringify({
             brief:  inputs.brief,
             mode:   'boss_brief',
-            hook:   selectedHooks[0]?.hook_text,
+            hook:   assignedHooks[0]?.hook_text,
             script: scriptResults[0],
             client: selectedClient ? { name: selectedClient.name } : null,
           }),
@@ -569,9 +601,9 @@ export default function ContentStudioPage() {
       // Step 9: Assemble ContentDocument
       startStep(8)
       const pieces: ContentPiece[] = scriptResults.map((script, idx) => {
-        const rawHook = selectedHooks[idx]
+        const rawHook = assignedHooks[idx]
         return {
-          type:  inputs.content_type,
+          type:  contentPlan[idx].type,
           index: idx,
           hook: rawHook ? {
             text:         rawHook.hook_text,
@@ -613,8 +645,8 @@ export default function ContentStudioPage() {
         },
         // Multi-piece
         pieces,
-        content_type: inputs.content_type,
-        piece_count:  inputs.piece_count,
+        content_type: getDominantType(inputs),
+        piece_count:  totalPieces,
         platforms:    inputs.platforms,
         language:     inputs.language,
       }
@@ -664,7 +696,7 @@ export default function ContentStudioPage() {
     setInputs({
       client_id: '', platforms: ['Instagram'], audience: 'B2C', goal: 'Engagement',
       cta: '', brief: '', language: 'english', dialect: 'egyptian',
-      content_type: 'reel', piece_count: 1,
+      reel_count: 1, carousel_count: 0, static_count: 0,
     })
     setViability(null)
     setJudgments([])
@@ -773,8 +805,8 @@ export default function ContentStudioPage() {
         text_overlay?: string
       }
       const hook        = piece.hook
-      const contentType = (piece.type ?? contentDoc.content_type ?? 'reel')
-        .charAt(0).toUpperCase() + (piece.type ?? contentDoc.content_type ?? 'reel').slice(1)
+      const contentType = (piece.type ?? getDominantType(inputs))
+        .charAt(0).toUpperCase() + (piece.type ?? getDominantType(inputs)).slice(1)
 
       // Script column — per content type
       let scriptColumn = ''
@@ -964,12 +996,25 @@ export default function ContentStudioPage() {
       {/* ── BRIEF state ── */}
       {pageState === 'brief' && (
         <div className="space-y-5">
+          <StudioGuidancePanel
+            title="How Content Studio works"
+            description="Takes your brief and generates 1–3 fully scripted pieces of content — each with a differentiated hook, full script (for reels), slide deck (for carousels), or image brief (for statics). Every piece uses a different hook strategy so you're not running variations on the same opener."
+            items={[
+              { term: 'Reel', definition: 'Full script with shot-by-shot breakdown, text overlay per section, and visual direction notes. Each section maps to a script phase (hook → build → payoff → CTA).' },
+              { term: 'Carousel', definition: 'Slide-by-slide content with headline, body copy, and visual brief per slide. Includes a cover slide hook and a final call-to-action slide.' },
+              { term: 'Static', definition: 'Single-image or graphic brief: primary copy, visual direction, text overlay, and background/composition notes.' },
+              { term: 'Boss Brief', definition: 'A 30-second exec summary generated after your content — covers the core idea, audience tension it resolves, and what to watch out for.' },
+            ]}
+            tips={[
+              { label: 'Best brief', tip: 'State the single emotion you want the audience to feel after watching — not just the product feature you\'re promoting.' },
+              { label: 'Mix types', tip: 'Generate 1 reel + 1 carousel together to get a full campaign week\'s content in one session.' },
+            ]}
+          />
           {(sessions.length > 0 || sessionsLoading) && (
             <div className="mb-6">
               <StudioSessionList
                 sessions={sessions}
                 onSessionClick={handleSessionClick}
-                onNewSession={handleNewSession}
                 onDeleteSession={id => setSessions(prev => prev.filter(s => s.id !== id))}
                 isLoading={sessionsLoading}
               />
@@ -988,54 +1033,63 @@ export default function ContentStudioPage() {
               </select>
             </div>
 
-            {/* Content Type */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Content Type</label>
-              <div className="grid grid-cols-3 gap-2">
-                {CONTENT_TYPES.map(({ value, label, icon: Icon, description }) => (
-                  <button
-                    key={value}
-                    onClick={() => setInputs(v => ({ ...v, content_type: value }))}
-                    className={cn(
-                      'flex flex-col items-center gap-1.5 p-3 rounded-xl border text-left transition-all',
-                      inputs.content_type === value
-                        ? 'bg-novax text-white border-novax'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="text-xs font-semibold">{label}</span>
-                    <span className={cn('text-[10px] text-center leading-tight', inputs.content_type === value ? 'text-white/70' : 'text-slate-400')}>
-                      {description}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Piece count */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Pieces to Generate
-                <span className="ml-1.5 text-[10px] font-normal text-slate-400">(each gets a different hook)</span>
-              </label>
-              <div className="flex gap-2">
-                {([1, 2, 3] as const).map(n => (
-                  <button
-                    key={n}
-                    onClick={() => setInputs(v => ({ ...v, piece_count: n }))}
-                    className={cn(
-                      'flex-1 py-2 text-sm font-semibold rounded-lg border transition-all',
-                      inputs.piece_count === n
-                        ? 'bg-novax text-white border-novax'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
-                    )}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Content Type + Quantity rows */}
+            {(() => {
+              const totalPieces = inputs.reel_count + inputs.carousel_count + inputs.static_count
+              const countKey = { reel: 'reel_count', carousel: 'carousel_count', static: 'static_count' } as const
+              return (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Content to Generate
+                    <span className="ml-1.5 text-[10px] font-normal text-slate-400">(each piece gets a unique hook — max 30 total)</span>
+                  </label>
+                  <div className="space-y-2">
+                    {CONTENT_TYPES.map(({ value, label, icon: Icon, description }) => {
+                      const key   = countKey[value]
+                      const count = inputs[key]
+                      return (
+                        <div key={value} className={cn(
+                          'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all',
+                          count > 0 ? 'border-novax-border bg-novax-light' : 'border-slate-200 bg-white',
+                        )}>
+                          <div className={cn('p-1.5 rounded-lg shrink-0', count > 0 ? 'bg-novax text-white' : 'bg-slate-100 text-slate-400')}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-800">{label}</p>
+                            <p className="text-[10px] text-slate-400 truncate">{description}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setInputs(v => ({ ...v, [key]: Math.max(0, count - 1) }))}
+                              disabled={count === 0}
+                              className="w-6 h-6 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className={cn('w-6 text-center text-sm font-bold tabular-nums', count > 0 ? 'text-novax' : 'text-slate-400')}>{count}</span>
+                            <button
+                              type="button"
+                              onClick={() => setInputs(v => ({ ...v, [key]: totalPieces < 30 ? count + 1 : count }))}
+                              disabled={totalPieces >= 30}
+                              className="w-6 h-6 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {totalPieces > 0 && (
+                    <p className="text-[10px] text-slate-400 mt-1.5">
+                      {totalPieces} piece{totalPieces > 1 ? 's' : ''} selected · {30 - totalPieces} remaining
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Platforms */}
             <div>
@@ -1152,7 +1206,13 @@ export default function ContentStudioPage() {
 
             {/* Brief */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Content Brief</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Content Brief</label>
+                <LumaraPrefillButton
+                  onPrefill={(id, b) => setInputs(v => ({ ...v, client_id: id, brief: b }))}
+                  brief={LUMARA_BRIEFS.content}
+                />
+              </div>
               <textarea value={inputs.brief} onChange={e => setInputs(v => ({ ...v, brief: e.target.value }))}
                 placeholder="Describe the content in 2-4 sentences. What is the topic, the key message, what should the audience feel or do after watching?"
                 rows={4}
@@ -1207,11 +1267,19 @@ export default function ContentStudioPage() {
             </div>
           </div>
 
-          <button onClick={handleRunBrief} disabled={!inputs.brief.trim()}
-            className="flex items-center gap-2 px-6 py-3 bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors">
-            <Zap className="w-4 h-4" />
-            Generate {inputs.piece_count > 1 ? `${inputs.piece_count} ` : ''}{inputs.content_type}{inputs.piece_count > 1 ? 's' : ''}
-          </button>
+          {(() => {
+            const total = inputs.reel_count + inputs.carousel_count + inputs.static_count
+            const disabled = !inputs.brief.trim() || total === 0
+            return (
+              <button onClick={handleRunBrief} disabled={disabled}
+                className="flex items-center gap-2 px-6 py-3 bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors">
+                <Zap className="w-4 h-4" />
+                {total === 0
+                  ? 'Select at least 1 piece above'
+                  : `Generate ${total} piece${total > 1 ? 's' : ''}`}
+              </button>
+            )
+          })()}
         </div>
       )}
 
@@ -1346,7 +1414,7 @@ export default function ContentStudioPage() {
                 contentDoc.hook?.text ?? '',
                 contentDoc.caption_preview ?? '',
               ].filter(Boolean).join('\n\n')}
-              documentTitle={`${selectedClient?.name ?? 'Content'} — ${inputs.platforms[0] ?? 'Studio'} ${inputs.content_type}`}
+              documentTitle={`${selectedClient?.name ?? 'Content'} — ${inputs.platforms[0] ?? 'Studio'} ${getDominantType(inputs)}`}
               taskTitle={contentDoc.hook?.text ?? inputs.brief}
               taskDescription={inputs.brief}
             />

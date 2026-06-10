@@ -6,6 +6,7 @@ import { useTasks } from '@/lib/hooks/use-tasks'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
+import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
 import { useRealtime } from '@/lib/hooks/use-realtime'
 import { TaskDetailPanel } from '@/components/tasks/task-detail-panel'
 import {
@@ -24,8 +25,16 @@ const DUE_PRESETS = [
 
 export default function TasksPage() {
   const { user } = useAuth()
-  const { tasks, isLoading } = useTasks()
-  const { clients } = useClients()
+  const assignedClientIds = useMyAssignedClientIds()
+  // Pass assigned clients to the DB query; null = no restriction (bypass roles)
+  const { tasks, isLoading } = useTasks(
+    assignedClientIds !== null ? { clientIds: assignedClientIds } : undefined
+  )
+  const allClients = useClients().clients
+  // Restrict client dropdown to assigned clients for non-bypass users
+  const clients = assignedClientIds !== null
+    ? allClients.filter(c => assignedClientIds.includes(c.id))
+    : allClients
   const { users } = useUsers()
   useRealtime('tasks', ['tasks'])
 

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { geminiGenerate } from '@/lib/gemini'
 import type { ChatMessage, EditPayload } from '@/lib/studio-types'
+import { aiGuard } from '@/lib/ai-guard'
 
 export const maxDuration = 60
 
@@ -97,6 +98,9 @@ function buildConversationPrompt(history: ChatMessage[], newMessage: string): st
 // ─── Handler ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard()
+  if (guard) return guard
+
   let body: {
     session_id?: string
     message: string

@@ -15,6 +15,7 @@ import {
   TrendingUp, RefreshCw, Zap, Plus, Trash2, BarChart2,
   Users, Clock, ChevronRight, AlertTriangle, Activity,
 } from 'lucide-react'
+import { AILoadingOverlay } from '@/components/shared/ai-loading-overlay'
 
 const B = {
   primary: '#1B3D38',
@@ -516,6 +517,7 @@ function PatternIntelTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="space-y-5">
+      {analyzing && <AILoadingOverlay message="Generating pattern intelligence…" sub="Analyzing your top and bottom posts…" />}
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400">
           {analyzedAt ? `Last analyzed: ${new Date(analyzedAt).toLocaleDateString()}` : 'Not yet analyzed'}

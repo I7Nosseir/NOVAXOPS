@@ -5,11 +5,13 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import {
   BarChart2, TrendingUp, AlertTriangle, Lightbulb, Target, Zap,
-  Loader2, RefreshCw, ChevronDown, ChevronUp, ExternalLink, ArrowRight,
+  Loader2, ChevronDown, ChevronUp, ExternalLink, ArrowRight,
+  Globe, MapPin, ThumbsUp, ThumbsDown, Download, Check,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn, formatNumber } from '@/lib/utils'
+import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
 import type { CompetitorAnalysis } from '@/lib/types'
 
 const THREAT_COLORS: Record<string, string> = {
@@ -40,8 +42,34 @@ function CompetitiveContent() {
   const [error, setError] = useState<string | null>(null)
   const [cached, setCached] = useState(false)
   const [expandedThreat, setExpandedThreat] = useState<string | null>(null)
+  const [savingPdf, setSavingPdf]           = useState(false)
+  const [savedPdf,  setSavedPdf]            = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
+
+  async function savePdf() {
+    if (!analysis || !clientId) return
+    setSavingPdf(true)
+    try {
+      const res = await fetch('/api/competitors/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId, analysis, clientName: selectedClient?.name }),
+      })
+      if (!res.ok) throw new Error('PDF export failed')
+      const d = await res.json() as { url?: string; assetId?: string }
+      if (d.url) {
+        const a = document.createElement('a')
+        a.href = d.url; a.download = `${selectedClient?.name ?? 'competitor'}-analysis.pdf`; a.click()
+      }
+      setSavedPdf(true)
+      setTimeout(() => setSavedPdf(false), 3000)
+    } catch (e) {
+      console.error('PDF save error', e)
+    } finally {
+      setSavingPdf(false)
+    }
+  }
 
   // Auto-run if client pre-selected and we have no analysis yet
   useEffect(() => {
@@ -81,6 +109,21 @@ function CompetitiveContent() {
         <p className="text-sm text-slate-500">Discover what competitors are doing — and how to beat them.</p>
       </div>
 
+      <StudioGuidancePanel
+        title="How Competitive Intelligence works"
+        description="Analyzes 3 global + 3 local competitors in your client's industry — pulling live metrics (followers, ER, cadence, growth signal) and generating a gap map of what they're doing, what they're missing, and where your client has room to dominate."
+        items={[
+          { term: 'Growth Signal', definition: 'Accelerating = follower + ER both trending up. Stable = flat. Declining = losing engagement or followers. Derived from recent post data.' },
+          { term: 'Threat Level', definition: 'High = direct competitor with strong ER and growing. Medium = indirect or slowing. Low = weak execution or different audience.' },
+          { term: 'Global vs Local', definition: 'Global = internationally known brands in this category (benchmarks + inspiration). Local = regional competitors your client directly competes with.' },
+          { term: 'Platform Strategy', definition: 'How each competitor uses each platform — e.g. "Instagram = aspirational lifestyle, TikTok = raw/unfiltered." Informs differentiation angles.' },
+        ]}
+        tips={[
+          { label: 'Add handles', tip: 'Go to the client\'s profile → Competitors tab and add actual account handles for more accurate scraping.' },
+          { label: 'Re-run', tip: 'Analysis is cached for 24h. Hit Re-analyze after adding new competitors or after a significant campaign ends.' },
+        ]}
+      />
+
       {/* Client selector + run */}
       <div className="flex items-end gap-3 flex-wrap">
         <div className="flex-1 min-w-[200px]">
@@ -109,9 +152,23 @@ function CompetitiveContent() {
       </div>
 
       {cached && analysis && (
-        <p className="text-xs text-slate-400 -mt-4">
-          Showing cached analysis · <button onClick={() => runAnalysis(true)} className="underline hover:text-slate-600">Refresh</button>
-        </p>
+        <div className="flex items-center justify-between -mt-4">
+          <p className="text-xs text-slate-400">
+            Showing cached analysis · <button onClick={() => runAnalysis(true)} className="underline hover:text-slate-600">Refresh</button>
+          </p>
+          <button
+            onClick={savePdf}
+            disabled={savingPdf}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          >
+            {savingPdf
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin"/>
+              : savedPdf
+                ? <Check className="w-3.5 h-3.5 text-emerald-500"/>
+                : <Download className="w-3.5 h-3.5"/>}
+            {savedPdf ? 'Saved' : 'Save as PDF'}
+          </button>
+        </div>
       )}
 
       {error && (
@@ -138,11 +195,27 @@ function CompetitiveContent() {
         <>
           {/* Summary */}
           <div className="p-5 bg-gradient-to-r from-[#1B3D38] to-[#2A6B62] rounded-2xl text-white">
-            <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 mb-2">Intelligence Summary</p>
-            <p className="text-sm leading-relaxed opacity-90">{analysis.summary}</p>
-            <p className="text-[10px] opacity-50 mt-3">
-              Generated {new Date(analysis.generated_at).toLocaleDateString()}
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 mb-2">Intelligence Summary</p>
+                <p className="text-sm leading-relaxed opacity-90">{analysis.summary}</p>
+                <p className="text-[10px] opacity-50 mt-3">
+                  Generated {new Date(analysis.generated_at).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={savePdf}
+                disabled={savingPdf}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white/80 border border-white/20 rounded-lg hover:bg-white/10 disabled:opacity-50 transition-colors shrink-0"
+              >
+                {savingPdf
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin"/>
+                  : savedPdf
+                    ? <Check className="w-3.5 h-3.5"/>
+                    : <Download className="w-3.5 h-3.5"/>}
+                {savedPdf ? 'Saved' : 'Save PDF'}
+              </button>
+            </div>
           </div>
 
           {/* Section 1: Landscape */}
@@ -151,39 +224,99 @@ function CompetitiveContent() {
               <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-novax-muted"/>
                 Competitive Landscape
+                <span className="ml-auto text-[10px] text-slate-400 font-normal flex items-center gap-3">
+                  <span className="flex items-center gap-1"><Globe className="w-3 h-3 text-blue-400"/> Global</span>
+                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-amber-400"/> Local</span>
+                </span>
               </h2>
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Competitor</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Followers</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg ER</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Posts/wk</th>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Signal</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {analysis.landscape.map((c, i) => (
-                      <tr key={i} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3">
+              <div className="space-y-3">
+                {analysis.landscape.map((c, i) => (
+                  <div key={i} className="border border-slate-200 rounded-xl bg-white overflow-hidden">
+                    {/* Row header */}
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
+                      <span className={cn(
+                        'w-6 h-6 rounded-full flex items-center justify-center shrink-0',
+                        c.scope === 'global' ? 'bg-blue-50' : 'bg-amber-50',
+                      )}>
+                        {c.scope === 'global'
+                          ? <Globe className="w-3 h-3 text-blue-500"/>
+                          : <MapPin className="w-3 h-3 text-amber-500"/>}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-800 text-sm">{c.handle}</span>
+                          <span className="text-[10px] text-slate-400">{c.platform}</span>
+                          {c.social_url && (
+                            <a href={c.social_url} target="_blank" rel="noopener noreferrer"
+                              className="text-novax-muted hover:text-novax transition-colors"
+                              title="Open social page">
+                              <ExternalLink className="w-3 h-3"/>
+                            </a>
+                          )}
+                        </div>
+                        {c.platform_strategy && (
+                          <p className="text-[11px] text-slate-500 mt-0.5 truncate">{c.platform_strategy}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-slate-600 shrink-0">
+                        <div className="text-right">
+                          <div className="font-semibold">{formatNumber(c.followers)}</div>
+                          <div className="text-[10px] text-slate-400">followers</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold">{c.avg_er.toFixed(1)}%</div>
+                          <div className="text-[10px] text-slate-400">avg ER</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold">{c.posting_frequency}×</div>
+                          <div className="text-[10px] text-slate-400">per wk</div>
+                        </div>
+                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize', SIGNAL_COLORS[c.growth_signal ?? 'unknown'])}>
+                          {c.growth_signal}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Expanded detail */}
+                    {(c.best_performing_format || c.key_strengths?.length || c.key_weaknesses?.length) && (
+                      <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/60">
+                        {c.best_performing_format && (
                           <div>
-                            <span className="font-semibold text-slate-800">{c.handle}</span>
-                            <span className="ml-2 text-[10px] text-slate-400">{c.platform}</span>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Best Format</p>
+                            <p className="text-xs text-slate-700">{c.best_performing_format}</p>
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-700">{formatNumber(c.followers)}</td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-700">{c.avg_er.toFixed(1)}%</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{c.posting_frequency}×</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize', SIGNAL_COLORS[c.growth_signal])}>
-                            {c.growth_signal}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        )}
+                        {c.key_strengths && c.key_strengths.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                              <ThumbsUp className="w-3 h-3 text-emerald-400"/> Strengths
+                            </p>
+                            <ul className="space-y-0.5">
+                              {c.key_strengths.slice(0, 2).map((s, j) => (
+                                <li key={j} className="text-xs text-slate-600 flex items-start gap-1">
+                                  <span className="text-emerald-400 shrink-0">+</span>{s}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {c.key_weaknesses && c.key_weaknesses.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                              <ThumbsDown className="w-3 h-3 text-red-400"/> Weaknesses
+                            </p>
+                            <ul className="space-y-0.5">
+                              {c.key_weaknesses.slice(0, 2).map((w, j) => (
+                                <li key={j} className="text-xs text-slate-600 flex items-start gap-1">
+                                  <span className="text-red-400 shrink-0">—</span>{w}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -254,6 +387,14 @@ function CompetitiveContent() {
                       </span>
                       <span className="font-semibold text-sm text-slate-800 flex-1">{t.handle}</span>
                       <span className="text-[10px] text-slate-400">{t.platform}</span>
+                      {t.social_url && (
+                        <a href={t.social_url} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="text-slate-400 hover:text-novax transition-colors"
+                          title="Open social page">
+                          <ExternalLink className="w-3.5 h-3.5"/>
+                        </a>
+                      )}
                       {expandedThreat === t.handle
                         ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0"/>
                         : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0"/>}

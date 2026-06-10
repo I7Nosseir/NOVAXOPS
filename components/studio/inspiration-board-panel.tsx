@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ExternalLink, X, Copy, Check, ChevronDown } from 'lucide-react'
+import { ExternalLink, X, Copy, Check, ChevronDown, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { InspirationBoardItem } from '@/app/api/studio/inspiration/route'
 import type { Client } from '@/lib/types'
@@ -18,7 +18,7 @@ const PLATFORM_DOT: Record<string, string> = {
 // ── Props ─────────────────────────────────────────────────────
 
 export interface InspirationBoardPanelProps {
-  clientId:        string | null
+  clientId:        string | null   // 'personal' | client UUID | null (none selected)
   savedItems:      InspirationBoardItem[]
   onRemove:        (id: string) => void
   onClientChange:  (clientId: string) => void
@@ -37,10 +37,13 @@ export function InspirationBoardPanel({
   const [copiedId,    setCopiedId]    = useState<string | null>(null)
   const [selectOpen,  setSelectOpen]  = useState(false)
 
-  const selectedClient = clients.find(c => c.id === clientId) ?? null
+  const isPersonal     = clientId === 'personal'
+  const selectedClient = isPersonal ? null : (clients.find(c => c.id === clientId) ?? null)
 
   const filtered = clientId
-    ? savedItems.filter(i => i.client_id === clientId)
+    ? isPersonal
+      ? savedItems.filter(i => i.client_id == null)
+      : savedItems.filter(i => i.client_id === clientId)
     : []
 
   async function handleCopyBrief(item: InspirationBoardItem) {
@@ -67,7 +70,12 @@ export function InspirationBoardPanel({
             onClick={() => setSelectOpen(v => !v)}
             className="flex items-center gap-1.5 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 hover:border-novax-border hover:bg-novax-light/50 transition-colors"
           >
-            {selectedClient ? (
+            {isPersonal ? (
+              <>
+                <User className="w-3 h-3 text-novax-muted shrink-0" />
+                <span className="text-novax font-medium">My Library</span>
+              </>
+            ) : selectedClient ? (
               <>
                 <span
                   className="w-2 h-2 rounded-full shrink-0"
@@ -76,13 +84,24 @@ export function InspirationBoardPanel({
                 <span className="max-w-[100px] truncate">{selectedClient.name}</span>
               </>
             ) : (
-              <span className="text-slate-400">Select client</span>
+              <span className="text-slate-400">Select board</span>
             )}
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>
 
           {selectOpen && (
             <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1">
+              {/* Personal library option */}
+              <button
+                onClick={() => { onClientChange('personal'); setSelectOpen(false) }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors border-b border-slate-100',
+                  clientId === 'personal' ? 'text-novax font-semibold' : 'text-slate-700',
+                )}
+              >
+                <User className="w-3 h-3 text-slate-400 shrink-0" />
+                My Personal Library
+              </button>
               {clients.map(c => (
                 <button
                   key={c.id}
@@ -108,7 +127,7 @@ export function InspirationBoardPanel({
       {!clientId ? (
         <div className="flex items-center justify-center py-10">
           <p className="text-sm text-slate-400 italic text-center leading-relaxed">
-            Select a client to save inspiration
+            Select a board to save inspiration
           </p>
         </div>
       ) : filtered.length === 0 ? (

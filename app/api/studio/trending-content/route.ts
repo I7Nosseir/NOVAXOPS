@@ -229,7 +229,7 @@ async function seedSearch(
       url.searchParams.set('order', 'viewCount')
       url.searchParams.set('q', q)
       url.searchParams.set('publishedAfter', publishedAfter)
-      url.searchParams.set('maxResults', '15')
+      url.searchParams.set('maxResults', '25')
       url.searchParams.set('regionCode', ytConf.regionCode)
       if (ytConf.relevanceLanguage) url.searchParams.set('relevanceLanguage', ytConf.relevanceLanguage)
       url.searchParams.set('key', key)
@@ -312,12 +312,12 @@ async function expandFromChannels(channelIds: string[], key: string): Promise<st
   } catch { return [] }
 
   // Fetch recent 5 videos from each channel's uploads playlist
-  const videoIdBatches = await Promise.all(playlistIds.slice(0, 5).map(async pid => {
+  const videoIdBatches = await Promise.all(playlistIds.slice(0, 8).map(async pid => {
     try {
       const url = new URL('https://www.googleapis.com/youtube/v3/playlistItems')
       url.searchParams.set('part', 'contentDetails')
       url.searchParams.set('playlistId', pid)
-      url.searchParams.set('maxResults', '5')
+      url.searchParams.set('maxResults', '8')
       url.searchParams.set('key', key)
       const res  = await fetch(url.toString())
       const data = await res.json()
@@ -584,7 +584,7 @@ async function getYouTubeItems(industry: string, region: string, period = '30d')
   ])
 
   // Phase 3: expand from top seed channels
-  const topChannelIds = [...new Set(seedItems.map(s => s.channelId))].slice(0, 5)
+  const topChannelIds = [...new Set(seedItems.map(s => s.channelId))].slice(0, 8)
   const expandedIds   = await expandFromChannels(topChannelIds, KEY)
 
   // Merge all video IDs, deduplicate
@@ -593,7 +593,7 @@ async function getYouTubeItems(industry: string, region: string, period = '30d')
     ...seedItems.map(s => s.videoId),
     ...chartIds,
     ...expandedIds,
-  ])].slice(0, 100) // cap at 100 (YouTube videos.list batches at 50, so 2 calls)
+  ])].slice(0, 150) // cap at 150 (3 YouTube videos.list calls of 50 each)
 
   // Phase 4: enrich
   const enriched = await enrichVideos(allIds, seedMap, KEY)
@@ -854,7 +854,7 @@ export async function GET(req: NextRequest) {
   const period    = searchParams.get('period')    ?? '30d'
   const aiFilter_ = searchParams.get('ai_filter') === 'true'
   const minViews  = parseInt(searchParams.get('min_views') ?? '0', 10)
-  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '48', 10), 80)
+  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
 
   try {
     // Run all platform fetchers in parallel

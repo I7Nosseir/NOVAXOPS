@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { anthropic, AI_MODELS } from '@/lib/ai-client'
 import { geminiJson } from '@/lib/gemini'
 import type { VisualApproach, VisualDocument, VisualInputs } from '@/lib/studio-types'
+import { aiGuard } from '@/lib/ai-guard'
 
 export const maxDuration = 120
 
@@ -148,6 +149,9 @@ Output ONLY valid JSON, no markdown, no explanation outside the JSON:
 }
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard()
+  if (guard) return guard
+
   let body: { inputs: VisualInputs; approach: VisualApproach }
   try {
     body = await req.json() as { inputs: VisualInputs; approach: VisualApproach }

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { geminiJson, geminiGenerate } from '@/lib/gemini'
 import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase } from '@/lib/client-intelligence'
+import { aiGuard } from '@/lib/ai-guard'
 import type {
   CampaignDocument,
   CampaignConcept,
@@ -587,6 +588,9 @@ Return ONLY valid JSON — no markdown, no extra text:
 // ─── Handler ──────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard()
+  if (guard) return guard
+
   let body: CampaignGenerateBody
   try {
     body = await req.json()

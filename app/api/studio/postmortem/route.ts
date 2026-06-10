@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { geminiJson } from '@/lib/gemini'
 import type { PostMortemAnalysis, PostMortemDiagnosis } from '@/lib/studio-types'
+import { aiGuard } from '@/lib/ai-guard'
 
 export const maxDuration = 60
 
@@ -257,6 +258,9 @@ Return ONLY valid JSON:
 // ─── Handler ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard()
+  if (guard) return guard
+
   let body: PostMortemBody
   try {
     body = await req.json()

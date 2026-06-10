@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Software License & Development Agreement</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Georgia', serif;
+      font-size: 10.5pt;
+      color: #000;
+      background: #fff;
+      padding: 1.8cm 2.2cm;
+      max-width: 21cm;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 13pt;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    .doc-subtitle {
+      text-align: center;
+      font-size: 9pt;
+      color: #555;
+      font-style: italic;
+      margin-bottom: 14px;
+    }
+
+    .rule-thick { border: none; border-top: 2px solid #000; margin: 10px 0; }
+    .rule-thin  { border: none; border-top: 0.75px solid #999; margin: 7px 0; }
+
+    /* Fill-in blanks */
+    .b {
+      display: inline-block;
+      border-bottom: 1px solid #000;
+      vertical-align: bottom;
+    }
+    .b-sm  { width: 100px; }
+    .b-md  { width: 180px; }
+    .b-lg  { width: 260px; }
+    .b-date { width: 120px; }
+
+    .row-2col {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 6px;
+    }
+    .col { flex: 1; }
+    .field-label {
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #555;
+      margin-bottom: 3px;
+    }
+
+    .section { margin-bottom: 7px; }
+
+    .sec-title {
+      font-size: 10pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 2px;
+    }
+
+    p { line-height: 1.5; font-size: 10.5pt; }
+
+    .fee-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 5px 0 3px;
+      font-size: 10.5pt;
+    }
+    .fee-table td {
+      padding: 4px 8px;
+      border: 0.75px solid #bbb;
+      vertical-align: middle;
+    }
+    .fee-table td:first-child { background: #f4f4f4; width: 58%; }
+
+    .small-note {
+      font-size: 8.5pt;
+      color: #555;
+      font-style: italic;
+      margin-top: 3px;
+    }
+
+    .sig-block {
+      display: flex;
+      gap: 40px;
+      margin-top: 14px;
+    }
+    .sig { flex: 1; }
+    .sig .field-label { margin-bottom: 2px; }
+    .sig-line {
+      border-bottom: 1px solid #000;
+      height: 30px;
+      margin-bottom: 5px;
+    }
+    .sig-row {
+      font-size: 9.5pt;
+      margin-bottom: 3px;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 8pt;
+      color: #777;
+      font-style: italic;
+      margin-top: 12px;
+    }
+
+    @media print {
+      body { padding: 1.4cm 1.8cm; }
+      @page { size: A4 portrait; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Software License &amp; Development Agreement</h1>
+  <p class="doc-subtitle">Private Agreement &mdash; Confidential &mdash; Not for Distribution</p>
+
+  <hr class="rule-thick">
+
+  <!-- Date row -->
+  <div style="margin-bottom: 8px;">
+    <span class="field-label">Agreement Date:</span>&nbsp;
+    <span class="b b-date"></span>
+  </div>
+
+  <!-- Parties -->
+  <div class="row-2col">
+    <div class="col">
+      <div class="field-label">Developer ("Developer")</div>
+      <span class="b b-lg"></span>
+    </div>
+    <div class="col">
+      <div class="field-label">Agency ("Agency")</div>
+      <span class="b b-lg"></span>
+    </div>
+  </div>
+
+  <hr class="rule-thick">
+
+  <!-- Background -->
+  <div class="section">
+    <p>The Developer has independently designed, built, and deployed a custom software platform (the <strong>"Platform"</strong>) currently used by the Agency to manage its client accounts, content pipeline, approvals, publishing, reporting, and AI-assisted workflows. This agreement formalises the commercial arrangement between both parties.</p>
+  </div>
+
+  <hr class="rule-thin">
+
+  <!-- 1. Ownership -->
+  <div class="section">
+    <p class="sec-title">1 &mdash; Ownership</p>
+    <p>The Platform, including all source code, architecture, integrations, design, and future modifications, is and remains the exclusive intellectual property of the Developer. This agreement does not transfer ownership of the Platform to the Agency under any circumstances.</p>
+  </div>
+
+  <!-- 2. License -->
+  <div class="section">
+    <p class="sec-title">2 &mdash; License Grant</p>
+    <p>The Developer grants the Agency a non-exclusive, non-transferable license to use the Platform for its internal business operations for as long as this agreement is active and payments are current. The Agency may not sublicense, resell, or share access to the Platform with third parties.</p>
+  </div>
+
+  <!-- 3. Fees -->
+  <div class="section">
+    <p class="sec-title">3 &mdash; Fees</p>
+    <table class="fee-table">
+      <tr>
+        <td><strong>One-Time Build Fee</strong>&nbsp;&mdash;&nbsp;for Platform delivery (payable upon signing)</td>
+        <td><span class="b b-sm"></span>&nbsp;&nbsp;EGP</td>
+      </tr>
+      <tr>
+        <td><strong>Monthly Retainer</strong>&nbsp;&mdash;&nbsp;maintenance, updates, and new features</td>
+        <td><span class="b b-sm"></span>&nbsp;&nbsp;EGP / month</td>
+      </tr>
+      <tr>
+        <td><strong>Retainer Start Date</strong></td>
+        <td><span class="b b-date"></span></td>
+      </tr>
+    </table>
+    <p class="small-note">Monthly retainer is due on the 1st of each calendar month. Payments more than 14 days overdue suspend the Developer's service obligations until the outstanding amount is settled.</p>
+  </div>
+
+  <!-- 4. Retainer scope -->
+  <div class="section">
+    <p class="sec-title">4 &mdash; What the Monthly Retainer Covers</p>
+    <p>Bug fixes and technical maintenance &nbsp;&bull;&nbsp; New features and enhancements &nbsp;&bull;&nbsp; Third-party integration updates &nbsp;&bull;&nbsp; Deployment and hosting support &nbsp;&bull;&nbsp; Reasonable technical support requests from the Agency.</p>
+  </div>
+
+  <!-- 5. Other clients -->
+  <div class="section">
+    <p class="sec-title">5 &mdash; Other Clients &amp; Commercial Use</p>
+    <p>The Developer retains the right to offer the Platform or a derivative product to other clients or as a commercial product, provided the Agency's private data and configurations are never shared. If the Agency wishes to be the sole licensee, an exclusivity clause must be agreed separately in writing at an additional cost.</p>
+  </div>
+
+  <!-- 6. Termination -->
+  <div class="section">
+    <p class="sec-title">6 &mdash; Termination</p>
+    <p>Either party may terminate this agreement with <strong>30 days' written notice</strong>. Upon termination the Agency's license to use the Platform ends. The Agency may export its data within the notice period. The Developer is not obligated to hand over source code at any point.</p>
+  </div>
+
+  <hr class="rule-thick">
+
+  <!-- Signatures -->
+  <div class="sig-block">
+    <div class="sig">
+      <div class="field-label">Developer Signature</div>
+      <div class="sig-line"></div>
+      <p class="sig-row">Full Name:&nbsp;&nbsp;<span class="b b-md"></span></p>
+      <p class="sig-row">Date:&nbsp;&nbsp;<span class="b b-date"></span></p>
+    </div>
+    <div class="sig">
+      <div class="field-label">Agency — Authorised Signatory</div>
+      <div class="sig-line"></div>
+      <p class="sig-row">Full Name:&nbsp;&nbsp;<span class="b b-md"></span></p>
+      <p class="sig-row">Title:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="b b-md"></span></p>
+      <p class="sig-row">Date:&nbsp;&nbsp;<span class="b b-date"></span></p>
+    </div>
+  </div>
+
+  <p class="footer">Both signed originals hold equal validity &nbsp;&mdash;&nbsp; Each party retains one copy &nbsp;&mdash;&nbsp; Recommended for review by a legal professional before signing</p>
+
+</body>
+</html>

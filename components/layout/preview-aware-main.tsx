@@ -11,7 +11,7 @@ export function PreviewAwareMain({ children }: { children: React.ReactNode }) {
   const { isPreviewMode } = useAuth()
   return (
     <main
-      className={`lg:ml-64 min-h-screen pb-16 lg:pb-0 transition-[padding-top] duration-200 ${
+      className={`lg:ml-64 min-h-screen pb-16 lg:pb-0 overflow-x-hidden transition-[padding-top] duration-200 ${
         isPreviewMode ? 'pt-[92px]' : 'pt-14'
       }`}
     >

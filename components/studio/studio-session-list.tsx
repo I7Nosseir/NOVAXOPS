@@ -10,7 +10,7 @@ import type { StudioSession } from '@/lib/studio-types'
 export interface StudioSessionListProps {
   sessions: StudioSession[]
   onSessionClick: (session: StudioSession) => void
-  onNewSession: () => void
+  onNewSession?: () => void
   onDeleteSession?: (sessionId: string) => void
   isLoading?: boolean
 }
@@ -246,13 +246,15 @@ export function StudioSessionList({
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
           Recent Sessions
         </span>
-        <button
-          onClick={onNewSession}
-          className="flex items-center gap-1.5 text-xs text-novax font-medium hover:text-novax-hover transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          New Session
-        </button>
+        {onNewSession && (
+          <button
+            onClick={onNewSession}
+            className="flex items-center gap-1.5 text-xs text-novax font-medium hover:text-novax-hover transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Session
+          </button>
+        )}
       </div>
 
       {/* Loading skeletons */}

@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
 import type { SchedulePostInput } from '@/lib/hooks/use-posts'
 import { useClients } from '@/lib/hooks/use-clients'
+import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
 import { useRealtime } from '@/lib/hooks/use-realtime'
 import { PLATFORM_CONFIG, formatDateTime, formatDate, formatNumber, cn, vendorName } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -620,7 +621,11 @@ interface CaptionVariant {
 }
 
 function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; initialCaption?: string }) {
-  const { clients } = useClients()
+  const assignedClientIds = useMyAssignedClientIds()
+  const { clients: allClients } = useClients()
+  const clients = assignedClientIds !== null
+    ? allClients.filter(c => assignedClientIds.includes(c.id))
+    : allClients
   const schedulePost = useSchedulePost()
   const saveDraft = useSaveDraft()
 
@@ -1668,7 +1673,11 @@ function resolveMediaUrls(row: BulkRow): string[] | undefined {
 const BULK_PLATFORMS: SocialPlatform[] = ['instagram', 'facebook', 'tiktok', 'linkedin', 'twitter']
 
 function BulkScheduleDialog({ onClose }: { onClose: () => void }) {
-  const { clients } = useClients()
+  const assignedClientIds = useMyAssignedClientIds()
+  const { clients: allClients } = useClients()
+  const clients = assignedClientIds !== null
+    ? allClients.filter(c => assignedClientIds.includes(c.id))
+    : allClients
   const [selectedClient, setSelectedClient] = useState('')
   const [rows, setRows] = useState<BulkRow[]>([newRow(), newRow(), newRow()])
   const [scheduling, setScheduling] = useState(false)
@@ -2582,7 +2591,15 @@ function CalendarView({ onCompose }: { onCompose: () => void }) {
 
 function PublishingPageContent() {
   const { posts: allPosts } = usePosts()
-  const { clients } = useClients()
+  const { clients: allClients } = useClients()
+  const assignedClientIds = useMyAssignedClientIds()
+  const clients = assignedClientIds !== null
+    ? allClients.filter(c => assignedClientIds.includes(c.id))
+    : allClients
+  // Only show posts for accessible clients
+  const posts = assignedClientIds !== null
+    ? allPosts.filter(p => assignedClientIds.includes(p.client_id))
+    : allPosts
   const { user } = useAuth()
   const queryClient = useQueryClient()
   useRealtime('scheduled_posts', ['posts'])
@@ -2635,11 +2652,11 @@ function PublishingPageContent() {
 
   const crisisClients = clients.filter(c => c.crisis_mode)
 
-  const filtered = allPosts.filter(p => filter === 'all' || p.status === filter)
+  const filtered = posts.filter(p => filter === 'all' || p.status === filter)
   const counts = {
-    scheduled: allPosts.filter(p => p.status === 'scheduled').length,
-    published: allPosts.filter(p => p.status === 'published').length,
-    draft: allPosts.filter(p => p.status === 'draft').length,
+    scheduled: posts.filter(p => p.status === 'scheduled').length,
+    published: posts.filter(p => p.status === 'published').length,
+    draft: posts.filter(p => p.status === 'draft').length,
   }
 
   return (
@@ -2721,7 +2738,7 @@ function PublishingPageContent() {
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Posts', value: allPosts.length, icon: Send },
+          { label: 'Total Posts', value: posts.length, icon: Send },
           { label: 'Scheduled', value: counts.scheduled, icon: Calendar },
           { label: 'Published', value: counts.published, icon: CheckCircle },
           { label: 'Drafts', value: counts.draft, icon: Eye },

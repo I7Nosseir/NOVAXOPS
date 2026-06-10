@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail, Trash2, FileImage } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useApprovalRequests, useCreateApproval } from '@/lib/hooks/use-approvals'
@@ -15,6 +15,14 @@ const STATUS_CONFIG = {
   approved:          { label: 'Approved',         color: 'text-emerald-600', bg: 'bg-emerald-50', icon: CheckCircle },
   changes_requested: { label: 'Changes Requested', color: 'text-red-600',   bg: 'bg-red-50',     icon: XCircle },
 }
+
+const POST_STATUS_BADGE = {
+  pending:           { label: 'Pending',           color: 'text-amber-600',   bg: 'bg-amber-50'   },
+  approved:          { label: 'Approved',           color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  changes_requested: { label: 'Changes Requested',  color: 'text-red-600',    bg: 'bg-red-50'     },
+}
+
+type AdhocDraft = { id: string; mediaUrl: string | null; caption: string; uploading: boolean }
 
 function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   const { clients } = useClients()
@@ -30,6 +38,9 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   // Per-post media upload state: postId → { uploading, url }
   const [postMedia, setPostMedia] = useState<Record<string, { uploading: boolean; url: string | null }>>({})
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  // Ad-hoc items (custom posts not from scheduled_posts)
+  const [adhocItems, setAdhocItems] = useState<AdhocDraft[]>([])
+  const adhocRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const clientPosts = posts.filter(p => p.client_id === clientId && p.status !== 'published')
 
@@ -44,13 +55,36 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
       const { data, error } = await supabase.storage.from('assets').upload(path, file, { upsert: true })
       if (error || !data) throw error ?? new Error('Upload failed')
       const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(data.path)
-      // Update the scheduled_post media_urls in DB
       await supabase.from('scheduled_posts').update({ media_urls: [publicUrl] }).eq('id', postId)
       setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, url: publicUrl } }))
     } catch {
       setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, url: null } }))
     }
   }
+
+  const addAdhocItem = () => {
+    setAdhocItems(prev => [...prev, { id: crypto.randomUUID(), mediaUrl: null, caption: '', uploading: false }])
+  }
+
+  const removeAdhocItem = (id: string) => {
+    setAdhocItems(prev => prev.filter(x => x.id !== id))
+  }
+
+  const handleAdhocUpload = async (id: string, file: File) => {
+    setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, uploading: true } : x))
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `approval-media/adhoc-${Date.now()}-${id.slice(0, 8)}.${ext}`
+      const { data, error } = await supabase.storage.from('assets').upload(path, file, { upsert: true })
+      if (error || !data) throw error ?? new Error('Upload failed')
+      const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(data.path)
+      setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, uploading: false, mediaUrl: publicUrl } : x))
+    } catch {
+      setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, uploading: false } : x))
+    }
+  }
+
+  const hasContent = selectedPosts.length > 0 || adhocItems.some(x => x.caption.trim())
 
   const handleCreate = () => {
     const selectedClient = clients.find(c => c.id === clientId)
@@ -60,11 +94,13 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
         title,
         post_ids: selectedPosts,
         expiry_days: parseInt(expiry),
+        ad_hoc_items: adhocItems.filter(x => x.caption.trim()).map(x => ({
+          caption: x.caption,
+          ...(x.mediaUrl ? { media_url: x.mediaUrl } : {}),
+        })),
         ...(contactEmail ? { client_email: contactEmail, client_name: selectedClient?.name } : {}),
       },
-      {
-        onSuccess: (data) => setCreatedToken(data.token),
-      }
+      { onSuccess: (data) => setCreatedToken(data.token) }
     )
   }
 
@@ -105,7 +141,8 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
             <button onClick={onClose} className="px-5 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">Done</button>
           </div>
         ) : (
-          <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+          <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
+            {/* Client */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Client</label>
               <select
@@ -116,6 +153,8 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
+
+            {/* Title */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Request Title</label>
               <input
@@ -125,92 +164,201 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light"
               />
             </div>
+
+            {/* ── Scheduled posts picker ── */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-2">
-                Select Posts ({selectedPosts.length} selected)
-              </label>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {clientPosts.length === 0 && (
-                  <p className="text-xs text-slate-400 text-center py-4">No scheduled posts for this client</p>
+                Select Scheduled Posts
+                {selectedPosts.length > 0 && (
+                  <span className="ml-1.5 text-novax-muted font-normal">({selectedPosts.length} selected)</span>
                 )}
-                {clientPosts.map(post => {
-                  const media = postMedia[post.id]
-                  const existingUrl = (post as { media_url?: string }).media_url
-                  const previewUrl = media?.url ?? existingUrl ?? null
-                  const isSelected = selectedPosts.includes(post.id)
-                  return (
-                    <div
-                      key={post.id}
-                      className={cn(
-                        'rounded-lg border transition-colors',
-                        isSelected ? 'border-novax bg-novax-light' : 'border-slate-200',
-                      )}
-                    >
-                      <label className="flex items-start gap-3 p-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggle(post.id)}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
-                            <span className="text-[10px] text-slate-400">{formatDate(post.scheduled_at)}</span>
-                          </div>
-                          <p className="text-xs text-slate-700 line-clamp-2">{post.caption}</p>
-                        </div>
-                      </label>
-
-                      {/* Media upload section — shown when post is selected */}
-                      {isSelected && (
-                        <div className="px-3 pb-3">
-                          <input
-                            type="file"
-                            accept="image/*,video/*"
-                            className="hidden"
-                            ref={el => { fileInputRefs.current[post.id] = el }}
-                            onChange={e => {
-                              const file = e.target.files?.[0]
-                              if (file) handleMediaUpload(post.id, file)
-                              e.target.value = ''
-                            }}
-                          />
-                          {previewUrl ? (
-                            <div className="flex items-center gap-2">
-                              {/\.(mp4|mov|webm)/i.test(previewUrl)
-                                ? <video src={previewUrl} className="w-14 h-14 rounded-lg object-cover bg-slate-100"/>
+              </label>
+              {clientPosts.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center">
+                  <p className="text-xs text-slate-400">No scheduled posts for this client.</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Add custom posts below instead.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {clientPosts.map(post => {
+                    const media = postMedia[post.id]
+                    const existingUrl = (post as { media_url?: string }).media_url
+                    const previewUrl = media?.url ?? existingUrl ?? null
+                    const isSelected = selectedPosts.includes(post.id)
+                    return (
+                      <div
+                        key={post.id}
+                        className={cn(
+                          'rounded-xl border transition-all overflow-hidden',
+                          isSelected ? 'border-novax shadow-sm' : 'border-slate-200 hover:border-slate-300',
+                        )}
+                      >
+                        {/* Card row */}
+                        <label className="flex items-start gap-0 cursor-pointer">
+                          {/* Thumbnail */}
+                          <div
+                            className={cn(
+                              'relative w-[72px] shrink-0 self-stretch bg-slate-100 flex items-center justify-center transition-colors',
+                              isSelected && 'bg-novax-light',
+                            )}
+                            onClick={() => toggle(post.id)}
+                          >
+                            {previewUrl ? (
+                              /\.(mp4|mov|webm)/i.test(previewUrl)
+                                // eslint-disable-next-line jsx-a11y/media-has-caption
+                                ? <video src={previewUrl} className="w-full h-full object-cover min-h-[72px]"/>
                                 // eslint-disable-next-line @next/next/no-img-element
-                                : <img src={previewUrl} alt="" className="w-14 h-14 rounded-lg object-cover"/>
-                              }
-                              <button
-                                type="button"
-                                onClick={() => fileInputRefs.current[post.id]?.click()}
-                                className="text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
-                              >
-                                Replace media
-                              </button>
+                                : <img src={previewUrl} alt="" className="w-full h-full object-cover min-h-[72px]"/>
+                            ) : (
+                              <ImageIcon className="w-5 h-5 text-slate-300"/>
+                            )}
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-novax/10 flex items-end justify-end p-1">
+                                <CheckCircle className="w-4 h-4 text-novax"/>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Meta */}
+                          <div className="flex-1 min-w-0 p-3">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
+                              <span className="text-[10px] text-slate-400 ml-auto">{formatDate(post.scheduled_at)}</span>
                             </div>
-                          ) : (
+                            <p className="text-xs text-slate-700 line-clamp-2 leading-relaxed">{post.caption}</p>
+                          </div>
+
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggle(post.id)}
+                            className="sr-only"
+                          />
+                        </label>
+
+                        {/* Media upload — shown when selected */}
+                        {isSelected && (
+                          <div className="border-t border-novax-light px-3 pb-3 pt-2 bg-novax-light/30">
+                            <input
+                              type="file"
+                              accept="image/*,video/*"
+                              className="hidden"
+                              ref={el => { fileInputRefs.current[post.id] = el }}
+                              onChange={e => {
+                                const file = e.target.files?.[0]
+                                if (file) handleMediaUpload(post.id, file)
+                                e.target.value = ''
+                              }}
+                            />
                             <button
                               type="button"
                               onClick={() => fileInputRefs.current[post.id]?.click()}
                               disabled={media?.uploading}
-                              className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-novax px-2 py-1.5 border border-dashed border-slate-300 hover:border-novax-border rounded-lg transition-colors w-full justify-center"
+                              className="flex items-center gap-1.5 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
                             >
-                              {media?.uploading
-                                ? <><Loader2 className="w-3 h-3 animate-spin"/> Uploading…</>
-                                : <><Upload className="w-3 h-3"/><ImageIcon className="w-3 h-3"/> Add media for client preview</>
-                              }
+                              {media?.uploading ? (
+                                <><Loader2 className="w-3 h-3 animate-spin"/> Uploading…</>
+                              ) : previewUrl ? (
+                                <><Upload className="w-3 h-3"/> Replace media</>
+                              ) : (
+                                <><Upload className="w-3 h-3"/> Add media for client preview</>
+                              )}
                             </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
+
+            {/* ── Custom posts (ad-hoc) ── */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-slate-700">
+                  Custom Posts
+                  <span className="font-normal text-slate-400 ml-1">(unscheduled content)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={addAdhocItem}
+                  className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
+                >
+                  <Plus className="w-3 h-3"/>
+                  Add post
+                </button>
+              </div>
+              {adhocItems.length === 0 ? (
+                <p className="text-xs text-slate-400">No custom posts added. Use this for content not yet scheduled.</p>
+              ) : (
+                <div className="space-y-3">
+                  {adhocItems.map((item, idx) => (
+                    <div key={item.id} className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
+                        <span className="text-[11px] font-semibold text-slate-500">Custom Post {idx + 1}</span>
+                        <button type="button" onClick={() => removeAdhocItem(item.id)} className="text-slate-400 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5"/>
+                        </button>
+                      </div>
+                      <div className="p-3 space-y-2.5">
+                        {/* Media upload */}
+                        <input
+                          type="file"
+                          accept="image/*,video/*"
+                          className="hidden"
+                          ref={el => { adhocRefs.current[item.id] = el }}
+                          onChange={e => {
+                            const file = e.target.files?.[0]
+                            if (file) handleAdhocUpload(item.id, file)
+                            e.target.value = ''
+                          }}
+                        />
+                        {item.mediaUrl ? (
+                          <div className="flex items-center gap-2">
+                            {/\.(mp4|mov|webm)/i.test(item.mediaUrl)
+                              // eslint-disable-next-line jsx-a11y/media-has-caption
+                              ? <video src={item.mediaUrl} className="w-16 h-16 rounded-lg object-cover bg-slate-100"/>
+                              // eslint-disable-next-line @next/next/no-img-element
+                              : <img src={item.mediaUrl} alt="" className="w-16 h-16 rounded-lg object-cover"/>
+                            }
+                            <button
+                              type="button"
+                              onClick={() => adhocRefs.current[item.id]?.click()}
+                              className="text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
+                            >
+                              Replace media
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => adhocRefs.current[item.id]?.click()}
+                            disabled={item.uploading}
+                            className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-novax px-3 py-2 border border-dashed border-slate-300 hover:border-novax-border rounded-lg transition-colors w-full justify-center"
+                          >
+                            {item.uploading
+                              ? <><Loader2 className="w-3 h-3 animate-spin"/> Uploading…</>
+                              : <><FileImage className="w-3 h-3"/> Upload media (optional)</>
+                            }
+                          </button>
+                        )}
+                        {/* Caption */}
+                        <textarea
+                          value={item.caption}
+                          onChange={e => setAdhocItems(prev => prev.map(x => x.id === item.id ? { ...x, caption: e.target.value } : x))}
+                          rows={2}
+                          placeholder="Caption or description for this post…"
+                          className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted resize-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Expiry */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Expires in</label>
               <div className="flex gap-2">
@@ -228,6 +376,8 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
             </div>
+
+            {/* Contact email */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Client contact email
@@ -244,9 +394,11 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                 />
               </div>
             </div>
+
             {createApproval.error && (
               <p className="text-xs text-red-600">{(createApproval.error as Error).message}</p>
             )}
+
             <div className="flex gap-3 pt-1">
               <button
                 onClick={onClose}
@@ -256,7 +408,7 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!title || selectedPosts.length === 0 || createApproval.isPending}
+                disabled={!title || !hasContent || createApproval.isPending}
                 className="flex-1 flex items-center justify-center gap-2 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 {createApproval.isPending ? (
@@ -345,6 +497,7 @@ export default function ApprovalPage() {
             const StatusIcon = cfg.icon
             const isOpen = expanded === req.id
             const posts = allPosts.filter(p => req.post_ids.includes(p.id))
+            const totalItems = posts.length + (req.items?.length ?? 0)
             const approvedCount = Object.values(req.post_statuses).filter(s => s === 'approved').length
 
             return (
@@ -360,7 +513,7 @@ export default function ApprovalPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-900 text-sm">{req.title}</p>
                     <p className="text-[11px] text-slate-400">
-                      {posts.length} posts · {approvedCount} approved · Expires {formatDate(req.expires_at)}
+                      {totalItems} post{totalItems !== 1 ? 's' : ''} · {approvedCount} approved · Expires {formatDate(req.expires_at)}
                     </p>
                   </div>
                   <div className={cn('flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full', cfg.bg, cfg.color)}>
@@ -380,7 +533,7 @@ export default function ApprovalPage() {
                   </div>
                 </div>
 
-                {/* Expanded: posts */}
+                {/* Expanded: posts + ad-hoc items */}
                 {isOpen && (
                   <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-3">
                     {req.client_note && (
@@ -389,39 +542,107 @@ export default function ApprovalPage() {
                         <p className="text-xs text-amber-800">{req.client_note}</p>
                       </div>
                     )}
-                    {posts.length === 0 && (
+
+                    {totalItems === 0 && (
                       <p className="text-xs text-slate-400 text-center py-4">Post data unavailable</p>
                     )}
+
+                    {/* ── Scheduled posts — two-column layout ── */}
                     {posts.map(post => {
                       const postStatus = req.post_statuses[post.id] ?? 'pending'
                       const postNote = req.post_notes[post.id]
-                      const dotColors: Record<string, string> = {
-                        pending: 'bg-amber-400', approved: 'bg-emerald-400', changes_requested: 'bg-red-400',
-                      }
+                      const badge = POST_STATUS_BADGE[postStatus as keyof typeof POST_STATUS_BADGE] ?? POST_STATUS_BADGE.pending
+
                       return (
-                        <div key={post.id} className="bg-slate-50 rounded-lg overflow-hidden">
-                          <div className="flex items-start gap-3 p-3">
-                            {post.media_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={post.media_url} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0"/>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
-                                <span className="text-[10px] text-slate-400">{formatDate(post.scheduled_at)}</span>
-                              </div>
-                              <p className="text-xs text-slate-700 line-clamp-2">{post.caption}</p>
+                        <div key={post.id} className="bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
+                          <div className="grid grid-cols-[112px_1fr]">
+                            {/* Media column */}
+                            <div className="bg-slate-200 flex items-center justify-center min-h-[100px]">
+                              {post.media_url ? (
+                                /\.(mp4|mov|webm)/i.test(post.media_url)
+                                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                                  ? <video src={post.media_url} className="w-full h-full object-cover"/>
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  : <img src={post.media_url} alt="" className="w-full h-full object-cover"/>
+                              ) : (
+                                <ImageIcon className="w-6 h-6 text-slate-400"/>
+                              )}
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <div className={cn('w-2 h-2 rounded-full', dotColors[postStatus])}/>
-                              <span className="text-[11px] text-slate-600 capitalize">{postStatus.replace('_', ' ')}</span>
+
+                            {/* Content column */}
+                            <div className="p-3 flex flex-col justify-between min-w-0">
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                                  {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
+                                  <span className="text-[10px] text-slate-400 ml-auto">{formatDate(post.scheduled_at)}</span>
+                                </div>
+                                <p className="text-xs text-slate-700 leading-relaxed line-clamp-4">{post.caption}</p>
+                              </div>
+                              <span className={cn(
+                                'inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full mt-2 self-start',
+                                badge.bg, badge.color,
+                              )}>
+                                {badge.label}
+                              </span>
                             </div>
                           </div>
+
                           {postNote && (
-                            <div className="px-3 pb-3 pt-0">
-                              <div className="px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
+                            <div className="px-3 pb-3 pt-0 border-t border-slate-100">
+                              <div className="px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg mt-2">
                                 <p className="text-[11px] font-semibold text-amber-700 mb-0.5">Client note</p>
                                 <p className="text-xs text-amber-800">{postNote}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {/* ── Ad-hoc items — same two-column layout ── */}
+                    {(req.items ?? []).map(item => {
+                      const itemStatus = req.post_statuses[item.id] ?? 'pending'
+                      const itemNote = req.post_notes[item.id]
+                      const badge = POST_STATUS_BADGE[itemStatus as keyof typeof POST_STATUS_BADGE] ?? POST_STATUS_BADGE.pending
+
+                      return (
+                        <div key={item.id} className="bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
+                          <div className="grid grid-cols-[112px_1fr]">
+                            {/* Media column */}
+                            <div className="bg-slate-200 flex items-center justify-center min-h-[100px]">
+                              {item.media_url ? (
+                                /\.(mp4|mov|webm)/i.test(item.media_url)
+                                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                                  ? <video src={item.media_url} className="w-full h-full object-cover"/>
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  : <img src={item.media_url} alt="" className="w-full h-full object-cover"/>
+                              ) : (
+                                <FileImage className="w-6 h-6 text-slate-400"/>
+                              )}
+                            </div>
+
+                            {/* Content column */}
+                            <div className="p-3 flex flex-col justify-between min-w-0">
+                              <div>
+                                <div className="mb-1.5">
+                                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Custom Post</span>
+                                </div>
+                                <p className="text-xs text-slate-700 leading-relaxed line-clamp-4">{item.caption}</p>
+                              </div>
+                              <span className={cn(
+                                'inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full mt-2 self-start',
+                                badge.bg, badge.color,
+                              )}>
+                                {badge.label}
+                              </span>
+                            </div>
+                          </div>
+
+                          {itemNote && (
+                            <div className="px-3 pb-3 pt-0 border-t border-slate-100">
+                              <div className="px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg mt-2">
+                                <p className="text-[11px] font-semibold text-amber-700 mb-0.5">Client note</p>
+                                <p className="text-xs text-amber-800">{itemNote}</p>
                               </div>
                             </div>
                           )}

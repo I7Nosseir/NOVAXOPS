@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendMentionNotification } from '@/lib/email'
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
-
 function serviceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,23 +10,40 @@ function serviceClient() {
 }
 
 /**
- * Parse @mentions from a comment body.
- * For each user, check if @{firstName} (case-insensitive) appears in the text.
- * Returns the ids of matched users.
+ * Extract all @tokens from a comment body.
+ * Returns the raw tokens without the leading @.
+ */
+function extractMentionTokens(body: string): string[] {
+  const matches = body.match(/@(\w+)/g) ?? []
+  return [...new Set(matches.map(m => m.slice(1).toLowerCase()))]
+}
+
+/**
+ * Match @tokens against the users list.
+ * A user matches if their first name OR full name (no spaces) matches the token.
+ * Returns unique matched user ids, excluding the commenter.
  */
 function parseMentionedUserIds(
-  commentBody: string,
+  body: string,
   users: Array<{ id: string; name: string }>,
+  excludeId: string,
 ): string[] {
-  const lower = commentBody.toLowerCase()
-  const matched: string[] = []
+  const tokens = extractMentionTokens(body)
+  if (tokens.length === 0) return []
+
+  const matched = new Set<string>()
   for (const user of users) {
-    const firstName = user.name.split(' ')[0]
-    if (lower.includes(`@${firstName.toLowerCase()}`)) {
-      matched.push(user.id)
+    if (user.id === excludeId) continue
+    const firstName = user.name.split(' ')[0].toLowerCase()
+    const fullNoSpaces = user.name.toLowerCase().replace(/\s+/g, '')
+    for (const token of tokens) {
+      if (token === firstName || token === fullNoSpaces) {
+        matched.add(user.id)
+        break
+      }
     }
   }
-  return matched
+  return [...matched]
 }
 
 // POST /api/notifications/mention
@@ -49,21 +64,24 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Quick exit: no @ in the comment at all
+  if (!commentBody.includes('@')) {
+    return NextResponse.json({ ok: true, mentioned: 0 })
+  }
+
   const db = serviceClient()
 
-  // Fetch all users
+  // Fetch all users (id + name + email)
   const { data: users, error: usersErr } = await db
     .from('users')
     .select('id, name, email')
 
   if (usersErr || !users) {
+    console.error('[mention] Failed to fetch users:', usersErr?.message)
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
   }
 
-  // Determine which users are @mentioned (skip commenter)
-  const mentionedIds = parseMentionedUserIds(commentBody, users).filter(
-    (id) => id !== commenterId,
-  )
+  const mentionedIds = parseMentionedUserIds(commentBody, users, commenterId)
 
   if (mentionedIds.length === 0) {
     return NextResponse.json({ ok: true, mentioned: 0 })
@@ -77,14 +95,15 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (taskErr || !task) {
+    console.error('[mention] Task not found:', taskId, taskErr?.message)
     return NextResponse.json({ error: 'Task not found' }, { status: 404 })
   }
 
-  // Fetch commenter name
-  const commenter = users.find((u) => u.id === commenterId)
-  const commenterName = commenter?.name ?? 'A team member'
+  // Commenter name
+  const commenter = users.find(u => u.id === commenterId)
+  const commenterName = (commenter?.name as string | undefined) ?? 'A team member'
 
-  // Fetch client name (best-effort)
+  // Client name (best-effort)
   const { data: clientRow } = await db
     .from('clients')
     .select('name')
@@ -92,14 +111,14 @@ export async function POST(req: NextRequest) {
     .single()
 
   const clientName = (clientRow?.name as string | undefined) ?? ''
-
-  // Trim comment preview to 200 chars
   const commentPreview = commentBody.trim().slice(0, 200)
 
-  // Send mention notifications
+  // Send one email per mentioned user
   let mentioned = 0
+  const errors: string[] = []
+
   for (const userId of mentionedIds) {
-    const mentionedUser = users.find((u) => u.id === userId)
+    const mentionedUser = users.find(u => u.id === userId)
     if (!mentionedUser?.email) continue
 
     const result = await sendMentionNotification({
@@ -112,8 +131,13 @@ export async function POST(req: NextRequest) {
       commentPreview,
     })
 
-    if (result.ok) mentioned++
+    if (result.ok) {
+      mentioned++
+    } else {
+      console.error('[mention] Email failed for', mentionedUser.email, result.error)
+      errors.push(result.error ?? 'Unknown')
+    }
   }
 
-  return NextResponse.json({ ok: true, mentioned })
+  return NextResponse.json({ ok: true, mentioned, errors: errors.length ? errors : undefined })
 }

@@ -199,8 +199,8 @@ export async function fetchInstagramPosts(
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          hashtags:      hashtags.slice(0, 2), // 2 hashtags = faster first results
-          resultsLimit:  20,
+          hashtags:      hashtags.slice(0, 3), // 3 hashtags = broader results
+          resultsLimit:  30,
           resultsType:   'posts',
           addParentData: false,
         }),
@@ -227,7 +227,7 @@ export async function fetchInstagramPosts(
 
     // Step 3 — Fetch whatever has been scraped so far (partial is fine)
     const dataRes = await fetch(
-      `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${key}&limit=25&desc=false`,
+      `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${key}&limit=40&desc=false`,
       { signal: AbortSignal.timeout(6_000) }
     )
 
@@ -276,7 +276,7 @@ export async function fetchInstagramPosts(
         const erB = b.viewCount > 0 ? (b.likeCount + b.commentCount) / b.viewCount : 0
         return erB - erA || b.likeCount - a.likeCount
       })
-      .slice(0, 16)
+      .slice(0, 25)
 
   } catch (err) {
     console.error('[instagram] fetch failed:', err)

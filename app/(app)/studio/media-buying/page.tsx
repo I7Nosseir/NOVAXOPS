@@ -1,774 +1,640 @@
 'use client'
 
-import { useState } from 'react'
-import { pdf } from '@react-pdf/renderer'
-import {
-  TrendingUp, Plus, Minus, Download, Loader2, ChevronDown, ChevronUp,
-  BarChart2, Target, Users, Layers, CheckCircle, ImageIcon, Sparkles,
-  AlertCircle,
-} from 'lucide-react'
+import { useState, useRef } from 'react'
+import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
-import { MediaBuyingPlanDocument, type MediaBuyingPlan, type PlanImages } from '@/lib/media-buying-pdf'
+import {
+  TrendingUp, Plus, X, Sparkles, RefreshCw, Download,
+  ChevronDown, ChevronUp, BarChart2, Target, ImagePlus,
+  CheckCircle, AlertCircle, BookOpen, Megaphone,
+} from 'lucide-react'
 
-// ─── Constants ────────────────────────────────────────────────
+// ─── Brand palette ─────────────────────────────────────────────────────────────
+const B = {
+  primary: '#1B3D38',
+  muted:   '#2A6B62',
+  accent:  '#5BB4AE',
+  border:  '#9DCCC8',
+  light:   '#EBF4F3',
+}
 
-const PLATFORM_OPTIONS = ['Instagram', 'Snapchat', 'TikTok', 'Google Ads', 'Facebook', 'YouTube', 'X']
+// ─── Constants ─────────────────────────────────────────────────────────────────
+const PLATFORMS  = ['Meta Ads', 'TikTok Ads', 'Google Ads', 'Snapchat Ads', 'LinkedIn Ads', 'YouTube Ads']
+const OBJECTIVES = ['Brand Awareness', 'Reach', 'Traffic', 'Engagement', 'Lead Generation', 'Conversions', 'Video Views', 'App Installs']
+const CURRENCIES = ['SAR', 'AED', 'USD', 'EGP', 'KWD']
 
-const OBJECTIVES = [
-  'Generate Patient Leads (Messages + Calls)',
-  'Drive Direct Sales',
-  'Generate App Installs',
-  'Build Brand Awareness',
-  'Drive Store Visits',
-  'Generate Service Inquiries',
-]
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
-const MARKETS = [
-  'Saudi Arabia', 'UAE', 'Kuwait', 'Qatar', 'Bahrain', 'Oman', 'Egypt', 'Jordan',
-]
-
-const IMAGE_MODELS = [
-  {
-    id: 'imagen-4.0-generate-001',
-    label: 'Imagen 4',
-    tag: '$0.04/image · Recommended',
-    costPerImage: 0.04,
-    badge: 'Best Quality',
-  },
-  {
-    id: 'imagen-4.0-fast-generate-001',
-    label: 'Imagen 4 Fast',
-    tag: '$0.02/image · Quick',
-    costPerImage: 0.02,
-    badge: 'Fast',
-  },
-  {
-    id: 'gemini-2.5-flash-image',
-    label: 'Gemini Flash Image',
-    tag: '$0.039/image',
-    costPerImage: 0.039,
-    badge: '',
-  },
-]
-
-// 3 decorative slides: cover, key factors, final overview
-const IMAGE_SLIDES = 3
-
-const LOADING_STEPS = [
-  { label: 'Researching market demand and consumer behavior' },
-  { label: 'Developing customer avatars and psychographic profiles' },
-  { label: 'Assigning platform roles across the funnel' },
-  { label: 'Allocating budget based on Saudi market benchmarks' },
-  { label: 'Forecasting expected leads per platform' },
-  { label: 'Generating key performance insights' },
-  { label: 'Structuring the final client-ready plan' },
-]
-
-const IMAGE_STEPS = [
-  { label: 'Cover — industry environment photography' },
-  { label: 'Key Factors — contextual lifestyle scene' },
-  { label: 'Final Overview — professional space' },
-]
-
-// ─── Types ────────────────────────────────────────────────────
-
-interface FormState {
-  client_name: string
-  client_handle: string
-  industry: string
-  market: string
+interface CampaignOption {
+  id: string
+  platform: string
   objective: string
-  platforms: string[]
-  option1_budget: string
-  option2_budget: string
-  additional_context: string
+  budget: string
+  startDate: string
+  endDate: string
+  targetAudience: string
+  notes: string
 }
 
-// ─── Image generation helpers ─────────────────────────────────
-
-function buildImagePrompts(plan: MediaBuyingPlan): {
-  cover: string
-  keyFactors: string
-  finalOverview: string
-} {
-  const industry = plan.client_name  // fallback; caller may pass industry separately
-  const market = plan.market
-
-  return {
-    cover:
-      `Professional ${industry} environment, ${market} market, clean minimalist interior, ` +
-      `premium quality, soft natural lighting, architectural photography, no text, no watermark, ` +
-      `muted tones, magazine editorial quality`,
-
-    keyFactors:
-      `Person holding smartphone viewing content, ${market} demographic, soft natural light, ` +
-      `lifestyle photography, authentic candid moment, professional context, no text overlay, ` +
-      `no watermark, shallow depth of field`,
-
-    finalOverview:
-      `Premium ${industry} interior space, modern minimalist design, clean bright atmosphere, ` +
-      `${market} aesthetic, professional photography, white and neutral tones, architectural detail, ` +
-      `no text, no watermark`,
-  }
+interface KpiEstimate {
+  metric: string
+  value: string
+  basis: string
 }
 
-async function generateOneImage(prompt: string, model: string): Promise<string> {
-  const res = await fetch('/api/ai-image/generate', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      style:       'photorealistic',
-      aspectRatio: '3:4',
-      model,
-    }),
-  })
-  const data = await res.json() as { imageData?: string; mimeType?: string; error?: string }
-  if (!res.ok || !data.imageData) throw new Error(data.error ?? 'Image generation failed')
-  return `data:${data.mimeType ?? 'image/png'};base64,${data.imageData}`
+interface CampaignResult {
+  optionIndex: number
+  platform: string
+  objective: string
+  budget: string
+  currency: string
+  headline: string
+  rationale: string
+  kpis: KpiEstimate[]
+  strengths: string[]
+  considerations: string[]
+  recommended: boolean
 }
 
-// ─── Sub-components ───────────────────────────────────────────
-
-function InputField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-        {label}
-      </label>
-      {children}
-    </div>
-  )
-}
-
-const inputCls =
-  'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none ' +
-  'focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all ' +
-  'bg-white text-slate-800 placeholder:text-slate-400'
-
-function SectionCard({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: React.ElementType
+interface MediaBuyerGuideSection {
   title: string
-  children: React.ReactNode
-}) {
-  const [open, setOpen] = useState(true)
+  steps: string[]
+}
+
+interface GenerateResult {
+  clientName: string
+  period: string
+  currency: string
+  campaigns: CampaignResult[]
+  mediaBuyerGuide: MediaBuyerGuideSection[]
+  executiveSummary: string
+}
+
+function emptyCampaign(): CampaignOption {
+  return {
+    id: Math.random().toString(36).slice(2),
+    platform: 'Meta Ads',
+    objective: 'Brand Awareness',
+    budget: '',
+    startDate: '',
+    endDate: '',
+    targetAudience: '',
+    notes: '',
+  }
+}
+
+// ─── Cover page ─────────────────────────────────────────────────────────────────
+
+function CoverPage({ clientName, period, currency }: { clientName: string; period: string; currency: string }) {
+  const today = new Date().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-novax-light flex items-center justify-center">
-            <Icon className="w-4 h-4 text-novax-muted" />
-          </div>
-          <span className="font-semibold text-slate-900 text-sm">{title}</span>
+    <div className="rounded-2xl overflow-hidden flex flex-col min-h-[320px]" style={{ background: B.primary }}>
+      <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
+      <div className="px-10 pt-10">
+        <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-8 w-auto">
+          <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
+          <path fillRule="evenodd" d="M82,10 A26,26 0 0 1 82,62 A26,26 0 0 1 82,10 Z M82,22 A14,14 0 0 1 82,50 A14,14 0 0 1 82,22 Z" fill="white"/>
+          <line x1="60" y1="68" x2="104" y2="4" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M114,10 L124,10 L151,58 L178,10 L188,10 L151,64 L141,64 Z" fill="white"/>
+          <path fillRule="evenodd" d="M194,62 L218,10 L228,10 L252,62 L243,62 L237,50 L209,50 L203,62 Z M215,42 L223,18 L235,42 Z" fill="white"/>
+          <text x="250" y="18" fill="white" fontSize="9" fontFamily="system-ui,Arial,sans-serif">™</text>
+        </svg>
+      </div>
+      <div className="flex-1 flex flex-col justify-center px-10 py-12">
+        <div className="w-12 h-0.5 rounded-full mb-6" style={{ background: B.accent }}/>
+        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: B.border }}>Media Buying Proposal</p>
+        <h1 className="text-5xl font-bold text-white leading-tight mb-3">{clientName}</h1>
+        <p className="text-lg font-medium" style={{ color: B.accent }}>{period || 'Campaign Period'}</p>
+        <p className="text-sm mt-1" style={{ color: B.border }}>Paid Media Budget Allocation · {currency}</p>
+      </div>
+      <div className="px-10 pb-8 flex items-end justify-between">
+        <div>
+          <p className="text-xs font-bold text-white mb-0.5">Prepared by NOVAX</p>
+          <p className="text-xs" style={{ color: B.border }}>{today}</p>
         </div>
-        {open
-          ? <ChevronUp className="w-4 h-4 text-slate-400" />
-          : <ChevronDown className="w-4 h-4 text-slate-400" />}
-      </button>
-      {open && <div className="px-5 pb-5">{children}</div>}
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ background: B.accent }}/>
+          <p className="text-xs font-medium" style={{ color: B.border }}>Confidential — For Client Use Only</p>
+        </div>
+      </div>
+      <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.light}, ${B.border}, ${B.accent})` }}/>
     </div>
   )
 }
 
-function PlanPreview({ plan }: { plan: MediaBuyingPlan }) {
-  return (
-    <div className="space-y-4">
-      <SectionCard icon={Target} title="Executive Summary">
-        <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{plan.executive_summary}</p>
-      </SectionCard>
+// ─── Campaign result card ───────────────────────────────────────────────────────
 
-      <SectionCard icon={Layers} title="Platform Roles">
-        <div className="grid grid-cols-2 gap-3">
-          {plan.platforms.map((p, i) => (
-            <div key={i} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                  {i + 1}
+function CampaignResultCard({ result }: { result: CampaignResult }) {
+  const [expanded, setExpanded] = useState(true)
+  return (
+    <div className={cn(
+      'rounded-2xl border p-6 transition-all',
+      result.recommended ? 'shadow-sm' : 'border-slate-200',
+    )} style={result.recommended ? { background: B.light, borderColor: B.border } : undefined}>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <div className="p-2 rounded-xl shrink-0" style={{ background: result.recommended ? B.primary : '#f8fafc' }}>
+            <Megaphone className="w-4 h-4" style={{ color: result.recommended ? 'white' : B.muted }}/>
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <h3 className="text-sm font-bold text-slate-800">Option {result.optionIndex + 1} — {result.platform}</h3>
+              {result.recommended && (
+                <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0" style={{ background: B.primary }}>
+                  <CheckCircle className="w-2.5 h-2.5"/> Recommended
                 </span>
-                <span className="text-xs font-semibold text-slate-900">{p.name}</span>
-                <span className="ml-auto text-[10px] text-slate-400 font-medium">{p.funnel_stage}</span>
-              </div>
-              <p className="text-xs text-slate-500 leading-snug pl-7">{p.role_description}</p>
+              )}
             </div>
-          ))}
+            <p className="text-xs text-slate-500">{result.objective} · {result.currency} {Number(result.budget).toLocaleString()}</p>
+          </div>
         </div>
-      </SectionCard>
-
-      {plan.customer_avatars.length > 0 && (
-        <SectionCard icon={Users} title="Customer Segments">
-          <div className="space-y-2">
-            {plan.customer_avatars.map((a, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                <span className="text-xs font-bold text-novax-muted w-5 shrink-0 pt-0.5">#{i + 1}</span>
-                <div>
-                  <p className="text-xs font-semibold text-slate-900 mb-0.5">{a.name}</p>
-                  <p className="text-xs text-slate-500 leading-snug">{a.motivation}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      )}
-
-      {[plan.option1, plan.option2].map((opt, oi) => (
-        <SectionCard
-          key={oi}
-          icon={BarChart2}
-          title={`Option ${oi + 1} — ${opt.budget_sar.toLocaleString()} SAR/month`}
-        >
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {opt.allocation.map((a, i) => (
-              <div key={i} className="p-3 bg-slate-50 rounded-lg">
-                <p className="text-xl font-bold text-slate-900">{a.amount.toLocaleString()}</p>
-                <p className="text-xs font-semibold text-slate-700 mt-0.5">{a.platform}</p>
-                <p className="text-[10px] text-slate-400">SAR</p>
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {opt.expected_results.map((r, i) => (
-              <div key={i} className="p-3 border border-slate-200 rounded-lg">
-                <p className="text-xs text-slate-500 mb-1">{r.platform}</p>
-                <p className="text-xs font-semibold text-slate-900">
-                  Expected {r.metric}: {r.min}–{r.max}
-                </p>
-              </div>
-            ))}
-          </div>
-          <div className={cn(
-            'p-3 rounded-lg border',
-            oi === 0 ? 'bg-slate-50 border-slate-200' : 'bg-emerald-50 border-emerald-200',
-          )}>
-            <p className="text-lg font-bold text-slate-900 mb-0.5">
-              {opt.total_leads_min}–{opt.total_leads_max}{' '}
-              <span className="text-xs font-normal text-slate-500">total leads/month</span>
-            </p>
-            <p className="text-xs text-slate-500">{opt.summary}</p>
-          </div>
-        </SectionCard>
-      ))}
-
-      <SectionCard icon={CheckCircle} title="Key Performance Factors">
-        <div className="space-y-4">
-          {plan.key_factors.map((f, i) => (
-            <div key={i} className={cn('pb-4', i < plan.key_factors.length - 1 && 'border-b border-slate-100')}>
-              <span className="text-[10px] font-bold text-slate-400 tracking-widest">{f.number}</span>
-              <p className="text-sm font-semibold text-slate-900 mt-0.5 mb-1">{f.title}</p>
-              <p className="text-xs text-slate-500 leading-relaxed">{f.description}</p>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-    </div>
-  )
-}
-
-// ─── Main page ────────────────────────────────────────────────
-
-export default function MediaBuyingPage() {
-  const [form, setForm] = useState<FormState>({
-    client_name:        '',
-    client_handle:      '',
-    industry:           '',
-    market:             'Saudi Arabia',
-    objective:          OBJECTIVES[0],
-    platforms:          ['Instagram', 'Snapchat', 'TikTok', 'Google Ads'],
-    option1_budget:     '5000',
-    option2_budget:     '7000',
-    additional_context: '',
-  })
-
-  const [loading,     setLoading]     = useState(false)
-  const [loadingStep, setLoadingStep] = useState(0)
-  const [plan,        setPlan]        = useState<MediaBuyingPlan | null>(null)
-  const [error,       setError]       = useState<string | null>(null)
-
-  // AI imagery toggle
-  const [withImages,      setWithImages]      = useState(false)
-  const [imageModel,      setImageModel]      = useState(IMAGE_MODELS[0].id)
-  const [imageStepStates, setImageStepStates] = useState<('idle' | 'running' | 'done' | 'error')[]>(
-    IMAGE_STEPS.map(() => 'idle'),
-  )
-  const [imageError, setImageError] = useState<string | null>(null)
-
-  const [downloadLoading, setDownloadLoading] = useState(false)
-
-  const selectedImageModel = IMAGE_MODELS.find(m => m.id === imageModel) ?? IMAGE_MODELS[0]
-  const estimatedCost = (selectedImageModel.costPerImage * IMAGE_SLIDES).toFixed(2)
-
-  const set = (key: keyof FormState, value: string) => setForm(f => ({ ...f, [key]: value }))
-
-  const togglePlatform = (p: string) =>
-    setForm(f => ({
-      ...f,
-      platforms: f.platforms.includes(p)
-        ? f.platforms.filter(x => x !== p)
-        : [...f.platforms, p],
-    }))
-
-  const handleGenerate = async () => {
-    if (!form.client_name || !form.industry || form.platforms.length === 0) return
-    setLoading(true)
-    setLoadingStep(0)
-    setError(null)
-    setPlan(null)
-
-    const stepInterval = setInterval(() => {
-      setLoadingStep(s => Math.min(s + 1, LOADING_STEPS.length - 1))
-    }, 1800)
-
-    try {
-      const res = await fetch('/api/studio/media-buying/generate', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_name:        form.client_name,
-          client_handle:      form.client_handle || undefined,
-          industry:           form.industry,
-          market:             form.market,
-          objective:          form.objective,
-          platforms:          form.platforms,
-          option1_budget:     Number(form.option1_budget),
-          option2_budget:     Number(form.option2_budget),
-          additional_context: form.additional_context || undefined,
-        }),
-      })
-      const data = await res.json() as { plan?: MediaBuyingPlan; error?: string }
-      if (!res.ok || !data.plan) throw new Error(data.error ?? 'Generation failed')
-      setLoadingStep(LOADING_STEPS.length - 1)
-      setPlan(data.plan)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed')
-    } finally {
-      clearInterval(stepInterval)
-      setLoading(false)
-    }
-  }
-
-  const handleDownload = async () => {
-    if (!plan) return
-    setDownloadLoading(true)
-    setImageError(null)
-
-    let images: PlanImages | undefined
-
-    if (withImages) {
-      setImageStepStates(['idle', 'idle', 'idle'])
-      const prompts = buildImagePrompts(plan)
-      const slots: Array<keyof PlanImages> = ['cover', 'keyFactors', 'finalOverview']
-      const promptValues = [prompts.cover, prompts.keyFactors, prompts.finalOverview]
-
-      const results: PlanImages = {}
-      for (let i = 0; i < slots.length; i++) {
-        setImageStepStates(prev => prev.map((s, idx) => idx === i ? 'running' : s))
-        try {
-          results[slots[i]] = await generateOneImage(promptValues[i], imageModel)
-          setImageStepStates(prev => prev.map((s, idx) => idx === i ? 'done' : s))
-        } catch (err) {
-          setImageStepStates(prev => prev.map((s, idx) => idx === i ? 'error' : s))
-          setImageError(`Image ${i + 1} failed: ${err instanceof Error ? err.message : 'Unknown error'}. Continuing without that image.`)
-          // non-blocking — continue with partial images
-        }
-      }
-      images = results
-    }
-
-    try {
-      const blob = await pdf(<MediaBuyingPlanDocument plan={plan} images={images} />).toBlob()
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a')
-      a.href     = url
-      a.download = `${plan.client_name.replace(/\s+/g, '-')}-Media-Buying-Plan.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'PDF export failed')
-    } finally {
-      setDownloadLoading(false)
-      // Reset image step states after a short delay
-      setTimeout(() => setImageStepStates(IMAGE_STEPS.map(() => 'idle')), 3000)
-    }
-  }
-
-  const isGeneratingImages = downloadLoading && withImages &&
-    imageStepStates.some(s => s === 'running')
-
-  const canGenerate =
-    form.client_name.trim() &&
-    form.industry.trim() &&
-    form.platforms.length >= 2 &&
-    Number(form.option1_budget) > 0 &&
-    Number(form.option2_budget) > 0
-
-  return (
-    <div className="max-w-5xl space-y-6">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <TrendingUp className="w-5 h-5 text-novax-accent" />
-          <h1 className="text-xl font-bold text-slate-900">Media Buying Plan</h1>
-        </div>
-        <p className="text-sm text-slate-500">
-          10-step pipeline — market research, customer avatars, platform strategy, budget allocation, lead forecasting. Output: client-ready PDF.
-        </p>
+        <button onClick={() => setExpanded(v => !v)} className="p-1 text-slate-400 hover:text-slate-600 shrink-0">
+          {expanded ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 items-start">
+      {expanded && (
+        <div className="space-y-4">
+          <p className="text-sm font-semibold text-slate-800 leading-snug">{result.headline}</p>
+          <p className="text-sm text-slate-600 leading-relaxed">{result.rationale}</p>
 
-        {/* ─── Form ──────────────────────────────────────────── */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 sticky top-6">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Campaign Brief</p>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField label="Client Name">
-              <input
-                value={form.client_name}
-                onChange={e => set('client_name', e.target.value)}
-                placeholder="Privea Dent"
-                className={inputCls}
-              />
-            </InputField>
-            <InputField label="Handle (optional)">
-              <input
-                value={form.client_handle}
-                onChange={e => set('client_handle', e.target.value)}
-                placeholder="@priveadent"
-                className={inputCls}
-              />
-            </InputField>
-          </div>
-
-          <InputField label="Industry / Niche">
-            <input
-              value={form.industry}
-              onChange={e => set('industry', e.target.value)}
-              placeholder="Dental clinic, Aesthetic center, E-commerce..."
-              className={inputCls}
-            />
-          </InputField>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField label="Market">
-              <select value={form.market} onChange={e => set('market', e.target.value)} className={inputCls}>
-                {MARKETS.map(m => <option key={m}>{m}</option>)}
-              </select>
-            </InputField>
-            <InputField label="Objective">
-              <select value={form.objective} onChange={e => set('objective', e.target.value)} className={inputCls}>
-                {OBJECTIVES.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </InputField>
-          </div>
-
-          <InputField label="Platforms">
-            <div className="flex flex-wrap gap-2 mt-1">
-              {PLATFORM_OPTIONS.map(p => (
-                <button
-                  key={p}
-                  onClick={() => togglePlatform(p)}
-                  className={cn(
-                    'px-3 py-1.5 text-xs font-medium rounded-lg border transition-all',
-                    form.platforms.includes(p)
-                      ? 'bg-novax-light border-novax-border text-novax'
-                      : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300',
-                  )}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </InputField>
-
-          <InputField label="Budget Options (SAR / month)">
-            <div className="grid grid-cols-2 gap-3">
-              {(
-                [
-                  { key: 'option1_budget' as const, label: 'Option 1' },
-                  { key: 'option2_budget' as const, label: 'Option 2' },
-                ] as const
-              ).map(({ key, label }) => (
-                <div key={key}>
-                  <p className="text-[10px] text-slate-400 mb-1 font-medium">{label}</p>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => set(key, String(Math.max(1000, Number(form[key]) - 1000)))}
-                      className="p-1.5 rounded border border-slate-200 text-slate-500 hover:bg-slate-50"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <input
-                      type="number"
-                      value={form[key]}
-                      onChange={e => set(key, e.target.value)}
-                      className={cn(inputCls, 'text-center')}
-                    />
-                    <button
-                      onClick={() => set(key, String(Number(form[key]) + 1000))}
-                      className="p-1.5 rounded border border-slate-200 text-slate-500 hover:bg-slate-50"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
+          {result.kpis.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Expected Performance</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {result.kpis.map((kpi, i) => (
+                  <div key={i} className="rounded-xl border border-slate-100 bg-white p-3">
+                    <p className="text-lg font-bold text-slate-900 tabular-nums">{kpi.value}</p>
+                    <p className="text-[11px] font-semibold mt-0.5" style={{ color: B.muted }}>{kpi.metric}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{kpi.basis}</p>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </InputField>
+          )}
 
-          <InputField label="Additional Context (optional)">
-            <textarea
-              value={form.additional_context}
-              onChange={e => set('additional_context', e.target.value)}
-              placeholder="Any specific targeting notes, past campaign data, special offers..."
-              rows={3}
-              className={cn(inputCls, 'resize-none')}
+          {(result.strengths.length > 0 || result.considerations.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {result.strengths.length > 0 && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                  <p className="text-xs font-bold text-emerald-700 mb-2">Strengths</p>
+                  <ul className="space-y-1">
+                    {result.strengths.map((s, i) => (
+                      <li key={i} className="flex items-start gap-1.5 text-xs text-slate-600">
+                        <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5"/>
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {result.considerations.length > 0 && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3">
+                  <p className="text-xs font-bold text-amber-700 mb-2">Watch Out For</p>
+                  <ul className="space-y-1">
+                    {result.considerations.map((c, i) => (
+                      <li key={i} className="flex items-start gap-1.5 text-xs text-slate-600">
+                        <AlertCircle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5"/>
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main page ──────────────────────────────────────────────────────────────────
+
+export default function MediaBuyingPage() {
+  const { clients } = useClients()
+  const [selectedClient, setSelectedClient]   = useState('')
+  const [currency, setCurrency]               = useState('SAR')
+  const [period, setPeriod]                   = useState('')
+  const [campaigns, setCampaigns]             = useState<CampaignOption[]>([emptyCampaign(), emptyCampaign()])
+  const [images, setImages]                   = useState<string[]>([])
+  const [generating, setGenerating]           = useState(false)
+  const [result, setResult]                   = useState<GenerateResult | null>(null)
+  const [error, setError]                     = useState<string | null>(null)
+  const [guideOpen, setGuideOpen]             = useState(true)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const clientName = selectedClient
+    ? (clients.find(c => c.id === selectedClient)?.name ?? 'Client')
+    : 'Select a client'
+
+  const updateCampaign = (id: string, updates: Partial<CampaignOption>) =>
+    setCampaigns(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
+
+  const handleGenerate = async () => {
+    if (!selectedClient || campaigns.length < 2) return
+    setGenerating(true)
+    setError(null)
+    setResult(null)
+    try {
+      const client = clients.find(c => c.id === selectedClient)
+      const res = await fetch('/api/media-buying/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: selectedClient,
+          clientName: client?.name ?? '',
+          currency,
+          period,
+          campaigns: campaigns.map(c => ({
+            platform: c.platform,
+            objective: c.objective,
+            budget: c.budget,
+            startDate: c.startDate,
+            endDate: c.endDate,
+            targetAudience: c.targetAudience,
+            notes: c.notes,
+          })),
+          images,
+        }),
+      })
+      const data = await res.json() as { result?: GenerateResult; error?: string }
+      if (!res.ok || data.error) {
+        setError(data.error ?? 'Generation failed')
+      } else if (data.result) {
+        setResult(data.result)
+        setTimeout(() => document.getElementById('mb-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+      }
+    } catch {
+      setError('Could not connect to the generation service')
+    }
+    setGenerating(false)
+  }
+
+  const canGenerate = !!(selectedClient && campaigns.length >= 2 && campaigns.every(c => c.budget && Number(c.budget) > 0))
+
+  return (
+    <div className="space-y-5 max-w-5xl mx-auto">
+
+      {/* ── Header ────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: B.light }}>
+            <TrendingUp className="w-5 h-5" style={{ color: B.primary }}/>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900">Media Buying Plan</h1>
+            <p className="text-sm text-slate-500 mt-0.5 leading-relaxed">
+              Enter 2–5 campaign options with budgets. AI estimates expected KPIs for each, identifies the best-value option, and generates a Media Buyer Guide.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Setup ─────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Setup</p>
+        <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Client</label>
+            <select
+              value={selectedClient}
+              onChange={e => setSelectedClient(e.target.value)}
+              className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+            >
+              <option value="">Select client</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Currency</label>
+            <select
+              value={currency}
+              onChange={e => setCurrency(e.target.value)}
+              className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+            >
+              {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Campaign Period</label>
+            <input
+              type="text"
+              placeholder="e.g. June 2026 or Q3 2026"
+              value={period}
+              onChange={e => setPeriod(e.target.value)}
+              className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
             />
-          </InputField>
+          </div>
+        </div>
+      </div>
 
+      {/* ── Campaign Options ──────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Campaign Options</p>
+            <p className="text-xs text-slate-400 mt-0.5">2–5 options to compare. Minimum 2 required.</p>
+          </div>
           <button
-            onClick={handleGenerate}
-            disabled={!canGenerate || loading}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-semibold rounded-lg transition-colors"
+            disabled={campaigns.length >= 5}
+            onClick={() => setCampaigns(prev => [...prev, emptyCampaign()])}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-dashed border-slate-300 text-slate-500 hover:border-novax-border disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {loading
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <TrendingUp className="w-4 h-4" />}
-            {loading ? 'Generating Plan…' : 'Generate Media Buying Plan'}
+            <Plus className="w-3.5 h-3.5"/>
+            Add Option ({campaigns.length}/5)
           </button>
         </div>
 
-        {/* ─── Output ────────────────────────────────────────── */}
-        <div className="space-y-4 min-h-[300px]">
-
-          {/* Plan generation progress */}
-          {loading && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
-              <p className="text-sm font-semibold text-slate-900 mb-4">Generating your media buying plan…</p>
-              {LOADING_STEPS.map((step, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className={cn(
-                    'w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-all',
-                    i < loadingStep  ? 'bg-novax' :
-                    i === loadingStep ? 'bg-novax-light border-2 border-novax' :
-                    'bg-slate-100',
-                  )}>
-                    {i < loadingStep && (
-                      <svg viewBox="0 0 10 8" className="w-2.5 h-2.5" fill="none">
-                        <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                    {i === loadingStep && <div className="w-2 h-2 rounded-full bg-novax animate-pulse" />}
+        <div className="space-y-4">
+          {campaigns.map((campaign, ci) => (
+            <div key={campaign.id} className="rounded-2xl border border-slate-200 bg-slate-50/30 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: B.muted }}>
+                    {ci + 1}
                   </div>
-                  <span className={cn(
-                    'text-xs transition-colors',
-                    i < loadingStep  ? 'text-slate-400 line-through' :
-                    i === loadingStep ? 'text-slate-900 font-medium' :
-                    'text-slate-300',
-                  )}>
-                    {step.label}
+                  <span className="text-sm font-semibold text-slate-700">
+                    {campaign.platform} — {campaign.objective}
                   </span>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Error */}
-          {error && !loading && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <p className="text-sm font-semibold text-red-800 mb-1">Generation failed</p>
-              <p className="text-xs text-red-600">{error}</p>
-            </div>
-          )}
-
-          {/* Plan output */}
-          {plan && !loading && (
-            <>
-              {/* Download bar + AI imagery toggle */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-
-                {/* Download action */}
-                <div className="flex items-center justify-between px-5 py-4">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">Plan Ready</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {withImages
-                        ? `With AI imagery · ~$${estimatedCost} per download`
-                        : 'Text only · Free'}
-                    </p>
-                  </div>
+                {campaigns.length > 2 && (
                   <button
-                    onClick={handleDownload}
-                    disabled={downloadLoading}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                    onClick={() => setCampaigns(prev => prev.filter(c => c.id !== campaign.id))}
+                    className="p-1 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-50 transition-colors"
                   >
-                    {downloadLoading
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <Download className="w-4 h-4" />}
-                    {downloadLoading
-                      ? isGeneratingImages ? 'Generating images…' : 'Building PDF…'
-                      : 'Download PDF'}
+                    <X className="w-3.5 h-3.5"/>
                   </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Platform</label>
+                  <select
+                    value={campaign.platform}
+                    onChange={e => updateCampaign(campaign.id, { platform: e.target.value })}
+                    className="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                  >
+                    {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
                 </div>
 
-                {/* AI imagery section */}
-                <div className="border-t border-slate-100 px-5 py-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <ImageIcon className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm font-medium text-slate-700">AI-generated imagery</span>
-                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 font-semibold rounded-full">
-                        Optional
-                      </span>
-                    </div>
-                    {/* Toggle */}
-                    <button
-                      onClick={() => setWithImages(v => !v)}
-                      className={cn(
-                        'relative w-10 h-5.5 rounded-full transition-colors',
-                        withImages ? 'bg-novax' : 'bg-slate-200',
-                      )}
-                      style={{ height: 22, width: 42 }}
-                    >
-                      <span
-                        className={cn(
-                          'absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow-sm transition-all',
-                          withImages ? 'left-[22px]' : 'left-0.5',
-                        )}
-                        style={{ width: 18, height: 18, top: 2 }}
-                      />
-                    </button>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Objective</label>
+                  <select
+                    value={campaign.objective}
+                    onChange={e => updateCampaign(campaign.id, { objective: e.target.value })}
+                    className="px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                  >
+                    {OBJECTIVES.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Budget ({currency})</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="10000"
+                    value={campaign.budget}
+                    onChange={e => updateCampaign(campaign.id, { budget: e.target.value })}
+                    className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Flight</label>
+                  <div className="flex gap-1">
+                    <input
+                      type="date"
+                      value={campaign.startDate}
+                      onChange={e => updateCampaign(campaign.id, { startDate: e.target.value })}
+                      className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                    />
+                    <input
+                      type="date"
+                      value={campaign.endDate}
+                      onChange={e => updateCampaign(campaign.id, { endDate: e.target.value })}
+                      className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                    />
                   </div>
-                  <p className="text-xs text-slate-400 ml-6 mb-3 leading-relaxed">
-                    Adds contextual photos to cover, key factors, and final overview pages.
-                    {' '}Each image is generated from your client&apos;s industry and market context — never generic stock.
-                  </p>
-
-                  {withImages && (
-                    <div className="space-y-3 mt-3">
-                      {/* Model picker */}
-                      <div>
-                        <p className="text-xs font-semibold text-slate-600 mb-2">Image Model</p>
-                        <div className="space-y-1.5">
-                          {IMAGE_MODELS.map(m => (
-                            <button
-                              key={m.id}
-                              onClick={() => setImageModel(m.id)}
-                              className={cn(
-                                'w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-all text-left',
-                                imageModel === m.id
-                                  ? 'bg-novax text-white border-novax'
-                                  : 'border-slate-200 text-slate-600 hover:border-novax-border hover:text-novax',
-                              )}
-                            >
-                              <span className="flex items-center gap-2">
-                                {m.badge && (
-                                  <span className={cn(
-                                    'text-[9px] font-bold px-1.5 py-0.5 rounded-full',
-                                    imageModel === m.id
-                                      ? 'bg-white/20 text-white'
-                                      : 'bg-novax-light text-novax-muted',
-                                  )}>
-                                    {m.badge}
-                                  </span>
-                                )}
-                                {m.label}
-                              </span>
-                              <span className={cn(
-                                'text-[10px] font-normal',
-                                imageModel === m.id ? 'text-white/70' : 'text-slate-400',
-                              )}>
-                                {m.tag}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Cost summary */}
-                      <div className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-100 rounded-lg">
-                        <Sparkles className="w-3.5 h-3.5 text-novax-muted shrink-0" />
-                        <p className="text-xs text-slate-600">
-                          {IMAGE_SLIDES} images × ${selectedImageModel.costPerImage} ={' '}
-                          <span className="font-semibold text-slate-900">${estimatedCost} per report</span>
-                          {' '}— billed to your Gemini API key
-                        </p>
-                      </div>
-
-                      {/* Image generation progress (shown while downloading) */}
-                      {downloadLoading && (
-                        <div className="space-y-2 pt-1">
-                          {IMAGE_STEPS.map((step, i) => {
-                            const state = imageStepStates[i]
-                            return (
-                              <div key={i} className="flex items-center gap-2.5">
-                                <div className={cn(
-                                  'w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-all',
-                                  state === 'done'    ? 'bg-novax' :
-                                  state === 'running' ? 'bg-novax-light border-2 border-novax' :
-                                  state === 'error'   ? 'bg-red-100 border border-red-300' :
-                                  'bg-slate-100',
-                                )}>
-                                  {state === 'done' && (
-                                    <svg viewBox="0 0 10 8" className="w-2 h-2" fill="none">
-                                      <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                  )}
-                                  {state === 'running' && (
-                                    <div className="w-1.5 h-1.5 rounded-full bg-novax animate-pulse" />
-                                  )}
-                                  {state === 'error' && (
-                                    <span className="text-[8px] text-red-500 font-bold">!</span>
-                                  )}
-                                </div>
-                                <span className={cn(
-                                  'text-xs',
-                                  state === 'done'    ? 'text-slate-400 line-through' :
-                                  state === 'running' ? 'text-slate-900 font-medium' :
-                                  state === 'error'   ? 'text-red-500' :
-                                  'text-slate-300',
-                                )}>
-                                  {step.label}
-                                </span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-
-                      {/* Image error (non-blocking) */}
-                      {imageError && !downloadLoading && (
-                        <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                          <p className="text-xs text-amber-700">{imageError}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
 
-              <PlanPreview plan={plan} />
-            </>
-          )}
-
-          {/* Empty state */}
-          {!plan && !loading && !error && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-12 text-center">
-              <TrendingUp className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-slate-500 mb-1">No plan generated yet</p>
-              <p className="text-xs text-slate-400">
-                Fill in the campaign brief and click Generate to produce a client-ready media buying plan.
-              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Target Audience</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Women 25–45, UAE, interested in skincare"
+                    value={campaign.targetAudience}
+                    onChange={e => updateCampaign(campaign.id, { targetAudience: e.target.value })}
+                    className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Notes (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Retargeting, exclude existing customers"
+                    value={campaign.notes}
+                    onChange={e => updateCampaign(campaign.id, { notes: e.target.value })}
+                    className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                  />
+                </div>
+              </div>
             </div>
-          )}
+          ))}
         </div>
       </div>
+
+      {/* ── Creative References ────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Creative References</p>
+            <p className="text-xs text-slate-400 mt-0.5">3–6 reference images (optional — helps AI tailor the guide)</p>
+          </div>
+          <button
+            disabled={images.length >= 6}
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-dashed border-slate-300 text-slate-500 hover:border-novax-border disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <ImagePlus className="w-3.5 h-3.5"/>
+            Add Image ({images.length}/6)
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async e => {
+              const file = e.target.files?.[0]
+              if (!file || images.length >= 6) return
+              const formData = new FormData()
+              formData.append('file', file)
+              try {
+                const res = await fetch('/api/assets/upload', { method: 'POST', body: formData })
+                if (res.ok) {
+                  const { url } = await res.json() as { url?: string }
+                  if (url) setImages(prev => [...prev, url])
+                }
+              } catch { /* non-critical */ }
+              e.target.value = ''
+            }}
+          />
+        </div>
+
+        {images.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {images.map((url, i) => (
+              <div key={i} className="relative group">
+                <img src={url} alt={`Reference ${i + 1}`} className="w-20 h-20 rounded-xl object-cover border border-slate-200"/>
+                <button
+                  onClick={() => setImages(prev => prev.filter((_, j) => j !== i))}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-2.5 h-2.5"/>
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-20 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-xs">
+            No reference images added
+          </div>
+        )}
+      </div>
+
+      {/* ── Generate ──────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={handleGenerate}
+          disabled={generating || !canGenerate}
+          className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-colors"
+          style={{ background: generating ? B.muted : B.primary }}
+        >
+          {generating
+            ? <><RefreshCw className="w-4 h-4 animate-spin"/> Generating Plan…</>
+            : <><Sparkles className="w-4 h-4"/> Generate Media Buying Plan</>}
+        </button>
+        {!selectedClient && <p className="text-xs text-slate-400">Select a client</p>}
+        {selectedClient && campaigns.length < 2 && <p className="text-xs text-slate-400">Add at least 2 options</p>}
+        {selectedClient && campaigns.length >= 2 && !campaigns.every(c => c.budget && Number(c.budget) > 0) && (
+          <p className="text-xs text-amber-500">Enter a budget for every option</p>
+        )}
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-red-200 bg-red-50">
+          <AlertCircle className="w-4 h-4 text-red-500 shrink-0"/>
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+
+      {/* ── Output ────────────────────────────────────────── */}
+      {result && (
+        <div id="mb-result" className="space-y-5">
+
+          {/* Cover */}
+          <div className="report-cover-page">
+            <CoverPage clientName={result.clientName || clientName} period={result.period || period} currency={result.currency || currency}/>
+          </div>
+
+          {/* Executive summary */}
+          {result.executiveSummary && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 print-break-before">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: B.light }}>
+                  <BarChart2 className="w-4 h-4" style={{ color: B.primary }}/>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Summary</p>
+                  <h2 className="text-base font-bold text-slate-900">Budget Allocation Overview</h2>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 leading-7">{result.executiveSummary}</p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {result.campaigns.map((c, i) => (
+                  <div
+                    key={i}
+                    className={cn('flex items-center gap-2 px-4 py-2 rounded-xl text-sm', c.recommended ? 'text-white' : 'border border-slate-200 text-slate-700 bg-slate-50')}
+                    style={c.recommended ? { background: B.primary } : undefined}
+                  >
+                    <span className="font-semibold">Option {i + 1}</span>
+                    <span className="text-xs opacity-70">{c.platform}</span>
+                    <span className="font-bold">{c.currency} {Number(c.budget).toLocaleString()}</span>
+                    {c.recommended && <Target className="w-3 h-3 opacity-80"/>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Campaign cards */}
+          <div className="space-y-4 print-break-before">
+            {result.campaigns.map(campaign => (
+              <CampaignResultCard key={campaign.optionIndex} result={campaign}/>
+            ))}
+          </div>
+
+          {/* Media Buyer Guide */}
+          {result.mediaBuyerGuide.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden print-break-before">
+              <button
+                onClick={() => setGuideOpen(v => !v)}
+                className="w-full flex items-center gap-3 px-6 py-4 text-left hover:bg-slate-50/50 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: B.light }}>
+                  <BookOpen className="w-4 h-4" style={{ color: B.primary }}/>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-sm font-bold text-slate-900">Media Buyer Guide</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Step-by-step execution instructions</p>
+                </div>
+                {guideOpen ? <ChevronUp className="w-4 h-4 text-slate-400"/> : <ChevronDown className="w-4 h-4 text-slate-400"/>}
+              </button>
+
+              {guideOpen && (
+                <div className="border-t border-slate-100 p-6 space-y-5">
+                  {result.mediaBuyerGuide.map((section, si) => (
+                    <div key={si}>
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: B.accent }}>
+                          {si + 1}
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800">{section.title}</h3>
+                      </div>
+                      <ul className="space-y-2">
+                        {section.steps.map((step, i) => (
+                          <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600 leading-relaxed">
+                            <div className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ background: B.accent }}/>
+                            {step}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Export */}
+          <div className="flex items-center gap-3 pb-4">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <Download className="w-4 h-4"/>
+              Print / Save as PDF
+            </button>
+            <p className="text-xs text-slate-400">Opens browser print dialog — choose &quot;Save as PDF&quot;</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

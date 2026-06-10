@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, MessageSquare, Send, Clock, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CheckCircle, XCircle, MessageSquare, Send, Clock, Loader2, ChevronLeft, ChevronRight, FileImage } from 'lucide-react'
 import { formatDate, cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import type { ScheduledPost, SocialPlatform } from '@/lib/types'
@@ -9,6 +9,12 @@ import { useParams } from 'next/navigation'
 
 interface ApprovalPost extends ScheduledPost {
   media_urls?: string[]
+}
+
+interface AdHocItem {
+  id: string
+  media_url?: string | null
+  caption: string
 }
 
 interface ApprovalData {
@@ -22,6 +28,7 @@ interface ApprovalData {
     client_note: string
     created_by: string
     expires_at: string
+    items?: AdHocItem[]
     approval_post_statuses: { post_id: string; status: string }[]
   }
   posts: ApprovalPost[]
@@ -178,7 +185,9 @@ export default function ApprovalPortalPage() {
   }
 
   const { request, posts } = data
-  const allDecided = posts.length > 0 && posts.every(p => decisions[p.id])
+  const adhocItems: AdHocItem[] = request.items ?? []
+  const allReviewable = [...posts, ...adhocItems]
+  const allDecided = allReviewable.length > 0 && allReviewable.every(x => decisions[x.id])
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -332,6 +341,107 @@ export default function ApprovalPortalPage() {
           )
         })}
 
+        {/* Ad-hoc items (custom posts added by the team) */}
+        {adhocItems.map(item => {
+          const decision = decisions[item.id]
+          const isApproved = decision?.status === 'approved'
+          const isChanges = decision?.status === 'changes_requested'
+          const isVideo = (url: string) => /\.(mp4|mov|webm)(\?|$)/i.test(url)
+
+          return (
+            <div
+              key={item.id}
+              className={cn(
+                'bg-white rounded-2xl border overflow-hidden transition-all',
+                isApproved ? 'border-emerald-200' : isChanges ? 'border-red-200' : 'border-slate-200',
+              )}
+            >
+              {decision && (
+                <div className={cn(
+                  'px-5 py-2.5 flex items-center gap-2 text-xs font-semibold',
+                  isApproved ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700',
+                )}>
+                  {isApproved
+                    ? <><CheckCircle className="w-3.5 h-3.5"/> Approved</>
+                    : <><XCircle className="w-3.5 h-3.5"/> Changes Requested</>
+                  }
+                </div>
+              )}
+
+              <div className="p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200">
+                    <FileImage className="w-3 h-3 text-slate-400"/>
+                    <span className="text-[11px] text-slate-500">Custom post</span>
+                  </div>
+                </div>
+
+                {item.media_url && (
+                  isVideo(item.media_url) ? (
+                    // eslint-disable-next-line jsx-a11y/media-has-caption
+                    <video src={item.media_url} controls className="mb-4 w-full rounded-xl bg-slate-100 max-h-64 object-contain"/>
+                  ) : (
+                    <div className="mb-4 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.media_url} alt="" className="w-full object-contain max-h-72"/>
+                    </div>
+                  )
+                )}
+
+                <p className="text-sm text-slate-700 leading-relaxed mb-4">{item.caption}</p>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => decide(item.id, 'approved')}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium border transition-colors',
+                      isApproved
+                        ? 'bg-emerald-500 border-emerald-500 text-white'
+                        : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50',
+                    )}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5"/>
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => { decide(item.id, 'changes_requested'); setNoteOpen(item.id) }}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium border transition-colors',
+                      isChanges
+                        ? 'bg-red-500 border-red-500 text-white'
+                        : 'border-red-200 text-red-500 hover:bg-red-50',
+                    )}
+                  >
+                    <XCircle className="w-3.5 h-3.5"/>
+                    Request Changes
+                  </button>
+                  <button
+                    onClick={() => setNoteOpen(noteOpen === item.id ? null : item.id)}
+                    className={cn(
+                      'px-3 py-2 rounded-lg border text-sm transition-colors',
+                      noteOpen === item.id
+                        ? 'border-novax bg-novax-light text-novax'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50',
+                    )}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5"/>
+                  </button>
+                </div>
+
+                {noteOpen === item.id && (
+                  <textarea
+                    value={decision?.note ?? ''}
+                    onChange={e => setNote(item.id, e.target.value)}
+                    rows={3}
+                    placeholder="Describe the changes needed or add a comment…"
+                    className="mt-3 w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted resize-none transition-all"
+                  />
+                )}
+              </div>
+            </div>
+          )
+        })}
+
         {/* Submit */}
         {submitError && (
           <p className="text-xs text-red-600 text-center">{submitError}</p>
@@ -342,7 +452,7 @@ export default function ApprovalPortalPage() {
           className="w-full flex items-center justify-center gap-2 py-3 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           {submitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}
-          {submitting ? 'Submitting…' : `Submit Review (${Object.keys(decisions).length}/${posts.length} reviewed)`}
+          {submitting ? 'Submitting…' : `Submit Review (${Object.keys(decisions).length}/${allReviewable.length} reviewed)`}
         </button>
       </div>
     </div>

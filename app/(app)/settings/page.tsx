@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut } from 'lucide-react'
 import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, useUpdateUserPermissions, type InviteResult } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
+import { useUserAssignments, useSaveClientAssignments } from '@/lib/hooks/use-client-assignments'
 import { cn, hasRole, vendorName } from '@/lib/utils'
 import { InviteUserModal } from '@/components/settings/invite-user-modal'
 import type { UserRole, User } from '@/lib/types'
@@ -355,30 +356,69 @@ function RolePreviewTab() {
   )
 }
 
-// ─── Edit Permissions Modal ─────────────────────────────────────────────────────
+// ─── Edit Permissions Modal (Pages + Client Access) ─────────────────────────
+
+const BYPASS_ASSIGNMENT_ROLES: UserRole[] = ['admin', 'ceo', 'creative_director']
 
 function EditPermissionsModal({ user, onClose }: { user: User; onClose: () => void }) {
   const updatePermissions = useUpdateUserPermissions()
+  const saveAssignments = useSaveClientAssignments()
+  const { clients } = useClients()
+  const { clientIds: existingAssignments, isLoading: assignmentsLoading } = useUserAssignments(user.id)
+
   const initial = user.page_permissions ?? ALL_PAGE_KEYS
+  const [activeTab, setActiveTab] = useState<'pages' | 'clients'>('pages')
   const [pages, setPages] = useState<PageKey[]>(initial as PageKey[])
+  const [assignedClients, setAssignedClients] = useState<string[]>([])
+  const [allClientsAccess, setAllClientsAccess] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const allSelected = pages.length === ALL_PAGE_KEYS.length
+  // Populate client assignments once loaded
+  useEffect(() => {
+    if (!assignmentsLoading) {
+      if (existingAssignments.length === 0) {
+        setAllClientsAccess(true)
+        setAssignedClients([])
+      } else {
+        setAllClientsAccess(false)
+        setAssignedClients(existingAssignments)
+      }
+    }
+  }, [assignmentsLoading, existingAssignments])
 
-  const toggle = (key: PageKey) =>
+  const isBypassRole = BYPASS_ASSIGNMENT_ROLES.includes(user.role)
+  const allPagesSelected = pages.length === ALL_PAGE_KEYS.length
+
+  const togglePage = (key: PageKey) =>
     setPages(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+
+  const toggleClient = (id: string) =>
+    setAssignedClients(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id])
 
   const save = async () => {
     setSaving(true)
     try {
-      const page_permissions: string[] | null = allSelected ? null : pages
+      // Save page permissions
+      const page_permissions: string[] | null = allPagesSelected ? null : pages
       await updatePermissions.mutateAsync({ userId: user.id, page_permissions })
+
+      // Save client assignments (only for non-bypass roles)
+      if (!isBypassRole) {
+        const finalClientIds = allClientsAccess ? [] : assignedClients
+        await saveAssignments.mutateAsync({ userId: user.id, clientIds: finalClientIds })
+      }
+
       setSaved(true)
       setTimeout(onClose, 800)
-    } catch { /* error surfaced by mutation */ }
+    } catch { /* errors surfaced by mutations */ }
     setSaving(false)
   }
+
+  const tabs = [
+    { id: 'pages' as const,   label: 'Page Access',    icon: Shield },
+    { id: 'clients' as const, label: 'Client Access',  icon: Building2 },
+  ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -399,75 +439,200 @@ function EditPermissionsModal({ user, onClose }: { user: User; onClose: () => vo
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">Page Access</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Dashboard, Pipeline, Tasks and Settings are always visible.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setPages([...ALL_PAGE_KEYS])} className="text-[11px] font-semibold text-novax-muted hover:text-novax">
-                Grant all
-              </button>
-              <span className="text-slate-300">·</span>
-              <button onClick={() => setPages([])} className="text-[11px] font-semibold text-slate-400 hover:text-red-500">
-                Revoke all
-              </button>
-            </div>
-          </div>
-
-          {PAGE_GROUPS.map(group => (
-            <div key={group}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{group}</p>
-              <div className="flex flex-wrap gap-2">
-                {PAGE_DEFS.filter(p => p.group === group).map(({ key, label }) => {
-                  const checked = pages.includes(key)
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => toggle(key)}
-                      className={cn(
-                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                        checked
-                          ? 'bg-novax-light border-novax-border text-novax'
-                          : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600',
-                      )}
-                    >
-                      <span className={cn('w-3 h-3 rounded flex items-center justify-center border shrink-0', checked ? 'bg-novax border-novax' : 'border-slate-300')}>
-                        {checked && (
-                          <svg viewBox="0 0 10 8" className="w-2 h-2" fill="none">
-                            <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                      </span>
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+        {/* Tabs */}
+        <div className="flex gap-1 px-6 pt-4">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                activeTab === id ? 'bg-novax-light text-novax' : 'text-slate-500 hover:bg-slate-100'
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
           ))}
+        </div>
 
-          <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>
-              {allSelected
-                ? 'Full access — all optional pages enabled'
-                : pages.length === 0
-                  ? 'Restricted — only required pages visible'
-                  : `${pages.length} of ${ALL_PAGE_KEYS.length} optional pages enabled`}
-            </span>
-          </div>
+        <div className="px-6 py-5 space-y-4">
+          {/* ── Page Access tab ── */}
+          {activeTab === 'pages' && (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Page Access</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Dashboard, Pipeline, Tasks and Settings are always visible.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setPages([...ALL_PAGE_KEYS])} className="text-[11px] font-semibold text-novax-muted hover:text-novax">
+                    Grant all
+                  </button>
+                  <span className="text-slate-300">·</span>
+                  <button onClick={() => setPages([])} className="text-[11px] font-semibold text-slate-400 hover:text-red-500">
+                    Revoke all
+                  </button>
+                </div>
+              </div>
 
-          {updatePermissions.isError && (
+              {PAGE_GROUPS.map(group => (
+                <div key={group}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{group}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {PAGE_DEFS.filter(p => p.group === group).map(({ key, label }) => {
+                      const checked = pages.includes(key)
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => togglePage(key)}
+                          className={cn(
+                            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                            checked
+                              ? 'bg-novax-light border-novax-border text-novax'
+                              : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600',
+                          )}
+                        >
+                          <span className={cn('w-3 h-3 rounded flex items-center justify-center border shrink-0', checked ? 'bg-novax border-novax' : 'border-slate-300')}>
+                            {checked && (
+                              <svg viewBox="0 0 10 8" className="w-2 h-2" fill="none">
+                                <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </span>
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              <div className="pt-1 border-t border-slate-100 text-[11px] text-slate-500">
+                {allPagesSelected
+                  ? 'Full access — all optional pages enabled'
+                  : pages.length === 0
+                    ? 'Restricted — only required pages visible'
+                    : `${pages.length} of ${ALL_PAGE_KEYS.length} optional pages enabled`}
+              </div>
+            </>
+          )}
+
+          {/* ── Client Access tab ── */}
+          {activeTab === 'clients' && (
+            <>
+              {isBypassRole ? (
+                <div className="flex items-center gap-3 p-4 bg-novax-light rounded-xl border border-novax-border">
+                  <Building2 className="w-4 h-4 text-novax shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-novax">Always sees all clients</p>
+                    <p className="text-xs text-novax-muted mt-0.5">
+                      {user.role.replace(/_/g, ' ')} role bypasses client restrictions.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Client Access</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Choose which clients this user can see. Affects tasks, publishing, moderation, and notifications.
+                    </p>
+                  </div>
+
+                  {/* All clients toggle */}
+                  <button
+                    onClick={() => { setAllClientsAccess(true); setAssignedClients([]) }}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all',
+                      allClientsAccess ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-slate-300'
+                    )}
+                  >
+                    <span className={cn('w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0', allClientsAccess ? 'border-novax bg-novax' : 'border-slate-300')}>
+                      {allClientsAccess && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </span>
+                    <div>
+                      <p className={cn('text-sm font-medium', allClientsAccess ? 'text-novax' : 'text-slate-700')}>All clients</p>
+                      <p className="text-[11px] text-slate-500">No restrictions — user sees every client</p>
+                    </div>
+                  </button>
+
+                  {/* Specific clients toggle */}
+                  <button
+                    onClick={() => setAllClientsAccess(false)}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all',
+                      !allClientsAccess ? 'border-novax bg-novax-light' : 'border-slate-200 hover:border-slate-300'
+                    )}
+                  >
+                    <span className={cn('w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0', !allClientsAccess ? 'border-novax bg-novax' : 'border-slate-300')}>
+                      {!allClientsAccess && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </span>
+                    <div>
+                      <p className={cn('text-sm font-medium', !allClientsAccess ? 'text-novax' : 'text-slate-700')}>Specific clients only</p>
+                      <p className="text-[11px] text-slate-500">Restrict to selected clients below</p>
+                    </div>
+                  </button>
+
+                  {!allClientsAccess && (
+                    <div className="space-y-1.5 pl-1">
+                      {assignmentsLoading ? (
+                        <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                          <RefreshCw className="w-3 h-3 animate-spin" /> Loading…
+                        </div>
+                      ) : clients.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">No clients found.</p>
+                      ) : clients.map(client => {
+                        const checked = assignedClients.includes(client.id)
+                        return (
+                          <button
+                            key={client.id}
+                            onClick={() => toggleClient(client.id)}
+                            className={cn(
+                              'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left',
+                              checked ? 'border-novax-border bg-novax-light' : 'border-slate-200 hover:border-slate-300 bg-white'
+                            )}
+                          >
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: client.color }}>
+                              {client.initials}
+                            </div>
+                            <span className={cn('flex-1 text-sm font-medium', checked ? 'text-novax' : 'text-slate-700')}>
+                              {client.name}
+                            </span>
+                            <span className={cn('w-4 h-4 rounded border-2 flex items-center justify-center shrink-0', checked ? 'border-novax bg-novax' : 'border-slate-300')}>
+                              {checked && (
+                                <svg viewBox="0 0 10 8" className="w-2.5 h-2.5" fill="none">
+                                  <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </span>
+                          </button>
+                        )
+                      })}
+                      <p className="text-[11px] text-slate-400 pt-1">
+                        {assignedClients.length === 0
+                          ? 'No clients selected — user will see nothing'
+                          : `${assignedClients.length} client${assignedClients.length !== 1 ? 's' : ''} selected`}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {(updatePermissions.isError || saveAssignments.isError) && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-lg">
               <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-              <p className="text-xs text-red-600">{(updatePermissions.error as Error)?.message ?? 'Update failed'}</p>
+              <p className="text-xs text-red-600">
+                {((updatePermissions.error ?? saveAssignments.error) as Error)?.message ?? 'Update failed'}
+              </p>
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
               Cancel
             </button>
@@ -488,6 +653,92 @@ function EditPermissionsModal({ user, onClose }: { user: User; onClose: () => vo
   )
 }
 
+function GoogleDriveCard() {
+  const [connected, setConnected] = useState<boolean | null>(null)
+  const [email, setEmail] = useState<string | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+
+  useEffect(() => {
+    void fetch('/api/drive/files?folderId=root')
+      .then(r => r.json() as Promise<{ error?: string; email?: string | null }>)
+      .then(data => {
+        if (data.error === 'not_connected') { setConnected(false); return }
+        setConnected(true)
+        if (data.email) setEmail(data.email)
+      })
+      .catch(() => setConnected(false))
+  }, [])
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true)
+    try {
+      await fetch('/api/drive/disconnect', { method: 'POST' })
+      setConnected(false)
+      setEmail(null)
+    } catch { /* ignore */ } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#4285F4' }}>
+            <HardDrive className="w-5 h-5 text-white"/>
+          </div>
+          <div>
+            <h4 className="font-semibold text-slate-900 text-sm">Google Drive</h4>
+            <p className="text-xs text-slate-500">Team-wide file browser — connect once, everyone gets access</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {connected === null && <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-400"/>}
+          {connected !== null && (
+            <div className={cn(
+              'flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
+              connected ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500',
+            )}>
+              {connected ? <CheckCircle className="w-2.5 h-2.5"/> : <XCircle className="w-2.5 h-2.5"/>}
+              {connected ? 'Connected' : 'Not connected'}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {connected === false && (
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <a
+            href="/api/drive/auth"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            <LogIn className="w-3.5 h-3.5"/>
+            Connect Google Drive
+          </a>
+          <p className="text-[11px] text-slate-400 mt-2">You will be redirected to Google to authorise access.</p>
+        </div>
+      )}
+
+      {connected === true && (
+        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <Mail className="w-3.5 h-3.5 text-slate-400"/>
+            {email ?? 'Connected'}
+          </div>
+          <button
+            onClick={() => void handleDisconnect()}
+            disabled={disconnecting}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-500 hover:bg-red-50 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {disconnecting ? <RefreshCw className="w-3 h-3 animate-spin"/> : <LogOut className="w-3 h-3"/>}
+            Disconnect
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const { user: currentUser } = useAuth()
   const { users } = useUsers()
@@ -498,15 +749,71 @@ export default function SettingsPage() {
   const [copiedResend, setCopiedResend] = useState<'email' | 'password' | null>(null)
   const isAdmin = currentUser?.role === 'admin'
   const canSeeVendorNames = hasRole(currentUser, ['admin', 'ceo'])
-  const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview'>(isAdmin ? 'integrations' : 'team')
+  const canManageKillSwitch = currentUser?.role === 'admin' || currentUser?.role === 'ceo'
+  const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview' | 'activity'>(isAdmin ? 'integrations' : 'team')
   const [showInvite, setShowInvite] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
+  const [aiToggling, setAiToggling] = useState(false)
+
+  // Activity tab state
+  type ActivityUser = {
+    id: string; name: string; email: string; role: string; avatar_url: string | null
+    last_seen: string | null; current_page: string | null; api_calls_this_month: number
+  }
+  const [activityUsers, setActivityUsers] = useState<ActivityUser[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
+
+  const fetchActivity = useCallback(async () => {
+    if (!canManageKillSwitch) return
+    setActivityLoading(true)
+    try {
+      const res  = await fetch('/api/user/activity')
+      const data = await res.json() as { users?: ActivityUser[] }
+      setActivityUsers(data.users ?? [])
+    } catch { /* non-critical */ }
+    finally { setActivityLoading(false) }
+  }, [canManageKillSwitch])
+
+  useEffect(() => {
+    if (activeTab !== 'activity') return
+    void fetchActivity()
+    const iv = setInterval(() => { void fetchActivity() }, 30_000)
+    return () => clearInterval(iv)
+  }, [activeTab, fetchActivity])
+
+  useEffect(() => {
+    if (activeTab !== 'security' || !canManageKillSwitch) return
+    void fetch('/api/system/settings')
+      .then(r => r.json() as Promise<{ settings: Record<string, unknown> }>)
+      .then(data => {
+        const val = data.settings?.ai_enabled
+        setAiEnabled(val !== false && val !== 'false')
+      })
+      .catch(() => setAiEnabled(true))
+  }, [activeTab, canManageKillSwitch])
+
+  const toggleAiEnabled = async () => {
+    if (aiEnabled === null || aiToggling) return
+    setAiToggling(true)
+    const next = !aiEnabled
+    try {
+      await fetch('/api/system/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'ai_enabled', value: next, updated_by: currentUser?.id }),
+      })
+      setAiEnabled(next)
+    } catch { /* keep current state */ }
+    finally { setAiToggling(false) }
+  }
 
   const tabs = [
     ...(isAdmin ? [{ id: 'integrations' as const, label: 'Integrations', icon: Zap }] : []),
     { id: 'team' as const, label: 'Team', icon: Users },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
     { id: 'security' as const, label: 'Security', icon: Shield },
+    ...(canManageKillSwitch ? [{ id: 'activity' as const, label: 'Activity', icon: Activity }] : []),
     ...(isAdmin ? [{ id: 'preview' as const, label: 'Role Preview', icon: Eye }] : []),
   ]
 
@@ -546,6 +853,7 @@ export default function SettingsPage() {
             {INTEGRATIONS_REAL.map(i => <IntegrationCard key={i.id} integration={i} showReal={canSeeVendorNames} />)}
           </div>
           {isAdmin && <MetricoolClientConfig/>}
+          {isAdmin && <GoogleDriveCard/>}
 
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
             <p className="text-sm font-semibold text-amber-800">Webhook endpoints</p>
@@ -837,6 +1145,159 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
+
+          {/* AI Kill Switch — admin/CEO only */}
+          {canManageKillSwitch && (
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-2 mt-6">AI Generation Control</h4>
+              <div className={cn('flex items-center gap-4 p-4 rounded-xl border', aiEnabled === false ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200')}>
+                <div className={cn('p-2 rounded-lg shrink-0', aiEnabled === false ? 'bg-red-100' : 'bg-emerald-50')}>
+                  <Power className={cn('w-4 h-4', aiEnabled === false ? 'text-red-600' : 'text-emerald-600')}/>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">AI Generation</p>
+                    {aiEnabled === null ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400"/>
+                    ) : (
+                      <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full', aiEnabled ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600')}>
+                        {aiEnabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {aiEnabled === false
+                      ? 'All AI generation routes are currently blocked. Team members will see a 503 error if they attempt to generate.'
+                      : 'All AI generation is active. Disable to immediately block all generation routes for the whole team.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => void toggleAiEnabled()}
+                  disabled={aiEnabled === null || aiToggling}
+                  className={cn(
+                    'shrink-0 px-4 py-2 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-50',
+                    aiEnabled === false
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700'
+                      : 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200',
+                  )}
+                >
+                  {aiToggling ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : aiEnabled === false ? 'Enable AI' : 'Disable AI'}
+                </button>
+              </div>
+              {aiEnabled === false && (
+                <p className="text-[11px] text-red-600 font-medium mt-1.5 px-1">
+                  AI is currently OFF. All studio tools, assistant, and task AI agents are blocked for all users.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'activity' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-slate-900">User Activity</h3>
+            <button
+              onClick={() => { void fetchActivity() }}
+              disabled={activityLoading}
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-novax transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={cn('w-3.5 h-3.5', activityLoading && 'animate-spin')}/>
+              Refresh
+            </button>
+          </div>
+
+          {activityLoading && activityUsers.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-400"/>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-left">
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">User</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Current Page</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Last Seen</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">AI Calls</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {activityUsers.map(u => {
+                    const now       = Date.now()
+                    const lastMs    = u.last_seen ? new Date(u.last_seen).getTime() : null
+                    const diffMin   = lastMs ? (now - lastMs) / 60_000 : null
+                    const status    = diffMin === null ? 'offline' : diffMin < 5 ? 'online' : diffMin < 30 ? 'idle' : 'offline'
+                    const lastLabel = lastMs
+                      ? diffMin! < 1   ? 'Just now'
+                      : diffMin! < 60  ? `${Math.round(diffMin!)}m ago`
+                      : diffMin! < 1440 ? `${Math.round(diffMin! / 60)}h ago`
+                      : new Date(lastMs).toLocaleDateString()
+                      : 'Never'
+                    const page = u.current_page ?? '—'
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-full bg-novax-light flex items-center justify-center shrink-0">
+                              <span className="text-[11px] font-bold text-novax">{(u.name || u.email)[0]?.toUpperCase()}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-slate-900 truncate">{u.name || u.email}</p>
+                              <p className="text-[10px] text-slate-400 truncate capitalize">{u.role.replace(/_/g, ' ')}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                            status === 'online'  && 'bg-emerald-50 text-emerald-700',
+                            status === 'idle'    && 'bg-amber-50 text-amber-700',
+                            status === 'offline' && 'bg-slate-100 text-slate-500',
+                          )}>
+                            <span className={cn(
+                              'w-1.5 h-1.5 rounded-full',
+                              status === 'online'  && 'bg-emerald-500',
+                              status === 'idle'    && 'bg-amber-400',
+                              status === 'offline' && 'bg-slate-400',
+                            )}/>
+                            {status === 'online' ? 'Online' : status === 'idle' ? 'Idle' : 'Offline'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 hidden sm:table-cell">
+                          <span className="text-xs text-slate-500 font-mono truncate max-w-[180px] block">{page}</span>
+                        </td>
+                        <td className="px-4 py-3 hidden md:table-cell">
+                          <span className="text-xs text-slate-500">{lastLabel}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={cn(
+                            'text-xs font-semibold',
+                            u.api_calls_this_month > 0 ? 'text-novax-muted' : 'text-slate-400',
+                          )}>
+                            {u.api_calls_this_month}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {activityUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
+                        No user data yet — run `031_user_activity.sql` migration in Supabase.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center gap-1.5 text-[11px] text-slate-400">
+                <MonitorDot className="w-3 h-3"/>
+                Auto-refreshes every 30 seconds · Online = active in last 5 min · Idle = last 30 min · AI calls counted from the start of this calendar month
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -14,6 +14,8 @@ import { StudioLoading } from '@/components/studio/studio-loading'
 import { StudioDocument } from '@/components/studio/studio-document'
 import { StudioChatbot } from '@/components/studio/studio-chatbot'
 import { StudioSaveActions } from '@/components/studio/studio-save-actions'
+import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
+import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
 import type {
   CampaignDocument,
   BossBrief,
@@ -336,6 +338,20 @@ export default function CampaignIgniterPage() {
       {/* ── BRIEF state ── */}
       {pageState === 'brief' && (
         <div className="space-y-5">
+          <StudioGuidancePanel
+            title="How Campaign Igniter works"
+            description="Campaign Igniter starts from cultural tensions — real frictions in your audience's world — then inverts constraints and borrows structures from unrelated domains to produce 5 execution-ready campaign briefs that feel unexpected rather than templated."
+            items={[
+              { term: 'Cultural Tension', definition: 'A contradiction or pressure point your audience lives with — e.g. "wants to look effortless but knows real effort goes in." The best campaigns are built on these, not product features.' },
+              { term: 'Constraint Inversion', definition: 'Taking a limitation (budget, format, audience size) and flipping it into the campaign\'s premise — e.g. "only 3 posts" becomes "the limited-run series."' },
+              { term: 'Cross-Domain Thinking', definition: 'Borrowing the structure of something unrelated — a sports comeback, a court trial, a recipe — and applying it to content to create novelty.' },
+              { term: 'Execution Brief', definition: 'Each output is a complete brief: big idea, content format, 3 platform-specific executions, and a hook angle. Ready to hand to a copywriter immediately.' },
+            ]}
+            tips={[
+              { label: 'Best brief', tip: 'Describe the audience friction first, then the product. The tension is the campaign seed.' },
+              { label: 'Ramadan / Q4', tip: 'Mention the cultural moment explicitly in your brief for season-aware ideation.' },
+            ]}
+          />
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
             {/* Client */}
             <div>
@@ -441,7 +457,13 @@ export default function CampaignIgniterPage() {
 
             {/* Brief */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">What is this campaign about?</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">What is this campaign about?</label>
+                <LumaraPrefillButton
+                  onPrefill={(id, b) => { setClientId(id); setBrief(b) }}
+                  brief={LUMARA_BRIEFS.campaign}
+                />
+              </div>
               <textarea
                 value={brief}
                 onChange={e => setBrief(e.target.value)}

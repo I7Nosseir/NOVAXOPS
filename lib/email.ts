@@ -179,16 +179,43 @@ export async function sendApprovalRequest(params: ApprovalRequestParams): Promis
 // sendApprovalDecision
 // ---------------------------------------------------------------------------
 
+export interface PostDecisionResult {
+  caption: string
+  status: 'approved' | 'changes_requested' | 'pending'
+  note?: string
+}
+
 export interface ApprovalDecisionParams {
   teamEmail: string
   clientName: string
   requestTitle: string
   decisionSummary: string
+  postResults?: PostDecisionResult[]
 }
 
 export async function sendApprovalDecision(params: ApprovalDecisionParams): Promise<SendResult> {
-  const { teamEmail, clientName, requestTitle, decisionSummary } = params
+  const { teamEmail, clientName, requestTitle, decisionSummary, postResults } = params
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+
+  const slbl = (s: string) => s === 'approved' ? 'Approved' : s === 'changes_requested' ? 'Changes Requested' : 'Pending'
+  const sclr = (s: string) => s === 'approved' ? '#15803D' : s === 'changes_requested' ? '#DC2626' : '#D97706'
+  const sbg  = (s: string) => s === 'approved' ? '#F0FDF4' : s === 'changes_requested' ? '#FEF2F2' : '#FFFBEB'
+
+  const postsSection = postResults && postResults.length > 0
+    ? `<div style="margin:20px 0;">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Post-by-Post Review</div>
+        ${postResults.map((item, i) => `<div style="border:1px solid #E2E8F0;border-radius:6px;overflow:hidden;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#F8FAFC;border-bottom:1px solid #F1F5F9;">
+            <span style="font-size:11px;color:#64748b;font-weight:600;">Post ${i + 1}</span>
+            <span style="display:inline-block;background:${sbg(item.status)};color:${sclr(item.status)};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;">${slbl(item.status)}</span>
+          </div>
+          <div style="padding:10px 12px;">
+            <p style="margin:0;font-size:13px;color:#475569;line-height:1.5;">${(item.caption ?? '').slice(0, 150)}${(item.caption ?? '').length > 150 ? '…' : ''}</p>
+            ${item.note ? `<p style="margin:8px 0 0;font-size:12px;color:#92400E;background:#FFFBEB;padding:6px 8px;border-radius:4px;border-left:2px solid #FDBA74;">${item.note}</p>` : ''}
+          </div>
+        </div>`).join('')}
+      </div>`
+    : ''
 
   const html = htmlWrapper(`
     ${h2('Client Approval Decision Received')}
@@ -197,6 +224,7 @@ export async function sendApprovalDecision(params: ApprovalDecisionParams): Prom
       ['Request', requestTitle],
       ['Decision', decisionSummary],
     ])}
+    ${postsSection}
     ${ctaButton('View in NOVAX Ops', `${appUrl}/approval`)}
   `)
 
@@ -387,6 +415,8 @@ export interface DailyDigestStats {
   pendingModeration: number
   clientsInCrisis: string[]
   topAssignees: { name: string; tasks: number }[]
+  monthlyRequirements?: { name: string; target: number; actual: number }[]
+  apiCostThisMonth?: number
 }
 
 export interface DailyDigestParams {
@@ -469,6 +499,39 @@ export async function sendDailyDigest(params: DailyDigestParams): Promise<SendRe
     <span style="color:#1D4ED8;font-weight:600;">${stats.postsScheduledToday}</span> post(s) scheduled
   </div>`
 
+  // Monthly content requirements section
+  const monthlyReqSection = stats.monthlyRequirements && stats.monthlyRequirements.length > 0
+    ? `<div style="margin:20px 0;">
+        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Monthly Content Requirements</div>
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;">
+          <tr style="background:#f8fafc;">
+            <th style="padding:7px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left;border-bottom:1px solid #e2e8f0;">Client</th>
+            <th style="padding:7px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:center;border-bottom:1px solid #e2e8f0;">Target</th>
+            <th style="padding:7px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:center;border-bottom:1px solid #e2e8f0;">Published</th>
+            <th style="padding:7px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:center;border-bottom:1px solid #e2e8f0;">Status</th>
+          </tr>
+          ${stats.monthlyRequirements.map((r, i) => {
+            const pct = r.target > 0 ? r.actual / r.target : 1
+            const [statusLabel, statusColor, statusBg] =
+              pct >= 0.75 ? ['On track', '#15803D', '#F0FDF4'] :
+              pct >= 0.5  ? ['Behind',   '#92400E', '#FFFBEB'] :
+                            ['At risk',  '#DC2626', '#FEF2F2']
+            return `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+              <td style="padding:7px 12px;font-size:13px;color:#1e293b;font-weight:500;border-bottom:1px solid #f1f5f9;">${r.name}</td>
+              <td style="padding:7px 12px;font-size:13px;color:#64748b;text-align:center;border-bottom:1px solid #f1f5f9;">${r.target}</td>
+              <td style="padding:7px 12px;font-size:13px;font-weight:700;color:#1e293b;text-align:center;border-bottom:1px solid #f1f5f9;">${r.actual}</td>
+              <td style="padding:7px 12px;text-align:center;border-bottom:1px solid #f1f5f9;"><span style="display:inline-block;background:${statusBg};color:${statusColor};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;">${statusLabel}</span></td>
+            </tr>`
+          }).join('\n          ')}
+        </table>
+      </div>`
+    : ''
+
+  // API cost line
+  const apiCostLine = typeof stats.apiCostThisMonth === 'number'
+    ? `<div style="margin:10px 0;font-size:12px;color:#64748b;">AI API cost this month: <strong style="color:#1B3D38;">$${stats.apiCostThisMonth.toFixed(2)}</strong></div>`
+    : ''
+
   const html = htmlWrapper(`
     <p style="margin:0 0 4px;font-size:20px;font-weight:700;color:#1B3D38;">Good morning, ${ceoName}.</p>
     <p style="margin:0 0 20px;font-size:13px;color:#2A6B62;font-weight:500;">${stats.date}</p>
@@ -476,7 +539,9 @@ export async function sendDailyDigest(params: DailyDigestParams): Promise<SendRe
     ${activityLine}
     ${stageActive.length > 0 ? `<div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 4px;">Pipeline Snapshot</div>${pipelineTable}` : ''}
     ${flagsSection}
+    ${monthlyReqSection}
     ${contributorsSection}
+    ${apiCostLine}
     ${ctaButton('Open NOVAX Ops', appUrl)}
     <p style="margin:20px 0 0;font-size:11px;color:#94a3b8;">This digest is sent daily at 8:00 AM. Replies to this email are not monitored.</p>
   `)

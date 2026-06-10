@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
+import { aiGuard } from '@/lib/ai-guard'
 
 const MODEL_STANDARD = 'claude-sonnet-4-6'
 const MODEL_CEO      = 'claude-opus-4-7'
@@ -445,6 +446,9 @@ async function callGeminiFallback(system: string, messages: ChatMessage[]): Prom
 // ── POST handler ──────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard()
+  if (guard) return guard
+
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
   if (!checkRateLimit(ip)) {
     return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment.' }), { status: 429 })

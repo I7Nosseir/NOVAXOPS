@@ -166,6 +166,10 @@ const SECTION_KEY_MAP: Record<string, string> = {
   'paid advertising':                           'paid_ads',
   'paid advertising performance':               'paid_ads',
   'paid performance':                           'paid_ads',
+  'platform narratives':                        'platform_narratives',
+  'platform deep dive':                         'platform_narratives',
+  'per-platform analysis':                      'platform_narratives',
+  'platform by platform':                       'platform_narratives',
 }
 
 function parseSections(text: string): Record<string, string> {
@@ -264,7 +268,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { clientId, reportType = 'monthly', startDate, endDate, platforms, language, paidAdsData } = body as typeof body & { platforms?: string[]; language?: 'en' | 'ar'; paidAdsData?: import('@/lib/report-prompts').PaidAdsData | null }
+  const { clientId, reportType = 'monthly', startDate, endDate, platforms, language, adCampaigns, paidAdsData } = body as typeof body & { platforms?: string[]; language?: 'en' | 'ar'; adCampaigns?: import('@/lib/report-prompts').PaidAdsData[] | null; paidAdsData?: import('@/lib/report-prompts').PaidAdsData | null }
+  // Support legacy single paidAdsData field for saved reports
+  const campaignsForPrompt = adCampaigns ?? (paidAdsData ? [paidAdsData] : null)
 
   if (!clientId || !startDate || !endDate) {
     return NextResponse.json(
@@ -320,15 +326,41 @@ export async function POST(req: NextRequest) {
         period,
         client.brand,
         language,
-        paidAdsData ?? null
+        campaignsForPrompt
       )
       const { text: raw, inputTokens, outputTokens } = await callGemini(prompt)
-      narrative = parseSections(raw)
+
+      // Validation second-pass: strip any recommendations that slipped through
+      const hasRecommendationLeak = /\b(you should|we recommend|consider |next steps|action plan|it would be|going forward|to improve|to increase|to boost|we suggest)\b/i.test(raw)
+      let finalText = raw
+      let vInput = 0
+      let vOutput = 0
+      if (hasRecommendationLeak) {
+        const validationPrompt = `You are a quality-control editor reviewing a social media performance report.
+
+The report must describe ONLY what happened. It must NEVER make recommendations, suggestions, or action items.
+
+Remove any sentences containing:
+- "you should", "we recommend", "consider", "next steps", "action plan", "it would be beneficial"
+- "going forward", "to improve", "to increase", "to boost", "in the future", "we suggest"
+- Any prescriptive or forward-looking language
+
+Keep the exact same ### section headers. Keep all data, numbers, and observations intact. Only remove or reword sentences that contain advice or recommendations.
+
+REPORT TO REVIEW:
+${raw}
+
+Return the corrected report in the same ### section format.`
+        const { text: validated, inputTokens: vi, outputTokens: vo } = await callGemini(validationPrompt)
+        if (validated) { finalText = validated; vInput = vi; vOutput = vo }
+      }
+
+      narrative = parseSections(finalText)
       aiCost = {
-        inputTokens,
-        outputTokens,
-        totalTokens: inputTokens + outputTokens,
-        estimatedUsd: (inputTokens / 1_000_000) * GEMINI_INPUT_COST_PER_M + (outputTokens / 1_000_000) * GEMINI_OUTPUT_COST_PER_M,
+        inputTokens:  inputTokens + vInput,
+        outputTokens: outputTokens + vOutput,
+        totalTokens:  inputTokens + vInput + outputTokens + vOutput,
+        estimatedUsd: ((inputTokens + vInput) / 1_000_000) * GEMINI_INPUT_COST_PER_M + ((outputTokens + vOutput) / 1_000_000) * GEMINI_OUTPUT_COST_PER_M,
         model: GEMINI_MODEL,
       }
     } catch (err) {

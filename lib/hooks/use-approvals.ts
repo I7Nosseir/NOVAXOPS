@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 
+export interface AdHocItem {
+  id: string
+  media_url?: string | null
+  caption: string
+  status?: 'pending' | 'approved' | 'changes_requested'
+}
+
 export interface ApprovalRequest {
   id: string
   client_id: string
@@ -14,6 +21,7 @@ export interface ApprovalRequest {
   expires_at: string
   post_statuses: Record<string, string>
   post_notes: Record<string, string>
+  items: AdHocItem[]
 }
 
 interface RawApprovalRow {
@@ -27,6 +35,7 @@ interface RawApprovalRow {
   created_by: string
   created_at: string
   expires_at: string
+  items?: AdHocItem[]
   approval_post_statuses: { post_id: string; status: string; note?: string }[]
 }
 
@@ -50,6 +59,7 @@ function mapRequest(row: RawApprovalRow): ApprovalRequest {
     expires_at: row.expires_at,
     post_statuses,
     post_notes,
+    items: row.items ?? [],
   }
 }
 
@@ -94,6 +104,7 @@ export function useCreateApproval() {
       expiry_days: number
       client_email?: string
       client_name?: string
+      ad_hoc_items?: { caption: string; media_url?: string }[]
     }): Promise<{ id: string; token: string }> => {
       const res = await fetch('/api/approval', {
         method: 'POST',

@@ -1,45 +1,32 @@
--- Migration 031: User Activity Tracking
--- Phase 11 — User Tracking / Security
--- Tracks page visits, button clicks, and API calls per user.
--- Safe to re-run (all idempotent)
+-- User Activity Tracking (Phase 11.1 / 11.2)
+-- Tracks last-seen time, current page, and session info per user.
+-- API call counts come from the existing api_usage table (no schema change needed).
 
-CREATE TABLE IF NOT EXISTS public.user_activity_log (
-  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     uuid        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  event_type  text        NOT NULL,    -- 'page_view' | 'button_click' | 'api_call'
-  page        text,
-  action      text,
-  metadata    jsonb       NOT NULL DEFAULT '{}',
-  created_at  timestamptz NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS user_activity (
+  user_id      uuid        PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  last_seen    timestamptz NOT NULL DEFAULT now(),
+  current_page text,
+  updated_at   timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_activity_user_id  ON public.user_activity_log(user_id);
-CREATE INDEX IF NOT EXISTS idx_activity_created  ON public.user_activity_log(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_type     ON public.user_activity_log(event_type);
+-- Index for fast recency sort
+CREATE INDEX IF NOT EXISTS user_activity_last_seen_idx ON user_activity (last_seen DESC);
 
--- Keep only 90 days of activity (run via cron cleanup)
--- CREATE INDEX IF NOT EXISTS idx_activity_cleanup ON public.user_activity_log(created_at)
---   WHERE created_at < now() - interval '90 days';
+-- RLS
+ALTER TABLE user_activity ENABLE ROW LEVEL SECURITY;
 
--- Add last_seen_at to users for live status
-ALTER TABLE public.users
-  ADD COLUMN IF NOT EXISTS last_seen_at   timestamptz,
-  ADD COLUMN IF NOT EXISTS current_page   text;
+-- Users can update their own activity
+DROP POLICY IF EXISTS "user_activity_self" ON user_activity;
+CREATE POLICY "user_activity_self" ON user_activity
+  FOR ALL USING (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
 
-ALTER TABLE public.user_activity_log ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "service_role_all_activity" ON public.user_activity_log
-  FOR ALL USING (auth.role() = 'service_role');
-
--- Admins and CEOs can read all activity
-CREATE POLICY "admin_read_activity" ON public.user_activity_log
+-- Admins + CEO can read all activity
+DROP POLICY IF EXISTS "user_activity_admin" ON user_activity;
+CREATE POLICY "user_activity_admin" ON user_activity
   FOR SELECT USING (
-    auth.role() = 'authenticated'
-    AND EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.uid()
-      AND u.role IN ('admin', 'ceo')
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE auth_id = auth.uid()
+        AND role IN ('admin', 'ceo')
     )
   );
-
-NOTIFY pgrst, 'reload schema';

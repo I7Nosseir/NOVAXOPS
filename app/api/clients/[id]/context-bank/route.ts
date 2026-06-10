@@ -81,7 +81,7 @@ export async function PATCH(
   const db = adminSupabase()
   if (!db) return NextResponse.json({ error: 'DB not configured' }, { status: 503 })
 
-  let body: { entry_id: string; is_active?: boolean; category?: string; summary?: string }
+  let body: { entry_id: string; is_active?: boolean; category?: string; summary?: string; full_text?: string }
   try {
     body = await req.json()
   } catch {

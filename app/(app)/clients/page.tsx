@@ -554,7 +554,7 @@ export default function ClientsPage() {
   const toggleCrisis = (id: string) => {
     const c = clients.find(cl => cl.id === id)
     if (!c) return
-    updateClient.mutate({ id, is_in_crisis: !(c.is_in_crisis ?? c.crisis_mode ?? false) } as Parameters<typeof updateClient.mutate>[0])
+    updateClient.mutate({ id, crisis_mode: !(c.crisis_mode ?? false) })
   }
 
   const filtered = clients.filter(c =>

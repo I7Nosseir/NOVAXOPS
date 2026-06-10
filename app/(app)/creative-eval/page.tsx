@@ -4,11 +4,23 @@ import { useState, useRef } from 'react'
 import {
   Upload, X, Loader2, TrendingUp, Eye, Zap, AlertTriangle, CheckCircle,
   Brain, Flame, Target, Share2, Monitor, Sparkles, FlaskConical, SplitSquareVertical,
+  FileText, ImageIcon, AlignLeft,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
+import * as XLSX from 'xlsx'
 
 type FileType = 'image' | 'video'
+type InputMode = 'media' | 'text'
+
+const PLATFORMS = [
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'tiktok',    label: 'TikTok' },
+  { id: 'youtube',   label: 'YouTube' },
+  { id: 'linkedin',  label: 'LinkedIn' },
+  { id: 'facebook',  label: 'Facebook' },
+  { id: 'twitter',   label: 'X (Twitter)' },
+]
 
 interface EvalResult {
   overall: number
@@ -39,41 +51,13 @@ const PREDICTION_CONFIG = {
 }
 
 const SCORE_DIMENSIONS = [
-  {
-    key: 'thumb_stop_rate' as const,
-    label: 'Thumb-Stop Rate',
-    description: 'Scroll-halt probability in 1.7s (Meta research)',
-  },
-  {
-    key: 'emotional_resonance' as const,
-    label: 'Emotional Resonance',
-    description: 'Arousal intensity — high arousal drives 2× sharing (Berger 2012)',
-  },
-  {
-    key: 'brand_coherence' as const,
-    label: 'Brand Coherence',
-    description: 'Visual + tonal alignment to brand identity',
-  },
-  {
-    key: 'message_clarity' as const,
-    label: 'Message Clarity',
-    description: '3-second message extraction test (Cognitive Load Theory)',
-  },
-  {
-    key: 'visual_quality' as const,
-    label: 'Visual Quality',
-    description: 'Technical & compositional excellence',
-  },
-  {
-    key: 'share_save_potential' as const,
-    label: 'Share & Save Potential',
-    description: 'STEPPS framework trigger density (Berger)',
-  },
-  {
-    key: 'platform_fit' as const,
-    label: 'Platform Fit',
-    description: 'Native optimisation — aspect ratio, text density, sound-off clarity',
-  },
+  { key: 'thumb_stop_rate'    as const, label: 'Thumb-Stop Rate',      description: 'Scroll-halt probability in 1.7s (Meta research)' },
+  { key: 'emotional_resonance'as const, label: 'Emotional Resonance',  description: 'Arousal intensity — high arousal drives 2× sharing (Berger 2012)' },
+  { key: 'brand_coherence'    as const, label: 'Brand Coherence',      description: 'Visual + tonal alignment to brand identity' },
+  { key: 'message_clarity'    as const, label: 'Message Clarity',      description: '3-second message extraction test (Cognitive Load Theory)' },
+  { key: 'visual_quality'     as const, label: 'Visual Quality',       description: 'Technical & compositional excellence' },
+  { key: 'share_save_potential'as const,label: 'Share & Save Potential',description: 'STEPPS framework trigger density (Berger)' },
+  { key: 'platform_fit'       as const, label: 'Platform Fit',         description: 'Native optimisation — aspect ratio, text density, sound-off clarity' },
 ]
 
 function scoreColor(score: number) {
@@ -93,10 +77,7 @@ function ScoreBar({ label, description, score }: { label: string; description: s
       </div>
       <p className="text-[10px] text-slate-400 mb-1.5">{description}</p>
       <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-        <div
-          className={cn('h-full rounded-full transition-all duration-700', scoreBg(score))}
-          style={{ width: `${score}%` }}
-        />
+        <div className={cn('h-full rounded-full transition-all duration-700', scoreBg(score))} style={{ width: `${score}%` }}/>
       </div>
     </div>
   )
@@ -113,14 +94,9 @@ function ViralityRing({ score }: { score: number }) {
       <div className="relative w-20 h-20">
         <svg className="w-20 h-20 -rotate-90" viewBox="0 0 64 64">
           <circle cx="32" cy="32" r={radius} fill="none" stroke="#f1f5f9" strokeWidth="5"/>
-          <circle
-            cx="32" cy="32" r={radius} fill="none"
-            stroke={color} strokeWidth="5"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 1s ease' }}
-          />
+          <circle cx="32" cy="32" r={radius} fill="none" stroke={color} strokeWidth="5"
+            strokeDasharray={circumference} strokeDashoffset={offset}
+            strokeLinecap="round" style={{ transition: 'stroke-dashoffset 1s ease' }}/>
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-lg font-black text-slate-900 leading-none">{score}</span>
@@ -132,16 +108,40 @@ function ViralityRing({ score }: { score: number }) {
   )
 }
 
+// Extract all text from an xlsx file
+async function extractXlsxText(file: File): Promise<string> {
+  const ab   = await file.arrayBuffer()
+  const wb   = XLSX.read(ab, { type: 'array' })
+  const lines: string[] = []
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name]
+    const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false })
+    if (csv.trim()) lines.push(`[Sheet: ${name}]\n${csv}`)
+  }
+  return lines.join('\n\n')
+}
+
 export default function CreativeEvalPage() {
   const { clients } = useClients()
-  const [client, setClient] = useState('')
-  const [file, setFile] = useState<{ name: string; url: string; type: FileType } | null>(null)
-  const [evaluating, setEvaluating] = useState(false)
-  const [result, setResult] = useState<EvalResult | null>(null)
-  const [evalError, setEvalError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [client, setClient]           = useState('')
+  const [inputMode, setInputMode]     = useState<InputMode>('media')
+  const [platforms, setPlatforms]     = useState<string[]>(['instagram', 'tiktok'])
+  const [file, setFile]               = useState<{ name: string; url: string; type: FileType } | null>(null)
+  const [textContent, setTextContent] = useState('')
+  const [docFileName, setDocFileName] = useState('')
+  const [evaluating, setEvaluating]   = useState(false)
+  const [result, setResult]           = useState<EvalResult | null>(null)
+  const [evalError, setEvalError]     = useState<string | null>(null)
+  const mediaInputRef = useRef<HTMLInputElement>(null)
+  const docInputRef   = useRef<HTMLInputElement>(null)
 
-  const handleFile = (f: File) => {
+  const togglePlatform = (id: string) => {
+    setPlatforms(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    )
+  }
+
+  const handleMediaFile = (f: File) => {
     setFile({ name: f.name, url: URL.createObjectURL(f), type: f.type.startsWith('video/') ? 'video' : 'image' })
     setResult(null)
     setEvalError(null)
@@ -150,7 +150,30 @@ export default function CreativeEvalPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const f = e.dataTransfer.files[0]
-    if (f) handleFile(f)
+    if (f) handleMediaFile(f)
+  }
+
+  const handleDocFile = async (f: File) => {
+    setDocFileName(f.name)
+    setResult(null)
+    setEvalError(null)
+    try {
+      if (f.name.endsWith('.xlsx') || f.name.endsWith('.xls') || f.name.endsWith('.csv')) {
+        const text = await extractXlsxText(f)
+        setTextContent(text)
+      } else if (f.name.endsWith('.txt')) {
+        const text = await f.text()
+        setTextContent(text)
+      } else {
+        // For .docx: read the raw text content (basic extraction)
+        const text = await f.text()
+        // Strip any XML/binary artifacts — keep readable lines
+        const cleaned = text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
+        setTextContent(cleaned || '(Document content could not be automatically extracted — please paste the text manually)')
+      }
+    } catch {
+      setTextContent('(Could not extract content from file — please paste the text manually)')
+    }
   }
 
   const toBase64 = async (url: string, type: FileType): Promise<{ base64: string; mimeType: string }> => {
@@ -194,29 +217,36 @@ export default function CreativeEvalPage() {
     })
   }
 
+  const canEvaluate = inputMode === 'media' ? !!file : textContent.trim().length > 20
+
   const evaluate = async () => {
-    if (!file) return
+    if (!canEvaluate) return
     setEvaluating(true)
     setResult(null)
     setEvalError(null)
     try {
-      const { base64, mimeType } = await toBase64(file.url, file.type)
       const selectedClient = clients.find(c => c.id === client)
-      const res = await fetch('/api/ai', {
-        method: 'POST',
+      let payload: Record<string, unknown> = {
+        agent:     'creative_eval',
+        client:    selectedClient ? { id: selectedClient.id, name: selectedClient.name, brand_identity: selectedClient.brand_identity } : undefined,
+        platforms: platforms.length > 0 ? platforms : undefined,
+      }
+
+      if (inputMode === 'media' && file) {
+        const { base64, mimeType } = await toBase64(file.url, file.type)
+        payload = { ...payload, imageBase64: base64, mimeType, fileType: file.type }
+      } else {
+        payload = { ...payload, textContent: textContent.trim(), fileType: 'text' }
+      }
+
+      const res  = await fetch('/api/ai', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent: 'creative_eval',
-          client: selectedClient ? { id: selectedClient.id, name: selectedClient.name, brand_identity: selectedClient.brand_identity } : undefined,
-          imageBase64: base64,
-          mimeType,
-          fileType: file.type,
-        }),
+        body:    JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok || data.error) { setEvalError(data.error ?? 'Evaluation failed.'); return }
 
-      // Strip any markdown fences the model might wrap around the JSON
       const raw = (data.text as string).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
       setResult(JSON.parse(raw))
     } catch (err) {
@@ -229,60 +259,134 @@ export default function CreativeEvalPage() {
   return (
     <div className="space-y-6 max-w-5xl">
       <p className="text-sm text-slate-500">
-        Upload an image or video. The AI applies 7 neuroscience-backed dimensions — scroll psychology, virality science, and platform algorithm research — to produce an actionable creative brief.
+        Upload a creative, paste a script, or import a document. The AI applies 7 neuroscience-backed dimensions — scroll psychology, virality science, and platform algorithm research — to produce an actionable creative brief.
       </p>
 
-      {/* ── Upload row ── */}
+      {/* ── Mode toggle ── */}
+      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        {([
+          { id: 'media', label: 'Media',       icon: ImageIcon },
+          { id: 'text',  label: 'Text / Script', icon: AlignLeft },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button key={id} onClick={() => { setInputMode(id); setResult(null); setEvalError(null) }}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+              inputMode === id ? 'bg-white text-novax shadow-sm' : 'text-slate-500 hover:text-slate-700',
+            )}>
+            <Icon className="w-3.5 h-3.5"/>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Upload / input row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="space-y-4">
+          {/* Client selector */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">Evaluate for Client</label>
             <select value={client} onChange={e => setClient(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white">
+              <option value="">No client (generic)</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
-          {!file ? (
-            <div onDrop={handleDrop} onDragOver={e => e.preventDefault()}
-              onClick={() => inputRef.current?.click()}
-              className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-novax-border-active hover:bg-slate-50 transition-colors cursor-pointer">
-              <Upload className="w-8 h-8 text-slate-300 mx-auto mb-3"/>
-              <p className="text-sm font-medium text-slate-700">Drop creative here or browse</p>
-              <p className="text-xs text-slate-400 mt-1">PNG, JPG, MP4, MOV · Max 50MB</p>
-              <input ref={inputRef} type="file" accept="image/*,video/*" className="hidden"
-                onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}/>
+          {/* Platform selection */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">Target Platforms</label>
+            <div className="flex flex-wrap gap-2">
+              {PLATFORMS.map(p => (
+                <button key={p.id} onClick={() => togglePlatform(p.id)}
+                  className={cn(
+                    'px-3 py-1 text-xs font-medium rounded-full border transition-colors',
+                    platforms.includes(p.id)
+                      ? 'bg-novax text-white border-novax'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border',
+                  )}>
+                  {p.label}
+                </button>
+              ))}
             </div>
-          ) : (
-            <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50">
-              {file.type === 'image'
-                ? <img src={file.url} alt="" className="w-full max-h-64 object-contain"/>
-                : <video src={file.url} controls className="w-full max-h-64"/>}
-              <button onClick={() => { setFile(null); setResult(null) }}
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors">
-                <X className="w-3.5 h-3.5"/>
-              </button>
-              <div className="px-3 py-2 bg-white border-t border-slate-100">
-                <p className="text-xs text-slate-600 font-medium truncate">{file.name}</p>
-                <p className="text-[10px] text-slate-400 capitalize">{file.type}</p>
+          </div>
+
+          {/* Media mode */}
+          {inputMode === 'media' && (
+            <>
+              {!file ? (
+                <div onDrop={handleDrop} onDragOver={e => e.preventDefault()}
+                  onClick={() => mediaInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-novax-border-active hover:bg-slate-50 transition-colors cursor-pointer">
+                  <Upload className="w-8 h-8 text-slate-300 mx-auto mb-3"/>
+                  <p className="text-sm font-medium text-slate-700">Drop creative here or browse</p>
+                  <p className="text-xs text-slate-400 mt-1">PNG, JPG, MP4, MOV · Max 50MB</p>
+                  <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden"
+                    onChange={e => e.target.files?.[0] && handleMediaFile(e.target.files[0])}/>
+                </div>
+              ) : (
+                <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50">
+                  {file.type === 'image'
+                    ? <img src={file.url} alt="" className="w-full max-h-64 object-contain"/>
+                    : <video src={file.url} controls className="w-full max-h-64"/>}
+                  <button onClick={() => { setFile(null); setResult(null) }}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors">
+                    <X className="w-3.5 h-3.5"/>
+                  </button>
+                  <div className="px-3 py-2 bg-white border-t border-slate-100">
+                    <p className="text-xs text-slate-600 font-medium truncate">{file.name}</p>
+                    <p className="text-[10px] text-slate-400 capitalize">{file.type}</p>
+                  </div>
+                </div>
+              )}
+
+              {!file && (
+                <button
+                  onClick={() => setFile({ name: 'sample-creative.jpg', url: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800', type: 'image' })}
+                  className="w-full py-2 text-xs text-novax-muted hover:text-novax font-medium transition-colors border border-dashed border-novax-border rounded-xl">
+                  Use sample image for demo
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Text / Script mode */}
+          {inputMode === 'text' && (
+            <div className="space-y-3">
+              {/* File import row */}
+              <div className="flex items-center gap-2">
+                <button onClick={() => docInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                  <FileText className="w-3.5 h-3.5"/>
+                  Import file
+                </button>
+                <span className="text-[10px] text-slate-400">.txt · .csv · .xlsx · .docx (partial)</span>
+                <input ref={docInputRef} type="file"
+                  accept=".txt,.csv,.xlsx,.xls,.docx"
+                  className="hidden"
+                  onChange={e => e.target.files?.[0] && void handleDocFile(e.target.files[0])}/>
+                {docFileName && (
+                  <span className="text-[10px] text-novax-muted font-medium truncate max-w-[120px]">{docFileName}</span>
+                )}
               </div>
+
+              <textarea
+                value={textContent}
+                onChange={e => setTextContent(e.target.value)}
+                rows={10}
+                placeholder="Paste your caption, reel script, carousel copy, ad text, or any content you want evaluated…"
+                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white resize-none"
+              />
+              <p className="text-[10px] text-slate-400">{textContent.length} characters</p>
             </div>
           )}
 
-          {file && (
-            <button onClick={evaluate} disabled={evaluating}
+          {/* Evaluate button */}
+          {canEvaluate && (
+            <button onClick={() => void evaluate()} disabled={evaluating}
               className="w-full flex items-center justify-center gap-2 py-2.5 bg-novax hover:bg-novax-hover disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
               {evaluating
                 ? <><Loader2 className="w-4 h-4 animate-spin"/>Analysing with 7 scientific dimensions…</>
                 : <><FlaskConical className="w-4 h-4"/>Run Scientific Evaluation</>}
-            </button>
-          )}
-
-          {!file && (
-            <button
-              onClick={() => setFile({ name: 'sample-creative.jpg', url: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800', type: 'image' })}
-              className="w-full py-2 text-xs text-novax-muted hover:text-novax font-medium transition-colors border border-dashed border-novax-border rounded-xl">
-              Use sample image for demo
             </button>
           )}
         </div>
@@ -293,7 +397,11 @@ export default function CreativeEvalPage() {
             <div className="h-full flex items-center justify-center p-8 text-center bg-slate-50 rounded-2xl border border-slate-200">
               <div>
                 <Eye className="w-8 h-8 text-slate-300 mx-auto mb-3"/>
-                <p className="text-sm text-slate-500">Upload a creative to run the scientific evaluation.</p>
+                <p className="text-sm text-slate-500">
+                  {inputMode === 'media'
+                    ? 'Upload a creative to run the scientific evaluation.'
+                    : 'Paste or import content to evaluate.'}
+                </p>
                 <p className="text-xs text-slate-400 mt-1">7 dimensions · virality scoring · A/B test recommendation</p>
               </div>
             </div>
@@ -320,7 +428,6 @@ export default function CreativeEvalPage() {
 
           {result && !evaluating && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
-              {/* Header row: overall + virality + prediction */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider mb-1">Overall Score</p>
@@ -339,7 +446,6 @@ export default function CreativeEvalPage() {
                 </div>
               </div>
 
-              {/* 7 score bars */}
               <div className="space-y-3">
                 {SCORE_DIMENSIONS.map(({ key, label, description }) => (
                   <ScoreBar key={key} label={label} description={description} score={result[key]}/>
@@ -353,7 +459,6 @@ export default function CreativeEvalPage() {
       {/* ── Full intelligence report ── */}
       {result && !evaluating && (
         <div className="space-y-4">
-          {/* Hook analysis — video only */}
           {result.hook_analysis && (
             <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
               <div className="flex items-center gap-2 mb-2">
@@ -364,7 +469,6 @@ export default function CreativeEvalPage() {
             </div>
           )}
 
-          {/* Row 1: Triggers + Viral elements + Missing elements */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -413,7 +517,6 @@ export default function CreativeEvalPage() {
             </div>
           </div>
 
-          {/* Row 2: Strengths + Improvements + Platform recs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -471,9 +574,8 @@ export default function CreativeEvalPage() {
             </div>
           </div>
 
-          {/* Science footnote */}
           <p className="text-[10px] text-slate-400 text-center">
-            Scored against: Berger & Milkman virality research · Meta 1.7s dwell study · STEPPS framework · Cognitive Load Theory · Itti-Koch visual saliency · Cialdini persuasion principles
+            Scored against: Berger &amp; Milkman virality research · Meta 1.7s dwell study · STEPPS framework · Cognitive Load Theory · Itti-Koch visual saliency · Cialdini persuasion principles
           </p>
         </div>
       )}

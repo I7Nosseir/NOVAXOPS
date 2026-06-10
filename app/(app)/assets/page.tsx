@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Download, Image as ImageIcon, Sparkles, CheckCircle, Filter, HardDrive, FolderOpen, File, Film, FileText, RefreshCw, LogIn, LogOut, ChevronRight, Wand2, ExternalLink } from 'lucide-react'
+import { Search, Download, Image as ImageIcon, Sparkles, CheckCircle, Filter, HardDrive, FolderOpen, File, Film, FileText, RefreshCw, LogIn, LogOut, ChevronRight, Wand2, ExternalLink, Mail } from 'lucide-react'
 import { useAssets, useAIGenerations } from '@/lib/hooks/use-assets'
 import { cn } from '@/lib/utils'
 import { useSearchParams } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
 
 interface DriveFile {
   id: string
@@ -34,7 +35,11 @@ function driveFileType(mimeType: string): string {
 }
 
 function GDriveBrowser() {
+  const { user } = useAuth()
+  const isAdminOrCeo = user?.role === 'admin' || user?.role === 'ceo'
+
   const [connected, setConnected] = useState<boolean | null>(null)
+  const [connectedEmail, setConnectedEmail] = useState<string | null>(null)
   const [files, setFiles] = useState<DriveFile[]>([])
   const [loading, setLoading] = useState(false)
   const [folderStack, setFolderStack] = useState<{ id: string; name: string }[]>([{ id: 'root', name: 'My Drive' }])
@@ -42,6 +47,7 @@ function GDriveBrowser() {
   const [searchInput, setSearchInput] = useState('')
   const [importing, setImporting] = useState<string | null>(null)
   const [imported, setImported] = useState<string[]>([])
+  const [disconnecting, setDisconnecting] = useState(false)
 
   const currentFolder = folderStack[folderStack.length - 1]
 
@@ -52,10 +58,11 @@ function GDriveBrowser() {
       if (q) params.set('q', q)
       const res = await fetch(`/api/drive/files?${params}`)
       if (res.status === 401) { setConnected(false); return }
-      const data = await res.json() as { files?: DriveFile[]; error?: string }
+      const data = await res.json() as { files?: DriveFile[]; error?: string; email?: string | null }
       if (data.error === 'not_connected') { setConnected(false); return }
       setConnected(true)
       setFiles(data.files ?? [])
+      if (data.email) setConnectedEmail(data.email)
     } catch {
       setConnected(false)
     } finally {
@@ -64,7 +71,7 @@ function GDriveBrowser() {
   }, [])
 
   useEffect(() => {
-    fetchFiles(currentFolder.id, search || undefined)
+    void fetchFiles(currentFolder.id, search || undefined)
   }, [currentFolder.id, search, fetchFiles])
 
   const handleSearch = (e: React.FormEvent) => {
@@ -100,12 +107,37 @@ function GDriveBrowser() {
     }
   }
 
+  const handleDisconnect = async () => {
+    if (!isAdminOrCeo) return
+    setDisconnecting(true)
+    try {
+      await fetch('/api/drive/disconnect', { method: 'POST' })
+      setConnected(false)
+      setConnectedEmail(null)
+      setFiles([])
+    } catch { /* ignore */ } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  // Not-connected state
   if (connected === false) {
+    if (!isAdminOrCeo) {
+      return (
+        <div className="flex flex-col items-center justify-center py-24 text-slate-400">
+          <HardDrive className="w-12 h-12 mb-4 text-slate-300"/>
+          <p className="text-base font-semibold text-slate-700 mb-1">Google Drive Not Connected</p>
+          <p className="text-sm text-center max-w-xs text-slate-500">
+            Ask your admin to connect Google Drive in Settings to enable file browsing for the team.
+          </p>
+        </div>
+      )
+    }
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-400">
         <HardDrive className="w-12 h-12 mb-4 text-slate-300"/>
         <p className="text-base font-semibold text-slate-700 mb-1">Connect Google Drive</p>
-        <p className="text-sm text-center max-w-xs mb-6">Browse and import your agency files directly from Google Drive.</p>
+        <p className="text-sm text-center max-w-xs mb-6">Connect once and the whole team gets access to browse and import agency files.</p>
         <a
           href="/api/drive/auth"
           className="flex items-center gap-2 px-5 py-2.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-xl transition-colors"
@@ -143,13 +175,24 @@ function GDriveBrowser() {
             Search
           </button>
         </form>
-        <a
-          href="/api/drive/disconnect"
-          className="flex items-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50 transition-colors"
-          title="Disconnect Google Drive"
-        >
-          <LogOut className="w-3.5 h-3.5"/>
-        </a>
+        {/* Connected email indicator */}
+        {connectedEmail && (
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-700 font-medium shrink-0">
+            <Mail className="w-3 h-3"/>
+            {connectedEmail}
+          </div>
+        )}
+        {/* Disconnect — admin/CEO only */}
+        {isAdminOrCeo && (
+          <button
+            onClick={() => void handleDisconnect()}
+            disabled={disconnecting}
+            className="flex items-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50 hover:text-red-500 hover:border-red-200 transition-colors"
+            title="Disconnect Google Drive"
+          >
+            {disconnecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <LogOut className="w-3.5 h-3.5"/>}
+          </button>
+        )}
       </div>
 
       {/* Breadcrumb */}
@@ -214,7 +257,7 @@ function GDriveBrowser() {
                   <p className="text-xs font-medium text-slate-800 truncate mb-1.5">{file.name}</p>
                   {!isFolder && (
                     <button
-                      onClick={e => { e.stopPropagation(); handleImport(file) }}
+                      onClick={e => { e.stopPropagation(); void handleImport(file) }}
                       disabled={isDone || !!isImporting}
                       className={cn(
                         'w-full flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all',

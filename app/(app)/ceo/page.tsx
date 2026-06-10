@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, Copy, Check, Loader2, TrendingUp,
   TrendingDown, Minus, Users, BarChart2, Zap, Scale,
   CheckCircle2, Target, Lightbulb, GitBranch, ShieldAlert,
-  Calendar, FileText, AlertCircle, ChevronRight,
+  Calendar, FileText, AlertCircle, ChevronRight, Wand2,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -210,12 +210,14 @@ interface ClientContextCardProps {
   onMonthlyChange: (f: MonthlyUpdate) => void
   onSaveStrategy: () => void
   onSaveMonthly: () => void
+  onPrefillStrategy?: () => void
 }
 
 function ClientContextCard({
   strategyForm, monthlyForm, hasStrategy, hasMonthly,
   saving, savingMonthly, loading, quarterLabel, monthLabel,
   onStrategyChange, onMonthlyChange, onSaveStrategy, onSaveMonthly,
+  onPrefillStrategy,
 }: ClientContextCardProps) {
   const [strategyOpen, setStrategyOpen] = useState(!hasStrategy)
   const [monthlyOpen, setMonthlyOpen] = useState(!hasMonthly)
@@ -247,19 +249,31 @@ function ClientContextCard({
 
       {/* Quarterly Strategy */}
       <div className="border-b border-slate-100">
-        <button
-          onClick={() => setStrategyOpen(v => !v)}
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-sm font-medium text-slate-800">{quarterLabel} Strategy</span>
-            <ContextStatusBadge ok={hasStrategy} />
-          </div>
-          {strategyOpen
-            ? <ChevronUp className="w-4 h-4 text-slate-400" />
-            : <ChevronRight className="w-4 h-4 text-slate-400" />}
-        </button>
+        <div className="flex items-center">
+          <button
+            onClick={() => setStrategyOpen(v => !v)}
+            className="flex-1 flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-sm font-medium text-slate-800">{quarterLabel} Strategy</span>
+              <ContextStatusBadge ok={hasStrategy} />
+            </div>
+            {strategyOpen
+              ? <ChevronUp className="w-4 h-4 text-slate-400" />
+              : <ChevronRight className="w-4 h-4 text-slate-400" />}
+          </button>
+          {onPrefillStrategy && (
+            <button
+              onClick={e => { e.stopPropagation(); onPrefillStrategy() }}
+              title="Pre-fill from brand profile"
+              className="flex items-center gap-1.5 mr-3 px-2.5 py-1.5 text-[11px] font-medium text-novax-muted hover:text-novax hover:bg-novax-light rounded-lg transition-colors shrink-0"
+            >
+              <Wand2 className="w-3 h-3" />
+              Pre-fill
+            </button>
+          )}
+        </div>
 
         {strategyOpen && (
           <div className="px-5 pb-5 space-y-3">
@@ -443,6 +457,8 @@ function AgencyHealthTab({ clients, tasks, posts }: {
   const now = new Date()
   const weekStart = new Date(now)
   weekStart.setDate(now.getDate() - now.getDay())
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`
 
   const activeTasks = tasks.filter(t => t.status === 'active')
   const overdueTasks = tasks.filter(t => t.status === 'active' && t.due_date && new Date(t.due_date) < now)
@@ -536,6 +552,53 @@ function AgencyHealthTab({ clients, tasks, posts }: {
           )}
         </div>
       </div>
+
+      {/* Monthly Content Requirements */}
+      {clients.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">{currentMonthLabel} — Content Requirements</h3>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 px-4 py-2.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <span>Client</span>
+              <span className="text-right">Target</span>
+              <span className="text-right">Published</span>
+              <span className="text-right w-16">Status</span>
+            </div>
+            {clients.map(client => {
+              const postsPerWeek = client.normalized_profile?.posts_per_week ?? 4
+              const target = postsPerWeek * 4
+              const actual = posts.filter(p =>
+                p.client_id === client.id &&
+                (p.status === 'published' || p.status === 'scheduled') &&
+                new Date(p.scheduled_at) >= monthStart &&
+                new Date(p.scheduled_at) <= now
+              ).length
+              const pct = target > 0 ? actual / target : 1
+              const trafficLight =
+                pct >= 0.75 ? { label: 'On track', color: 'text-emerald-700', bg: 'bg-emerald-50' } :
+                pct >= 0.5  ? { label: 'Behind',   color: 'text-amber-700',   bg: 'bg-amber-50'   } :
+                              { label: 'At risk',  color: 'text-red-700',     bg: 'bg-red-50'     }
+
+              return (
+                <div key={client.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 items-center px-4 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: client.color }}>
+                      {client.initials}
+                    </div>
+                    <span className="text-sm font-medium text-slate-800 truncate">{client.name}</span>
+                  </div>
+                  <span className="text-sm text-slate-500 text-right">{target}</span>
+                  <span className="text-sm font-semibold text-slate-900 text-right">{actual}</span>
+                  <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full text-right w-16 text-center', trafficLight.color, trafficLight.bg)}>
+                    {trafficLight.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1.5">Target = posts per week × 4. Published or scheduled posts counted for this month so far.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -724,6 +787,22 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
           onMonthlyChange={setMonthlyForm}
           onSaveStrategy={saveStrategy}
           onSaveMonthly={saveMonthly}
+          onPrefillStrategy={client ? () => {
+            const bi = client.brand_identity
+            const goals = bi?.key_messages?.length
+              ? bi.key_messages.map((m, i) => `${i + 1}. ${m}`).join('\n')
+              : ''
+            const themes = [
+              bi?.tone_of_voice ? `Tone: ${bi.tone_of_voice}` : '',
+              bi?.industry ? `Industry: ${bi.industry}` : '',
+              bi?.target_audience ? `Audience: ${bi.target_audience}` : '',
+            ].filter(Boolean).join('\n')
+            setStrategyForm(prev => ({
+              ...prev,
+              goals: goals || prev.goals,
+              themes: themes || prev.themes,
+            }))
+          } : undefined}
         />
       )}
 

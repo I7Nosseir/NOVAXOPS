@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NOVAX Ops — Orientation Brief</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Arial', 'Helvetica Neue', sans-serif;
+    font-size: 10pt;
+    color: #111;
+    background: #fff;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 0;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  @media print {
+    .page { page-break-after: always; margin: 0; }
+    @page { size: A4 portrait; margin: 0; }
+  }
+  @media screen {
+    body { background: #ddd; }
+    .page { margin: 20px auto; box-shadow: 0 4px 24px rgba(0,0,0,0.18); }
+  }
+
+  :root {
+    --teal:      #1B3D38;
+    --teal-mid:  #2A6B62;
+    --teal-acc:  #5BB4AE;
+    --teal-lt:   #EBF4F3;
+    --red:       #C0392B;
+    --green:     #1D6A3A;
+    --green-bg:  #E8F5EE;
+    --amber:     #92400E;
+    --amber-bg:  #FEF3C7;
+    --grey:      #F3F4F6;
+    --border:    #D1D5DB;
+    --soft:      #6B7280;
+  }
+
+  .inner { padding: 1.4cm 1.9cm; }
+
+  .page-title-bar {
+    background: var(--teal);
+    color: #fff;
+    padding: 12px 1.9cm;
+  }
+  .page-title-bar h2 { font-size: 12pt; font-weight: 800; color: #fff; }
+  .page-title-bar .sub { font-size: 8pt; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+  p { line-height: 1.55; }
+  h3 { font-size: 10.5pt; font-weight: 700; }
+
+  /* ══════════════ COVER ══════════════ */
+  .cover {
+    background: var(--teal);
+    min-height: 297mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2.2cm 2.0cm 1.6cm;
+  }
+  .cover-logo { font-size: 10pt; font-weight: 900; letter-spacing: 3px; color: rgba(255,255,255,0.4); }
+  .cover-main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .cover-eye { font-size: 8pt; letter-spacing: 2.5px; text-transform: uppercase; color: var(--teal-acc); margin-bottom: 12px; font-weight: 700; }
+  .cover h1 { font-size: 30pt; font-weight: 900; color: #fff; line-height: 1.1; }
+  .cover h1 span { color: var(--teal-acc); }
+  .cover-div { width: 44px; height: 3px; background: var(--teal-acc); margin: 18px 0; }
+  .cover-tag { font-size: 10.5pt; font-weight: 300; color: rgba(255,255,255,0.65); line-height: 1.6; max-width: 370px; }
+
+  .cover-scope {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .scope-box {
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 9pt;
+    line-height: 1.55;
+  }
+  .scope-box.show { background: rgba(91,180,174,0.12); border: 1px solid rgba(91,180,174,0.3); color: rgba(255,255,255,0.8); }
+  .scope-box.hide { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
+  .scope-box .slbl { font-size: 7.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .scope-box.show .slbl { color: var(--teal-acc); }
+  .scope-box.hide .slbl { color: rgba(255,255,255,0.3); }
+  .scope-box li { margin-left: 12px; margin-bottom: 2px; }
+
+  .cover-footer { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; }
+  .cover-footer-l { font-size: 8pt; color: rgba(255,255,255,0.3); }
+  .cover-footer-r { font-size: 8pt; font-weight: 700; color: rgba(255,255,255,0.45); }
+
+  /* ══════════════ WALKTHROUGH PAGE ══════════════ */
+  .wt-intro {
+    font-size: 9.5pt; color: #444; line-height: 1.65; margin-top: 12px; margin-bottom: 14px;
+  }
+
+  .wt-grid { display: flex; flex-direction: column; gap: 9px; }
+
+  .wt-row {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .wt-num {
+    background: var(--teal);
+    color: var(--teal-acc);
+    font-size: 14pt;
+    font-weight: 900;
+    min-width: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .wt-meta {
+    background: var(--grey);
+    padding: 9px 12px;
+    min-width: 115px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .wt-page { font-size: 9.5pt; font-weight: 700; color: var(--teal); }
+  .wt-time { font-size: 7.5pt; color: var(--soft); margin-top: 2px; }
+
+  .wt-body { padding: 9px 13px; flex: 1; }
+  .wt-say { font-size: 9pt; color: #333; line-height: 1.5; margin-bottom: 5px; }
+  .wt-say em { font-style: italic; color: var(--teal-mid); }
+  .wt-wow { font-size: 8.5pt; font-weight: 700; color: var(--green); background: var(--green-bg); display: inline-block; padding: 2px 8px; border-radius: 3px; }
+
+  .wt-footer-note {
+    margin-top: 12px;
+    background: var(--amber-bg);
+    border-left: 3px solid #D97706;
+    padding: 9px 13px;
+    font-size: 9pt;
+    color: var(--amber);
+    border-radius: 0 5px 5px 0;
+    line-height: 1.6;
+  }
+  .wt-footer-note strong { color: #78350F; }
+
+  /* ══════════════ NUMBERS PAGE ══════════════ */
+  .num-section { margin-bottom: 16px; }
+  .num-section-title {
+    font-size: 8.5pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--teal);
+    border-bottom: 1.5px solid var(--teal);
+    padding-bottom: 5px;
+    margin-bottom: 9px;
+  }
+
+  .num-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  .num-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  .num-table tr:last-child td { border-bottom: none; }
+  .num-table .label { color: #333; width: 52%; }
+  .num-table .val-red   { color: var(--red); font-weight: 700; text-align: right; }
+  .num-table .val-green { color: var(--green); font-weight: 700; text-align: right; }
+  .num-table .val-teal  { color: var(--teal); font-weight: 700; text-align: right; }
+  .num-table .val-soft  { color: var(--soft); text-align: right; }
+  .num-table .total-row td { background: var(--teal); color: #fff; font-weight: 800; font-size: 10pt; }
+  .num-table .total-row td.right { text-align: right; }
+  .num-table .note-row td { background: var(--grey); color: var(--soft); font-size: 8.5pt; font-style: italic; }
+
+  .ask-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .ask-box { border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+  .ask-box-head { padding: 7px 12px; font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ask-box-head.anchor { background: var(--teal); color: #fff; }
+  .ask-box-head.real   { background: var(--teal-lt); color: var(--teal); }
+  .ask-box-head.floor  { background: var(--grey); color: var(--soft); }
+  .ask-box-body { padding: 10px 12px; }
+  .ask-fee { font-size: 14pt; font-weight: 900; line-height: 1; margin-bottom: 2px; }
+  .ask-box.anchor .ask-fee { color: var(--teal); }
+  .ask-box.real   .ask-fee { color: var(--teal-mid); }
+  .ask-box.floor  .ask-fee { color: var(--soft); }
+  .ask-sub { font-size: 8pt; color: var(--soft); }
+  .ask-ret { font-size: 9.5pt; font-weight: 700; color: #333; margin-top: 6px; }
+
+  .year1-box {
+    background: var(--teal);
+    color: #fff;
+    border-radius: 6px;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .y1-label { font-size: 9pt; color: rgba(255,255,255,0.6); }
+  .y1-num { font-size: 22pt; font-weight: 900; color: var(--teal-acc); }
+  .y1-sub { font-size: 8pt; color: rgba(255,255,255,0.5); margin-top: 2px; }
+
+  .deal-rules {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+  .rule-item {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 9pt;
+    color: #333;
+    line-height: 1.5;
+  }
+  .rule-item strong { display: block; color: var(--teal); font-size: 9.5pt; margin-bottom: 2px; }
+  .rule-item.red-rule { border-color: #FECACA; background: #FFF5F5; }
+  .rule-item.red-rule strong { color: var(--red); }
+
+  .bottom-note {
+    margin-top: 14px;
+    background: var(--teal-lt);
+    border-left: 3px solid var(--teal-acc);
+    padding: 10px 14px;
+    border-radius: 0 5px 5px 0;
+    font-size: 9pt;
+    color: var(--teal);
+    line-height: 1.65;
+  }
+  .bottom-note strong { color: var(--teal); }
+</style>
+</head>
+<body>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 1 — COVER
+══════════════════════════════════════ -->
+<div class="page">
+<div class="cover">
+
+  <div class="cover-logo">NOVAX</div>
+
+  <div class="cover-main">
+    <p class="cover-eye">Meeting Prep — Confidential</p>
+    <h1>Orientation<br><span>Walkthrough</span><br>+ Final Numbers</h1>
+    <div class="cover-div"></div>
+    <p class="cover-tag">What to show, what to say, what to ask for — in one place.</p>
+
+    <div class="cover-scope">
+      <div class="scope-box show">
+        <div class="slbl">Show in this meeting</div>
+        <ul>
+          <li>Dashboard</li>
+          <li>Pipeline (task management)</li>
+          <li>Publishing &amp; scheduling</li>
+          <li>Client approval portal</li>
+          <li>Reports (one-click demo)</li>
+          <li>Performance analytics</li>
+          <li>Client profiles</li>
+          <li>Team &amp; settings</li>
+        </ul>
+      </div>
+      <div class="scope-box hide">
+        <div class="slbl">Do NOT show yet</div>
+        <ul>
+          <li>AI Content Studio</li>
+          <li>Hook Lab</li>
+          <li>Strategy Command Center</li>
+          <li>Campaign Igniter</li>
+          <li>AI Assistant</li>
+          <li>Post-Mortem Tool</li>
+          <li>Visual Content Engine</li>
+          <li>CEO Hub (AI)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div class="cover-footer-l">Private — Do not circulate</div>
+    <div class="cover-footer-r">NOVAX Ops &nbsp;·&nbsp; 2026</div>
+  </div>
+
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 2 — WALKTHROUGH ORDER
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>The walkthrough — what to show and what to say</h2>
+  <p class="sub">Total time: 35–45 minutes. One screen. No slides needed — the app is the presentation.</p>
+</div>
+<div class="inner">
+
+  <p class="wt-intro">
+    Open the app before the meeting. Log in as admin. Have a real client open (not Lumara — use an actual client the CEO knows). The goal is to show that this is live, real, and already working — not a prototype.
+  </p>
+
+  <div class="wt-grid">
+
+    <div class="wt-row">
+      <div class="wt-num">1</div>
+      <div class="wt-meta">
+        <div class="wt-page">Dashboard</div>
+        <div class="wt-time">4–5 minutes</div>
+      </div>
+      <div class="wt-body">
+        <p class="wt-say">Open the dashboard. Don't explain it. Let him look. Then say: <em>"This is every client, live. Reach, engagement, active tasks, posts scheduled — one screen."</em> Point to the weekly activity chart: <em>"This is real data from Metricool, updated every day."</em></p>
+        <span class="wt-wow">Wow moment: he sees all clients in one view for the first time</span>
+      </div>
+    </div>
+
+    <div class="wt-row">
+      <div class="wt-num">2</div>
+      <div class="wt-meta">
+        <div class="wt-page">Pipeline</div>
+        <div class="wt-time">5–6 minutes</div>
+      </div>
+      <div class="wt-body">
+        <p class="wt-say">Go to the pipeline. Drag a task from one stage to the next. Then say: <em>"Every piece of work the team touches lives here. Brief to published — 10 stages, drag and drop. No ClickUp. No WhatsApp threads. Every task has an owner, a deadline, a priority."</em> Filter by one client so he sees how it looks per client.</p>
+        <span class="wt-wow">Wow moment: "this is what ClickUp does — and it's already inside the app"</span>
+      </div>
+    </div>
+
+    <div class="wt-row">
+      <div class="wt-num">3</div>
+      <div class="wt-meta">
+        <div class="wt-page">Publishing</div>
+        <div class="wt-time">4–5 minutes</div>
+      </div>
+      <div class="wt-body">
+        <p class="wt-say">Switch to calendar view. Show a week of scheduled posts. Say: <em>"Everything scheduled for every client, every platform, in one calendar. The team writes the post here, picks the time, and it goes live automatically through Metricool. No copy-pasting. No switching tabs."</em></p>
+        <span class="wt-wow">Wow moment: the calendar view is immediately readable and clean</span>
+      </div>
+    </div>
+
+    <div class="wt-row">
+      <div class="wt-num">4</div>
+      <div class="wt-meta">
+        <div class="wt-page">Approvals</div>
+        <div class="wt-time">5 minutes</div>
+      </div>
+      <div class="wt-body">
+        <p class="wt-say">Open the approval page. Show him the shareable link. Open it in a new tab so he sees the client-facing view. Say: <em>"The client gets this link. They see each post with the image and caption. They approve or request changes per post. The team gets an email the second the client submits. No WhatsApp. No PDF. No back and forth."</em></p>
+        <span class="wt-wow">Wow moment: the client portal looks professional enough to send to a KSA client right now</span>
+      </div>
+    </div>
+
+    <div class="wt-row">
+      <div class="wt-num">5</div>
+      <div class="wt-meta">
+        <div class="wt-page">Reports</div>
+        <div class="wt-time">5–6 minutes</div>
+      </div>
+      <div class="wt-body">
+        <p class="wt-say">Go to Reports. Pick a real client. Say: <em>"Watch this."</em> Click generate. Let the loading run. When it finishes: <em>"That's a full client report — performance breakdown, narrative analysis, recommendations — exported as a branded PowerPoint or PDF in one click. What used to take 3–5 hours per client."</em></p>
+        <span class="wt-wow">Wow moment: the strongest demo in the meeting — nothing to explain, it speaks for itself</span>
+      </div>
+    </div>
+
+    <div class="wt-row">
+      <div class="wt-num">6</div>
+      <div class="wt-meta">
+        <div class="wt-page">Performance</div>
+        <div class="wt-time">3–4 minutes</div>
+      </div>
+      <div class="wt-body">
+        <p class="wt-say">Open Performance for one client. Show the post grid — each post with its engagement numbers. Say: <em>"Every post we've ever scheduled — reach, likes, engagement rate, all tracked automatically. We can also track competitor accounts and see exactly how they're growing."</em></p>
+        <span class="wt-wow">Wow moment: competitor tracking — most agencies don't have this at all</span>
+      </div>
+    </div>
+
+    <div class="wt-row">
+      <div class="wt-num">7</div>
+      <div class="wt-meta">
+        <div class="wt-page">Clients</div>
+        <div class="wt-time">3 minutes</div>
+      </div>
+      <div class="wt-body">
+        <p class="wt-say">Open one client profile. Show the brand identity, tone of voice, audience. Say: <em>"Every client has a full brief built into the system. Anyone on the team who touches this client works from the same brief — not a Notion doc, not a PDF, not from memory."</em></p>
+        <span class="wt-wow">Wow moment: shows discipline and brand consistency across the team</span>
+      </div>
+    </div>
+
+    <div class="wt-row">
+      <div class="wt-num">8</div>
+      <div class="wt-meta">
+        <div class="wt-page">Close + tease</div>
+        <div class="wt-time">2–3 minutes</div>
+      </div>
+      <div class="wt-body">
+        <p class="wt-say">After showing everything, say: <em>"What I've shown you is the operational layer — task management, publishing, approvals, reports. There's a second layer I haven't shown yet. It handles content creation, strategy, and campaign planning — entirely through AI. I'll show you that separately once we've aligned on this part."</em></p>
+        <span class="wt-wow">This plants the seed. He will ask about it. That is when you control the next conversation.</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wt-footer-note">
+    <strong>If anyone asks "did you use AI to build this?"</strong> — Say yes, directly. <em>"The AI handled the repetitive parts — boilerplate code, structure. Every decision about what to build and how it works came from understanding how this agency operates."</em> Do not be defensive. Being direct here builds credibility.
+  </div>
+
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 3 — FINAL NUMBERS
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>Final numbers — everything in one place</h2>
+  <p class="sub">Valuation, commercial ask, running costs, and the deal rules.</p>
+</div>
+<div class="inner">
+
+  <!-- Valuation -->
+  <div class="num-section">
+    <div class="num-section-title">App Valuation — what it is worth</div>
+    <table class="num-table">
+      <tr>
+        <td class="label">Rebuild cost (Egyptian dev agency rates, 1,000+ hrs)</td>
+        <td class="val-teal">150,000–250,000 EGP</td>
+      </tr>
+      <tr>
+        <td class="label">Rebuild cost (international agency, $100–200/hr)</td>
+        <td class="val-teal">5M–10M EGP equivalent</td>
+      </tr>
+      <tr>
+        <td class="label">Market tools replaced (monthly, forever)</td>
+        <td class="val-teal">$837/month = 37,000 EGP/month</td>
+      </tr>
+      <tr>
+        <td class="label">Time to build</td>
+        <td class="val-teal">2 months — solo</td>
+      </tr>
+      <tr class="note-row">
+        <td colspan="2">Floor number to use in conversation: 150,000 EGP. This is the minimum a CEO can reasonably counter without looking uninformed.</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Commercial Ask -->
+  <div class="num-section">
+    <div class="num-section-title">The commercial ask — three scenarios</div>
+    <div class="ask-grid">
+      <div class="ask-box anchor">
+        <div class="ask-box-head anchor">Open with this</div>
+        <div class="ask-box-body">
+          <div class="ask-fee">100,000</div>
+          <div class="ask-sub">EGP build fee (one-time)</div>
+          <div class="ask-ret">+ 20,000 EGP / month retainer</div>
+        </div>
+      </div>
+      <div class="ask-box real">
+        <div class="ask-box-head real">Will likely land here</div>
+        <div class="ask-box-body">
+          <div class="ask-fee">55,000–70,000</div>
+          <div class="ask-sub">EGP build fee (one-time)</div>
+          <div class="ask-ret">+ 12,000–15,000 EGP / month</div>
+        </div>
+      </div>
+      <div class="ask-box floor">
+        <div class="ask-box-head floor">Absolute floor — walk away below this</div>
+        <div class="ask-box-body">
+          <div class="ask-fee">35,000</div>
+          <div class="ask-sub">EGP build fee minimum</div>
+          <div class="ask-ret">+ 10,000 EGP / month minimum</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Year 1 total -->
+  <div class="year1-box">
+    <div>
+      <div class="y1-label">Realistic year 1 total (salary + build fee + retainer)</div>
+      <div class="y1-sub">Based on landing at 65,000 EGP build fee + 13,000 EGP/month retainer + existing 10,000 EGP salary</div>
+    </div>
+    <div style="text-align:right;">
+      <div class="y1-num">391,000 EGP</div>
+      <div class="y1-sub">vs 120,000 EGP if nothing changes</div>
+    </div>
+  </div>
+
+  <!-- Running Costs -->
+  <div class="num-section">
+    <div class="num-section-title">Monthly running costs — what the platform actually costs to operate</div>
+    <table class="num-table">
+      <tr>
+        <td class="label">Vercel Pro (hosting, CDN, deployment)</td>
+        <td class="val-teal">$20 &nbsp;≈ 900 EGP</td>
+      </tr>
+      <tr>
+        <td class="label">Supabase Pro (database, storage, auth)</td>
+        <td class="val-teal">$25 &nbsp;≈ 1,125 EGP</td>
+      </tr>
+      <tr>
+        <td class="label">Claude AI API (per generation, estimated)</td>
+        <td class="val-teal">$20–50 &nbsp;≈ 900–2,250 EGP</td>
+      </tr>
+      <tr>
+        <td class="label">Apify (trend scraping — YouTube, TikTok, Reddit)</td>
+        <td class="val-teal">$10–30 &nbsp;≈ 450–1,350 EGP</td>
+      </tr>
+      <tr>
+        <td class="label">Resend (approval emails, team digests)</td>
+        <td class="val-green">Free tier — $0</td>
+      </tr>
+      <tr class="total-row">
+        <td>Total monthly infrastructure</td>
+        <td class="right">$75–125 &nbsp;≈ 3,400–5,600 EGP</td>
+      </tr>
+      <tr class="note-row">
+        <td colspan="2">No per-user fee. No per-client fee. Adding new clients costs nothing extra. All 15–17 clients run on the same fixed infrastructure.</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Deal rules -->
+  <div class="num-section">
+    <div class="num-section-title">Non-negotiable rules for the deal</div>
+    <div class="deal-rules">
+      <div class="rule-item">
+        <strong>IP never transfers</strong>
+        You own the code. Always. The agency gets a license to use it — not ownership. If he stops paying, the license ends. Source code never leaves your hands.
+      </div>
+      <div class="rule-item">
+        <strong>Software contract is separate from salary</strong>
+        Two different things. Salary = social media specialist role. Retainer = software license and development. Never let them be combined into one number.
+      </div>
+      <div class="rule-item red-rule">
+        <strong>Never accept "we'll sort it later"</strong>
+        Leave the room with a number agreed or do not leave. A handshake with no figure attached is worth nothing.
+      </div>
+      <div class="rule-item red-rule">
+        <strong>Never sell exclusivity for free</strong>
+        If he says "I don't want you selling this to others" — that is a premium. Exclusive rights cost more, not the same. Price it higher if he asks for exclusivity.
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-note">
+    <strong>The studio tools are your second act.</strong> Everything shown in this walkthrough is the operational layer — already impressive on its own. The AI generation capabilities (content studio, strategy, campaigns, hooks) are held back deliberately. Once the CEO has seen the operational layer and the commercial conversation is done, the studio reveal becomes a demonstration of what is still coming — and reinforces why the retainer is worth paying long term.
+  </div>
+
+</div>
+</div>
+
+
+</body>
+</html>

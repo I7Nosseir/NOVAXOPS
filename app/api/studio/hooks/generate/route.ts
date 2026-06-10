@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase } from '@/lib/client-intelligence'
+import { aiGuard } from '@/lib/ai-guard'
 
 export const maxDuration = 60
 
@@ -121,6 +122,9 @@ Return ONLY a valid JSON array of exactly 20 hooks — no markdown, no explanati
 ]`
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard()
+  if (guard) return guard
+
   let body: {
     brief: string
     platform: string

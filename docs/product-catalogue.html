@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NOVAX Ops — Product Overview 2026</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Arial', 'Helvetica Neue', sans-serif;
+    font-size: 10pt;
+    color: #111;
+    background: #fff;
+  }
+
+  /* ─── Page wrapper ──────────────────────────────────── */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 0;
+    position: relative;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  @media print {
+    .page { page-break-after: always; margin: 0; }
+    @page { size: A4 portrait; margin: 0; }
+    body { background: #fff; }
+  }
+  @media screen {
+    body { background: #e5e5e5; }
+    .page { margin: 20px auto; box-shadow: 0 4px 24px rgba(0,0,0,0.18); }
+  }
+
+  /* ─── Colours ───────────────────────────────────────── */
+  :root {
+    --teal:       #1B3D38;
+    --teal-mid:   #2A6B62;
+    --teal-light: #EBF4F3;
+    --teal-acc:   #5BB4AE;
+    --red:        #C0392B;
+    --green:      #1D6A3A;
+    --green-bg:   #E8F5EE;
+    --amber:      #B45309;
+    --amber-bg:   #FEF3C7;
+    --grey:       #F3F4F6;
+    --border:     #D1D5DB;
+    --text-soft:  #6B7280;
+  }
+
+  /* ─── Typography ────────────────────────────────────── */
+  h1 { font-size: 28pt; font-weight: 900; letter-spacing: -0.5px; }
+  h2 { font-size: 15pt; font-weight: 800; }
+  h3 { font-size: 10.5pt; font-weight: 700; }
+  h4 { font-size: 9.5pt; font-weight: 700; }
+  p  { line-height: 1.55; }
+
+  .tag {
+    display: inline-block;
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+  }
+  .tag-teal { background: var(--teal); color: #fff; }
+  .tag-acc  { background: var(--teal-light); color: var(--teal-mid); border: 1px solid var(--teal-acc); }
+  .tag-red  { background: #FEE2E2; color: var(--red); }
+  .tag-green{ background: var(--green-bg); color: var(--green); }
+
+  .rule { border: none; border-top: 1px solid var(--border); }
+  .rule-teal { border: none; border-top: 1.5px solid var(--teal); }
+
+
+  /* ═══════════════════════════════════════════════════════
+     PAGE 1 — COVER
+  ═══════════════════════════════════════════════════════ */
+  .cover {
+    background: var(--teal);
+    color: #fff;
+    min-height: 297mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2.5cm 2.2cm 1.8cm;
+  }
+
+  .cover-logo {
+    font-size: 11pt;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  .cover-main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  .cover-eyebrow {
+    font-size: 9pt;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--teal-acc);
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+
+  .cover h1 { font-size: 46pt; line-height: 1.05; color: #fff; margin-bottom: 8px; }
+  .cover h1 span { color: var(--teal-acc); }
+
+  .cover-tagline {
+    font-size: 14pt;
+    font-weight: 300;
+    color: rgba(255,255,255,0.75);
+    margin-top: 14px;
+    max-width: 380px;
+    line-height: 1.5;
+  }
+
+  .cover-divider {
+    width: 50px;
+    height: 3px;
+    background: var(--teal-acc);
+    margin: 24px 0;
+  }
+
+  .cover-stats {
+    display: flex;
+    gap: 32px;
+    margin-top: 8px;
+  }
+  .cover-stat-num {
+    font-size: 22pt;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+  }
+  .cover-stat-label {
+    font-size: 8pt;
+    color: rgba(255,255,255,0.55);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .cover-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    padding-top: 16px;
+  }
+  .cover-footer-left { font-size: 8pt; color: rgba(255,255,255,0.4); }
+  .cover-footer-right {
+    font-size: 8pt;
+    font-weight: 700;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.5px;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     PAGE 2 — THE PROBLEM
+  ═══════════════════════════════════════════════════════ */
+  .inner { padding: 1.6cm 2.0cm; }
+
+  .page-title-bar {
+    background: var(--teal);
+    color: #fff;
+    padding: 14px 2.0cm;
+  }
+  .page-title-bar h2 { color: #fff; font-size: 12pt; }
+  .page-title-bar .sub { font-size: 8.5pt; color: rgba(255,255,255,0.6); margin-top: 2px; }
+
+  .two-col { display: flex; gap: 20px; }
+  .col-half { flex: 1; }
+
+  .problem-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .problem-card-header {
+    padding: 10px 14px;
+    font-size: 9pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .problem-card-header.red { background: #FEE2E2; color: var(--red); }
+  .problem-card-header.green { background: var(--green-bg); color: var(--green); }
+
+  .tool-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 9.5pt;
+  }
+  .tool-row:last-child { border-bottom: none; }
+  .tool-name { color: #222; }
+  .tool-purpose { color: var(--text-soft); font-size: 8.5pt; }
+  .tool-cost { font-weight: 700; color: var(--red); white-space: nowrap; }
+  .tool-cost.green { color: var(--green); }
+  .tool-cost.teal { color: var(--teal); }
+
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: #F9FAFB;
+    font-weight: 700;
+    font-size: 10pt;
+  }
+  .total-row.red { background: #FEE2E2; color: var(--red); }
+  .total-row.green { background: var(--green-bg); color: var(--green); }
+
+  .savings-banner {
+    margin-top: 18px;
+    background: var(--teal);
+    color: #fff;
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .savings-num {
+    font-size: 26pt;
+    font-weight: 900;
+    color: var(--teal-acc);
+    white-space: nowrap;
+  }
+  .savings-text { font-size: 9.5pt; line-height: 1.5; color: rgba(255,255,255,0.8); }
+  .savings-text strong { color: #fff; }
+
+  .problem-intro {
+    font-size: 9.5pt;
+    color: #444;
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+  .problem-intro strong { color: #111; }
+
+  /* ═══════════════════════════════════════════════════════
+     PAGE 3 — MODULES OVERVIEW
+  ═══════════════════════════════════════════════════════ */
+  .module-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .module-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .module-card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 7px;
+  }
+  .module-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--teal-light);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14pt;
+    color: var(--teal);
+  }
+  .module-title { font-size: 10pt; font-weight: 700; color: var(--teal); }
+  .module-replaces { font-size: 7.5pt; color: var(--text-soft); margin-top: 2px; }
+  .module-desc { font-size: 9pt; color: #444; line-height: 1.5; }
+
+  .module-card.highlight {
+    border-color: var(--teal);
+    background: var(--teal-light);
+  }
+  .module-card.highlight .module-icon { background: var(--teal); color: #fff; }
+
+  /* Pipeline visual */
+  .pipeline-strip {
+    display: flex;
+    margin-top: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    font-size: 6.5pt;
+    font-weight: 600;
+  }
+  .ps { flex: 1; padding: 4px 2px; text-align: center; color: #fff; }
+  .ps1 { background: #6B7280; }
+  .ps2 { background: #8B5CF6; }
+  .ps3 { background: #EC4899; }
+  .ps4 { background: #F59E0B; }
+  .ps5 { background: #3B82F6; }
+  .ps6 { background: #10B981; }
+  .ps7 { background: #EF4444; }
+  .ps8 { background: #14B8A6; }
+  .ps9 { background: #22C55E; }
+  .ps10 { background: #1B3D38; }
+
+  /* ═══════════════════════════════════════════════════════
+     PAGE 4 — AI STUDIO
+  ═══════════════════════════════════════════════════════ */
+  .studio-intro {
+    background: var(--teal);
+    color: rgba(255,255,255,0.8);
+    padding: 14px 20px;
+    border-radius: 6px;
+    font-size: 9.5pt;
+    line-height: 1.6;
+    margin-top: 12px;
+  }
+  .studio-intro strong { color: #fff; }
+
+  .studio-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .studio-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .studio-card-header {
+    background: var(--teal);
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 9pt;
+    font-weight: 700;
+  }
+  .studio-card-body {
+    padding: 10px 12px;
+    font-size: 9pt;
+    color: #444;
+    line-height: 1.55;
+  }
+  .studio-card-body .step {
+    display: flex;
+    gap: 7px;
+    margin-bottom: 5px;
+    align-items: flex-start;
+    font-size: 8.5pt;
+  }
+  .step-num {
+    width: 16px;
+    height: 16px;
+    background: var(--teal-light);
+    color: var(--teal);
+    border-radius: 50%;
+    font-size: 7pt;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .vs-banner {
+    margin-top: 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .vs-row {
+    display: flex;
+    font-size: 9pt;
+  }
+  .vs-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+  .vs-col { flex: 1; padding: 8px 12px; }
+  .vs-col.label { flex: 0 0 120px; background: var(--grey); font-weight: 700; font-size: 8.5pt; color: var(--teal); display: flex; align-items: center; }
+  .vs-col.bad  { color: var(--red); background: #FFF5F5; }
+  .vs-col.good { color: var(--green); background: var(--green-bg); }
+  .vs-header .vs-col { background: var(--teal); color: #fff; font-weight: 700; text-align: center; font-size: 8.5pt; padding: 7px 12px; }
+  .vs-header .vs-col.label { background: var(--teal); color: rgba(255,255,255,0.6); }
+
+  /* ═══════════════════════════════════════════════════════
+     PAGE 5 — COST COMPARISON
+  ═══════════════════════════════════════════════════════ */
+  .comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin-top: 14px;
+  }
+  .comp-table th {
+    background: var(--teal);
+    color: #fff;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 9pt;
+  }
+  .comp-table th.right { text-align: right; }
+  .comp-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .comp-table tr:nth-child(even) td { background: var(--grey); }
+  .comp-table .cost-old { color: var(--red); font-weight: 700; text-align: right; }
+  .comp-table .cost-new { color: var(--green); font-weight: 700; text-align: right; }
+  .comp-table .purpose { color: var(--text-soft); font-size: 8.5pt; }
+  .comp-table .total-row td {
+    background: var(--teal);
+    color: #fff;
+    font-weight: 800;
+    font-size: 10pt;
+    border-bottom: none;
+  }
+  .comp-table .total-row td.right { text-align: right; }
+  .comp-table .novax-row td {
+    background: var(--green-bg);
+    color: var(--green);
+    font-weight: 700;
+  }
+  .comp-table .novax-row td.right { text-align: right; }
+
+  .big-saving {
+    margin-top: 16px;
+    display: flex;
+    gap: 14px;
+  }
+  .saving-box {
+    flex: 1;
+    border-radius: 6px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .saving-box.green { background: var(--green-bg); }
+  .saving-box.teal  { background: var(--teal); }
+  .saving-box .num {
+    font-size: 22pt;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .saving-box.green .num { color: var(--green); }
+  .saving-box.teal  .num { color: var(--teal-acc); }
+  .saving-box .lbl {
+    font-size: 8pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .saving-box.green .lbl { color: var(--green); }
+  .saving-box.teal  .lbl { color: rgba(255,255,255,0.7); }
+
+  /* ═══════════════════════════════════════════════════════
+     PAGE 6 — RUNNING COSTS + SUMMARY
+  ═══════════════════════════════════════════════════════ */
+  .infra-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .infra-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .infra-card-header {
+    background: var(--grey);
+    padding: 8px 14px;
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--teal);
+    border-bottom: 1px solid var(--border);
+  }
+  .infra-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 9pt;
+  }
+  .infra-row:last-child { border-bottom: none; }
+  .infra-name { color: #333; }
+  .infra-note { color: var(--text-soft); font-size: 8pt; }
+  .infra-cost { font-weight: 700; color: var(--teal); white-space: nowrap; }
+
+  .infra-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 9px 14px;
+    background: var(--teal-light);
+    font-weight: 800;
+    font-size: 10pt;
+    color: var(--teal);
+    border-top: 1.5px solid var(--teal-acc);
+  }
+
+  .summary-boxes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .summary-box {
+    background: var(--teal);
+    color: #fff;
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .summary-box .snum { font-size: 19pt; font-weight: 900; color: var(--teal-acc); line-height: 1; }
+  .summary-box .slbl { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.6px; color: rgba(255,255,255,0.55); margin-top: 4px; }
+  .summary-box .sdesc { font-size: 8.5pt; color: rgba(255,255,255,0.75); margin-top: 6px; line-height: 1.45; }
+
+  .note-box {
+    margin-top: 14px;
+    border-left: 3px solid var(--teal-acc);
+    padding: 10px 14px;
+    background: var(--teal-light);
+    font-size: 9pt;
+    color: var(--teal);
+    line-height: 1.6;
+    border-radius: 0 6px 6px 0;
+  }
+  .note-box strong { color: var(--teal); }
+
+  .what-you-get {
+    margin-top: 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .wyg-header {
+    background: var(--teal);
+    color: #fff;
+    padding: 9px 16px;
+    font-size: 9.5pt;
+    font-weight: 700;
+  }
+  .wyg-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+  }
+  .wyg-item {
+    padding: 9px 14px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-size: 8.5pt;
+    color: #333;
+    line-height: 1.45;
+  }
+  .wyg-item:nth-child(3n) { border-right: none; }
+  .wyg-item strong { display: block; color: var(--teal); font-size: 9pt; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE 1 — COVER
+════════════════════════════════════════════════ -->
+<div class="page">
+<div class="cover">
+
+  <div class="cover-logo">NOVAX</div>
+
+  <div class="cover-main">
+    <p class="cover-eyebrow">Internal Operations Platform</p>
+    <h1>NOVAX<br><span>OPS</span></h1>
+    <div class="cover-divider"></div>
+    <p class="cover-tagline">One platform. Every client. Every workflow. Total control.</p>
+
+    <div class="cover-stats" style="margin-top: 36px;">
+      <div>
+        <div class="cover-stat-num">27</div>
+        <div class="cover-stat-label">Live pages</div>
+      </div>
+      <div>
+        <div class="cover-stat-num">100+</div>
+        <div class="cover-stat-label">API routes</div>
+      </div>
+      <div>
+        <div class="cover-stat-num">8</div>
+        <div class="cover-stat-label">AI studio tools</div>
+      </div>
+      <div>
+        <div class="cover-stat-num">6</div>
+        <div class="cover-stat-label">Integrations live</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div class="cover-footer-left">Confidential — Internal Use Only</div>
+    <div class="cover-footer-right">Product Overview &nbsp;·&nbsp; 2026</div>
+  </div>
+
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     PAGE 2 — THE PROBLEM
+════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>Why this exists</h2>
+  <p class="sub">The cost of running a social media agency on separate tools</p>
+</div>
+<div class="inner">
+
+  <p class="problem-intro">
+    Every agency today runs on a patchwork of tools. The social manager is in one tab. The designer is in another.
+    The copywriter uses a third. The client approval comes by WhatsApp. The report is built manually in PowerPoint.
+    <strong>Nothing talks to each other. Time is wasted every single day.</strong>
+    This is what that actually costs.
+  </p>
+
+  <div class="two-col">
+
+    <!-- Old Way -->
+    <div class="col-half">
+      <div class="problem-card">
+        <div class="problem-card-header red">The old way — separate tools</div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">ClickUp</div>
+            <div class="tool-purpose">Task management &amp; pipeline</div>
+          </div>
+          <div class="tool-cost">$120 / mo</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Hootsuite Team</div>
+            <div class="tool-purpose">Scheduling &amp; publishing</div>
+          </div>
+          <div class="tool-cost">$249 / mo</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Copy.ai or Jasper</div>
+            <div class="tool-purpose">AI content writing (per user)</div>
+          </div>
+          <div class="tool-cost">$186 / mo</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Planable</div>
+            <div class="tool-purpose">Client approval workflows</div>
+          </div>
+          <div class="tool-cost">$83 / mo</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Whatagraph</div>
+            <div class="tool-purpose">Client performance reports</div>
+          </div>
+          <div class="tool-cost">$199 / mo</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Manual time — building reports,<br>chasing approvals, copy-pasting</div>
+          </div>
+          <div class="tool-cost">Unbilled hours</div>
+        </div>
+        <div class="total-row red">
+          <span>Total per month</span>
+          <span>$837 &nbsp;≈ 37,000 EGP</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOVAX Ops -->
+    <div class="col-half">
+      <div class="problem-card">
+        <div class="problem-card-header green">NOVAX Ops — one platform</div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Task pipeline (replaces ClickUp)</div>
+            <div class="tool-purpose">10-stage board, drag-and-drop, built in</div>
+          </div>
+          <div class="tool-cost green">Included</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Publishing (replaces Hootsuite)</div>
+            <div class="tool-purpose">Schedule to all platforms, calendar view</div>
+          </div>
+          <div class="tool-cost green">Included</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">AI Studio (replaces Copy.ai + more)</div>
+            <div class="tool-purpose">Brief to full content in minutes</div>
+          </div>
+          <div class="tool-cost green">Included</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Client Approvals (replaces Planable)</div>
+            <div class="tool-purpose">Shareable link, per-post decisions</div>
+          </div>
+          <div class="tool-cost green">Included</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Reports (replaces Whatagraph)</div>
+            <div class="tool-purpose">One click — PDF or PowerPoint, branded</div>
+          </div>
+          <div class="tool-cost green">Included</div>
+        </div>
+        <div class="tool-row">
+          <div>
+            <div class="tool-name">Infrastructure (Vercel + Supabase + AI)</div>
+            <div class="tool-purpose">Total running cost, everything included</div>
+          </div>
+          <div class="tool-cost teal">~$95 / mo</div>
+        </div>
+        <div class="total-row green">
+          <span>Total per month</span>
+          <span>~$95 &nbsp;≈ 4,300 EGP</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="savings-banner">
+    <div class="savings-num">33,000 EGP</div>
+    <div class="savings-text">
+      <strong>saved every month</strong> compared to running separate tools.<br>
+      That is <strong>396,000 EGP per year</strong> — before counting the hours saved on manual work.
+    </div>
+  </div>
+
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     PAGE 3 — PLATFORM MODULES
+════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>What the platform does</h2>
+  <p class="sub">Eight modules. One login. Built specifically for social media agencies.</p>
+</div>
+<div class="inner">
+
+  <div class="module-grid">
+
+    <!-- 1 -->
+    <div class="module-card highlight">
+      <div class="module-card-top">
+        <div class="module-icon">&#9776;</div>
+        <div>
+          <div class="module-title">Task Pipeline</div>
+          <div class="module-replaces">Replaces: ClickUp &nbsp;·&nbsp; $0 extra</div>
+        </div>
+      </div>
+      <div class="module-desc">Every piece of work moves through 10 stages — from brief to reporting. Drag a task from one stage to the next. Assign it, set a deadline, add a comment. The whole team sees the same board in real time.</div>
+      <div class="pipeline-strip" style="margin-top:8px;">
+        <div class="ps ps1">Strategy</div><div class="ps ps2">Ideas</div><div class="ps ps3">Calendar</div>
+        <div class="ps ps4">Copy</div><div class="ps ps5">Design</div><div class="ps ps6">Review</div>
+        <div class="ps ps7">Approval</div><div class="ps ps8">Scheduled</div><div class="ps ps9">Published</div>
+        <div class="ps ps10">Reporting</div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="module-card">
+      <div class="module-card-top">
+        <div class="module-icon">&#128197;</div>
+        <div>
+          <div class="module-title">Publishing &amp; Scheduling</div>
+          <div class="module-replaces">Replaces: Hootsuite &nbsp;·&nbsp; $0 extra</div>
+        </div>
+      </div>
+      <div class="module-desc">Write a post, pick the platform and time, it goes live automatically. Grid view and calendar view. Supports English, Arabic, or both in the same post. Connects directly to all client social accounts.</div>
+    </div>
+
+    <!-- 3 -->
+    <div class="module-card">
+      <div class="module-card-top">
+        <div class="module-icon">&#10003;</div>
+        <div>
+          <div class="module-title">Client Approvals</div>
+          <div class="module-replaces">Replaces: Planable &nbsp;·&nbsp; $0 extra</div>
+        </div>
+      </div>
+      <div class="module-desc">Send the client a link. They see each post with its media and caption, approve or request changes, and submit. The team gets an email instantly. No client account needed. No back-and-forth on WhatsApp.</div>
+    </div>
+
+    <!-- 4 -->
+    <div class="module-card">
+      <div class="module-card-top">
+        <div class="module-icon">&#128202;</div>
+        <div>
+          <div class="module-title">Performance &amp; Reports</div>
+          <div class="module-replaces">Replaces: Whatagraph &nbsp;·&nbsp; $0 extra</div>
+        </div>
+      </div>
+      <div class="module-desc">Pull live analytics from all platforms. See what performed, what didn't, and why. One click generates a full client report — branded PowerPoint or PDF — with an AI-written narrative analysis already inside.</div>
+    </div>
+
+    <!-- 5 -->
+    <div class="module-card">
+      <div class="module-card-top">
+        <div class="module-icon">&#127758;</div>
+        <div>
+          <div class="module-title">Client Management</div>
+          <div class="module-replaces">Purpose-built — no equivalent tool</div>
+        </div>
+      </div>
+      <div class="module-desc">Each client has a full profile: brand identity, tone of voice, audience, competitors, past wins, content guidelines. Everything the team needs before touching a brief — in one place, not scattered in Notion or email threads.</div>
+    </div>
+
+    <!-- 6 -->
+    <div class="module-card">
+      <div class="module-card-top">
+        <div class="module-icon">&#128193;</div>
+        <div>
+          <div class="module-title">Assets &amp; Documents</div>
+          <div class="module-replaces">Replaces: scattered Drive folders</div>
+        </div>
+      </div>
+      <div class="module-desc">Upload files, connect Google Drive, search by client or tag. All brand assets, briefs, and creative documents in one searchable library — not buried in 20 different Drive folders with inconsistent naming.</div>
+    </div>
+
+    <!-- 7 -->
+    <div class="module-card">
+      <div class="module-card-top">
+        <div class="module-icon">&#128172;</div>
+        <div>
+          <div class="module-title">Comment Moderation</div>
+          <div class="module-replaces">Replaces: manual monitoring</div>
+        </div>
+      </div>
+      <div class="module-desc">All comments and DMs across every client account arrive in one queue. The AI suggests a reply — the social manager reviews and sends. No platform-switching, no missed comments, no copy-pasting responses.</div>
+    </div>
+
+    <!-- 8 -->
+    <div class="module-card">
+      <div class="module-card-top">
+        <div class="module-icon">&#129504;</div>
+        <div>
+          <div class="module-title">AI Assistant</div>
+          <div class="module-replaces">Replaces: generic ChatGPT use</div>
+        </div>
+      </div>
+      <div class="module-desc">An AI assistant that already knows every client's brand, tone, past content, and strategy. Ask it anything — it answers with full client context, not generic responses. Scoped per client, no briefing required.</div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     PAGE 4 — AI STUDIO
+════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>The AI Studio — where no competitor comes close</h2>
+  <p class="sub">Eight AI-powered tools that replace an entire creative and strategy function</p>
+</div>
+<div class="inner">
+
+  <div class="studio-intro">
+    Tools like Copy.ai or Jasper produce generic text. <strong>The NOVAX Ops AI Studio produces complete, client-specific, strategy-backed content</strong> — because the AI is fed with each client's brand identity, past content, audience data, and competitor landscape before it writes a single word. What usually takes a strategist, a copywriter, and a creative director working separately now happens in minutes.
+  </div>
+
+  <div class="studio-grid">
+
+    <div class="studio-card">
+      <div class="studio-card-header">Content Creation Studio</div>
+      <div class="studio-card-body">
+        <div class="step"><div class="step-num">1</div><span>Type a brief — topic, audience, goal</span></div>
+        <div class="step"><div class="step-num">2</div><span>AI generates 20 opening hooks, scores each, keeps the best</span></div>
+        <div class="step"><div class="step-num">3</div><span>Writes full reel script, carousel slides, or static post</span></div>
+        <div class="step"><div class="step-num">4</div><span>Delivers a 30-second "Boss Brief" — the key idea in plain language</span></div>
+        Output: <strong>3 ready-to-use content pieces per run</strong>
+      </div>
+    </div>
+
+    <div class="studio-card">
+      <div class="studio-card-header">Hook Lab</div>
+      <div class="studio-card-body">
+        <div class="step"><div class="step-num">1</div><span>Input the topic and audience</span></div>
+        <div class="step"><div class="step-num">2</div><span>Generates 20 completely different opening lines (no filter)</span></div>
+        <div class="step"><div class="step-num">3</div><span>Scores every hook on Clarity, Curiosity, and Credibility</span></div>
+        <div class="step"><div class="step-num">4</div><span>Refines top 3 using creative mutation techniques</span></div>
+        Output: <strong>Top 3 scientifically-scored hooks</strong>
+      </div>
+    </div>
+
+    <div class="studio-card">
+      <div class="studio-card-header">Strategy Command Center</div>
+      <div class="studio-card-body">
+        <div class="step"><div class="step-num">1</div><span>Input client goals, current situation, competitors</span></div>
+        <div class="step"><div class="step-num">2</div><span>AI runs a full intelligence + positioning analysis</span></div>
+        <div class="step"><div class="step-num">3</div><span>Produces a complete quarterly content strategy</span></div>
+        <div class="step"><div class="step-num">4</div><span>Export as a branded PowerPoint deck immediately</span></div>
+        Output: <strong>Full strategy document — export ready</strong>
+      </div>
+    </div>
+
+    <div class="studio-card">
+      <div class="studio-card-header">Campaign Igniter</div>
+      <div class="studio-card-body">
+        <div class="step"><div class="step-num">1</div><span>Input what you want to promote and the audience</span></div>
+        <div class="step"><div class="step-num">2</div><span>AI identifies cultural tensions and unexpected angles</span></div>
+        <div class="step"><div class="step-num">3</div><span>Returns 5 completely different campaign concepts</span></div>
+        <div class="step"><div class="step-num">4</div><span>Each concept is execution-ready — not just a headline</span></div>
+        Output: <strong>5 campaign briefs, ready for creative team</strong>
+      </div>
+    </div>
+
+    <div class="studio-card">
+      <div class="studio-card-header">Post-Mortem Tool</div>
+      <div class="studio-card-body">
+        <div class="step"><div class="step-num">1</div><span>Input a post that underperformed</span></div>
+        <div class="step"><div class="step-num">2</div><span>AI compares hook, format, timing, and caption</span></div>
+        <div class="step"><div class="step-num">3</div><span>Diagnoses exactly what went wrong and why</span></div>
+        <div class="step"><div class="step-num">4</div><span>Suggests how to fix it for the next post</span></div>
+        Output: <strong>Written diagnosis — no more guessing</strong>
+      </div>
+    </div>
+
+    <div class="studio-card">
+      <div class="studio-card-header">Visual Content Engine</div>
+      <div class="studio-card-body">
+        <div class="step"><div class="step-num">1</div><span>Describe what you want to communicate visually</span></div>
+        <div class="step"><div class="step-num">2</div><span>AI builds a scene-by-scene visual direction</span></div>
+        <div class="step"><div class="step-num">3</div><span>Each scene has shot description, mood, and text overlay</span></div>
+        <div class="step"><div class="step-num">4</div><span>Ready to hand to a videographer or AI video tool</span></div>
+        Output: <strong>Full visual production brief, zero design needed</strong>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="vs-banner">
+    <div class="vs-row vs-header">
+      <div class="vs-col label"></div>
+      <div class="vs-col bad">Copy.ai / Jasper</div>
+      <div class="vs-col good">NOVAX Ops AI Studio</div>
+    </div>
+    <div class="vs-row">
+      <div class="vs-col label">Knows your client</div>
+      <div class="vs-col bad">No — you paste the brief every time</div>
+      <div class="vs-col good">Yes — full client context loaded automatically</div>
+    </div>
+    <div class="vs-row">
+      <div class="vs-col label">Output quality</div>
+      <div class="vs-col bad">Generic — needs heavy editing</div>
+      <div class="vs-col good">Specific, scored, strategy-backed</div>
+    </div>
+    <div class="vs-row">
+      <div class="vs-col label">Connected to real data</div>
+      <div class="vs-col bad">No — no analytics or post history</div>
+      <div class="vs-col good">Yes — connected to Metricool analytics</div>
+    </div>
+    <div class="vs-row">
+      <div class="vs-col label">Works in Arabic</div>
+      <div class="vs-col bad">Poor — ignores dialect rules</div>
+      <div class="vs-col good">Yes — per-client Arabic dialect rules built in</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     PAGE 5 — COST COMPARISON TABLE
+════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>Full cost comparison</h2>
+  <p class="sub">What agencies pay on the market vs what NOVAX Ops costs to run</p>
+</div>
+<div class="inner">
+
+  <table class="comp-table">
+    <thead>
+      <tr>
+        <th style="width:24%">Tool / Function</th>
+        <th style="width:30%">What it does</th>
+        <th style="width:22%">Market tool used</th>
+        <th class="right" style="width:12%">Market cost</th>
+        <th class="right" style="width:12%">NOVAX Ops</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Task management</strong></td>
+        <td class="purpose">Pipeline, assignments, deadlines</td>
+        <td>ClickUp Business (10 users)</td>
+        <td class="cost-old">$120 / mo</td>
+        <td class="cost-new">Included</td>
+      </tr>
+      <tr>
+        <td><strong>Social scheduling</strong></td>
+        <td class="purpose">Publish to all platforms, calendar</td>
+        <td>Hootsuite Team</td>
+        <td class="cost-old">$249 / mo</td>
+        <td class="cost-new">Included</td>
+      </tr>
+      <tr>
+        <td><strong>AI writing</strong></td>
+        <td class="purpose">Captions, scripts, hooks, strategy</td>
+        <td>Copy.ai Team (4 users)</td>
+        <td class="cost-old">$186 / mo</td>
+        <td class="cost-new">Included</td>
+      </tr>
+      <tr>
+        <td><strong>Client approvals</strong></td>
+        <td class="purpose">Review, approve, request changes</td>
+        <td>Planable Agency</td>
+        <td class="cost-old">$83 / mo</td>
+        <td class="cost-new">Included</td>
+      </tr>
+      <tr>
+        <td><strong>Client reporting</strong></td>
+        <td class="purpose">Branded PDF / PPT reports</td>
+        <td>Whatagraph Agency</td>
+        <td class="cost-old">$199 / mo</td>
+        <td class="cost-new">Included</td>
+      </tr>
+      <tr>
+        <td><strong>Analytics tracking</strong></td>
+        <td class="purpose">Post performance, engagement, reach</td>
+        <td>Metricool (already paid)</td>
+        <td class="cost-old">Existing cost</td>
+        <td class="cost-new">Integrated</td>
+      </tr>
+      <tr>
+        <td><strong>Comment moderation</strong></td>
+        <td class="purpose">All comments in one queue, AI reply</td>
+        <td>Manual or Respond.io</td>
+        <td class="cost-old">$50–200 / mo</td>
+        <td class="cost-new">Included</td>
+      </tr>
+      <tr>
+        <td><strong>Strategy &amp; campaigns</strong></td>
+        <td class="purpose">Quarterly strategy, campaign briefs</td>
+        <td>Consultant or strategist time</td>
+        <td class="cost-old">$500–1,500/mo</td>
+        <td class="cost-new">Included</td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="3"><strong>TOTAL — separate tools</strong></td>
+        <td class="right"><strong>$887–2,037 / mo</strong></td>
+        <td class="right"></td>
+      </tr>
+      <tr class="novax-row">
+        <td colspan="3"><strong>NOVAX Ops — total infrastructure cost</strong></td>
+        <td class="right"></td>
+        <td class="right"><strong>~$95 / mo</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="big-saving">
+    <div class="saving-box green">
+      <div class="num">33,000 EGP</div>
+      <div class="lbl">Saved every month</div>
+    </div>
+    <div class="saving-box green">
+      <div class="num">396,000 EGP</div>
+      <div class="lbl">Saved every year</div>
+    </div>
+    <div class="saving-box teal">
+      <div class="num">4,300 EGP</div>
+      <div class="lbl">Total monthly running cost</div>
+    </div>
+    <div class="saving-box teal">
+      <div class="num">97%</div>
+      <div class="lbl">Cost reduction vs market tools</div>
+    </div>
+  </div>
+
+  <div class="note-box" style="margin-top: 16px;">
+    <strong>Important note on ClickUp:</strong> Task management is one module inside NOVAX Ops — not the main product. ClickUp at $120/month gives you task management and nothing else. NOVAX Ops gives you task management plus publishing, approvals, AI content generation, client reporting, analytics, strategy tools, asset management, and comment moderation — all connected to the same data — for less than what ClickUp costs alone.
+  </div>
+
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     PAGE 6 — RUNNING COSTS + SUMMARY
+════════════════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>What it costs to run</h2>
+  <p class="sub">Full infrastructure breakdown — no hidden costs</p>
+</div>
+<div class="inner">
+
+  <div class="infra-grid">
+
+    <div class="infra-card">
+      <div class="infra-card-header">Fixed — Every Month</div>
+      <div class="infra-row">
+        <div>
+          <div class="infra-name">Vercel Pro</div>
+          <div class="infra-note">Hosting, deployment, CDN, SSL</div>
+        </div>
+        <div class="infra-cost">$20 / mo</div>
+      </div>
+      <div class="infra-row">
+        <div>
+          <div class="infra-name">Supabase Pro</div>
+          <div class="infra-note">Database, file storage, authentication</div>
+        </div>
+        <div class="infra-cost">$25 / mo</div>
+      </div>
+      <div class="infra-total">
+        <span>Fixed total</span>
+        <span>$45 / mo &nbsp;≈ 2,000 EGP</span>
+      </div>
+    </div>
+
+    <div class="infra-card">
+      <div class="infra-card-header">Variable — Based on Usage</div>
+      <div class="infra-row">
+        <div>
+          <div class="infra-name">Claude AI (Anthropic)</div>
+          <div class="infra-note">AI generation — pay per use, ~$0.02/output</div>
+        </div>
+        <div class="infra-cost">$20–50 / mo</div>
+      </div>
+      <div class="infra-row">
+        <div>
+          <div class="infra-name">Apify (trend scraping)</div>
+          <div class="infra-note">YouTube, TikTok, Reddit signals</div>
+        </div>
+        <div class="infra-cost">$10–30 / mo</div>
+      </div>
+      <div class="infra-row">
+        <div>
+          <div class="infra-name">Resend (email)</div>
+          <div class="infra-note">Approval emails, team digests</div>
+        </div>
+        <div class="infra-cost">$0–20 / mo</div>
+      </div>
+      <div class="infra-total">
+        <span>Variable estimate</span>
+        <span>$30–100 / mo</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="note-box" style="margin-top: 14px;">
+    <strong>Total realistic running cost: $75–145/month (3,400–6,500 EGP).</strong> This covers the entire platform for all clients, all team members, unlimited usage within normal agency volume. There is no per-user fee, no per-client fee, and no platform tax. Every new client added costs nothing extra in infrastructure.
+  </div>
+
+  <div style="margin-top: 18px;">
+    <h3 style="color: var(--teal); margin-bottom: 10px; font-size: 11pt;">What the agency gets — at a glance</h3>
+  </div>
+
+  <div class="what-you-get">
+    <div class="wyg-header">Full Platform Capabilities</div>
+    <div class="wyg-grid">
+      <div class="wyg-item"><strong>27 live pages</strong>Every workflow has its own dedicated screen</div>
+      <div class="wyg-item"><strong>10-stage pipeline</strong>Full content journey from brief to reporting</div>
+      <div class="wyg-item"><strong>Real-time data</strong>Live sync from Metricool and social platforms</div>
+      <div class="wyg-item"><strong>8 AI studio tools</strong>Content, hooks, strategy, campaigns, post-mortem, visual</div>
+      <div class="wyg-item"><strong>English + Arabic</strong>Built-in Arabic dialect rules per client</div>
+      <div class="wyg-item"><strong>Client isolation</strong>Each client's data, brand, and content kept separate</div>
+      <div class="wyg-item"><strong>Role-based access</strong>Each team member sees only what they need</div>
+      <div class="wyg-item"><strong>PDF + PPT export</strong>Branded reports generated in one click</div>
+      <div class="wyg-item"><strong>No vendor lock-in</strong>Platform owned by the agency, not rented from a vendor</div>
+    </div>
+  </div>
+
+  <div class="summary-boxes">
+    <div class="summary-box">
+      <div class="snum">2 months</div>
+      <div class="slbl">To build</div>
+      <div class="sdesc">A dev agency would quote 6–9 months with a team. Built solo in 2.</div>
+    </div>
+    <div class="summary-box">
+      <div class="snum">$45 / mo</div>
+      <div class="slbl">Fixed infrastructure</div>
+      <div class="sdesc">Vercel + Supabase. The entire platform runs on less than a Netflix subscription.</div>
+    </div>
+    <div class="summary-box">
+      <div class="snum">396,000 EGP</div>
+      <div class="slbl">Annual saving vs tools</div>
+      <div class="sdesc">Compared to running the same functions on separate market tools.</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+
+</body>
+</html>

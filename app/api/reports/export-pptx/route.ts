@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
   // ── Slide 1: Cover ─────────────────────────────────────────────────────────
   const cover = pptx.addSlide()
   cover.background = { color: BRAND.primary }
-  cover.addText('NOVAX', { x: 0.6, y: 0.5, w: 3, h: 0.5, fontSize: 14, color: BRAND.accent, bold: true, fontFace: 'Calibri' })
+  cover.addText('NOVAX', { x: 0.6, y: 0.45, w: 3, h: 0.5, fontSize: 18, color: BRAND.accent, bold: true, fontFace: 'Calibri' })
+  cover.addShape(pptx.ShapeType.rect, { x: 0.6, y: 1.0, w: 1.2, h: 0.04, fill: { color: BRAND.accent } })
   cover.addText(client_name, { x: 0.6, y: 1.4, w: 8, h: 1, fontSize: 40, color: BRAND.white, bold: true, fontFace: 'Calibri' })
   cover.addText(report_type, { x: 0.6, y: 2.6, w: 8, h: 0.6, fontSize: 22, color: BRAND.accent, fontFace: 'Calibri' })
   if (period) cover.addText(period, { x: 0.6, y: 3.4, w: 8, h: 0.4, fontSize: 14, color: '#9DCCC8', fontFace: 'Calibri' })

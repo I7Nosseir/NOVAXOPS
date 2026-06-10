@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { MessageSquare, Send, EyeOff, AlertOctagon, CheckCircle, Sparkles, RefreshCw } from 'lucide-react'
 import { useModerationItems, useUpdateModerationItem } from '@/lib/hooks/use-moderation'
+import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
 import { useRealtime } from '@/lib/hooks/use-realtime'
 import { useClients } from '@/lib/hooks/use-clients'
 import { PLATFORM_CONFIG, formatDateTime, cn, vendorName } from '@/lib/utils'
@@ -188,7 +189,12 @@ function ModerationCard({ item }: { item: ModerationItem }) {
 export default function ModerationPage() {
   useRealtime('moderation_items', ['moderation'])
 
-  const { items: allItems } = useModerationItems()
+  const assignedClientIds = useMyAssignedClientIds()
+  // Pass assigned clientIds to query; null = no restriction (bypass roles)
+  const { items: allItems } = useModerationItems(
+    undefined,
+    assignedClientIds !== null ? assignedClientIds : undefined
+  )
   const { user } = useAuth()
   const [filter, setFilter] = useState<'all' | 'pending' | 'replied' | 'escalated'>('all')
 

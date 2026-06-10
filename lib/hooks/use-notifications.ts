@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useRealtime } from '@/lib/hooks/use-realtime'
+import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
 
 export interface AppNotification {
   id: string
@@ -62,20 +63,33 @@ function mapAuditToNotification(row: Record<string, unknown>): AppNotification {
 
 export function useNotifications() {
   useRealtime('audit_log', ['notifications'])
+  const assignedClientIds = useMyAssignedClientIds()
 
   const { data: notifications = [], isLoading, error } = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ['notifications', assignedClientIds],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('audit_log')
         .select('id, action, entity_type, entity_id, metadata, created_at, user_id')
         .order('created_at', { ascending: false })
-        .limit(20)
+        .limit(50) // fetch more so we have enough after client-side filtering
       if (error) return [] as AppNotification[]
-      return (data ?? []).map(row => mapAuditToNotification(row as Record<string, unknown>))
+      const all = (data ?? []).map(row => mapAuditToNotification(row as Record<string, unknown>))
+
+      // Scope to assigned clients: if metadata.client_id exists and user has restrictions, filter
+      if (assignedClientIds === null) return all.slice(0, 20)
+      return all
+        .filter(n => {
+          const meta = (data?.find(r => String(r.id) === n.id)?.metadata ?? {}) as Record<string, unknown>
+          const clientId = meta.client_id as string | undefined
+          // If no client_id in metadata, include (can't determine scope)
+          if (!clientId) return true
+          return assignedClientIds.includes(clientId)
+        })
+        .slice(0, 20)
     },
     staleTime: 30_000,
-    // No polling — realtime subscription in useNotifications() handles live updates
+    // No polling — realtime subscription handles live updates
   })
   return { notifications, isLoading, error }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, TrendingUp, X, Search, Globe, Sparkles, Clock, Zap, ChevronDown } from 'lucide-react'
+import { RefreshCw, TrendingUp, X, Search, Globe, Sparkles, Clock, Zap, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -62,8 +62,6 @@ const PLATFORMS = [
   { value: 'all',       label: 'All'            },
   { value: 'youtube',   label: 'YouTube'        },
   { value: 'tiktok',    label: 'TikTok'         },
-  { value: 'instagram', label: 'Instagram'      },
-  { value: 'pinterest', label: 'Pinterest'      },
   { value: 'trendsmcp', label: 'Cross-platform' },
 ]
 
@@ -100,13 +98,28 @@ const PERIOD_OPTIONS = [
 // ── Min views filter options ──────────────────────────────────
 
 const MIN_VIEWS_OPTIONS = [
-  { value: '0',         label: 'Any views'    },
-  { value: '10000',     label: '10K+ views'   },
-  { value: '50000',     label: '50K+ views'   },
-  { value: '100000',    label: '100K+ views'  },
-  { value: '500000',    label: '500K+ views'  },
-  { value: '1000000',   label: '1M+ views'    },
+  { value: '0',          label: 'Any views'    },
+  { value: '10000',      label: '10K+ views'   },
+  { value: '50000',      label: '50K+ views'   },
+  { value: '100000',     label: '100K+ views'  },
+  { value: '500000',     label: '500K+ views'  },
+  { value: '1000000',    label: '1M+ views'    },
+  { value: '5000000',    label: '5M+ views'    },
+  { value: '10000000',   label: '10M+ views'   },
 ]
+
+// ── Min engagement rate filter options ────────────────────────
+
+const MIN_ENGAGEMENT_OPTIONS = [
+  { value: '0',    label: 'Any engagement' },
+  { value: '1',    label: '1%+ ER'         },
+  { value: '2',    label: '2%+ ER'         },
+  { value: '5',    label: '5%+ ER'         },
+  { value: '10',   label: '10%+ ER'        },
+]
+
+const ITEMS_PER_PAGE = 50
+const MAX_LOAD_MORE  = 5
 
 // ── Skeleton card ─────────────────────────────────────────────
 
@@ -238,14 +251,18 @@ export default function InspirationLibraryPage() {
 
   const [industry,         setIndustry]         = useState('beauty')
   const [customNiche,      setCustomNiche]       = useState('')
+  const [inlineTag,        setInlineTag]         = useState('')
   const [platform,         setPlatform]          = useState('all')
   const [region,           setRegion]            = useState('global')
   const [period,           setPeriod]            = useState('30d')
   const [minViews,         setMinViews]          = useState('0')
+  const [minEngagement,    setMinEngagement]     = useState('0')
   const [aiFilter,         setAiFilter]          = useState(false)
   const nicheInputRef = useRef<HTMLInputElement>(null)
-  const [items,            setItems]             = useState<TrendingContentItem[]>([])
+  const [allItems,         setAllItems]          = useState<TrendingContentItem[]>([])
   const [removedCount,     setRemovedCount]      = useState(0)
+  const [displayCount,     setDisplayCount]      = useState(ITEMS_PER_PAGE)
+  const [loadMoreClicks,   setLoadMoreClicks]    = useState(0)
   const [savedItems,       setSavedItems]        = useState<InspirationBoardItem[]>([])
   const [selectedClientId, setSelectedClientId]  = useState<string | null>(null)
   const [isLoading,        setIsLoading]         = useState(false)
@@ -260,25 +277,26 @@ export default function InspirationLibraryPage() {
 
   const fetchFeed = useCallback(async () => {
     setIsLoading(true)
-    // Clear stale analysis when filters change
     setAnalysis(null)
     setShowAnalysis(false)
+    setDisplayCount(ITEMS_PER_PAGE)
+    setLoadMoreClicks(0)
     try {
       const params = new URLSearchParams({
         industry,
         platform,
         region,
         period,
-        limit:    '48',
+        limit:     '200',
         min_views: minViews,
         ...(aiFilter ? { ai_filter: 'true' } : {}),
       })
       const res  = await fetch(`/api/studio/trending-content?${params}`)
       const data = await res.json() as { items: TrendingContentItem[]; removed_count?: number }
-      setItems(data.items ?? [])
+      setAllItems(data.items ?? [])
       setRemovedCount(data.removed_count ?? 0)
     } catch {
-      setItems([])
+      setAllItems([])
     } finally {
       setIsLoading(false)
     }
@@ -289,6 +307,7 @@ export default function InspirationLibraryPage() {
   const fetchSaved = useCallback(async () => {
     if (!user?.id) return
     try {
+      // Fetch all items saved by this user (both client-assigned and personal)
       const res  = await fetch(`/api/studio/inspiration?saved_by=${encodeURIComponent(user.id)}`)
       const data = await res.json() as { items: InspirationBoardItem[] }
       setSavedItems(data.items ?? [])
@@ -303,13 +322,13 @@ export default function InspirationLibraryPage() {
   // ── AI content analysis ───────────────────────────────────
 
   async function runAnalysis() {
-    if (!items.length) return
+    if (!allItems.length) return
     setIsAnalyzing(true)
     try {
       const res  = await fetch('/api/studio/inspiration-analysis', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ items, industry, region }),
+        body:    JSON.stringify({ items: allItems.slice(0, 48), industry, region }),
       })
       const data = await res.json() as { analysis: ContentAnalysis }
       if (data.analysis) {
@@ -336,7 +355,7 @@ export default function InspirationLibraryPage() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          client_id:     selectedClientId,
+          client_id:     selectedClientId === 'personal' ? null : selectedClientId,
           saved_by:      user?.id ?? null,
           platform:      item.platform,
           content_type:  item.content_type,
@@ -347,6 +366,7 @@ export default function InspirationLibraryPage() {
           channel:       item.channel,
           hashtag:       item.hashtag,
           industry:      item.industry,
+          published_at:  item.published_at,
         }),
       })
       const saved = await res.json() as InspirationBoardItem
@@ -381,14 +401,31 @@ export default function InspirationLibraryPage() {
 
   // ── Derived state ─────────────────────────────────────────
 
+  // Apply client-side engagement filter on top of server-filtered items
+  const engagementThreshold = parseFloat(minEngagement)
+  const filteredItems = engagementThreshold > 0
+    ? allItems.filter(it => {
+        if (it.engagement_rate == null) return true  // keep items without ER data
+        return it.engagement_rate >= engagementThreshold
+      })
+    : allItems
+
+  const items = filteredItems.slice(0, displayCount)
+
+  const canLoadMore = loadMoreClicks < MAX_LOAD_MORE && displayCount < filteredItems.length
+
   const savedUrls = new Set(
     selectedClientId
-      ? savedItems.filter(s => s.client_id === selectedClientId).map(s => s.url)
+      ? savedItems.filter(s => s.client_id === (selectedClientId === 'personal' ? null : selectedClientId)).map(s => s.url)
       : [],
   )
 
   const savedCount = selectedClientId
-    ? savedItems.filter(s => s.client_id === selectedClientId).length
+    ? savedItems.filter(s =>
+        selectedClientId === 'personal'
+          ? s.client_id == null
+          : s.client_id === selectedClientId
+      ).length
     : 0
 
   const currentPeriodLabel = PERIOD_OPTIONS.find(p => p.value === period)?.label ?? 'Last month'
@@ -412,7 +449,7 @@ export default function InspirationLibraryPage() {
           {/* Analyze patterns button */}
           <button
             onClick={showAnalysis ? () => setShowAnalysis(false) : runAnalysis}
-            disabled={isAnalyzing || items.length === 0}
+            disabled={isAnalyzing || allItems.length === 0}
             className={cn(
               'hidden sm:flex items-center gap-1.5 text-xs border rounded-lg px-3 py-2 transition-colors disabled:opacity-50',
               showAnalysis
@@ -496,6 +533,22 @@ export default function InspirationLibraryPage() {
               {ind.label}
             </button>
           ))}
+          {/* Inline free-text tag */}
+          <form
+            onSubmit={e => {
+              e.preventDefault()
+              const v = inlineTag.trim()
+              if (v) { setIndustry(v.toLowerCase()); setInlineTag('') }
+            }}
+            className="shrink-0"
+          >
+            <input
+              value={inlineTag}
+              onChange={e => setInlineTag(e.target.value)}
+              placeholder="+ custom tag"
+              className="text-xs border border-dashed border-slate-300 rounded-full px-3 py-1.5 outline-none focus:border-novax-muted bg-transparent w-28 text-slate-600 placeholder:text-slate-400"
+            />
+          </form>
         </div>
 
         {/* Row 1: Platform tabs + Region */}
@@ -518,51 +571,81 @@ export default function InspirationLibraryPage() {
             ))}
           </div>
 
-          {/* Region selector */}
+          {/* Region selector — combo-box: pick from list or type any country */}
           <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
             <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <select
+            <input
+              list="region-list"
               value={region}
               onChange={e => setRegion(e.target.value)}
-              className="text-xs text-slate-700 bg-transparent outline-none cursor-pointer"
-            >
+              placeholder="Region…"
+              className="text-xs text-slate-700 bg-transparent outline-none w-28 placeholder:text-slate-400"
+            />
+            <datalist id="region-list">
               {REGIONS.map(r => (
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
-            </select>
+            </datalist>
           </div>
         </div>
 
         {/* Row 2: Time period + Min views + AI filter + Refresh */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Time period */}
+          {/* Time period — combo-box: pick from list or type custom e.g. 14d */}
           <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
             <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <select
+            <input
+              list="period-list"
               value={period}
               onChange={e => setPeriod(e.target.value)}
-              className="text-xs text-slate-700 bg-transparent outline-none cursor-pointer"
-            >
+              placeholder="e.g. 30d"
+              className="text-xs text-slate-700 bg-transparent outline-none w-24 placeholder:text-slate-400"
+            />
+            <datalist id="period-list">
               {PERIOD_OPTIONS.map(p => (
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
-            </select>
-            <ChevronDown className="w-3 h-3 text-slate-400 shrink-0 pointer-events-none" />
+            </datalist>
           </div>
 
-          {/* Min views */}
+          {/* Min views — combo-box: pick from list or type custom number */}
           <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
             <TrendingUp className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <select
+            <input
+              list="min-views-list"
               value={minViews}
               onChange={e => setMinViews(e.target.value)}
-              className="text-xs text-slate-700 bg-transparent outline-none cursor-pointer"
-            >
+              placeholder="Min views"
+              className="text-xs text-slate-700 bg-transparent outline-none w-24 placeholder:text-slate-400"
+            />
+            <datalist id="min-views-list">
               {MIN_VIEWS_OPTIONS.map(v => (
                 <option key={v.value} value={v.value}>{v.label}</option>
               ))}
-            </select>
-            <ChevronDown className="w-3 h-3 text-slate-400 shrink-0 pointer-events-none" />
+            </datalist>
+          </div>
+
+          {/* Min engagement rate — combo-box: pick from list or type custom % */}
+          <div className={cn(
+            'flex items-center gap-1.5 border rounded-lg px-2 py-1.5 bg-white transition-colors',
+            minEngagement !== '0' ? 'border-novax-border-active' : 'border-slate-200',
+          )}>
+            <Zap className={cn('w-3.5 h-3.5 shrink-0', minEngagement !== '0' ? 'text-novax-accent' : 'text-slate-400')} />
+            <input
+              list="min-engagement-list"
+              value={minEngagement}
+              onChange={e => setMinEngagement(e.target.value)}
+              placeholder="Min ER %"
+              className={cn(
+                'text-xs bg-transparent outline-none w-20 placeholder:text-slate-400',
+                minEngagement !== '0' ? 'text-novax font-medium' : 'text-slate-700',
+              )}
+            />
+            <datalist id="min-engagement-list">
+              {MIN_ENGAGEMENT_OPTIONS.map(v => (
+                <option key={v.value} value={v.value}>{v.label}</option>
+              ))}
+            </datalist>
           </div>
 
           {/* AI filter toggle */}
@@ -597,7 +680,7 @@ export default function InspirationLibraryPage() {
           {/* Analyze button (mobile — full row) */}
           <button
             onClick={showAnalysis ? () => setShowAnalysis(false) : runAnalysis}
-            disabled={isAnalyzing || items.length === 0}
+            disabled={isAnalyzing || allItems.length === 0}
             className={cn(
               'sm:hidden flex items-center gap-1.5 text-xs border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50',
               showAnalysis
@@ -624,14 +707,14 @@ export default function InspirationLibraryPage() {
       <div className="flex gap-6 items-start">
 
         {/* LEFT — Feed */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-4">
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 12 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
             </div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <TrendingUp className="w-10 h-10 text-slate-200 mb-3" />
               <p className="text-sm font-medium text-slate-500">
@@ -642,19 +725,44 @@ export default function InspirationLibraryPage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map(item => (
-                <InspirationCard
-                  key={item.id}
-                  item={item}
-                  isSaved={savedUrls.has(item.url)}
-                  clientId={selectedClientId ?? undefined}
-                  onSave={handleSave}
-                  onUnsave={handleUnsave}
-                  onUseAsInspiration={handleUseAsInspiration}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {items.map(item => (
+                  <InspirationCard
+                    key={item.id}
+                    item={item}
+                    isSaved={savedUrls.has(item.url)}
+                    clientId={selectedClientId ?? undefined}
+                    onSave={handleSave}
+                    onUnsave={handleUnsave}
+                    onUseAsInspiration={handleUseAsInspiration}
+                  />
+                ))}
+              </div>
+
+              {/* Load More */}
+              {canLoadMore ? (
+                <div className="flex justify-center pt-2">
+                  <button
+                    onClick={() => {
+                      setDisplayCount(prev => prev + ITEMS_PER_PAGE)
+                      setLoadMoreClicks(prev => prev + 1)
+                    }}
+                    className="flex items-center gap-2 text-sm font-medium text-novax-muted border border-novax-border rounded-xl px-5 py-2.5 hover:bg-novax-light hover:border-novax-border-active transition-colors"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    Load more
+                    <span className="text-xs text-slate-400 font-normal">
+                      ({Math.min(ITEMS_PER_PAGE, filteredItems.length - displayCount)} more)
+                    </span>
+                  </button>
+                </div>
+              ) : filteredItems.length > ITEMS_PER_PAGE && !canLoadMore ? (
+                <p className="text-center text-xs text-slate-400 py-2">
+                  Showing all {filteredItems.length} results
+                </p>
+              ) : null}
+            </>
           )}
         </div>
 

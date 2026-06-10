@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Brain, ArrowLeft, PlusCircle,
+  Brain, ArrowLeft,
   AlertTriangle, RefreshCw,
 } from 'lucide-react'
 import { exportStrategyPdf } from '@/lib/strategy-export'
@@ -15,6 +15,8 @@ import { StudioLoading } from '@/components/studio/studio-loading'
 import { StudioDocument } from '@/components/studio/studio-document'
 import { StudioChatbot } from '@/components/studio/studio-chatbot'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
+import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
+import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
 import type {
   StrategyDocument,
   BossBrief,
@@ -279,12 +281,6 @@ export default function StrategyPage() {
           </h1>
           <p className="text-xs text-slate-500">Quarterly social media strategy — Esplanade format</p>
         </div>
-        {(pageState === 'brief' || pageState === 'document') && (
-          <button onClick={handleNewSession} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
-            <PlusCircle className="w-3.5 h-3.5" />
-            New Session
-          </button>
-        )}
       </div>
 
       {/* Error banner */}
@@ -301,9 +297,23 @@ export default function StrategyPage() {
       {/* ── BRIEF state ── */}
       {pageState === 'brief' && (
         <div className="space-y-5">
+          <StudioGuidancePanel
+            title="How Strategy Command Center works"
+            description="Generates a full quarterly social media strategy in the Esplanade format — a structured 17-phase framework covering brand positioning, platform roles, content pillars, monthly arc, tactical calendar, and format mix."
+            items={[
+              { term: 'Esplanade Format', definition: 'A NOVAX-proprietary strategy framework that covers audience posture, cultural moment, brand arc, platform strategy, content pillars, and monthly cadence in a single coherent document.' },
+              { term: 'Content Pillars', definition: 'The 3–5 recurring themes that anchor all content — each with its own tone, format affinity, and audience job-to-be-done.' },
+              { term: 'Platform Role', definition: 'How each platform serves a different function in the funnel — e.g. Instagram = top-of-funnel awareness, LinkedIn = authority building.' },
+              { term: 'Monthly Arc', definition: 'The narrative rhythm across a quarter: what the brand "says" in Month 1 vs 2 vs 3, and how content evolves as the audience warms.' },
+            ]}
+            tips={[
+              { label: 'Best brief', tip: 'Include a specific growth goal (e.g. "get 500 saves/week on Instagram") and one cultural moment or season you\'re building around.' },
+              { label: 'Export', tip: 'Use the PPTX export to share the strategy with the client directly from the output screen.' },
+            ]}
+          />
           {(sessions.length > 0 || sessionsLoading) && (
             <div className="mb-6">
-              <StudioSessionList sessions={sessions} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onDeleteSession={id => setSessions(prev => prev.filter(s => s.id !== id))} isLoading={sessionsLoading} />
+              <StudioSessionList sessions={sessions} onSessionClick={handleSessionClick} onDeleteSession={id => setSessions(prev => prev.filter(s => s.id !== id))} isLoading={sessionsLoading} />
             </div>
           )}
 
@@ -369,7 +379,13 @@ export default function StrategyPage() {
 
             {/* Strategic Brief */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Strategic Brief</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Strategic Brief</label>
+                <LumaraPrefillButton
+                  onPrefill={(id, b) => { setClientId(id); setBrief(b) }}
+                  brief={LUMARA_BRIEFS.strategy}
+                />
+              </div>
               <textarea value={brief} onChange={e => setBrief(e.target.value)}
                 placeholder="What is the strategic challenge and goal for this quarter? What does the brand need to own, change, or achieve? What makes this quarter different?"
                 rows={3}

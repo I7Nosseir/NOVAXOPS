@@ -81,15 +81,15 @@ export function Header() {
   return (
     <>
       <header className="h-14 fixed top-0 left-0 lg:left-64 right-0 z-40 flex items-center justify-between px-4 lg:px-6 header-glass">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {/* Mobile hamburger */}
           <button
             onClick={toggleSidebar}
-            className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400"
+            className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400 shrink-0"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <h1 className="text-slate-900 dark:text-slate-100 font-semibold text-base">{title}</h1>
+          <h1 className="text-slate-900 dark:text-slate-100 font-semibold text-base truncate">{title}</h1>
         </div>
 
         <div className="flex items-center gap-2 lg:gap-3">

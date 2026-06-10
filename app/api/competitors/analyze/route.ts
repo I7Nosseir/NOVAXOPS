@@ -93,25 +93,53 @@ Audience: ${identity.target_audience ?? ''}
 Platforms: ${Array.isArray(identity.platforms) ? (identity.platforms as string[]).join(', ') : ''}
 
 TRACKED COMPETITORS:
-${competitorList || '(none with metrics yet — provide general industry analysis)'}
+${competitorList || '(none with metrics yet — provide general industry analysis based on client industry)'}
 
 TOP COMPETITOR CONTENT SAMPLES:
-${postSamples || '(no post data yet)'}
+${postSamples || '(no post data yet — infer from industry knowledge)'}
 
-Analyze the competitive landscape and return ONLY valid JSON — no markdown, no explanation:
+Analyze the competitive landscape in depth. Identify exactly:
+- 3 GLOBAL competitors (internationally known brands in this industry/niche)
+- 3 LOCAL competitors (regional or local brands in the same market)
+
+If tracked competitors are provided, prioritise them. Fill any gaps with known competitors in this industry.
+
+For each competitor provide a deep breakdown: platform strategy, best performing format, key strengths and weaknesses, social URL, growth trajectory.
+
+Return ONLY valid JSON — no markdown, no explanation:
 {
   "landscape": [
-    { "handle": "@handle", "platform": "Instagram", "followers": 0, "avg_er": 0, "posting_frequency": 0, "growth_signal": "stable" }
+    {
+      "handle": "@handle",
+      "platform": "Instagram",
+      "followers": 0,
+      "avg_er": 0.0,
+      "posting_frequency": 3,
+      "growth_signal": "stable",
+      "scope": "global",
+      "platform_strategy": "1-sentence description of their content approach",
+      "best_performing_format": "e.g. 15s Reels showing product transformation",
+      "key_strengths": ["strength 1", "strength 2"],
+      "key_weaknesses": ["weakness 1", "weakness 2"],
+      "social_url": "https://instagram.com/handle"
+    }
   ],
-  "opportunities": ["3–5 actionable content opportunities competitors are missing"],
+  "opportunities": ["5 specific content opportunities competitors are NOT covering"],
   "threats": [
-    { "handle": "@handle", "platform": "Instagram", "threat_level": "high", "reasons": ["reason1", "reason2"], "recommended_response": "What the client should do" }
+    {
+      "handle": "@handle",
+      "platform": "Instagram",
+      "threat_level": "high",
+      "reasons": ["specific reason 1", "specific reason 2"],
+      "recommended_response": "Concrete action the client should take against this competitor",
+      "social_url": "https://instagram.com/handle"
+    }
   ],
-  "hooks_to_avoid": ["Hook patterns that competitors use heavily — client should differentiate"],
+  "hooks_to_avoid": ["Hook patterns competitors use heavily — client must differentiate"],
   "hooks_to_try": ["Hook types underused in this niche — high opportunity"],
-  "recommended_formats": ["Content formats client should prioritize based on gaps"],
-  "monthly_actions": ["5 prioritized actions for this month based on competitive landscape"],
-  "summary": "2–3 sentence competitive intelligence summary",
+  "recommended_formats": ["3–5 content formats client should prioritize based on gaps"],
+  "monthly_actions": ["5 prioritized actions for this month — be specific, not generic"],
+  "summary": "2–3 sentence competitive intelligence summary with the single biggest opportunity",
   "generated_at": "${new Date().toISOString()}"
 }`
 

@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getArabicDialectGuide, getClientDialect, HUMANIZATION_RULES_EN, HUMANIZATION_RULES_AR } from '@/lib/arabic-dialect'
 import type { ArabicDialect } from '@/lib/arabic-dialect'
 import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
+import { aiGuard } from '@/lib/ai-guard'
 
 const PRIMARY_MODEL = 'claude-sonnet-4-6'
 const ADVANCED_MODEL = 'claude-opus-4-7'
@@ -122,6 +123,9 @@ interface AIRequest {
 const CACHEABLE_AGENTS = new Set(['task_analyzer', 'copywriter', 'researcher', 'asset_finder', 'presentation_builder'])
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard()
+  if (guard) return guard
+
   const useAnthropic = !!process.env.ANTHROPIC_API_KEY
   if (!useAnthropic && !process.env.GEMINI_API_KEY) {
     return NextResponse.json({ error: 'No AI API key configured. Set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env.local.' }, { status: 500 })

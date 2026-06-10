@@ -11,6 +11,7 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import { StudioLoading } from '@/components/studio/studio-loading'
+import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
 import type {
   PostMortemDiagnosis,
   LoadingStep,
@@ -221,6 +222,20 @@ export default function PostMortemPage() {
       {/* ── SELECT state ── */}
       {pageState === 'select' && (
         <div className="space-y-5">
+          <StudioGuidancePanel
+            title="How Post-Mortem works"
+            description="Post-Mortem diagnoses why a piece of content underperformed using a 4-dimension framework: Hook (did the first 1–3 seconds stop the scroll?), Format (was the structure right for the platform?), Timing (was it posted at the wrong moment?), and Caption (did the text reinforce or fight the visual?)."
+            items={[
+              { term: 'Hook Failure', definition: 'The content had a weak or generic opening — audience scrolled past before the value was clear.' },
+              { term: 'Format Mismatch', definition: 'The content type didn\'t match the platform behavior — e.g. a talking-head reel on a visual-first feed.' },
+              { term: 'Timing Signal', definition: 'Posted outside peak activity windows for the account or conflicting with a cultural moment that drowned it out.' },
+              { term: 'Caption Gap', definition: 'The caption failed to carry the hook forward, add context, or drive a specific action (save, share, comment).' },
+            ]}
+            tips={[
+              { label: 'Most value', tip: 'Give the actual engagement numbers — views, saves, shares — not just "it didn\'t perform." Specificity improves the diagnosis.' },
+              { label: 'Compare', tip: 'Run a post-mortem on a top performer and a bottom performer on the same day — the contrast reveals the real pattern.' },
+            ]}
+          />
           {/* Input mode toggle */}
           <div className="flex gap-2">
             <button

@@ -56,6 +56,7 @@ export type PaidAdsData = {
   conversions: string
   roas: string
   campaignName?: string
+  imageUrl?: string
 }
 
 type MetricoolStats = Record<string, number>
@@ -136,6 +137,15 @@ function formatPaidAds(ads: PaidAdsData): string {
   return lines.join('\n')
 }
 
+function formatMultiplePaidAds(campaigns: PaidAdsData[]): string {
+  const active = campaigns.filter(c => c.spend)
+  if (!active.length) return ''
+  if (active.length === 1) return formatPaidAds(active[0])
+  return active
+    .map((c, i) => `--- Campaign ${i + 1}${c.campaignName ? ` (${c.campaignName})` : ''} ---\n${formatPaidAds(c)}`)
+    .join('\n\n')
+}
+
 // ─── Monthly Performance ────────────────────────────────────────────────────
 
 export function buildMonthlyPrompt(
@@ -144,9 +154,11 @@ export function buildMonthlyPrompt(
   period: string,
   brand?: BrandContext,
   language?: 'en' | 'ar',
-  paidAdsData?: PaidAdsData | null
+  adCampaigns?: PaidAdsData[] | null
 ): string {
-  const hasPaid = !!(paidAdsData && paidAdsData.spend)
+  const activeCampaigns = (adCampaigns ?? []).filter(c => c.spend)
+  const hasPaid = activeCampaigns.length > 0
+  const activePlatforms = data.platforms.filter(p => p.reach > 0 || p.impressions > 0 || p.likes > 0)
 
   return `${language === 'ar' ? ARABIC_INSTRUCTION + '\n\n' : ''}You are a social media analyst at NOVAX, a creative marketing agency.
 Write a plain-language Monthly Performance Report for ${clientName} covering ${period}.
@@ -171,7 +183,7 @@ ENGAGEMENT RATE CONTEXT (for interpretation):
 - Good interaction rate on LinkedIn: 2–4% of viewers
 - Industry average across platforms: ~2%
 
-${hasPaid ? `PAID ADVERTISING DATA — ${period}:\n${formatPaidAds(paidAdsData!)}` : ''}
+${hasPaid ? `PAID ADVERTISING DATA — ${period}:\n${formatMultiplePaidAds(activeCampaigns)}` : ''}
 
 ${NO_RECS}
 
@@ -187,7 +199,10 @@ Explain in plain terms how many different people the content reached this month,
 Describe in detail how people reacted to the content — total likes, comments, shares, and saves, citing every number. State the overall engagement rate as a whole number percentage (e.g. "X% of people who saw the content took an action"). Break down which type of interaction was highest — if saves are high, explain that saves mean people found the content valuable enough to come back to it; if comments are high, explain that comments show people were motivated to have a conversation. If the engagement rate is above 2%, note that this is above the industry average.
 
 ### Platform Performance
-Describe which social media platforms performed best and worst this month, with specific numbers for each platform. State the reach, total interactions (likes + comments + shares), and engagement rate for every active platform. Identify clearly which platform delivered the highest reach and which delivered the highest engagement rate. If one platform has significantly more posts than another, note the volume difference.
+Compare all active platforms side-by-side this month. State the reach, total interactions (likes + comments + shares), and engagement rate for every active platform with specific numbers. Identify clearly which platform delivered the highest reach and which delivered the highest engagement rate — and by how much. If one platform has significantly more posts than another, note the volume difference and what it implies about content distribution.
+
+### Platform Narratives
+${activePlatforms.length > 0 ? `Active platforms to cover: ${activePlatforms.map(p => p.platform).join(', ')}.` : ''}For each platform listed in the PER-PLATFORM BREAKDOWN that has non-zero data, write exactly one dedicated paragraph. Start each paragraph with the platform name in bold (e.g. **Instagram**). For each platform state: the exact reach, the exact engagement rate as a percentage, the top interaction type (likes / comments / saves / shares), and one observation about what the numbers reveal about that platform's audience. If only one platform has data, still write this section for that platform.
 
 ### Trend Analysis
 Using the 5-month data, explain in simple terms whether the audience is growing, shrinking, or staying stable. Compare this month's reach to the previous month and to the earliest month in the trend data — state the actual numbers for both. If the engagement rate is trending up or down over the months, state the direction and the figures for the most recent and oldest months. Note whether any specific month stood out as a peak or dip.
@@ -199,7 +214,7 @@ State exactly how many posts were published this month across all platforms. Cal
 Go deeper on the quality of audience interaction this month. State the saves count and what it represents as a percentage of total reach (saves / reach × 100) — high save rates mean people found the content worth keeping. State the total comments and what it reveals about how actively people engaged with the content. If shares data is available, note how many times people chose to share the content with their own followers, which is a sign the content resonated beyond the original audience. Summarise the overall quality of interaction in one plain sentence.
 
 ${hasPaid ? `### Paid Media Performance
-Describe the paid advertising results for this month in plain terms. State the total amount spent and what it bought in terms of reach and impressions. If CTR data is available, explain it in plain language (e.g. "out of every 100 people who saw the ad, X clicked it"). If ROAS or conversions data is available, state those figures clearly. Compare the paid reach to the organic reach if both are available, noting how the two channels worked together this month.` : ''}
+Describe the paid advertising results for this month in plain terms.${activeCampaigns.length > 1 ? ` There are ${activeCampaigns.length} campaigns — briefly describe each one's spend and key result.` : ''} State the total amount spent${activeCampaigns.length > 1 ? ' across all campaigns' : ''} and what it bought in terms of reach and impressions. If CTR data is available, explain it in plain language (e.g. "out of every 100 people who saw the ad, X clicked it"). If ROAS or conversions data is available, state those figures clearly. Compare the paid reach to the organic reach if both are available, noting how the two channels worked together this month.` : ''}
 
 ${PLAIN_FORMAT}`
 }
@@ -451,15 +466,15 @@ export function buildReportPrompt(
   period: string,
   brand?: BrandContext,
   language?: 'en' | 'ar',
-  paidAdsData?: PaidAdsData | null
+  adCampaigns?: PaidAdsData[] | null
 ): string {
   switch (reportType) {
-    case 'monthly':   return buildMonthlyPrompt(data, clientName, period, brand, language, paidAdsData)
+    case 'monthly':   return buildMonthlyPrompt(data, clientName, period, brand, language, adCampaigns)
     case 'paid':      return buildPaidPrompt(data, clientName, period, brand)
     case 'combined':  return buildCombinedPrompt(data, clientName, period, brand)
     case 'platform':  return buildPlatformPrompt(data, clientName, period, brand)
     case 'quarterly': return buildQuarterlyPrompt(data, clientName, period, brand)
     case 'executive': return buildExecutivePrompt(data, clientName, period, brand)
-    default:          return buildMonthlyPrompt(data, clientName, period, brand, language, paidAdsData)
+    default:          return buildMonthlyPrompt(data, clientName, period, brand, language, adCampaigns)
   }
 }

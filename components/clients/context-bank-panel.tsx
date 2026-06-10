@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Plus, Archive, Trash2, BookOpen, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw } from 'lucide-react'
+import { Plus, Archive, Trash2, BookOpen, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Pencil, Check, X, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 
@@ -16,13 +16,14 @@ interface ContextEntry {
   created_at: string
 }
 
-const CATEGORIES = [
+export const CATEGORIES = [
   'Client Instructions',
   'Brand Update',
   'Campaign Feedback',
   'Market Intel',
   'Meeting Notes',
   'Competitor Intel',
+  'Content Example',
 ] as const
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -32,6 +33,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Market Intel':        'bg-purple-50 text-purple-700 border-purple-200',
   'Meeting Notes':       'bg-slate-100 text-slate-600 border-slate-200',
   'Competitor Intel':    'bg-red-50 text-red-700 border-red-200',
+  'Content Example':     'bg-emerald-50 text-emerald-700 border-emerald-200',
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -41,62 +43,168 @@ const SOURCE_LABELS: Record<string, string> = {
   feedback: 'AI feedback',
 }
 
+function ContentExamplePreview({ text }: { text: string }) {
+  return (
+    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 overflow-hidden">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-emerald-200 bg-emerald-100">
+        <FileText className="w-3 h-3 text-emerald-600" />
+        <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Caption / Content Preview</span>
+      </div>
+      <div className="px-3 py-2.5">
+        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{text}</p>
+      </div>
+    </div>
+  )
+}
+
 function EntryCard({
   entry,
   onArchive,
   onDelete,
+  onUpdate,
 }: {
   entry: ContextEntry
   onArchive: (id: string, active: boolean) => void
   onDelete: (id: string) => void
+  onUpdate: (id: string, summary: string, fullText: string, category: string) => Promise<void>
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editSummary, setEditSummary] = useState(entry.summary)
+  const [editFullText, setEditFullText] = useState(entry.full_text)
+  const [editCategory, setEditCategory] = useState(entry.category)
+  const [saving, setSaving] = useState(false)
+
   const colorClass = CATEGORY_COLORS[entry.category] ?? CATEGORY_COLORS['Meeting Notes']
+  const isExample = entry.category === 'Content Example'
+
+  const handleSaveEdit = async () => {
+    setSaving(true)
+    await onUpdate(entry.id, editSummary, editFullText, editCategory)
+    setSaving(false)
+    setEditing(false)
+  }
+
+  const handleCancelEdit = () => {
+    setEditSummary(entry.summary)
+    setEditFullText(entry.full_text)
+    setEditCategory(entry.category)
+    setEditing(false)
+  }
 
   return (
     <div className={cn('rounded-xl border p-4 transition-all', entry.is_active ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100 opacity-60')}>
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1.5">
-            <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border', colorClass)}>
-              {entry.category}
-            </span>
-            <span className="text-[10px] text-slate-400">{SOURCE_LABELS[entry.source_type] ?? entry.source_type}</span>
-            <span className="text-[10px] text-slate-400 ml-auto">{new Date(entry.created_at).toLocaleDateString()}</span>
-          </div>
-          <p className="text-sm text-slate-700 leading-relaxed">{entry.summary}</p>
-          {entry.full_text && entry.full_text !== entry.summary && (
-            <button
-              onClick={() => setExpanded(v => !v)}
-              className="flex items-center gap-1 mt-1.5 text-[11px] text-novax-muted hover:text-novax transition-colors font-medium"
+      {editing ? (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Category</label>
+            <select
+              value={editCategory}
+              onChange={e => setEditCategory(e.target.value)}
+              className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-novax-border bg-white"
             >
-              {expanded ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
-              {expanded ? 'Hide full text' : 'Show full text'}
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Summary</label>
+            <textarea
+              value={editSummary}
+              onChange={e => setEditSummary(e.target.value)}
+              rows={2}
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none outline-none focus:border-novax-border bg-white text-slate-700"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              {editCategory === 'Content Example' ? 'Caption / Content' : 'Full text'}
+            </label>
+            <textarea
+              value={editFullText}
+              onChange={e => setEditFullText(e.target.value)}
+              rows={editCategory === 'Content Example' ? 6 : 4}
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none outline-none focus:border-novax-border bg-white text-slate-700"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveEdit}
+              disabled={saving || !editSummary.trim()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+            >
+              {saving ? <Loader2 className="w-3 h-3 animate-spin"/> : <Check className="w-3 h-3"/>}
+              {saving ? 'Saving…' : 'Save'}
             </button>
-          )}
-          {expanded && (
-            <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{entry.full_text}</p>
+            <button onClick={handleCancelEdit} className="flex items-center gap-1 px-3 py-1.5 text-slate-500 hover:text-slate-700 text-xs font-medium transition-colors">
+              <X className="w-3 h-3"/> Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+              <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border', colorClass)}>
+                {entry.category}
+              </span>
+              <span className="text-[10px] text-slate-400">{SOURCE_LABELS[entry.source_type] ?? entry.source_type}</span>
+              <span className="text-[10px] text-slate-400 ml-auto">{new Date(entry.created_at).toLocaleDateString()}</span>
             </div>
-          )}
+            <p className="text-sm text-slate-700 leading-relaxed">{entry.summary}</p>
+
+            {isExample && entry.full_text ? (
+              <>
+                <button
+                  onClick={() => setExpanded(v => !v)}
+                  className="flex items-center gap-1 mt-1.5 text-[11px] text-emerald-600 hover:text-emerald-800 transition-colors font-medium"
+                >
+                  {expanded ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
+                  {expanded ? 'Hide caption' : 'Preview caption'}
+                </button>
+                {expanded && <ContentExamplePreview text={entry.full_text} />}
+              </>
+            ) : entry.full_text && entry.full_text !== entry.summary ? (
+              <>
+                <button
+                  onClick={() => setExpanded(v => !v)}
+                  className="flex items-center gap-1 mt-1.5 text-[11px] text-novax-muted hover:text-novax transition-colors font-medium"
+                >
+                  {expanded ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
+                  {expanded ? 'Hide full text' : 'Show full text'}
+                </button>
+                {expanded && (
+                  <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{entry.full_text}</p>
+                  </div>
+                )}
+              </>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setEditing(true)}
+              title="Edit"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-novax hover:bg-novax-light transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5"/>
+            </button>
+            <button
+              onClick={() => onArchive(entry.id, !entry.is_active)}
+              title={entry.is_active ? 'Archive' : 'Restore'}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              <Archive className="w-3.5 h-3.5"/>
+            </button>
+            <button
+              onClick={() => onDelete(entry.id)}
+              title="Delete"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5"/>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => onArchive(entry.id, !entry.is_active)}
-            title={entry.is_active ? 'Archive' : 'Restore'}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <Archive className="w-3.5 h-3.5"/>
-          </button>
-          <button
-            onClick={() => onDelete(entry.id)}
-            title="Delete"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5"/>
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -109,8 +217,12 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
   const [showAdd, setShowAdd] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
 
-  // Add form state
+  // Add form — two modes: AI-processed (paste text) and Manual (pick category directly)
+  const [addMode, setAddMode] = useState<'ai' | 'manual'>('ai')
   const [addText, setAddText] = useState('')
+  const [manualCategory, setManualCategory] = useState<string>('Content Example')
+  const [manualSummary, setManualSummary] = useState('')
+  const [manualFullText, setManualFullText] = useState('')
   const [processing, setProcessing] = useState(false)
   const [addError, setAddError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -122,29 +234,32 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
       const data = await res.json() as { entries: ContextEntry[] }
       setEntries(data.entries ?? [])
       setFetched(true)
-    } catch {
-      /* non-critical */
-    } finally {
-      setLoading(false)
-    }
+    } catch { /* non-critical */ }
+    finally { setLoading(false) }
   }
 
-  // Lazy load on first render
-  if (!fetched && !loading) {
-    void fetchEntries()
-  }
+  if (!fetched && !loading) void fetchEntries()
 
   const handleFileUpload = async (file: File) => {
     const text = await readFileText(file)
     if (text) setAddText(text)
   }
 
-  const handleAdd = async () => {
+  const resetAddForm = () => {
+    setAddText('')
+    setManualSummary('')
+    setManualFullText('')
+    setManualCategory('Content Example')
+    setAddError('')
+    setShowAdd(false)
+  }
+
+  // AI-processed add
+  const handleAiAdd = async () => {
     if (!addText.trim()) return
     setProcessing(true)
     setAddError('')
     try {
-      // AI processing to get category + summary
       const processRes = await fetch(`/api/clients/${clientId}/context-bank/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,14 +268,33 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
       if (!processRes.ok) throw new Error('Processing failed')
       const processed = await processRes.json() as { category: string; summary: string; full_text: string }
 
-      // Save to DB
+      const saveRes = await fetch(`/api/clients/${clientId}/context-bank`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...processed, source_type: 'manual', created_by: user?.id }),
+      })
+      if (!saveRes.ok) throw new Error('Save failed')
+      const { entry } = await saveRes.json() as { entry: ContextEntry }
+      setEntries(prev => [entry, ...prev])
+      resetAddForm()
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to save entry')
+    } finally { setProcessing(false) }
+  }
+
+  // Manual add (no AI processing — direct save)
+  const handleManualAdd = async () => {
+    if (!manualSummary.trim()) return
+    setProcessing(true)
+    setAddError('')
+    try {
       const saveRes = await fetch(`/api/clients/${clientId}/context-bank`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category: processed.category,
-          summary: processed.summary,
-          full_text: processed.full_text,
+          category: manualCategory,
+          summary: manualSummary.trim(),
+          full_text: manualFullText.trim() || manualSummary.trim(),
           source_type: 'manual',
           created_by: user?.id,
         }),
@@ -168,13 +302,10 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
       if (!saveRes.ok) throw new Error('Save failed')
       const { entry } = await saveRes.json() as { entry: ContextEntry }
       setEntries(prev => [entry, ...prev])
-      setAddText('')
-      setShowAdd(false)
+      resetAddForm()
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Failed to save entry')
-    } finally {
-      setProcessing(false)
-    }
+    } finally { setProcessing(false) }
   }
 
   const handleArchive = async (entryId: string, newActive: boolean) => {
@@ -191,6 +322,17 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
     setEntries(prev => prev.filter(e => e.id !== entryId))
   }
 
+  const handleUpdate = async (entryId: string, summary: string, fullText: string, category: string) => {
+    await fetch(`/api/clients/${clientId}/context-bank`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entry_id: entryId, summary, full_text: fullText, category }),
+    })
+    setEntries(prev => prev.map(e =>
+      e.id === entryId ? { ...e, summary, full_text: fullText, category } : e
+    ))
+  }
+
   const active = entries.filter(e => e.is_active)
   const archived = entries.filter(e => !e.is_active)
 
@@ -198,11 +340,9 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500">
-            {active.length} active {active.length === 1 ? 'entry' : 'entries'} — injected into every AI call for this client
-          </p>
-        </div>
+        <p className="text-sm text-slate-500">
+          {active.length} active {active.length === 1 ? 'entry' : 'entries'} — injected into every AI call for this client
+        </p>
         <div className="flex items-center gap-2">
           <button
             onClick={() => void fetchEntries()}
@@ -216,7 +356,7 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
             className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-xs font-semibold rounded-lg transition-colors"
           >
             <Plus className="w-3.5 h-3.5"/>
-            Add Update
+            Add Entry
           </button>
         </div>
       </div>
@@ -224,50 +364,99 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
       {/* Add form */}
       {showAdd && (
         <div className="p-4 bg-novax-light border border-novax-border rounded-xl space-y-3">
-          <p className="text-xs font-semibold text-novax">New Context Entry</p>
-          <p className="text-[11px] text-slate-500">Paste meeting notes, a brief, client feedback, or market research. AI will categorize and summarize it.</p>
-
-          <textarea
-            value={addText}
-            onChange={e => setAddText(e.target.value)}
-            placeholder="Paste any text here — meeting notes, client email, article, feedback..."
-            rows={5}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none"
-          />
-
-          {addError && (
-            <p className="text-xs text-red-600">{addError}</p>
-          )}
-
-          <div className="flex items-center gap-2">
+          {/* Mode switcher */}
+          <div className="flex items-center gap-1 bg-white rounded-lg p-1 border border-novax-border">
             <button
-              onClick={handleAdd}
-              disabled={processing || !addText.trim()}
-              className="flex items-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+              onClick={() => setAddMode('ai')}
+              className={cn('flex-1 text-xs font-semibold py-1.5 rounded-md transition-all', addMode === 'ai' ? 'bg-novax text-white' : 'text-slate-500 hover:text-novax')}
             >
-              {processing ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>Processing...</> : <><BookOpen className="w-3.5 h-3.5"/>Save to Memory</>}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.pdf,.docx,.md"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) void handleFileUpload(f) }}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors"
-            >
-              <Upload className="w-3.5 h-3.5"/>
-              Upload file
+              AI-processed
             </button>
             <button
-              onClick={() => { setShowAdd(false); setAddText(''); setAddError('') }}
-              className="px-3 py-2 text-slate-500 hover:text-slate-700 text-xs font-medium transition-colors"
+              onClick={() => setAddMode('manual')}
+              className={cn('flex-1 text-xs font-semibold py-1.5 rounded-md transition-all', addMode === 'manual' ? 'bg-novax text-white' : 'text-slate-500 hover:text-novax')}
             >
-              Cancel
+              Manual entry
             </button>
           </div>
+
+          {addMode === 'ai' ? (
+            <>
+              <p className="text-[11px] text-slate-500">Paste meeting notes, a brief, client feedback, or market research. AI will categorize and summarize it automatically.</p>
+              <textarea
+                value={addText}
+                onChange={e => setAddText(e.target.value)}
+                placeholder="Paste any text here — meeting notes, client email, article, feedback..."
+                rows={5}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none"
+              />
+              {addError && <p className="text-xs text-red-600">{addError}</p>}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAiAdd}
+                  disabled={processing || !addText.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  {processing ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>Processing…</> : <><BookOpen className="w-3.5 h-3.5"/>Save to Memory</>}
+                </button>
+                <input ref={fileInputRef} type="file" accept=".txt,.pdf,.docx,.md" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) void handleFileUpload(f) }}/>
+                <button onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors">
+                  <Upload className="w-3.5 h-3.5"/>Upload file
+                </button>
+                <button onClick={resetAddForm} className="px-3 py-2 text-slate-500 hover:text-slate-700 text-xs font-medium transition-colors">Cancel</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[11px] text-slate-500">Manually set the category, summary, and full content. Best for adding caption examples or structured notes.</p>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Category</label>
+                <select
+                  value={manualCategory}
+                  onChange={e => setManualCategory(e.target.value)}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-novax-border bg-white"
+                >
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Summary <span className="text-red-400">*</span>
+                </label>
+                <input
+                  value={manualSummary}
+                  onChange={e => setManualSummary(e.target.value)}
+                  placeholder={manualCategory === 'Content Example' ? 'e.g. High-performing Eid reel caption — 280K views' : 'One-line description of this entry'}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-novax-border bg-white text-slate-700 placeholder:text-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  {manualCategory === 'Content Example' ? 'Caption / Content' : 'Full text (optional)'}
+                </label>
+                <textarea
+                  value={manualFullText}
+                  onChange={e => setManualFullText(e.target.value)}
+                  placeholder={manualCategory === 'Content Example' ? 'Paste the full caption text here…' : 'Full details, context, notes…'}
+                  rows={manualCategory === 'Content Example' ? 6 : 4}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-border focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none"
+                />
+              </div>
+              {addError && <p className="text-xs text-red-600">{addError}</p>}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleManualAdd}
+                  disabled={processing || !manualSummary.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  {processing ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>Saving…</> : <><Check className="w-3.5 h-3.5"/>Save Entry</>}
+                </button>
+                <button onClick={resetAddForm} className="px-3 py-2 text-slate-500 hover:text-slate-700 text-xs font-medium transition-colors">Cancel</button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -283,7 +472,7 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
         <div className="flex flex-col items-center justify-center py-12 text-slate-400">
           <BookOpen className="w-8 h-8 mb-2 text-novax-border"/>
           <p className="text-sm font-medium text-slate-600">No context entries yet</p>
-          <p className="text-xs mt-1 text-center max-w-xs">Add meeting notes, client briefs, or feedback. The AI reads all active entries before every generation for this client.</p>
+          <p className="text-xs mt-1 text-center max-w-xs">Add meeting notes, captions, client briefs, or feedback. The AI reads all active entries before every generation for this client.</p>
         </div>
       )}
 
@@ -291,7 +480,7 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
       {active.length > 0 && (
         <div className="space-y-2">
           {active.map(entry => (
-            <EntryCard key={entry.id} entry={entry} onArchive={handleArchive} onDelete={handleDelete}/>
+            <EntryCard key={entry.id} entry={entry} onArchive={handleArchive} onDelete={handleDelete} onUpdate={handleUpdate}/>
           ))}
         </div>
       )}
@@ -309,7 +498,7 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
           {showArchived && (
             <div className="space-y-2 mt-2">
               {archived.map(entry => (
-                <EntryCard key={entry.id} entry={entry} onArchive={handleArchive} onDelete={handleDelete}/>
+                <EntryCard key={entry.id} entry={entry} onArchive={handleArchive} onDelete={handleDelete} onUpdate={handleUpdate}/>
               ))}
             </div>
           )}
@@ -319,7 +508,6 @@ export function ContextBankPanel({ clientId }: { clientId: string }) {
   )
 }
 
-// Read a text file's contents as a string
 async function readFileText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

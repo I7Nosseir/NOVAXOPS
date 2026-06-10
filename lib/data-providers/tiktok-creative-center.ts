@@ -153,7 +153,7 @@ export async function fetchTikTokVideos(
   }
 
   // Run queries in parallel
-  const batches = await Promise.all(queries.map(q => searchTikWM(q, 12)))
+  const batches = await Promise.all(queries.map(q => searchTikWM(q, 20)))
 
   // Deduplicate, filter ads + Indian + very short
   const seen  = new Set<string>()
@@ -190,7 +190,7 @@ export async function fetchTikTokVideos(
       const erB = b.play_count > 0 ? b.like_count / b.play_count : 0
       return erB - erA || b.play_count - a.play_count
     })
-    .slice(0, 18)
+    .slice(0, 30)
 }
 
 // ── Hashtag fallback (ogohogo GitHub) ─────────────────────────

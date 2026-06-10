@@ -760,10 +760,9 @@ export default function AIImagePage() {
       <div className="w-80 shrink-0 space-y-4 overflow-y-auto pb-4">
 
         {/* Tab bar */}
-        <div className="grid grid-cols-4 bg-slate-100 rounded-xl p-1 gap-1">
+        <div className="grid grid-cols-3 bg-slate-100 rounded-xl p-1 gap-1">
           {([
             { id: 'generate', label: 'Generate', icon: Wand2 },
-            { id: 'resize',   label: 'Resize',   icon: Maximize2 },
             { id: 'think',    label: 'Think',    icon: Brain },
             { id: 'tov',      label: 'Text',     icon: Type },
           ] as const).map(t => (
@@ -1283,11 +1282,6 @@ export default function AIImagePage() {
                 showEditPanel ? 'bg-novax text-white border-novax' : 'border-novax-border text-novax hover:bg-novax-light')}>
               <Pencil className="w-3.5 h-3.5" />
               Edit
-            </button>
-            <button onClick={handleResizeCurrent}
-              className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">
-              <Maximize2 className="w-3.5 h-3.5" />
-              Resize
             </button>
             <button onClick={() => setActiveTab('tov')}
               className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">

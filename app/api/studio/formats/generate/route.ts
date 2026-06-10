@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { aiGuard } from '@/lib/ai-guard'
 
 export const maxDuration = 60
 
@@ -104,6 +105,9 @@ Rules:
 `
 
 export async function POST(req: NextRequest) {
+  const guard = await aiGuard()
+  if (guard) return guard
+
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   const geminiKey    = process.env.GEMINI_API_KEY
 

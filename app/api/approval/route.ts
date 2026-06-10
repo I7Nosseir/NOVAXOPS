@@ -66,21 +66,41 @@ export async function POST(req: NextRequest) {
     .eq('auth_id', user.id)
     .single()
 
-  let body: { client_id: string; title: string; post_ids: string[]; expiry_days?: number; client_email?: string; client_name?: string }
+  let body: {
+    client_id: string
+    title: string
+    post_ids: string[]
+    expiry_days?: number
+    client_email?: string
+    client_name?: string
+    ad_hoc_items?: { caption: string; media_url?: string }[]
+  }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const { client_id, title, post_ids, expiry_days = 7, client_email, client_name } = body
-  if (!client_id || !title || !Array.isArray(post_ids) || post_ids.length === 0) {
+  const { client_id, title, post_ids, expiry_days = 7, client_email, client_name, ad_hoc_items } = body
+  if (!client_id || !title || !Array.isArray(post_ids)) {
     return NextResponse.json({ error: 'client_id, title, and post_ids are required' }, { status: 400 })
+  }
+  const adhocList = (ad_hoc_items ?? []).filter(x => x.caption?.trim())
+  if (post_ids.length === 0 && adhocList.length === 0) {
+    return NextResponse.json({ error: 'At least one post or custom item is required' }, { status: 400 })
   }
 
   const token = randomBytes(6).toString('hex') // 12-char hex token
   const expires_at = new Date()
   expires_at.setDate(expires_at.getDate() + expiry_days)
+
+  // Build ad-hoc items with stable IDs
+  const items = adhocList.map((x) => ({
+    id: randomBytes(8).toString('hex'),
+    caption: x.caption,
+    media_url: x.media_url ?? null,
+    status: 'pending',
+  }))
 
   const db = adminSupabase()
 
@@ -96,6 +116,7 @@ export async function POST(req: NextRequest) {
       notify_email: client_email ?? null,
       created_by: profile?.id ?? null,
       expires_at: expires_at.toISOString(),
+      items,
     })
     .select()
     .single()
@@ -104,10 +125,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insertErr?.message ?? 'Insert failed' }, { status: 500 })
   }
 
-  // Insert per-post status rows
-  const { error: statusErr } = await db.from('approval_post_statuses').insert(
-    post_ids.map((post_id) => ({ request_id: request.id, post_id, status: 'pending' }))
-  )
+  // Insert per-post status rows (scheduled posts + ad-hoc items)
+  const statusRows = [
+    ...post_ids.map((post_id) => ({ request_id: request.id, post_id, status: 'pending' })),
+    ...items.map((item) => ({ request_id: request.id, post_id: item.id, status: 'pending' })),
+  ]
+  const { error: statusErr } = await db.from('approval_post_statuses').insert(statusRows)
 
   if (statusErr) {
     return NextResponse.json({ error: statusErr.message }, { status: 500 })
@@ -176,10 +199,31 @@ export async function PATCH(req: NextRequest) {
 
   // Fire-and-forget: notify the team member who created the request
   if (request.created_by) {
-    const [{ data: createdByUser }, { data: client }] = await Promise.all([
+    const [{ data: createdByUser }, { data: client }, { data: postData }] = await Promise.all([
       db.from('users').select('email').eq('id', request.created_by).single(),
       db.from('clients').select('name').eq('id', request.client_id).single(),
+      (request.post_ids ?? []).length > 0
+        ? db.from('scheduled_posts').select('id, caption').in('id', request.post_ids ?? [])
+        : Promise.resolve({ data: [] as { id: string; caption: string }[] }),
     ])
+
+    // Also fetch ad-hoc item captions from the request's items JSON
+    const { data: fullRequest } = await db
+      .from('approval_requests')
+      .select('items')
+      .eq('id', request.id)
+      .single()
+    const adhocItems = (fullRequest?.items ?? []) as { id: string; caption: string }[]
+
+    const postResults = Object.entries(decisions).map(([post_id, { status, note }]) => {
+      const scheduledPost = (postData as { id: string; caption: string }[] ?? []).find(p => p.id === post_id)
+      const adhocItem = adhocItems.find(x => x.id === post_id)
+      return {
+        caption: scheduledPost?.caption ?? adhocItem?.caption ?? '(Custom content)',
+        status,
+        note: note || undefined,
+      }
+    })
 
     const teamEmail = createdByUser?.email ?? process.env.NOVA_TEAM_EMAIL
     if (teamEmail) {
@@ -191,6 +235,7 @@ export async function PATCH(req: NextRequest) {
         clientName: client?.name ?? 'Client',
         requestTitle: request.title,
         decisionSummary: summary,
+        postResults,
       }).catch(() => {})
     }
   }

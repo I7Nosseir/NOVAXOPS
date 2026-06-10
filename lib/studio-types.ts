@@ -126,6 +126,8 @@ export interface ContentInputs {
   language: 'english' | 'arabic'
   dialect?: 'saudi' | 'egyptian' | 'gulf' | 'msa'
   emotional_trigger?: string
+  content_type?: 'reel' | 'carousel' | 'static'
+  piece_count?: 1 | 2 | 3
 }
 
 // ─── Structured Interactivity ─────────────────────────────────

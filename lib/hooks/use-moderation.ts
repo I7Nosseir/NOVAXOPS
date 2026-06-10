@@ -34,15 +34,24 @@ export function usePendingModerationCount() {
   })
 }
 
-export function useModerationItems(clientId?: string) {
+export function useModerationItems(clientId?: string, clientIds?: string[]) {
   const { data: items = [], isLoading, error } = useQuery({
-    queryKey: ['moderation', clientId],
+    queryKey: ['moderation', clientId, clientIds],
     queryFn: async () => {
+      // If an explicit clientIds scope is provided and empty, return nothing
+      if (clientIds !== undefined && clientIds.length === 0) return [] as ModerationItem[]
+
       let query = supabase
         .from('moderation_items')
         .select('*')
         .order('created_at', { ascending: false })
-      if (clientId) query = query.eq('client_id', clientId)
+
+      if (clientId) {
+        query = query.eq('client_id', clientId)
+      } else if (clientIds && clientIds.length > 0) {
+        query = query.in('client_id', clientIds)
+      }
+
       const { data, error } = await query
       if (error) throw error
       return (data ?? []).map(mapItem)

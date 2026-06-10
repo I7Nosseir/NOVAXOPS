@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
+import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
+import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
 import type {
   VisualApproach, VisualDocument, VisualInputs, LoadingStep,
   NarrativePurpose, ScenePrompt,
@@ -725,6 +727,20 @@ export default function VisualEnginePage() {
       {/* ── BRIEF FORM ── */}
       {pageState === 'brief' && (
         <div className="space-y-6">
+          <StudioGuidancePanel
+            title="How Visual Content Engine works"
+            description="Takes your product or brief and generates a visual approach (the creative strategy — e.g. day-in-the-life, transformation arc, sensory-led) then breaks it down into scene-by-scene production prompts ready for Higgsfield or any AI video/image tool."
+            items={[
+              { term: 'Visual Approach', definition: 'The creative lens for the video — how you want the audience to experience it emotionally before you decide on shots. E.g. "contrast reveal" = before/after. "textural immersion" = close-up product feel.' },
+              { term: 'Visual Anchor', definition: 'The single image or moment that the whole video is built around — usually the 3-second shot that makes it shareable.' },
+              { term: 'Scene Prompt', definition: 'A Higgsfield-ready description: subject, action, camera movement, lighting, duration. Each prompt is copy-pasteable into an AI video generation tool.' },
+              { term: 'Narrative Purpose', definition: 'Why this scene exists in the story — setup, conflict, revelation, payoff. Guides shot selection and order.' },
+            ]}
+            tips={[
+              { label: 'Best brief', tip: 'Describe the sensory experience you want to create ("warm, slow, golden hour") not just the product. Visuals start with feeling.' },
+              { label: 'Higgsfield', tip: 'Copy scene prompts directly into Higgsfield\'s prompt field — they\'re pre-formatted for cinematic character-consistent generation.' },
+            ]}
+          />
 
           {/* Client + Platform */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
@@ -852,7 +868,13 @@ export default function VisualEnginePage() {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-slate-600 mb-1.5 block">Core Message</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-slate-600">Core Message</label>
+                <LumaraPrefillButton
+                  onPrefill={(_, b) => set('core_message', b)}
+                  brief={LUMARA_BRIEFS.visual}
+                />
+              </div>
               <textarea
                 value={inputs.core_message}
                 onChange={e => set('core_message', e.target.value)}

@@ -14,6 +14,7 @@ import {
   Heart, MessageCircle, Share2, Users, Link2,
   Folder, FolderOpen, ChevronDown, ChevronRight, ChevronUp, Trash2,
   Megaphone, CreditCard, MousePointerClick, Percent, ToggleLeft, ToggleRight,
+  Plus, X as XIcon, ImagePlus, Upload,
 } from 'lucide-react'
 import type { PaidAdsData } from '@/lib/report-prompts'
 
@@ -138,11 +139,12 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) 
   )
 }
 
-function CoverPage({ client, period, logoUrl }: { client: string; period: string; logoUrl?: string | null }) {
+function CoverPage({ client, period, logoUrl, preparedDate }: { client: string; period: string; logoUrl?: string | null; preparedDate?: string }) {
+  const today = preparedDate ?? new Date().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
   return (
     <div className="rounded-2xl overflow-hidden flex flex-col min-h-[320px]" style={{ background: B.primary }}>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
-      <div className="px-10 pt-10 flex items-center gap-4">
+      <div className="px-10 pt-10 flex items-center justify-between">
         <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-8 w-auto">
           <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
           <path fillRule="evenodd" d="M82,10 A26,26 0 0 1 82,62 A26,26 0 0 1 82,10 Z M82,22 A14,14 0 0 1 82,50 A14,14 0 0 1 82,22 Z" fill="white"/>
@@ -151,27 +153,25 @@ function CoverPage({ client, period, logoUrl }: { client: string; period: string
           <path fillRule="evenodd" d="M194,62 L218,10 L228,10 L252,62 L243,62 L237,50 L209,50 L203,62 Z M215,42 L223,18 L235,42 Z" fill="white"/>
           <text x="250" y="18" fill="white" fontSize="9" fontFamily="system-ui,Arial,sans-serif">™</text>
         </svg>
+        {logoUrl && (
+          <img src={logoUrl} alt={`${client} logo`} className="h-10 max-w-[140px] object-contain opacity-90"/>
+        )}
       </div>
       <div className="flex-1 flex flex-col justify-center px-10 py-12">
         <div className="w-12 h-0.5 rounded-full mb-6" style={{ background: B.accent }}/>
         <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: B.border }}>Monthly Performance Report</p>
-        <h1 className="text-4xl font-bold text-white leading-tight mb-4">{client}</h1>
-        <p className="text-base" style={{ color: B.border }}>{period} — Full Platform Analytics Report</p>
+        <h1 className="text-5xl font-bold text-white leading-tight mb-3">{client}</h1>
+        <p className="text-lg font-medium" style={{ color: B.accent }}>{period}</p>
+        <p className="text-sm mt-1" style={{ color: B.border }}>Full Platform Analytics · All Connected Channels</p>
       </div>
       <div className="px-10 pb-8 flex items-end justify-between">
-        <p className="text-xs" style={{ color: B.border }}>Prepared by NOVAX</p>
-        <div className="flex items-center gap-3">
-          {logoUrl && (
-            <img
-              src={logoUrl}
-              alt={`${client} logo`}
-              className="h-8 max-w-[120px] object-contain opacity-90"
-            />
-          )}
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3 h-3" style={{ color: B.accent }}/>
-            <p className="text-xs" style={{ color: B.border }}>{period}</p>
-          </div>
+        <div>
+          <p className="text-xs font-bold text-white mb-0.5">Prepared by NOVAX</p>
+          <p className="text-xs" style={{ color: B.border }}>{today}</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ background: B.accent }}/>
+          <p className="text-xs font-medium" style={{ color: B.border }}>Confidential — For Client Use Only</p>
         </div>
       </div>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.light}, ${B.border}, ${B.accent})` }}/>
@@ -238,6 +238,7 @@ type LiveTrendPoint = { month: string; reach: number; impressions: number; er: n
 type AIReportNarrative = {
   executive?: string; reach?: string; engagement?: string; platform?: string
   trend?: string; audience?: string; follower?: string; formats?: string; paid_ads?: string
+  platform_narratives?: string
 }
 type AIReport = {
   narrative: AIReportNarrative
@@ -272,6 +273,7 @@ type ReportDataJson = {
   topPostGroups?: TopPostGroup[]
   narrative?: AIReportNarrative
   aiMeta?: AIReport['meta']
+  adCampaigns?: PaidAdsData[] | null
   paidAdsData?: PaidAdsData | null
 }
 
@@ -296,7 +298,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 // ─── Master Monthly Report ──────────────────────────────────────────────────────
 
 function MasterMonthlyReport({
-  client, period, logoUrl, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport, language = 'en', paidAdsData,
+  client, period, logoUrl, liveStats, prevStats, livePlatforms, liveTrend, topPostGroups, aiReport, language = 'en', adCampaigns,
 }: {
   client: string
   period: string
@@ -308,8 +310,11 @@ function MasterMonthlyReport({
   topPostGroups?: TopPostGroup[] | null
   aiReport?: AIReport | null
   language?: 'en' | 'ar'
-  paidAdsData?: PaidAdsData | null
+  adCampaigns?: PaidAdsData[] | null
 }) {
+  const activeCampaigns = (adCampaigns ?? []).filter(c => c.spend)
+  const hasPaid = activeCampaigns.length > 0
+
   const platformData = (livePlatforms ?? [])
     .filter(p => p.reach > 0 || p.impressions > 0 || p.likes > 0 || p.comments > 0)
     .sort((a, b) => (b.reach + b.impressions) - (a.reach + a.impressions))
@@ -434,128 +439,90 @@ function MasterMonthlyReport({
       </div>
 
       {/* ── Section: Paid Advertising ─────────────────────── */}
-      {paidAdsData && paidAdsData.spend && (
+      {hasPaid && (
         <div className="print-break-before bg-white rounded-2xl border border-slate-200 p-7">
           <ReportPageHeader client={client} period={period} logoUrl={logoUrl}/>
           <SectionLabel n={sec()} label="Paid Advertising"/>
           <SectionTitle
             title="Paid Advertising Performance"
-            subtitle={`${paidAdsData.platform} advertising results for ${period}. These figures are sourced directly from the ads manager.`}
+            subtitle={`${activeCampaigns.length === 1 ? activeCampaigns[0].platform : `${activeCampaigns.length} campaigns`} — advertising results for ${period}. Figures sourced directly from ads manager.`}
           />
 
-          {/* KPI grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
-            {([
-              {
-                label: 'Total Ad Spend',
-                value: `${paidAdsData.currency} ${Number(paidAdsData.spend).toLocaleString()}`,
-                icon: CreditCard,
-                explanation: 'Total amount invested in paid advertising this month',
-                always: true,
-              },
-              paidAdsData.reach ? {
-                label: 'Paid Reach',
-                value: formatNumber(Number(paidAdsData.reach)),
-                icon: Users,
-                explanation: 'Unique people who saw your paid ads — each person counted once',
-                always: true,
-              } : null,
-              paidAdsData.impressions ? {
-                label: 'Paid Impressions',
-                value: formatNumber(Number(paidAdsData.impressions)),
-                icon: Eye,
-                explanation: 'Total times your ads appeared on screens, including repeat views',
-                always: true,
-              } : null,
-              paidAdsData.clicks ? {
-                label: 'Link Clicks',
-                value: formatNumber(Number(paidAdsData.clicks)),
-                icon: MousePointerClick,
-                explanation: 'Number of times people clicked through from your ad',
-                always: true,
-              } : null,
-              paidAdsData.ctr ? {
-                label: 'Click-Through Rate',
-                value: `${paidAdsData.ctr}%`,
-                icon: Percent,
-                explanation: 'Out of everyone who saw your ad, this percentage clicked it',
-                always: true,
-              } : null,
-              paidAdsData.cpc ? {
-                label: `Cost Per Click`,
-                value: `${paidAdsData.currency} ${paidAdsData.cpc}`,
-                icon: Activity,
-                explanation: 'Average amount paid for each person who clicked your ad',
-                always: true,
-              } : null,
-              paidAdsData.cpm ? {
-                label: 'CPM (per 1,000 views)',
-                value: `${paidAdsData.currency} ${paidAdsData.cpm}`,
-                icon: BarChart2,
-                explanation: 'How much it cost to get your ad seen by 1,000 people',
-                always: true,
-              } : null,
-              paidAdsData.conversions ? {
-                label: 'Conversions / Results',
-                value: formatNumber(Number(paidAdsData.conversions)),
-                icon: Check,
-                explanation: 'Number of desired actions completed through your ads',
-                always: true,
-              } : null,
-              paidAdsData.roas ? {
-                label: 'ROAS',
-                value: `${paidAdsData.roas}x`,
-                icon: TrendingUp,
-                explanation: 'For every unit spent, this is how much in revenue was generated',
-                always: true,
-              } : null,
-            ].filter(Boolean) as { label: string; value: string; icon: React.ComponentType<{className?: string; style?: React.CSSProperties}>; explanation: string; always: boolean }[])
-              .map(({ label, value, icon: Icon, explanation }) => (
-                <div key={label} className="rounded-2xl border border-slate-100 p-5" style={{ background: B.light }}>
-                  <div className="mb-3">
-                    <div className="p-2 rounded-lg w-fit" style={{ background: 'rgba(27,61,56,0.1)' }}>
-                      <Icon className="w-4 h-4" style={{ color: B.primary }}/>
-                    </div>
+          {activeCampaigns.map((campaign, ci) => (
+            <div key={ci} className={cn('mb-6', ci < activeCampaigns.length - 1 && 'pb-6 border-b border-slate-100')}>
+              {(campaign.campaignName || activeCampaigns.length > 1) && (
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: B.light, color: B.primary }}>
+                    <Megaphone className="w-3.5 h-3.5"/>
+                    {campaign.campaignName || `Campaign ${ci + 1}`}
                   </div>
-                  <p className="text-3xl font-bold text-slate-900 mb-1 tabular-nums">{value}</p>
-                  <p className="text-xs font-semibold mb-2" style={{ color: B.muted }}>{label}</p>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">{explanation}</p>
+                  <span className="text-xs text-slate-400">{campaign.platform}</span>
                 </div>
-              ))
-            }
-          </div>
+              )}
 
-          {/* Paid vs Organic reach comparison */}
-          {paidAdsData.reach && liveStats?.reach ? (
-            <div className="rounded-2xl border border-slate-100 p-5 mb-5">
-              <p className="text-sm font-bold text-slate-800 mb-1">Paid vs Organic Reach</p>
-              <p className="text-xs text-slate-400 mb-4">How your paid advertising reach compared to organic content reach this month</p>
-              <div className="space-y-3">
-                {[
-                  { label: 'Paid Reach', value: Number(paidAdsData.reach), color: B.primary },
-                  { label: 'Organic Reach', value: liveStats.reach, color: B.accent },
-                ].map(row => {
-                  const max = Math.max(Number(paidAdsData.reach), liveStats.reach, 1)
-                  const pct = Math.max((row.value / max) * 100, 2)
-                  return (
-                    <div key={row.label}>
-                      <div className="flex items-center justify-between mb-1.5 text-xs">
-                        <span className="font-semibold text-slate-700">{row.label}</span>
-                        <span className="font-bold tabular-nums" style={{ color: row.color }}>{formatNumber(row.value)}</span>
-                      </div>
-                      <div className="h-2.5 bg-slate-100 rounded-full">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: row.color }}/>
-                      </div>
+              {/* Ad creative thumbnail */}
+              {campaign.imageUrl && (
+                <div className="mb-4 rounded-xl overflow-hidden border border-slate-100 max-w-xs">
+                  <img src={campaign.imageUrl} alt="Ad creative" className="w-full h-40 object-cover"/>
+                </div>
+              )}
+
+              {/* KPI grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+                {([
+                  { label: 'Total Ad Spend', value: `${campaign.currency} ${Number(campaign.spend).toLocaleString()}`, icon: CreditCard, explanation: 'Total amount invested in paid advertising this month' },
+                  campaign.reach ? { label: 'Paid Reach', value: formatNumber(Number(campaign.reach)), icon: Users, explanation: 'Unique people who saw your paid ads — each person counted once' } : null,
+                  campaign.impressions ? { label: 'Paid Impressions', value: formatNumber(Number(campaign.impressions)), icon: Eye, explanation: 'Total times your ads appeared on screens, including repeat views' } : null,
+                  campaign.clicks ? { label: 'Link Clicks', value: formatNumber(Number(campaign.clicks)), icon: MousePointerClick, explanation: 'Number of times people clicked through from your ad' } : null,
+                  campaign.ctr ? { label: 'Click-Through Rate', value: `${campaign.ctr}%`, icon: Percent, explanation: 'Out of everyone who saw your ad, this percentage clicked it' } : null,
+                  campaign.cpc ? { label: 'Cost Per Click', value: `${campaign.currency} ${campaign.cpc}`, icon: Activity, explanation: 'Average amount paid for each person who clicked your ad' } : null,
+                  campaign.cpm ? { label: 'CPM (per 1,000 views)', value: `${campaign.currency} ${campaign.cpm}`, icon: BarChart2, explanation: 'How much it cost to get your ad seen by 1,000 people' } : null,
+                  campaign.conversions ? { label: 'Conversions / Results', value: formatNumber(Number(campaign.conversions)), icon: Check, explanation: 'Number of desired actions completed through your ads' } : null,
+                  campaign.roas ? { label: 'ROAS', value: `${campaign.roas}x`, icon: TrendingUp, explanation: 'For every unit spent, this is how much in revenue was generated' } : null,
+                ].filter(Boolean) as { label: string; value: string; icon: React.ComponentType<{className?: string; style?: React.CSSProperties}>; explanation: string }[])
+                  .map(({ label, value, icon: Icon, explanation }) => (
+                    <div key={label} className="rounded-2xl border border-slate-100 p-5" style={{ background: B.light }}>
+                      <div className="mb-3"><div className="p-2 rounded-lg w-fit" style={{ background: 'rgba(27,61,56,0.1)' }}><Icon className="w-4 h-4" style={{ color: B.primary }}/></div></div>
+                      <p className="text-3xl font-bold text-slate-900 mb-1 tabular-nums">{value}</p>
+                      <p className="text-xs font-semibold mb-2" style={{ color: B.muted }}>{label}</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">{explanation}</p>
                     </div>
-                  )
-                })}
+                  ))}
               </div>
+
+              {/* Paid vs Organic reach comparison (first campaign only) */}
+              {ci === 0 && campaign.reach && liveStats?.reach ? (
+                <div className="rounded-2xl border border-slate-100 p-5">
+                  <p className="text-sm font-bold text-slate-800 mb-1">Paid vs Organic Reach</p>
+                  <p className="text-xs text-slate-400 mb-4">How paid advertising reach compared to organic reach this month</p>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Paid Reach', value: Number(campaign.reach), color: B.primary },
+                      { label: 'Organic Reach', value: liveStats.reach, color: B.accent },
+                    ].map(row => {
+                      const max = Math.max(Number(campaign.reach), liveStats.reach, 1)
+                      const pct = Math.max((row.value / max) * 100, 2)
+                      return (
+                        <div key={row.label}>
+                          <div className="flex items-center justify-between mb-1.5 text-xs">
+                            <span className="font-semibold text-slate-700">{row.label}</span>
+                            <span className="font-bold tabular-nums" style={{ color: row.color }}>{formatNumber(row.value)}</span>
+                          </div>
+                          <div className="h-2.5 bg-slate-100 rounded-full">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: row.color }}/>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          ))}
 
           {/* AI narrative for paid ads */}
           {aiReport?.narrative.paid_ads && (
-            <div className="rounded-xl border border-slate-100 p-5">
+            <div className="rounded-xl border border-slate-100 p-5 mt-2">
               <div className="flex items-center gap-2.5 mb-3">
                 <div className="w-1 h-5 rounded-full shrink-0" style={{ background: B.accent }}/>
                 <h3 className="text-sm font-bold text-slate-800">What the Paid Data Tells Us</h3>
@@ -895,14 +862,15 @@ function MasterMonthlyReport({
 
           <div className="space-y-6">
             {([
-              { key: 'executive',  en: 'Month Overview',                 ar: 'نظرة عامة على الشهر' },
-              { key: 'reach',      en: 'How Your Content Spread',         ar: 'كيف انتشر محتواك' },
-              { key: 'engagement', en: 'How People Reacted',              ar: 'كيف تفاعل الجمهور' },
-              { key: 'platform',   en: 'Which Platforms Worked Best',     ar: 'أفضل المنصات أداءً' },
-              { key: 'trend',      en: 'Are You Growing?',                ar: 'هل أنت في تنامٍ؟' },
-              { key: 'formats',    en: 'Publishing Frequency',            ar: 'وتيرة النشر' },
-              { key: 'audience',   en: 'Depth of Audience Interaction',   ar: 'عمق تفاعل الجمهور' },
-              { key: 'follower',   en: 'Follower Growth',                 ar: 'نمو المتابعين' },
+              { key: 'executive',           en: 'Month Overview',                   ar: 'نظرة عامة على الشهر' },
+              { key: 'reach',               en: 'How Your Content Spread',           ar: 'كيف انتشر محتواك' },
+              { key: 'engagement',          en: 'How People Reacted',                ar: 'كيف تفاعل الجمهور' },
+              { key: 'platform',            en: 'Platform Comparison',               ar: 'أفضل المنصات أداءً' },
+              { key: 'platform_narratives', en: 'Platform-by-Platform Breakdown',    ar: 'تحليل كل منصة' },
+              { key: 'trend',               en: 'Are You Growing?',                  ar: 'هل أنت في تنامٍ؟' },
+              { key: 'formats',             en: 'Publishing Frequency',              ar: 'وتيرة النشر' },
+              { key: 'audience',            en: 'Depth of Audience Interaction',     ar: 'عمق تفاعل الجمهور' },
+              { key: 'follower',            en: 'Follower Growth',                   ar: 'نمو المتابعين' },
             ] as { key: keyof AIReportNarrative; en: string; ar: string }[])
               .filter(({ key }) => !!aiReport!.narrative[key])
               .map(({ key, en, ar }) => (
@@ -978,12 +946,14 @@ export default function ReportsPage() {
   const [language, setLanguage]                   = useState<'en' | 'ar'>('en')
 
   // ── Paid ads ──────────────────────────────────────────
-  const [includePaidAds, setIncludePaidAds]        = useState(false)
-  const [paidAdsData, setPaidAdsData]              = useState<PaidAdsData>({
-    platform: 'Meta Ads', spend: '', currency: 'AED',
+  const emptyCampaign = (): PaidAdsData => ({
+    platform: 'Meta Ads', spend: '', currency: 'SAR',
     impressions: '', reach: '', clicks: '', ctr: '', cpc: '', cpm: '',
-    conversions: '', roas: '', campaignName: '',
+    conversions: '', roas: '', campaignName: '', imageUrl: '',
   })
+  const [includePaidAds, setIncludePaidAds]        = useState(false)
+  const [adCampaigns, setAdCampaigns]              = useState<PaidAdsData[]>([emptyCampaign()])
+  const [scanningIdx, setScanningIdx]              = useState<number | null>(null)
 
   // ── Library ──────────────────────────────────────────
   const [savedReports, setSavedReports]           = useState<SavedReport[]>([])
@@ -1055,6 +1025,14 @@ export default function ReportsPage() {
       } else {
         setAiReport(null)
       }
+      // Restore campaigns (new format) or legacy single paidAdsData
+      if (data.adCampaigns?.length) {
+        setAdCampaigns(data.adCampaigns)
+        setIncludePaidAds(true)
+      } else if (data.paidAdsData?.spend) {
+        setAdCampaigns([data.paidAdsData])
+        setIncludePaidAds(true)
+      }
       setGenerated(true)
 
       setTimeout(() => document.getElementById('printable-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
@@ -1122,7 +1100,7 @@ export default function ReportsPage() {
           endDate:     range.endDate,
           platforms:   selectedPlatforms,
           language,
-          paidAdsData: includePaidAds && paidAdsData.spend ? paidAdsData : null,
+          adCampaigns: includePaidAds && adCampaigns.some(c => c.spend) ? adCampaigns.filter(c => c.spend) : null,
         }),
       })
       const data = await res.json() as {
@@ -1181,7 +1159,7 @@ export default function ReportsPage() {
                 topPostGroups:  data.topPostGroups,
                 narrative:      data.narrative,
                 aiMeta:         data.meta,
-                paidAdsData:    includePaidAds && paidAdsData.spend ? paidAdsData : null,
+                adCampaigns:    includePaidAds && adCampaigns.some(c => c.spend) ? adCampaigns.filter(c => c.spend) : null,
               },
             }),
           }).then(() => fetchLibrary()).catch(() => {})
@@ -1305,7 +1283,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Paid Ads toggle + form */}
+          {/* Paid Ads toggle + multi-campaign form */}
           <div className="border-t border-slate-100 pt-3 mt-4">
             <button
               onClick={() => setIncludePaidAds(v => !v)}
@@ -1321,85 +1299,160 @@ export default function ReportsPage() {
                 </span>
               </div>
               <span className="text-[10px] text-slate-400 ml-1">
-                {includePaidAds ? 'Enter your ads manager totals below' : 'Add Meta, TikTok, or Google ad results to the report'}
+                {includePaidAds
+                  ? `${adCampaigns.length} campaign${adCampaigns.length !== 1 ? 's' : ''} — enter your ads manager totals below`
+                  : 'Add Meta, TikTok, or Google ad results to the report'}
               </span>
             </button>
 
             {includePaidAds && (
-              <div className="mt-3 p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Platform</label>
-                    <select
-                      value={paidAdsData.platform}
-                      onChange={e => setPaidAdsData(p => ({ ...p, platform: e.target.value }))}
-                      className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
-                    >
-                      {['Meta Ads', 'TikTok Ads', 'Google Ads', 'Snapchat Ads', 'LinkedIn Ads', 'Multi-platform'].map(pl => (
-                        <option key={pl} value={pl}>{pl}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Currency</label>
-                    <select
-                      value={paidAdsData.currency}
-                      onChange={e => setPaidAdsData(p => ({ ...p, currency: e.target.value }))}
-                      className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
-                    >
-                      {['AED', 'USD', 'EUR', 'SAR', 'GBP', 'EGP'].map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {paidAdsData.campaignName !== undefined && (
-                    <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-                      <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Campaign Name (optional)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. May Brand Awareness"
-                        value={paidAdsData.campaignName ?? ''}
-                        onChange={e => setPaidAdsData(p => ({ ...p, campaignName: e.target.value }))}
-                        className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
-                      />
+              <div className="mt-3 space-y-3">
+                {adCampaigns.map((campaign, ci) => (
+                  <div key={ci} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50">
+                    {/* Campaign header */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                        Campaign {ci + 1}
+                      </span>
+                      {adCampaigns.length > 1 && (
+                        <button
+                          onClick={() => setAdCampaigns(prev => prev.filter((_, i) => i !== ci))}
+                          className="p-1 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-50 transition-colors"
+                        >
+                          <XIcon className="w-3.5 h-3.5"/>
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {([
-                    { key: 'spend',       label: 'Total Spend',           placeholder: '5000',    prefix: paidAdsData.currency },
-                    { key: 'impressions', label: 'Paid Impressions',      placeholder: '120000',  prefix: null },
-                    { key: 'reach',       label: 'Paid Reach',            placeholder: '85000',   prefix: null },
-                    { key: 'clicks',      label: 'Link Clicks',           placeholder: '3200',    prefix: null },
-                    { key: 'ctr',         label: 'CTR %',                 placeholder: '2.6',     prefix: null, suffix: '%' },
-                    { key: 'cpc',         label: 'Cost Per Click',        placeholder: '1.56',    prefix: paidAdsData.currency },
-                    { key: 'cpm',         label: 'CPM (per 1K)',          placeholder: '12.50',   prefix: paidAdsData.currency },
-                    { key: 'conversions', label: 'Conversions / Results', placeholder: '180',     prefix: null },
-                    { key: 'roas',        label: 'ROAS',                  placeholder: '3.2',     prefix: null, suffix: 'x' },
-                  ] as { key: keyof PaidAdsData; label: string; placeholder: string; prefix: string | null; suffix?: string }[]).map(({ key, label, placeholder, prefix, suffix }) => (
-                    <div key={key} className="flex flex-col gap-1">
-                      <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
-                      <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white focus-within:border-novax-border transition-colors">
-                        {prefix && <span className="px-2 text-xs text-slate-400 bg-slate-50 border-r border-slate-200 shrink-0">{prefix}</span>}
+                    {/* Platform / Currency / Name */}
+                    <div className="flex flex-wrap items-center gap-3 mb-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Platform</label>
+                        <select
+                          value={campaign.platform}
+                          onChange={e => setAdCampaigns(prev => prev.map((c, i) => i === ci ? { ...c, platform: e.target.value } : c))}
+                          className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                        >
+                          {['Meta Ads', 'TikTok Ads', 'Google Ads', 'Snapchat Ads', 'LinkedIn Ads', 'Multi-platform'].map(pl => (
+                            <option key={pl} value={pl}>{pl}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Currency</label>
+                        <select
+                          value={campaign.currency}
+                          onChange={e => setAdCampaigns(prev => prev.map((c, i) => i === ci ? { ...c, currency: e.target.value } : c))}
+                          className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
+                        >
+                          {['SAR', 'AED', 'USD', 'EGP', 'KWD'].map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Campaign Name (optional)</label>
                         <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder={placeholder}
-                          value={paidAdsData[key] as string}
-                          onChange={e => setPaidAdsData(p => ({ ...p, [key]: e.target.value }))}
-                          className="flex-1 px-2.5 py-1.5 text-sm text-slate-700 outline-none bg-transparent min-w-0"
+                          type="text"
+                          placeholder="e.g. May Brand Awareness"
+                          value={campaign.campaignName ?? ''}
+                          onChange={e => setAdCampaigns(prev => prev.map((c, i) => i === ci ? { ...c, campaignName: e.target.value } : c))}
+                          className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white"
                         />
-                        {suffix && <span className="px-2 text-xs text-slate-400 bg-slate-50 border-l border-slate-200 shrink-0">{suffix}</span>}
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <p className="text-[10px] text-slate-400 leading-relaxed">
-                  Export totals from your ads manager for the report period and enter them above. Only Total Spend is required — leave other fields blank if unavailable.
-                </p>
+                    {/* Ad image URL + scan */}
+                    <div className="flex items-end gap-2 mb-3">
+                      <div className="flex flex-col gap-1 flex-1">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Ad Creative URL (optional)</label>
+                        <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white focus-within:border-novax-border transition-colors">
+                          <ImagePlus className="w-3.5 h-3.5 text-slate-400 ml-2.5 shrink-0"/>
+                          <input
+                            type="url"
+                            placeholder="https://… paste an ad image URL"
+                            value={campaign.imageUrl ?? ''}
+                            onChange={e => setAdCampaigns(prev => prev.map((c, i) => i === ci ? { ...c, imageUrl: e.target.value } : c))}
+                            className="flex-1 px-2 py-1.5 text-sm text-slate-700 outline-none bg-transparent min-w-0"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        disabled={scanningIdx === ci}
+                        onClick={async () => {
+                          const input = document.createElement('input')
+                          input.type = 'file'
+                          input.accept = 'image/*'
+                          input.onchange = async () => {
+                            const file = input.files?.[0]
+                            if (!file) return
+                            setScanningIdx(ci)
+                            try {
+                              const formData = new FormData()
+                              formData.append('file', file)
+                              const res = await fetch('/api/media-buying/scan-ads', { method: 'POST', body: formData })
+                              if (res.ok) {
+                                const parsed = await res.json() as Partial<PaidAdsData>
+                                setAdCampaigns(prev => prev.map((c, i) => i === ci ? { ...c, ...parsed } : c))
+                              }
+                            } finally { setScanningIdx(null) }
+                          }
+                          input.click()
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors shrink-0"
+                        title="Upload a screenshot from your ads manager — AI will fill the fields automatically"
+                      >
+                        {scanningIdx === ci ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
+                        {scanningIdx === ci ? 'Scanning…' : 'Scan Screenshot'}
+                      </button>
+                    </div>
+
+                    {/* Metric fields */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {([
+                        { key: 'spend',       label: 'Total Spend',           placeholder: '5000',    prefix: campaign.currency },
+                        { key: 'impressions', label: 'Paid Impressions',      placeholder: '120000',  prefix: null },
+                        { key: 'reach',       label: 'Paid Reach',            placeholder: '85000',   prefix: null },
+                        { key: 'clicks',      label: 'Link Clicks',           placeholder: '3200',    prefix: null },
+                        { key: 'ctr',         label: 'CTR %',                 placeholder: '2.6',     prefix: null, suffix: '%' },
+                        { key: 'cpc',         label: 'Cost Per Click',        placeholder: '1.56',    prefix: campaign.currency },
+                        { key: 'cpm',         label: 'CPM (per 1K)',          placeholder: '12.50',   prefix: campaign.currency },
+                        { key: 'conversions', label: 'Conversions / Results', placeholder: '180',     prefix: null },
+                        { key: 'roas',        label: 'ROAS',                  placeholder: '3.2',     prefix: null, suffix: 'x' },
+                      ] as { key: keyof PaidAdsData; label: string; placeholder: string; prefix: string | null; suffix?: string }[]).map(({ key, label, placeholder, prefix, suffix }) => (
+                        <div key={key} className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
+                          <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white focus-within:border-novax-border transition-colors">
+                            {prefix && <span className="px-2 text-xs text-slate-400 bg-slate-50 border-r border-slate-200 shrink-0">{prefix}</span>}
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder={placeholder}
+                              value={campaign[key] as string}
+                              onChange={e => setAdCampaigns(prev => prev.map((c, i) => i === ci ? { ...c, [key]: e.target.value } : c))}
+                              className="flex-1 px-2.5 py-1.5 text-sm text-slate-700 outline-none bg-transparent min-w-0"
+                            />
+                            {suffix && <span className="px-2 text-xs text-slate-400 bg-slate-50 border-l border-slate-200 shrink-0">{suffix}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add campaign + hint */}
+                <div className="flex items-center justify-between">
+                  <button
+                    disabled={adCampaigns.length >= 5}
+                    onClick={() => setAdCampaigns(prev => [...prev, emptyCampaign()])}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-dashed border-slate-300 text-slate-500 hover:border-novax-border hover:text-novax disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5"/>
+                    Add Campaign {adCampaigns.length >= 5 ? '(max 5)' : `(${adCampaigns.length}/5)`}
+                  </button>
+                  <p className="text-[10px] text-slate-400">Only Total Spend is required per campaign — leave other fields blank if unavailable.</p>
+                </div>
               </div>
             )}
           </div>
@@ -1581,7 +1634,7 @@ export default function ReportsPage() {
             topPostGroups={topPostGroups}
             aiReport={aiReport}
             language={language}
-            paidAdsData={includePaidAds && paidAdsData.spend ? paidAdsData : null}
+            adCampaigns={includePaidAds && adCampaigns.some(c => c.spend) ? adCampaigns.filter(c => c.spend) : null}
           />
         </div>
       ) : (

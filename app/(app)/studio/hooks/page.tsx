@@ -15,6 +15,8 @@ import { StudioDocument } from '@/components/studio/studio-document'
 import { StudioChatbot } from '@/components/studio/studio-chatbot'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
 import { StudioSaveActions } from '@/components/studio/studio-save-actions'
+import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
+import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
 import type {
   HookDocument,
   BossBrief,
@@ -376,12 +378,24 @@ export default function HookLabPage() {
       {/* ── BRIEF state ── */}
       {pageState === 'brief' && (
         <div className="space-y-5">
+          <StudioGuidancePanel
+            title="How Hook Lab works"
+            description="Hook Lab uses a two-pass approach: first it diverges (generates 20 raw hooks with no filter) then converges (scores each with the 3C framework and applies SCAMPER mutations to find the most differentiated top 3)."
+            items={[
+              { term: '3C Scoring', definition: 'Rates every hook on Clarity (does it land instantly?), Curiosity (does it create an open loop?), and Conversion (does it push action?). Each axis is 1–10.' },
+              { term: 'SCAMPER', definition: 'A creative mutation filter: Substitute, Combine, Adapt, Modify, Put to other uses, Eliminate, Reverse. Applied after scoring to push the top hooks further.' },
+              { term: 'Boldness', definition: 'Familiar = safe, relatable openings. Unexpected = pattern interrupt, counter-intuitive. Edge = provocative, polarising.' },
+            ]}
+            tips={[
+              { label: 'Best brief', tip: 'Describe the post topic + one emotional tension in your audience — not just a product description.' },
+              { label: 'Tone match', tip: 'Set boldness to match your client\'s risk tolerance before generating.' },
+            ]}
+          />
           {(sessions.length > 0 || sessionsLoading) && (
             <div className="mb-6">
               <StudioSessionList
                 sessions={sessions}
                 onSessionClick={handleSessionClick}
-                onNewSession={handleNewSession}
                 onDeleteSession={id => setSessions(prev => prev.filter(s => s.id !== id))}
                 isLoading={sessionsLoading}
               />
@@ -526,7 +540,13 @@ export default function HookLabPage() {
 
             {/* Brief */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Content Brief</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Content Brief</label>
+                <LumaraPrefillButton
+                  onPrefill={(id, b) => { setClientId(id); setBrief(b) }}
+                  brief={LUMARA_BRIEFS.hooks}
+                />
+              </div>
               <textarea
                 value={brief}
                 onChange={e => setBrief(e.target.value)}

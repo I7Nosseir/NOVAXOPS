@@ -13,6 +13,14 @@ import { SidebarProvider } from '@/lib/sidebar-context'
 import { MyTasksFloat } from '@/components/tasks/my-tasks-float'
 import { RoleToolsPanel } from '@/components/tools/role-tools-panel'
 import { ChatPanel, AssistantFab } from '@/components/assistant/chat-panel'
+import { useActivityTracker } from '@/lib/hooks/use-activity-tracker'
+import { useAuth } from '@/lib/auth-context'
+
+function ActivityTrackerWrapper() {
+  const { user } = useAuth()
+  useActivityTracker(user?.id)
+  return null
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [chatOpen, setChatOpen] = useState(false)
@@ -27,6 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <SidebarProvider>
         <AuthGuard>
+          <ActivityTrackerWrapper />
           <div className="min-h-screen bg-slate-50 dark:bg-transparent">
             <Sidebar />
             <Header />

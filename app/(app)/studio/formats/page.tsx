@@ -11,6 +11,8 @@ import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import { StudioLoading } from '@/components/studio/studio-loading'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
+import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
+import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
 import type { LoadingStep, StudioSession } from '@/lib/studio-types'
 import type { FormatResult } from '@/app/api/studio/formats/generate/route'
 
@@ -381,12 +383,25 @@ export default function FormatsPage() {
       {/* ── BRIEF ── */}
       {pageState === 'brief' && (
         <div className="space-y-5">
+          <StudioGuidancePanel
+            title="How Peak Format Generator works"
+            description="Enter a content niche and get 5 proven viral content formats — each dissected into its structural components so you can replicate the pattern, not just the topic."
+            items={[
+              { term: 'Hook Stack', definition: 'Each format comes with 2–4 hooks of different types (curiosity, pattern interrupt, identity challenge, social proof) so you can test which opening works best.' },
+              { term: '3-Law Validation', definition: 'Every format is validated against 3 rules: Does it create an immediate open loop? Does it reward completion? Does it drive a share-worthy emotion at the end?' },
+              { term: 'Episode Structure', definition: 'The beat-by-beat breakdown of the content — what happens in each 3–5 seconds of a reel or each slide of a carousel.' },
+              { term: 'Payoff Architecture', definition: 'Where and how the emotional payoff lands — saves are driven by utility at the end, shares by surprise or identity, comments by controversy or question.' },
+            ]}
+            tips={[
+              { label: 'Niche', tip: 'Be specific — "luxury perfume UAE" beats "perfume." The more specific, the more differentiated the formats.' },
+              { label: 'Save & reuse', tip: 'Save your favourite formats to the library — they inject into Hook Lab and Content Studio automatically.' },
+            ]}
+          />
           {(sessions.length > 0 || sessionsLoading) && (
             <div className="mb-6">
               <StudioSessionList
                 sessions={sessions}
                 onSessionClick={handleSessionClick}
-                onNewSession={handleNewSession}
                 onDeleteSession={id => setSessions(prev => prev.filter(s => s.id !== id))}
                 isLoading={sessionsLoading}
               />
@@ -406,7 +421,13 @@ export default function FormatsPage() {
 
             {/* Niche */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Niche / Industry</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Niche / Industry</label>
+                <LumaraPrefillButton
+                  onPrefill={(id, b) => { setClientId(id); setNiche(b) }}
+                  brief={LUMARA_BRIEFS.formats}
+                />
+              </div>
               <input
                 value={niche}
                 onChange={e => setNiche(e.target.value)}

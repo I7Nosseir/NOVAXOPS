@@ -8,6 +8,8 @@ import {
   History, Plus, AlertTriangle, Clipboard, ClipboardCheck,
 } from 'lucide-react'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
@@ -268,8 +270,23 @@ function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextI
       </div>
       <div className="max-w-[90%] space-y-1.5">
         <div className="relative">
-          <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-            {msg.content}
+          <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-800 leading-relaxed prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
+                li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
+                code: ({ children, className }) => className
+                  ? <code className="block bg-slate-100 rounded p-2 text-xs font-mono my-2 overflow-x-auto whitespace-pre">{children}</code>
+                  : <code className="bg-slate-100 px-1 py-0.5 rounded text-xs font-mono">{children}</code>,
+                strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+                a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-novax-muted underline hover:text-novax">{children}</a>,
+              }}
+            >
+              {msg.content}
+            </ReactMarkdown>
           </div>
           <button
             onClick={copy}
@@ -335,9 +352,29 @@ interface ChatPanelProps {
   open:    boolean
   onClose: () => void
   fullPage?: boolean
+  // Phase 3: DB-backed persistence
+  chatId?:          string
+  initialMessages?: ChatMessage[]
+  initialClientId?: string
+  hasSidebar?:      boolean
+  onSave?: (
+    chatId: string,
+    messages: ChatMessage[],
+    title: string,
+    clientId?: string,
+  ) => void
 }
 
-export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
+export function ChatPanel({
+  open,
+  onClose,
+  fullPage = false,
+  chatId,
+  initialMessages,
+  initialClientId,
+  hasSidebar = false,
+  onSave,
+}: ChatPanelProps) {
   const { user }    = useAuth()
   const { clients } = useClients()
 
@@ -371,6 +408,8 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
   const inputRef       = useRef<HTMLTextAreaElement>(null)
   const panelRef       = useRef<HTMLDivElement>(null)
   const historyRef     = useRef<HTMLDivElement>(null)
+  const onSaveRef      = useRef(onSave)
+  useEffect(() => { onSaveRef.current = onSave }, [onSave])
 
   const isCeo             = user?.role === 'ceo' || user?.role === 'admin'
   const sessionIsComplete = messages.length >= MAX_MESSAGES
@@ -388,25 +427,40 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
     }
   }, [open, fullPage])
 
-  // Load most recent incomplete session on mount
+  // Load messages on mount — prefer DB-supplied initialMessages, fall back to localStorage
   useEffect(() => {
-    const recent = loadMostRecentSession()
-    if (!recent || recent.messages.length === 0) return
-    setSessionId(recent.id)
-    setSessionCreatedAt(recent.created_at)
-    setMessages(recent.messages as ChatMessage[])
-    if (recent.client_id) setSelectedClient(recent.client_id)
-    if (recent.is_complete) {
-      if (recent.handoff_block) setHandoffBlock(recent.handoff_block)
-      setShowHandoffModal(true)
+    if (initialMessages && initialMessages.length > 0) {
+      setMessages(initialMessages)
+      if (initialClientId) setSelectedClient(initialClientId)
+      return
+    }
+    // Fallback: no DB session provided — load most recent localStorage session
+    if (!chatId) {
+      const recent = loadMostRecentSession()
+      if (!recent || recent.messages.length === 0) return
+      setSessionId(recent.id)
+      setSessionCreatedAt(recent.created_at)
+      setMessages(recent.messages as ChatMessage[])
+      if (recent.client_id) setSelectedClient(recent.client_id)
+      if (recent.is_complete) {
+        if (recent.handoff_block) setHandoffBlock(recent.handoff_block)
+        setShowHandoffModal(true)
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Auto-save after every message exchange
   useEffect(() => {
+    const title = messages.find(m => m.role === 'user')?.content.slice(0, 60) ?? 'New Chat'
+
+    // DB save — if chatId prop provided, persist via onSave callback
+    if (chatId && messages.length > 0 && onSaveRef.current) {
+      onSaveRef.current(chatId, messages, title, selectedClient || undefined)
+    }
+
+    // localStorage save — keep for legacy non-DB panels
     if (!sessionId || messages.length === 0) return
-    const title      = messages.find(m => m.role === 'user')?.content.slice(0, 60) ?? 'Chat'
     const clientData = clients.find(c => c.id === selectedClient)
     upsertSession({
       id:            sessionId,
@@ -806,8 +860,8 @@ export function ChatPanel({ open, onClose, fullPage = false }: ChatPanelProps) {
             </select>
           </div>
 
-          {/* History dropdown — full page only */}
-          {fullPage && (
+          {/* History dropdown — full page only, hidden when sidebar handles navigation */}
+          {fullPage && !hasSidebar && (
             <div className="relative" ref={historyRef}>
               <button
                 onClick={() => setShowHistory(v => !v)}

@@ -133,6 +133,7 @@ body {
   font-family: var(--font-sans, system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -1434,10 +1435,10 @@ html.dark .search-glass:focus {
     print-color-adjust: exact !important;
   }
 
-  /* A4 portrait with comfortable margins */
+  /* 16:9 widescreen landscape — matches presentation slide ratio */
   @page {
-    size: A4 portrait;
-    margin: 12mm 16mm;
+    size: 297mm 167mm;
+    margin: 8mm;
   }
 
   /* Allow multi-page overflow */
@@ -1576,13 +1577,13 @@ html.dark .search-glass:focus {
   .report-cover-page {
     break-after: page !important;
     page-break-after: always !important;
-    min-height: 230mm;
+    min-height: 151mm;
     display: flex;
     flex-direction: column;
   }
   .report-cover-page > * {
     flex: 1;
-    min-height: 230mm;
+    min-height: 151mm;
     border-radius: 0 !important;
   }
   .print-break-before {
@@ -1634,13 +1635,69 @@ html.dark .search-glass:focus {
     inset: 0 !important;
     width: 100% !important;
     background: white !important;
-    padding: 24px 32px !important;
+    padding: 12mm 16mm !important;
     margin: 0 !important;
+    color: #0f172a !important;
   }
   #printable-doc * {
     visibility: visible !important;
     box-shadow: none !important;
     text-shadow: none !important;
+  }
+  /* NOVAX branded header above the document */
+  #printable-doc::before {
+    content: "NOVAX";
+    display: block !important;
+    visibility: visible !important;
+    font-size: 11pt !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.22em !important;
+    color: #5BB4AE !important;
+    margin-bottom: 12pt !important;
+    padding-bottom: 8pt !important;
+    border-bottom: 1pt solid #EBF4F3 !important;
+  }
+  /* Title input — render as a clean heading, not a form field */
+  #printable-doc input[type="text"] {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    outline: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    display: block !important;
+    width: 100% !important;
+    font-size: 22pt !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    margin-bottom: 14pt !important;
+    line-height: 1.2 !important;
+  }
+  /* Tiptap ProseMirror content typography */
+  #printable-doc .ProseMirror {
+    font-size: 11pt !important;
+    line-height: 1.7 !important;
+    color: #1e293b !important;
+  }
+  #printable-doc .ProseMirror p { margin-bottom: 6pt !important; }
+  #printable-doc .ProseMirror h1 { font-size: 18pt !important; font-weight: 700 !important; margin: 14pt 0 6pt !important; }
+  #printable-doc .ProseMirror h2 { font-size: 14pt !important; font-weight: 700 !important; margin: 12pt 0 5pt !important; }
+  #printable-doc .ProseMirror h3 { font-size: 12pt !important; font-weight: 600 !important; margin: 10pt 0 4pt !important; }
+  #printable-doc .ProseMirror ul,
+  #printable-doc .ProseMirror ol  { padding-left: 16pt !important; margin-bottom: 6pt !important; }
+  #printable-doc .ProseMirror li  { margin-bottom: 3pt !important; }
+  #printable-doc .ProseMirror blockquote {
+    border-left: 3pt solid #5BB4AE !important;
+    padding-left: 10pt !important;
+    color: #64748b !important;
+    font-style: italic !important;
+    margin: 8pt 0 !important;
+  }
+  #printable-doc .ProseMirror code {
+    font-size: 9pt !important;
+    background: #f1f5f9 !important;
+    padding: 1pt 4pt !important;
+    border-radius: 2pt !important;
   }
   html.dark :where(#printable-doc) { background-color: #ffffff !important; color: #0f172a !important; }
   html.dark :where(#printable-doc .text-slate-900) { color: #0f172a !important; }

@@ -282,6 +282,13 @@ export interface CompetitorRanking {
   avg_er: number
   posting_frequency: number
   growth_signal: 'accelerating' | 'stable' | 'declining' | 'unknown'
+  // Phase 4 additions
+  scope?: 'global' | 'local'
+  platform_strategy?: string
+  best_performing_format?: string
+  key_strengths?: string[]
+  key_weaknesses?: string[]
+  social_url?: string
 }
 
 export interface CompetitorThreat {
@@ -290,6 +297,7 @@ export interface CompetitorThreat {
   threat_level: 'high' | 'medium' | 'low'
   reasons: string[]
   recommended_response: string
+  social_url?: string
 }
 
 export interface CompetitorAnalysis {

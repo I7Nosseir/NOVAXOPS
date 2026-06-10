@@ -209,8 +209,14 @@ function CoverPage({ clientName, doc, clientColor, platforms, quarter, year }: {
         )}
       </View>
 
+      {/* NOVAX wordmark */}
+      <View style={{ position: 'absolute', top: 42, left: 60 }}>
+        <Text style={{ fontSize: 20, fontFamily: 'Helvetica-Bold', color: C.accent, letterSpacing: 4 }}>NOVAX</Text>
+        <View style={{ width: 36, height: 2, backgroundColor: C.accent, marginTop: 5, opacity: 0.6 }} />
+      </View>
+
       {/* Strategy label */}
-      <View style={{ position: 'absolute', top: 50, left: 60, right: 60 }}>
+      <View style={{ position: 'absolute', top: 80, left: 60, right: 60 }}>
         <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica', color: '#4A6A65', letterSpacing: 3 }}>
           QUARTERLY SOCIAL MEDIA STRATEGY
         </Text>

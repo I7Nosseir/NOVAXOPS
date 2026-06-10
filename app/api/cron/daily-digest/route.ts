@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
   // -------------------------------------------------------------------------
   // Run all queries in parallel, handling missing tables gracefully
@@ -36,6 +38,9 @@ export async function GET(req: NextRequest) {
     moderationRes,
     crisisClientsRes,
     assigneesRes,
+    allClientsRes,
+    postsThisMonthRes,
+    apiCostRes,
   ] = await Promise.all([
     // 1. Total active tasks
     db.from('tasks')
@@ -85,6 +90,22 @@ export async function GET(req: NextRequest) {
       .select('assigned_to')
       .neq('status', 'completed')
       .not('assigned_to', 'is', null),
+
+    // 10. All active clients with normalized_profile for posts_per_week
+    db.from('clients')
+      .select('id, name, normalized_profile')
+      .eq('status', 'active'),
+
+    // 11. Posts published or scheduled this month (for monthly requirements)
+    db.from('scheduled_posts')
+      .select('client_id, status')
+      .in('status', ['published', 'scheduled'])
+      .gte('scheduled_at', monthStart),
+
+    // 12. API cost this month
+    db.from('api_usage')
+      .select('cost_usd')
+      .gte('created_at', monthStart),
   ])
 
   // -------------------------------------------------------------------------
@@ -147,6 +168,32 @@ export async function GET(req: NextRequest) {
   if (ceoUser?.name) ceoName = ceoUser.name
 
   // -------------------------------------------------------------------------
+  // Monthly requirements per client
+  // -------------------------------------------------------------------------
+  const postsThisMonthByClient = (postsThisMonthRes.data ?? []).reduce(
+    (acc: Record<string, number>, p: { client_id: string }) => {
+      acc[p.client_id] = (acc[p.client_id] ?? 0) + 1
+      return acc
+    },
+    {},
+  )
+
+  const monthlyRequirements = (allClientsRes.data ?? []).map((c: { id: string; name: string; normalized_profile?: Record<string, unknown> }) => {
+    const postsPerWeek = (c.normalized_profile?.posts_per_week as number | undefined) ?? 4
+    const target = postsPerWeek * 4
+    const actual = postsThisMonthByClient[c.id] ?? 0
+    return { name: c.name, target, actual }
+  })
+
+  // -------------------------------------------------------------------------
+  // API cost this month
+  // -------------------------------------------------------------------------
+  const apiCostThisMonth = (apiCostRes.data ?? []).reduce(
+    (sum: number, row: { cost_usd: number }) => sum + (Number(row.cost_usd) || 0),
+    0,
+  )
+
+  // -------------------------------------------------------------------------
   // Build stats object
   // -------------------------------------------------------------------------
   const dateLabel = new Date().toLocaleDateString('en-GB', {
@@ -167,6 +214,8 @@ export async function GET(req: NextRequest) {
     pendingModeration: moderationRes.count ?? 0,
     clientsInCrisis: (crisisClientsRes.data ?? []).map((c: { name: string }) => c.name),
     topAssignees,
+    monthlyRequirements,
+    apiCostThisMonth,
   }
 
   // -------------------------------------------------------------------------

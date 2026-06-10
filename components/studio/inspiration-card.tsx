@@ -1,8 +1,25 @@
 'use client'
 
-import { ExternalLink, Star, Play, Hash, TrendingUp, Globe, Bookmark } from 'lucide-react'
+import { ExternalLink, Star, Play, Hash, TrendingUp, Globe, Bookmark, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TrendingContentItem } from '@/app/api/studio/trending-content/route'
+
+function formatPublishedDate(iso: string): string {
+  try {
+    const date  = new Date(iso)
+    const now   = Date.now()
+    const diff  = now - date.getTime()
+    const days  = Math.floor(diff / 86_400_000)
+    if (days < 1)   return 'Today'
+    if (days === 1) return 'Yesterday'
+    if (days < 7)   return `${days}d ago`
+    if (days < 30)  return `${Math.floor(days / 7)}w ago`
+    if (days < 365) return `${Math.floor(days / 30)}mo ago`
+    return `${Math.floor(days / 365)}y ago`
+  } catch {
+    return ''
+  }
+}
 
 const VELOCITY_CONFIG: Record<TrendingContentItem['velocity'], { label: string; className: string }> = {
   rising_fast: { label: 'Rising fast', className: 'bg-red-500 text-white'     },
@@ -136,6 +153,12 @@ export function InspirationCard({ item, isSaved, onSave, onUnsave, onUseAsInspir
             <p className="text-xs text-slate-400 shrink-0">
               {formatViewCount(item.view_count ?? item.save_count ?? 0, item.content_type, item.platform)}
             </p>
+          )}
+          {item.published_at && (
+            <span className="flex items-center gap-0.5 text-[10px] text-slate-400 shrink-0">
+              <Calendar className="w-3 h-3" />
+              {formatPublishedDate(item.published_at)}
+            </span>
           )}
         </div>
 

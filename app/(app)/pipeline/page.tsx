@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useCallback, Suspense } from 'react'
+import { useState, useCallback, Suspense, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LayoutGrid, List, Filter, Layers } from 'lucide-react'
 import { useTasks } from '@/lib/hooks/use-tasks'
+import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
 import { useRealtime } from '@/lib/hooks/use-realtime'
 import { PipelineBoard } from '@/components/pipeline/pipeline-board'
 import { TaskList } from '@/components/pipeline/task-list'
@@ -54,9 +55,22 @@ function PipelineContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const filters = parseFilters(searchParams)
+  const rawFilters = parseFilters(searchParams)
+  const assignedClientIds = useMyAssignedClientIds()
+
+  // Intersect URL client filter with the user's assigned clients
+  const filters = useMemo((): FilterState => {
+    if (assignedClientIds === null) return rawFilters // bypass role — no restriction
+    const scope = assignedClientIds // user's allowed set
+    const urlClientIds = rawFilters.clientIds
+    const intersection = urlClientIds.length > 0
+      ? urlClientIds.filter(id => scope.includes(id))
+      : scope // no URL filter → restrict to assigned clients
+    return { ...rawFilters, clientIds: intersection }
+  }, [rawFilters, assignedClientIds])
+
   const { tasks } = useTasks(filters)
-  const active = hasActiveFilters(filters)
+  const active = hasActiveFilters(rawFilters)
 
   useRealtime('tasks', ['tasks'])
 
