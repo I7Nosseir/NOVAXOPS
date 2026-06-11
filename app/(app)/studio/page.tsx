@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Zap, Wand2, Brain, Flame, BarChart2, Target, TrendingUp,
-  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers, Crosshair, LineChart,
+  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers, Crosshair, LineChart, PenLine,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
@@ -13,6 +13,17 @@ import { cn } from '@/lib/utils'
 import type { StudioSession } from '@/lib/studio-types'
 
 const TOOLS = [
+  {
+    href: '/studio/copy',
+    icon: PenLine,
+    title: 'Copy Engine',
+    description: 'Image-to-caption with client voice, framework, and Saudi Gen-Z dialect intelligence. AIDA, PAS, BAB, Hook-Story-Offer and more.',
+    badge: 'New',
+    badgeColor: 'bg-amber-100 text-amber-800',
+    gradient: false,
+    dark: false,
+    cta: 'Write Copy',
+  },
   {
     href: '/studio/content',
     icon: Zap,
@@ -146,6 +157,7 @@ export default function StudioPage() {
       postmortem: '/studio/postmortem',
       visual:     '/studio/visual',
       formats:    '/studio/formats',
+      copy:       '/studio/copy',
     }
     const route = routes[session.tool]
     if (route) router.push(`${route}?session_id=${session.id}`)

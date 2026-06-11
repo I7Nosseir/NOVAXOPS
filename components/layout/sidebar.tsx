@@ -51,6 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/studio/campaign',      icon: Flame,       label: 'Campaign Igniter',     permKey: 'studio-campaign' },
       { href: '/studio/visual',        icon: Clapperboard,label: 'Visual Engine',        permKey: 'studio-visual' },
       { href: '/studio/formats',       icon: Layers,      label: 'Peak Formats',         permKey: 'studio-formats' },
+      { href: '/studio/copy',          icon: ScanSearch,  label: 'Copy Engine',          permKey: 'studio-copy' },
       { href: '/studio/media-buying',  icon: TrendingUp,  label: 'Media Buying Plan',    permKey: 'studio-media-buying' },
     ],
   },

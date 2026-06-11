@@ -53,10 +53,12 @@ export async function POST(req: NextRequest) {
     const quarter_str = enrichedDoc.quarter ? `_${enrichedDoc.quarter}` : ''
     const year_str    = enrichedDoc.year    ? `_${enrichedDoc.year}`    : ''
 
-    return new NextResponse(buffer as unknown as BodyInit, {
+    const bytes = new Uint8Array(buffer)
+    return new NextResponse(bytes, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${safeName}${quarter_str}${year_str}_Strategy.pdf"`,
+        'Content-Length': String(bytes.byteLength),
         'Cache-Control': 'no-store',
       },
     })

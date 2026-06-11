@@ -161,9 +161,11 @@ export function buildMonthlyPrompt(
   const activePlatforms = data.platforms.filter(p => p.reach > 0 || p.impressions > 0 || p.likes > 0)
 
   return `${language === 'ar' ? ARABIC_INSTRUCTION + '\n\n' : ''}You are a social media analyst at NOVAX, a creative marketing agency.
-Write a plain-language Monthly Performance Report for ${clientName} covering ${period}.
+Write a deep, plain-language Monthly Performance Report for ${clientName} covering ${period}.
 ${brand?.industry ? `Industry: ${brand.industry}` : ''}
 ${brand?.tone ? `Brand tone: ${brand.tone}` : ''}
+
+This report is read by a business owner with no marketing background. Explain every number in plain terms, always compare it to a real-world benchmark, and tell them clearly whether each result is strong, average, or below average. Never use jargon without immediately explaining it. Use concrete analogies where they help — for example, if 50,000 people were reached, you can say "that is equivalent to filling a medium-sized concert hall 5 times."
 
 ${data.isMock ? '⚠ DATA NOTE: Live analytics unavailable — analysis is based on sample data.' : ''}
 
@@ -176,45 +178,50 @@ ${formatPlatforms(data.platforms)}
 5-MONTH TREND:
 ${formatTrend(data.trend)}
 
-ENGAGEMENT RATE CONTEXT (for interpretation):
-- Good interaction rate on Instagram: 1–3% is solid, 4%+ is excellent
-- Good interaction rate on TikTok: 5–9% of viewers
-- Good interaction rate on Facebook: 0.5–1.5% of viewers
-- Good interaction rate on LinkedIn: 2–4% of viewers
-- Industry average across platforms: ~2%
+BENCHMARK STANDARDS (use these throughout the report to assess every number):
+- Engagement rate (% of audience who took any action): below 1% = low; 1–2% = average; 2–4% = good; above 4% = excellent
+- Instagram brand benchmark: 1.5–3.5% is typical; above 3.5% is strong
+- TikTok brand benchmark: 5–9% is typical; above 9% is strong
+- Facebook brand benchmark: 0.5–1.5% is typical; above 1.5% is strong
+- LinkedIn brand benchmark: 2–4% is typical; above 4% is strong
+- Save rate (saves ÷ reach): 0.5%+ is solid; 1%+ is strong (people found content worth keeping)
+- Comment rate (comments ÷ reach): 0.3%+ shows genuine audience interest
+- Share rate (shares ÷ reach): 0.2%+ means content resonated beyond the original audience
+- Monthly reach growth: 5%+ month-over-month is healthy growth
+- Posting frequency: 4–7 posts per week is a healthy content rhythm for most brands
 
 ${hasPaid ? `PAID ADVERTISING DATA — ${period}:\n${formatMultiplePaidAds(activeCampaigns)}` : ''}
 
 ${NO_RECS}
 
-Write exactly these sections in order. Use plain, simple language throughout — no jargon. Each section must contain 3–5 sentences and cite specific numbers in every sentence.
+Write exactly these sections in order. Each section must be 5–7 sentences. Cite specific numbers in every sentence. After the data, always add a benchmark verdict — one sentence that clearly states whether this is strong, average, or below average.
 
 ### Executive Summary
-A clear 3–4 sentence overview of the month. Open with the single most impressive number and explain what it means to a non-marketer. Mention the total reach, the engagement rate in plain language (e.g. "X out of every 100 people who saw the content took an action"), and the total number of posts published. If trend data is available, note whether this was an improvement or decline compared to the previous month.
+Open with the single most impressive or important number from this month and immediately explain what it means in plain English (avoid the word "impressive" itself — just state the fact and what it means). State the total reach and explain it concretely (e.g. "that means X different people saw at least one post"). State the overall engagement rate as "X out of every 100 people who saw the content took an action" — then compare it to the 2% industry average and state whether this month was strong, average, or below average. Mention the total posts published and whether the data shows an improvement or decline compared to the previous month. End with one plain-language sentence that summarises the overall health of the account.
 
 ### Reach & Impressions Analysis
-Explain in plain terms how many different people the content reached this month, and how many total times it appeared on screens. State both numbers clearly. If available, describe how these numbers compare to previous months from the trend data — were they higher, lower, or about the same? Explain the difference between reach and impressions in one plain sentence (one person can see your content multiple times — impressions count every time, reach only counts each person once). If the impressions-to-reach ratio is notably high or low, note what that means about how many times on average each person saw the content.
+Start by explaining reach in one sentence: reach counts how many different people saw your content — each person counted once regardless of how many times they saw it. State the exact reach number. Then explain impressions in one sentence: impressions count every single time your content appeared on someone's screen, including repeat views from the same person. State the exact impressions number. Divide impressions by reach and state the average number of times each person encountered the content (e.g. "on average, each person saw your content X times"). Compare both figures to the previous month using the trend data — state the actual previous-month numbers and the percentage change. Assess whether this reach is above, in line with, or below the 5-month trend average.
 
 ### Engagement Analysis
-Describe in detail how people reacted to the content — total likes, comments, shares, and saves, citing every number. State the overall engagement rate as a whole number percentage (e.g. "X% of people who saw the content took an action"). Break down which type of interaction was highest — if saves are high, explain that saves mean people found the content valuable enough to come back to it; if comments are high, explain that comments show people were motivated to have a conversation. If the engagement rate is above 2%, note that this is above the industry average.
+Begin by defining engagement for a non-marketer: engagement means any action someone takes after seeing your content — a like, a comment, a share, or a save. State the total engagement actions (likes + comments + shares + saves) as one combined number. State the engagement rate as a percentage and translate it plainly: "X out of every 100 people who saw the content took an action." Compare this rate to the relevant platform benchmarks listed above and state explicitly whether this is strong, average, or below average. Break down the specific counts for likes, comments, shares, and saves — state every number. Identify which action was highest and explain what that reveals: high saves mean people found the content valuable enough to revisit later; high comments mean the content sparked real conversations; high shares mean people wanted their own followers to see it. If the combined engagement rate across all platforms is above 2%, note that this exceeds the general industry average.
 
 ### Platform Performance
-Compare all active platforms side-by-side this month. State the reach, total interactions (likes + comments + shares), and engagement rate for every active platform with specific numbers. Identify clearly which platform delivered the highest reach and which delivered the highest engagement rate — and by how much. If one platform has significantly more posts than another, note the volume difference and what it implies about content distribution.
+For every active platform, state the reach, engagement rate, total interactions (likes + comments + shares + saves), and number of posts published — all with exact numbers. Identify which platform delivered the highest reach this month and by how much compared to the second-highest. Identify which platform had the highest engagement rate, compare it to that platform's own benchmark (e.g. if Instagram reached 4%, note it exceeds Instagram's 1.5–3.5% average), and state the verdict clearly. Note if any platform is receiving significantly more or fewer posts than others, and what the data says about content distribution. If a platform has a lower engagement rate than expected, note that without interpreting why — just state the number against its benchmark.
 
 ### Platform Narratives
-${activePlatforms.length > 0 ? `Active platforms to cover: ${activePlatforms.map(p => p.platform).join(', ')}.` : ''}For each platform listed in the PER-PLATFORM BREAKDOWN that has non-zero data, write exactly one dedicated paragraph. Start each paragraph with the platform name in bold (e.g. **Instagram**). For each platform state: the exact reach, the exact engagement rate as a percentage, the top interaction type (likes / comments / saves / shares), and one observation about what the numbers reveal about that platform's audience. If only one platform has data, still write this section for that platform.
+${activePlatforms.length > 0 ? `Active platforms to cover: ${activePlatforms.map(p => p.platform).join(', ')}.` : ''}For each platform in the PER-PLATFORM BREAKDOWN with non-zero data, write one dedicated paragraph of 5–6 sentences. Start each paragraph with the platform name in bold (e.g. **Instagram**). State the exact reach and how many times each person on average saw the content on that platform (impressions ÷ reach). State the exact engagement rate and compare it clearly to that platform's benchmark — state whether it is strong, average, or below average. State the top interaction type with the exact count (likes, comments, saves, or shares). Explain what this combination of numbers says about how the audience on this specific platform is engaging — are they passively watching, actively interacting, or sharing content? End each paragraph with one observation about what the data reveals about the platform's audience behaviour.
 
 ### Trend Analysis
-Using the 5-month data, explain in simple terms whether the audience is growing, shrinking, or staying stable. Compare this month's reach to the previous month and to the earliest month in the trend data — state the actual numbers for both. If the engagement rate is trending up or down over the months, state the direction and the figures for the most recent and oldest months. Note whether any specific month stood out as a peak or dip.
+Using the 5-month data, explain in plain terms whether the brand's social media audience is growing, declining, or staying roughly the same. State this month's reach alongside last month's reach and calculate the change as a percentage — note whether it went up or down and by how much. Then compare this month's reach to the oldest month in the trend data — state both numbers and the percentage change over the full period to show the longer-term direction. If the engagement rate has changed over the 5 months, state the oldest rate and the newest rate, and describe the direction of travel plainly. Identify the peak month in the trend data and the lowest month, stating the specific numbers for both. End with one plain verdict about the trajectory — for example, "The account is growing steadily" or "Reach has declined over the past two months."
 
 ### Content Frequency & Publishing Cadence
-State exactly how many posts were published this month across all platforms. Calculate the approximate posting frequency (posts per week) and state it plainly. If per-platform data is available, state how many posts each platform received this month. Compare to previous months if trend data provides post counts.
+State exactly how many posts were published this month across all platforms. Calculate the average weekly posting rate (posts ÷ 4) and state it plainly. Compare this to the benchmark of 4–7 posts per week and state whether the brand is posting above, within, or below that healthy range. If per-platform data shows post counts, state how many posts each platform received and identify which platform received the most content investment. Note whether months with higher post volumes in the trend data corresponded to higher reach or engagement — if the data supports a pattern, describe it in one plain sentence. Summarise what the posting volume this month tells us about content output and consistency.
 
 ### Audience Interaction Depth
-Go deeper on the quality of audience interaction this month. State the saves count and what it represents as a percentage of total reach (saves / reach × 100) — high save rates mean people found the content worth keeping. State the total comments and what it reveals about how actively people engaged with the content. If shares data is available, note how many times people chose to share the content with their own followers, which is a sign the content resonated beyond the original audience. Summarise the overall quality of interaction in one plain sentence.
+Go deeper on interaction quality beyond surface-level counts. Calculate the save rate (saves ÷ reach × 100) — state the result and benchmark it: above 0.5% is solid, above 1% is strong. Explain what saves mean in plain language: when someone saves a post, they are choosing to come back to it later, which signals genuinely useful or inspiring content. Calculate the comment rate (comments ÷ reach × 100) — state the result. Note that comments require more effort than a like, so each comment represents a person who felt strongly enough to type a response. If shares are available, calculate the share rate (shares ÷ reach × 100) and explain that shares extend the content beyond the original audience to new people the brand hasn't reached before. Summarise the overall quality of audience connection this month in one plain sentence — combining the save rate, comment rate, and share rate to describe how deeply the content resonated.
 
 ${hasPaid ? `### Paid Media Performance
-Describe the paid advertising results for this month in plain terms.${activeCampaigns.length > 1 ? ` There are ${activeCampaigns.length} campaigns — briefly describe each one's spend and key result.` : ''} State the total amount spent${activeCampaigns.length > 1 ? ' across all campaigns' : ''} and what it bought in terms of reach and impressions. If CTR data is available, explain it in plain language (e.g. "out of every 100 people who saw the ad, X clicked it"). If ROAS or conversions data is available, state those figures clearly. Compare the paid reach to the organic reach if both are available, noting how the two channels worked together this month.` : ''}
+Start by explaining what paid advertising is for a non-marketer: it means paying the social media platform to show your content to more people than would naturally see it. State the total amount spent${activeCampaigns.length > 1 ? ` across all ${activeCampaigns.length} campaigns` : ''} and what currency. State the paid reach (number of unique people who saw the ads) and paid impressions (total number of times the ads appeared) with exact numbers. If CTR (click-through rate) data is available, explain it plainly: "out of every 100 people who saw the ad, X of them clicked on it" — state whether this is above or below the typical 1–2% CTR for social ads. If ROAS (return on ad spend) data is available, explain it in the simplest terms: "for every dollar/dirham spent, the campaign generated X dollars/dirhams in return." Compare the paid reach to the organic reach to show how the two channels combined to reach the overall audience this month.` : ''}
 
 ${PLAIN_FORMAT}`
 }

@@ -497,11 +497,14 @@ async function fetchNetworkPosts(
 
   return (items as MetricoolPostAnalytics[]).map(p => {
     const r = p as MetricoolPostAnalytics & Record<string, unknown>
-    const videoViews = Number(r.videoViews ?? r.views ?? 0)
+    // TikTok native API uses view_count / playCount; YouTube uses videoViews
+    const videoViews = Number(r.videoViews ?? r.views ?? r.view_count ?? r.playCount ?? r.play_count ?? 0)
     const impressions = Number(p.impressions ?? 0) > 0
       ? Number(p.impressions)
       : (network === 'tiktok' || network === 'youtube' || network === 'youtube_short') ? videoViews : 0
-    const reach = Number(p.reach ?? 0) > 0 ? Number(p.reach) : impressions
+    // Facebook may return uniqueReach / organicReach instead of reach
+    const rawReach = Number(p.reach ?? r.uniqueReach ?? r.organicReach ?? r.totalReach ?? 0)
+    const reach = rawReach > 0 ? rawReach : impressions
     // Post URL field names: Instagram → url, Facebook → link, TikTok → shareUrl
     const postUrl = String(p.url ?? p.link ?? r.shareUrl ?? p.permalink ?? r.postUrl ?? r.postLink ?? '')
 
@@ -547,9 +550,14 @@ async function fetchNetworkPosts(
       publishDate,
       impressions,
       reach,
-      likes:    Number(p.likes    ?? r.reactions    ?? r.likesCount    ?? r.likeCount    ?? 0),
-      comments: Number(p.comments ?? r.replies      ?? r.commentsCount ?? r.commentCount ?? 0),
-      shares:   Number(p.shares   ?? r.sharesCount  ?? r.shareCount    ?? r.retweets     ?? 0),
+      // Facebook uses reactions; TikTok native uses like_count / diggCount
+      likes:    Number(p.likes    ?? r.reactions    ?? r.likesCount    ?? r.likeCount    ?? r.like_count   ?? r.diggCount    ?? r.reactionsCount ?? 0),
+      // TikTok native uses comment_count; Facebook uses commentsCount
+      comments: Number(p.comments ?? r.replies      ?? r.commentsCount ?? r.commentCount ?? r.comment_count ?? 0),
+      // TikTok native uses share_count; Facebook uses sharesCount
+      shares:   Number(p.shares   ?? r.sharesCount  ?? r.shareCount    ?? r.retweets     ?? r.share_count   ?? 0),
+      // TikTok collect = saves; collectCount is the native TikTok field name
+      saves:    Number(p.saves    ?? r.savesCount   ?? r.saveCount     ?? r.save_count   ?? r.collectCount  ?? 0),
       views:    videoViews,
       url:      postUrl.startsWith('http') ? postUrl : undefined,
       thumbnail: thumbnail.startsWith('http') ? thumbnail : (p.thumbnail ?? undefined),
@@ -569,7 +577,18 @@ export async function fetchPostsList(
   endDate: string,
   networks?: string[]
 ): Promise<MetricoolPostAnalytics[]> {
-  const toFetch = networks?.length ? networks : [...ANALYTICS_NETWORKS]
+  let toFetch: string[]
+  if (!networks?.length) {
+    toFetch = [...ANALYTICS_NETWORKS]
+  } else {
+    // Auto-expand base platform names to include their sub-type variants so callers
+    // don't need to know about instagram_reel / facebook_reel / youtube_short
+    const expanded = new Set(networks)
+    if (expanded.has('instagram')) expanded.add('instagram_reel')
+    if (expanded.has('facebook'))  expanded.add('facebook_reel')
+    if (expanded.has('youtube'))   expanded.add('youtube_short')
+    toFetch = [...expanded]
+  }
   const results = await Promise.all(
     toFetch.map(net => fetchNetworkPosts(blogId, net, startDate, endDate))
   )

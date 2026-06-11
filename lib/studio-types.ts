@@ -16,6 +16,7 @@ export type StudioTool =
   | 'ads'
   | 'repurpose'
   | 'media_buying'
+  | 'copy'
 
 export type SessionStatus = 'running' | 'partial' | 'complete' | 'error'
 
@@ -371,6 +372,12 @@ export interface StrategyDocument {
   tenant_integration?: string[]
   strategy_flow?: StrategyFlowBeat[]
 
+  // Deep-strategy fields (added by reflection agent)
+  north_star?: string
+  competitive_gap?: string
+  creative_tension?: string
+  audience_insight?: string
+
   // Metadata
   obstacle?: string
   brief?: string
@@ -549,6 +556,60 @@ export interface VisualInputs {
   vibe: string
   cta_type: string
   additional_notes?: string
+}
+
+// ─── Copy Engine ─────────────────────────────────────────────
+
+export type CopyFramework =
+  | 'auto'
+  | 'aida'
+  | 'pas'
+  | 'bab'
+  | 'hook_story_offer'
+  | '4ps'
+  | 'storybrand'
+  | 'pastor'
+
+export type CopyLength   = 'micro' | 'short' | 'medium' | 'long' | 'extended'
+export type EmojiStyle   = 'none'  | 'minimal' | 'moderate' | 'rich'
+export type HashtagStyle = 'none'  | 'minimal' | 'standard' | 'max'
+export type CopyLanguage = 'en' | 'ar' | 'both'
+export type CopyDialect  = 'saudi' | 'egyptian' | 'gulf' | 'msa'
+
+export interface CopyImage {
+  type: 'upload' | 'drive'
+  data: string           // base64 for upload; raw Drive URL for drive
+  mime_type: string      // e.g. 'image/jpeg'
+  slide_index: number    // 0-based; 0 = single post image
+  slide_note?: string    // optional per-slide brief
+}
+
+export interface CopyVariant {
+  variant_index: number
+  caption: string
+  framework_used: string
+  char_count: number
+}
+
+export interface SlideCaption {
+  slide_index: number   // 1-based
+  caption: string
+  char_count: number
+}
+
+export interface CopyDocument {
+  variants: CopyVariant[]
+  hashtags: string[]
+  alt_text: string
+  framework_used: string
+  framework_rationale: string
+  language: CopyLanguage
+  platform: string
+  provider: 'claude' | 'gemini'
+  content_type?: 'single' | 'carousel'
+  slide_captions?: SlideCaption[]
+  copy_session_id?: string        // set after DB persistence in generate route
+  inspiration_ref_count?: number  // how many Pinterest refs informed this output
 }
 
 // ─── Studio Session (Core Record) ────────────────────────────

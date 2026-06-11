@@ -36,6 +36,8 @@ function makeDb(): SupabaseClient {
 interface ChatMessage { role: 'user' | 'assistant'; content: string }
 interface ContextItem  { type: 'client' | 'document' | 'session' | 'task'; id: string; label: string }
 
+interface RequestImage { data: string; mediaType: string }
+
 interface RequestBody {
   messages:      ChatMessage[]
   context_items: ContextItem[]
@@ -43,6 +45,7 @@ interface RequestBody {
   is_ceo?:       boolean
   user_role?:    string
   user_id?:      string
+  images?:       RequestImage[]
 }
 
 // ── Tiptap JSON → plain text ──────────────────────────────────
@@ -517,7 +520,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() }
   catch { return new Response(JSON.stringify({ error: 'Invalid request body.' }), { status: 400 }) }
 
-  const { messages, context_items = [], client_id } = body
+  const { messages, context_items = [], client_id, images } = body
   // Override body values with session-derived values
   const user_id   = sessionUserId
   const user_role = sessionUserRole
@@ -592,6 +595,40 @@ export async function POST(req: NextRequest) {
   const model     = is_ceo ? MODEL_CEO : MODEL_STANDARD
   const encoder   = new TextEncoder()
 
+  // Build Claude messages — attach images to the last user message if provided
+  type AnthropicImageBlock = {
+    type: 'image'
+    source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string }
+  }
+  type AnthropicTextBlock = { type: 'text'; text: string }
+  type AnthropicContent = string | Array<AnthropicImageBlock | AnthropicTextBlock>
+
+  const claudeMessages: Array<{ role: 'user' | 'assistant'; content: AnthropicContent }> =
+    messages.map((m, idx) => {
+      const isLastUser = m.role === 'user' && idx === messages.length - 1
+      if (isLastUser && images && images.length > 0) {
+        const validTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+        const imageBlocks: AnthropicImageBlock[] = images
+          .filter(img => validTypes.has(img.mediaType))
+          .map(img => ({
+            type: 'image' as const,
+            source: {
+              type:       'base64' as const,
+              media_type: img.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+              data:       img.data,
+            },
+          }))
+        return {
+          role: 'user' as const,
+          content: [
+            ...imageBlocks,
+            { type: 'text' as const, text: m.content },
+          ],
+        }
+      }
+      return { role: m.role, content: m.content }
+    })
+
   const stream = new ReadableStream({
     async start(ctrl) {
       try {
@@ -599,7 +636,7 @@ export async function POST(req: NextRequest) {
           model,
           max_tokens: 2048,
           system:     systemPrompt,
-          messages:   messages.map(m => ({ role: m.role, content: m.content })),
+          messages:   claudeMessages,
         })
 
         for await (const event of claudeStream) {

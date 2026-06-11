@@ -392,6 +392,43 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
           </View>
         )}
 
+        {/* Deep-strategy intelligence row */}
+        {(doc.north_star || doc.audience_insight || doc.competitive_gap || doc.creative_tension) && (
+          <View style={{ marginBottom: 16 }}>
+            <SectionLabel text="Strategic Intelligence" color={C.g400} />
+            <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+              {doc.north_star && (
+                <View style={{ flex: 1, minWidth: 200, backgroundColor: C.dark, borderRadius: 8, padding: 14 }}>
+                  <Text style={{ fontSize: 6.5, fontFamily: 'Helvetica-Bold', letterSpacing: 1.5, color: C.accent + 'BB', marginBottom: 5 }}>NORTH STAR</Text>
+                  <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.white, lineHeight: 1.55 }}>{s(doc.north_star)}</Text>
+                </View>
+              )}
+              {doc.audience_insight && (
+                <View style={{ flex: 1, minWidth: 200, backgroundColor: accentColor, borderRadius: 8, padding: 14 }}>
+                  <Text style={{ fontSize: 6.5, fontFamily: 'Helvetica-Bold', letterSpacing: 1.5, color: 'rgba(255,255,255,0.65)', marginBottom: 5 }}>AUDIENCE INSIGHT</Text>
+                  <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.55 }}>{s(doc.audience_insight)}</Text>
+                </View>
+              )}
+            </View>
+            {(doc.competitive_gap || doc.creative_tension) && (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                {doc.competitive_gap && (
+                  <View style={{ flex: 1, backgroundColor: C.white, borderRadius: 8, padding: 14, borderLeftWidth: 3, borderLeftColor: C.accentDim }}>
+                    <Text style={{ fontSize: 6.5, fontFamily: 'Helvetica-Bold', letterSpacing: 1.5, color: C.g400, marginBottom: 5 }}>COMPETITIVE GAP CLAIMED</Text>
+                    <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.55 }}>{s(doc.competitive_gap)}</Text>
+                  </View>
+                )}
+                {doc.creative_tension && (
+                  <View style={{ flex: 1, backgroundColor: '#FFF7ED', borderRadius: 8, padding: 14, borderLeftWidth: 3, borderLeftColor: C.gold }}>
+                    <Text style={{ fontSize: 6.5, fontFamily: 'Helvetica-Bold', letterSpacing: 1.5, color: '#92400E', marginBottom: 5 }}>CREATIVE TENSION</Text>
+                    <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica', color: '#78350F', lineHeight: 1.55 }}>{s(doc.creative_tension)}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Obstacle if present */}
         {obstacle && (
           <View style={{ backgroundColor: '#FEF3C7', borderRadius: 8, padding: 16, borderLeftWidth: 3, borderLeftColor: C.gold }}>
@@ -487,7 +524,7 @@ function ContentPillarsPage({ pillars, pageIndex, clientName, accentColor, pageN
             const globalIdx = pageIndex * 3 + i
             const pillarColor = PILLAR_ACCENTS[globalIdx % PILLAR_ACCENTS.length]
             return (
-              <View key={i} style={{ backgroundColor: C.white, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: C.border }}>
+              <View key={i} style={{ backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border }}>
                 {/* Header bar */}
                 <View style={{ backgroundColor: pillarColor + '18', borderBottomWidth: 1, borderBottomColor: pillarColor + '40', paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <View style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: pillarColor, alignItems: 'center', justifyContent: 'center' }}>
@@ -589,7 +626,7 @@ function MonthlyRoadmapIntroPage({ tactics, clientName, accentColor, pageNum, to
           Each month has a distinct strategic role, persona direction, and set of focus areas.
         </Text>
         {/* Compact overview table */}
-        <View style={{ gap: 0, borderWidth: 1, borderColor: C.border, borderRadius: 8, overflow: 'hidden' }}>
+        <View style={{ gap: 0, borderWidth: 1, borderColor: C.border, borderRadius: 8 }}>
           {/* Header row */}
           <View style={{ flexDirection: 'row', backgroundColor: accentColor, paddingHorizontal: 16, paddingVertical: 10 }}>
             <Text style={{ flex: 0.6, fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.white, letterSpacing: 1 }}>MONTH</Text>
@@ -792,7 +829,7 @@ function FormatRolesPage({ formats, clientName, accentColor, pageNum, totalPages
         </Text>
         <View style={{ flexDirection: 'row', gap: 14 }}>
           {cols.map(({ title, color, items, desc }, i) => (
-            <View key={i} style={{ flex: 1, backgroundColor: C.white, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: C.border }}>
+            <View key={i} style={{ flex: 1, backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border }}>
               <View style={{ backgroundColor: color, padding: 14 }}>
                 <Text style={{ fontSize: 12, fontFamily: 'Helvetica-Bold', color: C.white, marginBottom: 4 }}>{title}</Text>
                 <Text style={{ fontSize: 8, fontFamily: 'Helvetica', color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>{desc}</Text>

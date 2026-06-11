@@ -186,6 +186,7 @@ export async function POST(req: NextRequest) {
   let prompt = ''
   let model = PRIMARY_MODEL
   let imageBlock: Anthropic.ImageBlockParam | null = null
+  let maxTokensOverride: number | null = null
 
   switch (agent) {
 
@@ -569,13 +570,13 @@ The "anchor" field is null for regular posts and a string (event name) for ancho
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'creative_eval': {
+      maxTokensOverride = 4000
+      model = ADVANCED_MODEL
       const fileType = body.fileType ?? 'image'
       const evalPlatforms: string[] = Array.isArray(body.platforms) && body.platforms.length > 0
         ? body.platforms as string[]
         : []
-      const platformLine = evalPlatforms.length > 0
-        ? `Target Platforms: ${evalPlatforms.join(', ')}`
-        : 'Target Platforms: General social media'
+      const platformStr = evalPlatforms.length > 0 ? evalPlatforms.join(', ') : 'General social media'
 
       if (body.imageBase64 && body.mimeType) {
         const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const
@@ -593,66 +594,158 @@ The "anchor" field is null for regular posts and a string (event name) for ancho
         ? `\nCONTENT TO EVALUATE:\n"""\n${body.textContent}\n"""\n`
         : ''
 
-      prompt = `You are a creative performance scientist specialising in social media virality. Apply neuroscience, behavioural psychology, and platform algorithm research to evaluate this creative ${isTextMode ? 'copy/script' : 'asset'} with clinical precision.
+      prompt = `You are a senior creative strategist and performance scientist. You evaluate social media content the way a rigorous, experienced strategist would — with calibrated standards, evidence-based reasoning, and willingness to give low scores when the work doesn't earn high ones.
 
+You do NOT inflate scores to be encouraging. You do NOT give 75+ just because a piece looks "professional." You score against world-class benchmarks, not "for a brand this size."
+
+═══════════════════════════════════════════════════════
 CLIENT CONTEXT
+═══════════════════════════════════════════════════════
 Client: ${clientName}
-Brand Voice: ${brandVoice}
+Industry: ${industry}
+Brand Voice / Tone: ${brandVoice}
 Target Audience: ${audience}
-Asset Type: ${isTextMode ? 'Written copy / script' : fileType}${fileType === 'video' ? '\nNote: You are analysing the first frame of the video — evaluate hook strength and opening composition.' : ''}
-${platformLine}${textBlock}
+Key Messages: ${keyMessages || 'Not specified'}
+Competitors: ${competitors}
+Target Platforms: ${platformStr}
+Asset Type: ${isTextMode ? 'Written copy / script' : fileType === 'video' ? 'Video (first-frame analysis)' : 'Static image'}${textBlock}
 
-SCORING DIMENSIONS — score each 0–100 based strictly on what you observe. Be calibrated: 85+ is genuinely exceptional. A score of 70 means "good, above average." A score of 50 means "average, would be scrolled past by most."
+═══════════════════════════════════════════════════════
+CALIBRATION MANDATE — READ BEFORE SCORING
+═══════════════════════════════════════════════════════
+The global distribution of brand social media content scores like this:
+- 90–100: Benchmark-setting. World-class creative agencies produce this 1 in 50 attempts.
+- 75–89: Genuinely strong. Clear strategic intent, well-executed. Top 15% of content.
+- 60–74: Competent. Does the job, forgettable in 24h. Most professionally-produced content lands here.
+- 45–59: Below average. Generic, interchangeable, scrolled past by the majority.
+- Below 45: Actively harmful to brand — confusing, off-brand, or technically broken.
+
+Before assigning any score above 75, you MUST cite the specific named element that earns it.
+Before assigning any score above 85, you MUST reference a specific industry benchmark this content matches or surpasses.
+If you cannot produce that evidence, score lower.
+
+═══════════════════════════════════════════════════════
+STEP 1 — RED FLAG SCAN (run before scoring)
+═══════════════════════════════════════════════════════
+Check for these automatic score-capping conditions. If present, the affected dimension CANNOT exceed 65:
+- Stock photo aesthetic or generic lifestyle imagery → caps thumb_stop_rate
+- Brand name or logo as the primary visual element → caps thumb_stop_rate
+- Copy that starts with the brand name → caps message_clarity
+- Zero CTA or vague CTA ("learn more", "check us out") → caps share_save_potential
+- Copy that talks about the brand rather than to the audience → caps emotional_resonance
+- Visual aspect ratio wrong for stated platform → caps platform_fit
+- Claim the brand cannot credibly make (credibility gap) → caps brand_coherence
+
+List any red flags found in "red_flags" array. Apply caps to affected dimensions.
+
+═══════════════════════════════════════════════════════
+STEP 2 — ATTENTION ARCHITECTURE ANALYSIS
+═══════════════════════════════════════════════════════
+Evaluate in three windows (critical for reels/video; adapt for static/text):
+
+WINDOW 1 — 0 to 1.7 seconds (Pre-attentive hook)
+Meta research: average mobile scroll dwell time is 1.7s. The visual must trigger a pre-attentive response — colour contrast, human face/eye contact, motion energy, size anomaly, pattern interruption — before the viewer consciously decides to stop.
+What specifically fires in this window? What fails?
+
+WINDOW 2 — 1.7 to 7 seconds (Retention driver)
+The viewer has stopped. Now they need a reason to continue. This window must answer: "Why should I keep watching/reading this?"
+What is the retention mechanism here? Curiosity gap, promised value, story tension, social proof setup?
+
+WINDOW 3 — 7 seconds+ (Payoff architecture)
+What does the viewer get for their attention? Is there a payoff that makes them feel the time was worth it — information, emotion, entertainment, identity affirmation?
+For text content, treat as: Opening / Middle / Resolution.
+
+═══════════════════════════════════════════════════════
+STEP 3 — SEVEN CORE DIMENSIONS (score 0–100 each)
+═══════════════════════════════════════════════════════
 
 1. THUMB-STOP RATE
-   Scientific basis: Meta/Facebook research shows average mobile scroll dwell time is 1.7 seconds. Content must interrupt this within the first viewing glance.
-   Evaluate: Pre-attentive attributes present (colour contrast, human face/eye contact, motion energy, pattern interruption, size anomaly). Novelty vs familiarity balance — too familiar = ignored, too unfamiliar = confusing.
-   90-100: Would halt >80% of target audience scrolls immediately
-   70-89: Strong hook, minor friction
-   50-69: Generic, blend-in content — majority scrolls past
-   <50: Invisible in feed
+Basis: Meta/Facebook 1.7s scroll-dwell research. Pre-attentive attributes: colour contrast, human face/eye contact, motion energy, pattern interruption, size anomaly. Novelty-familiarity balance.
+90–100: Halts >80% of target audience. Cites a specific pre-attentive trigger.
+70–89: Strong hook, minor friction, clear visual priority.
+50–69: Generic or blend-in — majority scrolls past.
+<50: Invisible in feed. No pre-attentive trigger present.
 
 2. EMOTIONAL RESONANCE
-   Scientific basis: Berger & Milkman (2012) — high-arousal emotions (awe, excitement, anger, amusement) drive sharing at 2× the rate of low-arousal emotions (contentment, sadness). Positive high-arousal is optimal for brand content.
-   Evaluate: Which specific emotion from Plutchik's wheel does this activate? Intensity of that activation. Valence (positive/negative). Whether a face or expression is present (faces are the highest-salience pre-attentive trigger).
-   Score the arousal level AND appropriateness for ${clientName}'s brand.
+Basis: Berger & Milkman (2012) — high-arousal emotions drive sharing at 2× the rate of low-arousal. Optimal for brand: positive high-arousal (awe, excitement, amusement). Presence of a human face = highest-salience pre-attentive trigger.
+Name the specific Plutchik emotion activated. Assess intensity and valence. Score arousal level AND appropriateness for ${clientName}'s voice.
 
 3. BRAND COHERENCE
-   Scientific basis: Consistent brand presentation across channels increases revenue by 23% (Lucidpress 2019). Visual inconsistency creates cognitive dissonance that reduces purchase intent.
-   Evaluate: Primary/secondary colour match to stated brand, composition style match, subject matter alignment with brand archetype (${brandVoice}), typography/overlay text consistency if present.
+Basis: Consistent brand presentation increases revenue 23% (Lucidpress 2019). Visual inconsistency creates cognitive dissonance.
+Assess: colour match, compositional style, subject matter alignment to brand archetype (${brandVoice}), credibility of claim vs. earned brand authority. Would a loyal customer instantly recognise this as ${clientName}? Would they be surprised? That surprise is a coherence failure.
 
 4. MESSAGE CLARITY — 3-SECOND TEST
-   Scientific basis: Sweller's Cognitive Load Theory — working memory holds 7±2 chunks (Miller's Law). Overloaded visuals force active reading effort which kills scroll-stop rate.
-   Evaluate: Can the core message be extracted in under 3 seconds? Visual hierarchy (most important element = highest contrast/largest)? Information density? CTA visibility and specificity? Text-to-visual ratio?
-   90-100: Message extracted in <1.5 seconds
-   70-89: Extractable in 3 seconds
-   <50: Requires active effort to decode
+Basis: Sweller's Cognitive Load Theory. Working memory: 7±2 chunks. Visual hierarchy must surface the single most important message at highest contrast/largest scale.
+90–100: Core message extracted in <1.5s, zero ambiguity.
+70–89: Clear in 3 seconds, minor decoding effort.
+50–69: Requires active reading effort, competing visual priorities.
+<50: Ambiguous, confused, or absent message.
 
 5. VISUAL QUALITY
-   Evaluate: Technical sharpness and focus accuracy. Exposure and colour grading quality. Composition adherence (rule of thirds, golden ratio, negative space, leading lines). Subject-to-background contrast ratio. Depth of field appropriateness.
+Assess: technical sharpness, exposure and colour grading, composition (rule of thirds / golden ratio / negative space / leading lines), subject-background contrast, text legibility, depth of field. For text content: typographic hierarchy, whitespace, readability score.
 
 6. SHARE & SAVE POTENTIAL
-   Scientific basis: Jonah Berger's STEPPS framework — Social currency (sharer looks good), Triggers (memory cue exists), Emotion (high arousal), Public (visible use signal), Practical value (useful information), Stories (narrative arc).
-   Evaluate: Which STEPPS elements are present? Content that earns saves = practical value. Content that earns shares = social currency + emotional arousal. Score based on density of STEPPS triggers present.
+Basis: Berger's STEPPS — Social Currency, Triggers, Emotion, Public signal, Practical Value, Stories. Saves = practical value. Shares = social currency + arousal.
+Name which STEPPS elements are present. Score density of triggers. No triggers = score <50.
 
 7. PLATFORM FIT
-   Target platforms: ${evalPlatforms.length > 0 ? evalPlatforms.join(', ') : 'general social media'}
-   Evaluate: ${isTextMode
-     ? 'Copy length vs platform norms, caption style, CTA format, hashtag usage, tone-of-voice fit per platform.'
-     : 'Aspect ratio optimisation (9:16 for Reels/TikTok, 1:1 or 4:5 for Instagram feed), text density (Facebook penalises >20% text overlay), sound-off clarity (85% of Facebook video watched muted — Nielsen), mobile-first composition, platform-native style (does it look native or cross-posted?).'}
-   ${evalPlatforms.length > 0 ? `Focus specifically on fit for: ${evalPlatforms.join(', ')}.` : ''}
+Platforms: ${platformStr}
+${isTextMode
+  ? 'Assess: copy length vs platform norms, caption structure, CTA format, tone-of-voice fit per platform, opening line vs character limits.'
+  : 'Assess: aspect ratio fit (9:16 for Reels/TikTok, 1:1 or 4:5 for Instagram feed), text overlay density (Facebook penalises >20%), sound-off clarity (85% of Facebook video watched muted — Nielsen), mobile-first composition, platform-native vs cross-posted feel.'}
 
+═══════════════════════════════════════════════════════
+STEP 4 — THREE STRATEGIC DIMENSIONS (score 0–100 each)
+═══════════════════════════════════════════════════════
+
+8. STRATEGIC CONTRIBUTION
+Does this piece contribute to long-term brand memory structure (Byron Sharp: mental availability), or is it pure activation? Is that the right call for the funnel stage implied? Does it reinforce a consistent distinctive brand asset — a colour, phrase, visual motif — or could it have been posted by any brand in this industry?
+90–100: Unmistakably ${clientName}. Reinforces a specific brand asset. Strategic role is explicit.
+70–89: Clear brand voice, but could be replicated by a careful competitor.
+50–69: Interchangeable. No distinctiveness. Tactical only.
+<50: Actively erodes brand identity.
+
+9. AUDIENCE TRUTH
+Is this piece built on a real human insight — a specific tension, aspiration, or unspoken truth the audience holds — or is it built on demographic assumptions?
+"25–35F interested in beauty" is NOT an insight.
+"She's spent years believing skincare is complicated, and secretly suspects it's all a marketing myth" IS an insight.
+Score how deep the audience understanding goes. Shallow = score <55. Real tension articulated = score 75+. Audience feels seen = score 85+.
+
+10. CREDIBILITY GAP
+Can ${clientName} credibly make this claim based on its earned authority in the market? Does the visual match the verbal promise? Would a cynical consumer believe this, or would they roll their eyes?
+100 = zero gap. Claim is fully earned. 0 = massive gap, brand has no authority to make this claim.
+Note: This dimension inverts — a HIGH score means LOW credibility gap (good). Score <50 means the brand is reaching beyond its authority and eroding trust.
+
+═══════════════════════════════════════════════════════
+STEP 5 — STRESS TEST (adversarial review)
+═══════════════════════════════════════════════════════
+Argue AGAINST this content. Write the strongest objection a skeptical senior strategist with 20 years of experience would make after seeing this piece. Be specific and evidence-based.
+Then decide: is that objection fatal (it kills the piece) or manageable (the piece works despite it)?
+Then write the rebuttal: why the piece works anyway, or why it doesn't.
+
+═══════════════════════════════════════════════════════
+STEP 6 — CONCRETE REWRITE SUGGESTIONS (top 3 only)
+═══════════════════════════════════════════════════════
+For the 3 highest-impact improvements, provide a specific rewrite — not advice, an actual rewrite.
+Each suggestion must name: the element, what it currently says/shows, the exact replacement, the expected lift, and why it works.
+If the content is text, provide the rewritten line verbatim. If visual, describe the specific change to composition/subject/treatment.
+
+═══════════════════════════════════════════════════════
 WEIGHTED OVERALL SCORE
-overall = (thumb_stop_rate × 0.25) + (emotional_resonance × 0.20) + (brand_coherence × 0.15) + (message_clarity × 0.15) + (visual_quality × 0.10) + (share_save_potential × 0.10) + (platform_fit × 0.05)
+═══════════════════════════════════════════════════════
+overall = (thumb_stop_rate × 0.20) + (emotional_resonance × 0.15) + (brand_coherence × 0.12) + (message_clarity × 0.13) + (visual_quality × 0.08) + (share_save_potential × 0.10) + (platform_fit × 0.07) + (strategic_contribution × 0.08) + (audience_truth × 0.05) + (credibility_gap × 0.02)
 
-ADDITIONAL INTELLIGENCE:
-- psychological_triggers: Which specific Cialdini principles or behavioural triggers are visible (Social Proof, Scarcity, Authority, Curiosity Gap, Loss Aversion, Reciprocity, Liking, Unity)?
-- viral_elements: List specific visual or content elements present that are known virality drivers
-- missing_elements: Specific elements that, if added, would materially increase virality score (be concrete — not "add more emotion" but "adding a human face in the upper-left quadrant would increase thumb-stop rate by an estimated 15-25%")
-- platform_recommendations: Which 2-3 platforms this creative is best suited for and the specific technical reason
-- ab_test_suggestion: One specific element to A/B test — describe both the control and the variant precisely
+virality_score = (thumb_stop_rate × 0.35) + (emotional_resonance × 0.35) + (share_save_potential × 0.30)
 
-Return ONLY a valid JSON object, no markdown, no code fences:
+engagement_prediction rules:
+- "viral": overall >= 82 AND virality_score >= 80
+- "high": overall >= 70 OR virality_score >= 72
+- "medium": overall >= 55
+- "low": everything else
+
+═══════════════════════════════════════════════════════
+OUTPUT — return ONLY valid JSON, no markdown, no fences
+═══════════════════════════════════════════════════════
 {
   "overall": <number>,
   "thumb_stop_rate": <number>,
@@ -662,15 +755,182 @@ Return ONLY a valid JSON object, no markdown, no code fences:
   "visual_quality": <number>,
   "share_save_potential": <number>,
   "platform_fit": <number>,
-  "virality_score": <composite 0-100 based on emotional_resonance + share_save_potential + thumb_stop_rate, weighted equally>,
+  "strategic_contribution": <number>,
+  "audience_truth": <number>,
+  "credibility_gap": <number>,
+  "virality_score": <number>,
   "engagement_prediction": "low" | "medium" | "high" | "viral",
-  "psychological_triggers": ["<specific trigger present>"],
+  "attention_architecture": {
+    "hook_window": <0-100 score for 0-1.7s>,
+    "retention_driver": <0-100 score for 1.7-7s>,
+    "payoff_quality": <0-100 score for 7s+>,
+    "verdict": "<one sentence: what happens at each stage>"
+  },
+  "stress_test": {
+    "skeptic_objection": "<the strongest argument against this content>",
+    "is_objection_fatal": <true|false>,
+    "rebuttal": "<why it works anyway, or why it doesn't>"
+  },
+  "rewrite_suggestions": [
+    {
+      "element": "<Opening hook | Headline | CTA | Visual treatment | Body copy>",
+      "current": "<what it currently says or shows>",
+      "suggested": "<the exact rewrite or specific visual change>",
+      "expected_lift": "<e.g. +15-20% thumb-stop rate>",
+      "reasoning": "<why this works better, citing a specific principle>"
+    }
+  ],
+  "red_flags": ["<specific red flag found, or empty array>"],
+  "score_evidence": [
+    {
+      "dimension": "<dimension name>",
+      "score": <number>,
+      "evidence": "<the specific observable element that justifies this score>",
+      "benchmark": "<what world-class looks like in this dimension>"
+    }
+  ],
+  "psychological_triggers": ["<specific Cialdini or behavioural trigger present>"],
   "viral_elements": ["<specific element driving virality>"],
-  "missing_elements": ["<specific element with estimated impact>"],
+  "missing_elements": ["<specific element with estimated impact if added>"],
   "platform_recommendations": ["<Platform: specific technical reason>"],
-  "ab_test_suggestion": "<Control: X vs Variant: Y — what to measure>",
-  "strengths": ["<evidence-based observation referencing what you see>"],
-  "improvements": ["<specific, measurable improvement with expected outcome>"]${fileType === 'video' ? ',\n  "hook_analysis": "<Frame-by-frame: what fires in 0-3s, what fails, scroll-stop probability estimate>"' : isTextMode ? ',\n  "hook_analysis": "<First sentence / opening hook analysis: does it create a curiosity gap, promise value, or pattern-interrupt?>"' : ''}
+  "ab_test_suggestion": "<Control: X vs Variant: Y — what metric to measure>",
+  "strengths": ["<evidence-based observation citing what you see>"],
+  "improvements": ["<specific, measurable improvement with expected outcome>"]${fileType === 'video' ? ',\n  "hook_analysis": "<Frame-by-frame: what fires in 0-3s, what fails, scroll-stop probability>"' : isTextMode ? ',\n  "hook_analysis": "<Opening line analysis: curiosity gap, promised value, or pattern-interrupt?>"' : ''}
+}`
+      break
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    case 'strategy_eval': {
+      maxTokensOverride = 4000
+      model = ADVANCED_MODEL
+      const strategyText = body.textContent ?? ''
+
+      prompt = `You are a senior brand strategist with 20 years of experience across global agencies. You evaluate strategies the way a rigorous CMO or strategy director would — looking for logical coherence, real audience insight, executable plans, and genuine differentiation. You do not flatter weak strategy with polite language.
+
+Your standard: a strategy that earns 80+ could be presented to a Fortune 500 CMO without embarrassment. Most strategies score 55–70. Truly world-class strategies are rare.
+
+═══════════════════════════════════════════════════════
+CLIENT CONTEXT
+═══════════════════════════════════════════════════════
+Client: ${clientName}
+Industry: ${industry}
+Brand Voice: ${brandVoice}
+Target Audience: ${audience}
+Key Messages: ${keyMessages || 'Not specified'}
+Competitors: ${competitors}
+
+STRATEGY TO EVALUATE:
+"""
+${strategyText}
+"""
+
+═══════════════════════════════════════════════════════
+CALIBRATION MANDATE
+═══════════════════════════════════════════════════════
+Score distribution for real-world brand strategies:
+- 85–100: Genuinely differentiated, insight-driven, executable. Rare.
+- 70–84: Solid thinking, clear POV, some gaps. Top 20% of agency work.
+- 55–69: Competent but generic. Could apply to any brand in the category. Most strategies.
+- 40–54: Weak. Surface-level. Built on demographic assumptions, not real tension.
+- Below 40: Should be restarted. No coherent POV, no insight, no logic.
+
+Any score above 75 requires citing the specific strategic element that earns it. If you cannot, score lower.
+
+═══════════════════════════════════════════════════════
+EIGHT STRATEGIC DIMENSIONS (score 0–100 each)
+═══════════════════════════════════════════════════════
+
+1. CLARITY OF POV
+Does this strategy have a single, defensible strategic point-of-view? A clear POV says: "We believe X about the world / our audience / our category, and therefore we will do Y." Vague strategies that "aim to increase brand awareness and drive engagement" have no POV. Score ruthlessly.
+90–100: One clear, surprising, defensible POV that reframes the competitive space.
+70–89: Clear direction, but POV could be sharper or more differentiated.
+55–69: Multiple directions pulled in parallel — no real commitment.
+<55: No discernible POV. Could have been written for any brand.
+
+2. AUDIENCE INSIGHT DEPTH
+Is this strategy built on a real human tension — a specific unspoken aspiration, fear, or contradiction the audience holds? Or is it built on demographic descriptions?
+"UAE women 25-40 who are interested in luxury" = demographic. Score <50.
+"She wants the confidence of luxury without the guilt of spending — so she frames skincare as self-care, not indulgence" = insight. Score 80+.
+A strategy built on real tension is inherently more creative, more differentiated, and more effective.
+
+3. COMPETITIVE DIFFERENTIATION
+Does this strategy do something meaningfully different from what competitors are already doing? A strategy that recommends "educational content + behind-the-scenes + user stories" is not differentiated — every brand in every category uses this playbook.
+To score above 70: name at least one specific decision this strategy makes that competitors are NOT making, and explain why that gap exists to be exploited.
+
+4. PLATFORM CALIBRATION
+Is the strategy genuinely adapted per platform, or is it one content strategy posted everywhere?
+Platform-specific strategy means: different objectives per platform, different content formats, different audience segments, different measurement. "Post reels on Instagram and carousels on LinkedIn" is not platform strategy — it's distribution.
+90–100: Clear, differentiated strategy per platform with distinct role for each.
+70–89: Good platform awareness, some differentiation.
+55–69: Minimal platform-specificity — same message, different format.
+<55: Platform-agnostic strategy dressed up with platform names.
+
+5. EXECUTIONAL FEASIBILITY
+Can ${clientName}'s team realistically deliver this strategy with their likely resource level? A strategy requiring daily original video production, influencer partnerships, and real-time trend response simultaneously is unexecutable for most teams.
+Assess: content production volume, skill requirements, budget assumptions, timeline realism, dependency chain.
+Score high only if the strategy could be delivered by a team of 2–4 people or clearly accounts for resource constraints.
+
+6. MEASURABILITY
+Are success metrics clear, specific, and tracked to strategic intent? "Grow engagement" is not measurable. "Increase save rate from 0.8% to 1.5% on carousel posts by Q3" is measurable.
+90–100: Each strategic pillar has a KPI, baseline, and target date.
+70–89: General metrics named, some specificity.
+55–69: Metrics are listed but not tied to specific tactics or timelines.
+<55: No metrics, or metrics are vanity (follower count alone).
+
+7. CULTURAL INTELLIGENCE
+Assess the strategy's fit for the MENA / regional market context (UAE, KSA, Egypt, or wherever ${clientName} operates). Does it demonstrate understanding of: local cultural calendar (Ramadan, National Days, etc.), language and dialect nuance, platform penetration differences (WhatsApp-first comms, TikTok dominance among youth, LinkedIn for B2B), and regional consumer behaviour patterns?
+Score <50 if the strategy reads as a Western template applied without modification. Score 80+ if there is clear evidence of regional market intelligence.
+
+8. STRATEGIC LOGIC
+Does the strategy hold together as a logical argument? Is the chain of reasoning sound: insight → strategic choice → tactic → expected outcome?
+Test: pick any recommended tactic. Can you trace it back to a specific audience insight, and forward to a measurable outcome? If you cannot, the logic is broken.
+Score the coherence of the argument as a whole.
+
+═══════════════════════════════════════════════════════
+STRESS TEST — THE CORE ASSUMPTION
+═══════════════════════════════════════════════════════
+Identify the single most important assumption this strategy rests on. If that assumption is wrong, the strategy fails. State it explicitly. Then: what is the failure mode? What would make the strategy more resilient to that assumption being wrong?
+
+═══════════════════════════════════════════════════════
+GAPS AND QUICK WINS
+═══════════════════════════════════════════════════════
+critical_gaps: The 2–3 missing pieces that make execution risky right now. Be specific.
+quick_wins: The 2–3 things this strategy could activate immediately (this week) for fast, visible results that would validate the strategic direction.
+competitor_blind_spots: What are competitors doing well that this strategy has not accounted for or addressed?
+
+═══════════════════════════════════════════════════════
+VERDICT
+═══════════════════════════════════════════════════════
+One of: "world_class" | "strong" | "solid" | "needs_work" | "start_over"
+And a 2–3 sentence verdict rationale: what this strategy gets right, what is broken, and the single most important thing to fix.
+
+OVERALL SCORE = weighted average:
+(clarity_of_pov × 0.18) + (audience_insight_depth × 0.18) + (competitive_differentiation × 0.15) + (platform_calibration × 0.12) + (executional_feasibility × 0.12) + (measurability × 0.10) + (cultural_intelligence × 0.10) + (strategic_logic × 0.05)
+
+═══════════════════════════════════════════════════════
+OUTPUT — return ONLY valid JSON, no markdown, no fences
+═══════════════════════════════════════════════════════
+{
+  "overall": <number>,
+  "clarity_of_pov": <number>,
+  "audience_insight_depth": <number>,
+  "competitive_differentiation": <number>,
+  "platform_calibration": <number>,
+  "executional_feasibility": <number>,
+  "measurability": <number>,
+  "cultural_intelligence": <number>,
+  "strategic_logic": <number>,
+  "strategic_stress_test": {
+    "core_assumption": "<the key assumption the strategy rests on>",
+    "failure_mode": "<how the strategy fails if assumption is wrong>",
+    "mitigation": "<what would make it more resilient>"
+  },
+  "critical_gaps": ["<specific missing piece>"],
+  "quick_wins": ["<specific actionable item for this week>"],
+  "competitor_blind_spots": ["<what competitors are doing that this strategy ignores>"],
+  "verdict": "world_class" | "strong" | "solid" | "needs_work" | "start_over",
+  "verdict_rationale": "<2-3 sentences: what works, what's broken, the one fix>"
 }`
       break
     }
@@ -806,81 +1066,6 @@ Return ONLY the rewritten text. No labels, no explanation, no quotes around it.`
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    case 'strategy_eval': {
-      model = ADVANCED_MODEL
-      prompt = `You are a strategic intelligence analyst specialising in social media agency strategy assessment. Apply the following frameworks to evaluate this strategy document with clinical precision.
-
-CLIENT CONTEXT
-Client: ${clientName}
-Industry: ${industry}
-Brand Voice: ${brandVoice}
-Target Audience: ${audience}
-Key Messages: ${keyMessages}
-Competitors: ${competitors}
-
-STRATEGY DOCUMENT TO EVALUATE:
-${body.brief ?? ''}
-
-SCORING DIMENSIONS — score each 0–100. Be calibrated: 85+ is genuinely exceptional. 70 = good but improvable. 50 = average/generic. Below 50 = structurally flawed.
-
-1. OBJECTIVE CLARITY (SMART Framework)
-   Evaluate: Is the strategic goal Specific (defined deliverable), Measurable (success metric attached), Achievable (scope realistic), Relevant (linked to business objective), Time-bound (deadline referenced)?
-   90-100: All 5 SMART criteria fully met with specific numbers.
-   70-89: 3-4 criteria met; minor gaps.
-   50-69: 2 criteria met; intent present but undefined.
-   <50: Generic goal statements — no measurable outcome.
-
-2. AUDIENCE PRECISION (ICP Quality)
-   Evaluate: Is the target audience defined beyond demographics? Psychographics (values, fears, aspirations)? Behavioral triggers? Jobs-to-be-done? Pain points in the audience's own language? Segment size clarity?
-   90-100: Full behavioral + psychographic profile with specific pain points.
-   70-89: Demographics + some psychographics.
-   <50: Surface-level demographic segmentation only.
-
-3. COMPETITIVE DIFFERENTIATION (Blue Ocean Analysis)
-   Scientific basis: Kim & Mauborgne's Blue Ocean Strategy — identify the axes where ALL competitors compete identically, then find the uncontested space.
-   Evaluate: Does the strategy identify competitor strategies and their shared blind spots? Does it stake out a unique position? Does it avoid competing on the same axis as market leaders?
-
-4. CHANNEL-STRATEGY FIT (Platform Algorithm Alignment)
-   Evaluate: Are platform choices driven by audience behavior data, not convention? Does each platform have a distinct role (awareness vs conversion vs retention)? Are formats matched to platform-native behavior?
-
-5. CONTENT PILLAR COHERENCE (Narrative Architecture)
-   Evaluate: Do the content pillars form a coherent strategic narrative arc? Is there a 5-3-2 ratio logic (50% value, 30% brand, 20% promotional)? Do pillars address different stages of the customer journey? Are pillars meaningfully distinct?
-
-6. MEASUREMENT FRAMEWORK (KPI Specificity)
-   Evaluate: Are KPIs defined beyond vanity metrics? Are leading indicators identified (saves, shares, DMs) vs lagging (sales, revenue)? Is there a reporting cadence? Are baselines established?
-
-7. EXECUTION FEASIBILITY (Resource-Reality Assessment)
-   Evaluate: Is the content volume realistic for the implied team and budget? Are dependencies and risks identified? Is there a prioritisation mechanism?
-
-WEIGHTED OVERALL SCORE:
-overall = (objective_clarity × 0.20) + (audience_precision × 0.18) + (competitive_differentiation × 0.18) + (channel_fit × 0.15) + (pillar_coherence × 0.12) + (measurement_framework × 0.12) + (execution_feasibility × 0.05)
-
-strategic_impact_score: 0-100 composite — how likely this strategy, if executed, would materially improve the client's social media performance vs baseline. Weight: competitive_differentiation × 0.35 + audience_precision × 0.35 + channel_fit × 0.30.
-
-strategy_grade: "exceptional" if overall >= 85, "strong" if >= 70, "developing" if >= 50, "weak" if < 50.
-
-Return ONLY a valid JSON object, no markdown, no code fences:
-{
-  "overall": <number>,
-  "objective_clarity": <number>,
-  "audience_precision": <number>,
-  "competitive_differentiation": <number>,
-  "channel_fit": <number>,
-  "pillar_coherence": <number>,
-  "measurement_framework": <number>,
-  "execution_feasibility": <number>,
-  "strategic_impact_score": <number>,
-  "strategy_grade": "weak" | "developing" | "strong" | "exceptional",
-  "strategic_gaps": ["<specific gap with evidence from the document>"],
-  "untapped_angles": ["<specific strategic opening not addressed in this document>"],
-  "framework_violations": ["<strategy pattern that contradicts proven frameworks — name the framework and explain the violation>"],
-  "strengths": ["<evidence-based strategic strength — quote or reference specific content from the document>"],
-  "improvements": ["<specific, actionable improvement with expected strategic outcome>"]
-}`
-      break
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
     case 'content_eval': {
       const evalPlatform = body.platform ?? 'unspecified'
       prompt = `You are a behavioural copywriting scientist specialising in social media content performance prediction. Apply neuroscience, persuasion science, and platform algorithm research to evaluate this content with clinical precision.
@@ -982,7 +1167,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
 
       const response = await anthropic.messages.create({
         model,
-        max_tokens: 2048,
+        max_tokens: maxTokensOverride ?? 2048,
         messages: [{ role: 'user', content }],
       })
 

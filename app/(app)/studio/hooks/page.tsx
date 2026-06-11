@@ -95,7 +95,6 @@ export default function HookLabPage() {
   const [hookDoc,     setHookDoc]     = useState<HookDocument | null>(null)
   const [bossBrief,   setBossBrief]   = useState<BossBrief | null>(null)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
-  const [chatOpen,    setChatOpen]    = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
 
@@ -328,7 +327,6 @@ export default function HookLabPage() {
     setHookDoc(null)
     setBossBrief(null)
     setChatHistory([])
-    setChatOpen(false)
     setError(null)
     setBrief('')
   }
@@ -580,82 +578,50 @@ export default function HookLabPage() {
 
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && hookDoc && (
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 min-w-0 space-y-3">
-            <StudioDocument
-              tool="hooks"
-              clientName={selectedClient?.name ?? ''}
-              clientColor={selectedClient?.color ?? '#1B3D38'}
-              clientId={selectedClient?.id}
-              platforms={platforms}
-              content={hookDoc}
-              bossBrief={bossBrief}
-              language={language}
-              onExportPdf={() => window.print()}
-              onChatOpen={() => setChatOpen(true)}
-              onEditApplied={(target, newContent) => {
-                if (!hookDoc) return
-                const idx = parseInt(target.replace('hook_', ''), 10)
-                if (!isNaN(idx)) {
-                  const updated = { ...hookDoc, hooks: hookDoc.hooks.map((h, i) => i === idx ? { ...h, hook_text: newContent } : h) }
-                  setHookDoc(updated)
-                }
-              }}
-            />
-            <StudioSaveActions
-              client={selectedClient}
-              contentSummary={hookDoc.hooks?.slice(0, 3).map(h => h.hook_text).join('\n') ?? ''}
-              documentTitle={`${selectedClient?.name ?? 'Hooks'} — Hook Lab Top 3`}
-              taskTitle={hookDoc.hooks?.[0]?.hook_text ?? 'Hook Lab Output'}
-              contextCategory="Campaign Feedback"
-            />
-          </div>
-
-          {chatOpen && sessionId && (
-            <>
-              <div className="hidden lg:block w-[380px] shrink-0">
-                <div className="sticky top-4">
-                  <StudioChatbot
-                    sessionId={sessionId}
-                    sessionContext={{ tool: 'hooks', document: hookDoc, client: selectedClient }}
-                    initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => {
-                      const idx = parseInt(edit.target.replace('hook_', ''), 10)
-                      if (!isNaN(idx) && hookDoc) {
-                        setHookDoc({ ...hookDoc, hooks: hookDoc.hooks.map((h, i) => i === idx ? { ...h, hook_text: edit.new_content } : h) })
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="fixed inset-x-0 bottom-0 z-50 lg:hidden">
-                <div className="bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl" style={{ maxHeight: '70vh' }}>
-                  <StudioChatbot
-                    sessionId={sessionId}
-                    sessionContext={{ tool: 'hooks', document: hookDoc, client: selectedClient }}
-                    initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => {
-                      const idx = parseInt(edit.target.replace('hook_', ''), 10)
-                      if (!isNaN(idx) && hookDoc) {
-                        setHookDoc({ ...hookDoc, hooks: hookDoc.hooks.map((h, i) => i === idx ? { ...h, hook_text: edit.new_content } : h) })
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          {!chatOpen && (
-            <button
-              onClick={() => setChatOpen(true)}
-              className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center gap-2 px-4 py-3 bg-novax text-white text-sm font-semibold rounded-full shadow-lg hover:bg-novax-hover transition-colors"
-            >
-              <Wand2 className="w-4 h-4" />
-              Chat
-            </button>
-          )}
+        <div className="space-y-3">
+          <StudioDocument
+            tool="hooks"
+            clientName={selectedClient?.name ?? ''}
+            clientColor={selectedClient?.color ?? '#1B3D38'}
+            clientId={selectedClient?.id}
+            platforms={platforms}
+            content={hookDoc}
+            bossBrief={bossBrief}
+            language={language}
+            onExportPdf={() => window.print()}
+            onEditApplied={(target, newContent) => {
+              if (!hookDoc) return
+              const idx = parseInt(target.replace('hook_', ''), 10)
+              if (!isNaN(idx)) {
+                const updated = { ...hookDoc, hooks: hookDoc.hooks.map((h, i) => i === idx ? { ...h, hook_text: newContent } : h) }
+                setHookDoc(updated)
+              }
+            }}
+          />
+          <StudioSaveActions
+            client={selectedClient}
+            contentSummary={hookDoc.hooks?.slice(0, 3).map(h => h.hook_text).join('\n') ?? ''}
+            documentTitle={`${selectedClient?.name ?? 'Hooks'} — Hook Lab Top 3`}
+            taskTitle={hookDoc.hooks?.[0]?.hook_text ?? 'Hook Lab Output'}
+            contextCategory="Campaign Feedback"
+          />
         </div>
+      )}
+
+      {/* Studio chat — self-contained overlay */}
+      {pageState === 'document' && sessionId && (
+        <StudioChatbot
+          key={sessionId}
+          sessionId={sessionId}
+          sessionContext={{ tool: 'hooks', document: hookDoc, client: selectedClient }}
+          initialHistory={chatHistory}
+          onEditDetected={(edit: EditPayload) => {
+            const idx = parseInt(edit.target.replace('hook_', ''), 10)
+            if (!isNaN(idx) && hookDoc) {
+              setHookDoc({ ...hookDoc, hooks: hookDoc.hooks.map((h, i) => i === idx ? { ...h, hook_text: edit.new_content } : h) })
+            }
+          }}
+        />
       )}
     </div>
   )

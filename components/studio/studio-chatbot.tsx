@@ -5,7 +5,6 @@ import { MessageCircle, X, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { EditPayload } from '@/lib/studio-types'
 
-// Extended ChatMessage that carries an optional edit payload
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
@@ -20,7 +19,7 @@ export interface StudioChatbotProps {
   onEditDetected?: (edit: EditPayload) => void
 }
 
-// ── Typing indicator ──────────────────────────────────────────────────────────
+// ── Typing indicator ─────────────────────────────────────────────────────────
 
 function TypingIndicator() {
   return (
@@ -36,23 +35,15 @@ function TypingIndicator() {
   )
 }
 
-// ── Edit card ─────────────────────────────────────────────────────────────────
+// ── Edit card ────────────────────────────────────────────────────────────────
 
-function EditCard({
-  edit,
-  onApply,
-}: {
-  edit: EditPayload
-  onApply: (edit: EditPayload) => void
-}) {
+function EditCard({ edit, onApply }: { edit: EditPayload; onApply: (edit: EditPayload) => void }) {
   return (
     <div className="bg-white border border-emerald-200 rounded-xl p-3 mt-2">
       <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-1">
         Suggested edit — {edit.target}
       </p>
-      <p className="text-sm text-slate-800 leading-relaxed mb-2">
-        {edit.new_content}
-      </p>
+      <p className="text-sm text-slate-800 leading-relaxed mb-2">{edit.new_content}</p>
       {edit.reasoning && (
         <p className="text-xs text-slate-500 italic mb-2">{edit.reasoning}</p>
       )}
@@ -77,7 +68,12 @@ const CAPABILITIES_REPLY = `I help you get the most out of this studio session. 
 
 For edits, I return a direct replacement — not a description of changes.`
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
+//
+// Fully self-contained overlay — manages its own open/close state.
+// When closed → floating FAB button (bottom-right).
+// When open  → fixed overlay panel (right side on desktop, bottom sheet on mobile).
+// Does NOT affect surrounding layout in any way.
 
 export function StudioChatbot({
   sessionId,
@@ -86,12 +82,29 @@ export function StudioChatbot({
   onEditDetected,
 }: StudioChatbotProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>(initialHistory)
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Sync history when the session changes (parent remounts via key)
+  useEffect(() => {
+    setChatHistory(initialHistory)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatHistory, isLoading])
+
+  // Focus textarea when panel opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => textareaRef.current?.focus(), 60)
+    }
+  }, [isOpen])
 
   function handleCapabilities() {
     setChatHistory(prev => [
@@ -101,25 +114,6 @@ export function StudioChatbot({
     ])
   }
 
-  // Detect mobile and set initial open state
-  useEffect(() => {
-    function check() {
-      const mobile = window.innerWidth <= 640
-      setIsMobile(mobile)
-      // Desktop: default open; mobile: default closed
-      if (!mobile) setIsOpen(true)
-    }
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatHistory, isLoading])
-
-  // Auto-grow textarea
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInputValue(e.target.value)
     e.target.style.height = 'auto'
@@ -133,9 +127,7 @@ export function StudioChatbot({
     const userMsg: ChatMessage = { role: 'user', content: text }
     setChatHistory(prev => [...prev, userMsg])
     setInputValue('')
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-    }
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setIsLoading(true)
 
     try {
@@ -150,27 +142,14 @@ export function StudioChatbot({
         }),
       })
 
-      const data = (await res.json()) as {
-        reply?: string
-        edit?: EditPayload
-        error?: string
-      }
-
+      const data = (await res.json()) as { reply?: string; edit?: EditPayload; error?: string }
       if (!res.ok) throw new Error(data.error ?? 'Chat failed')
 
-      // Detect edit response
-      if (data.edit && onEditDetected) {
-        onEditDetected(data.edit)
-      }
+      if (data.edit && onEditDetected) onEditDetected(data.edit)
 
-      const assistantMsg: ChatMessage = {
-        role: 'assistant',
-        content: data.reply ?? '',
-        edit: data.edit,
-      }
+      const assistantMsg: ChatMessage = { role: 'assistant', content: data.reply ?? '', edit: data.edit }
       const newHistory = [...chatHistory, userMsg, assistantMsg]
       setChatHistory(newHistory)
-
 
       // Persist chat history to session (fire-and-forget)
       if (sessionId) {
@@ -183,10 +162,7 @@ export function StudioChatbot({
     } catch {
       setChatHistory(prev => [
         ...prev,
-        {
-          role: 'assistant',
-          content: 'Request failed. Check your connection and try again.',
-        },
+        { role: 'assistant', content: 'Request failed. Check your connection and try again.' },
       ])
     } finally {
       setIsLoading(false)
@@ -198,41 +174,44 @@ export function StudioChatbot({
       e.preventDefault()
       sendMessage()
     }
+    if (e.key === 'Escape') setIsOpen(false)
   }
 
-  // ── Panel content ─────────────────────────────────────────────────────────
+  // ── Panel ─────────────────────────────────────────────────────────────────
 
-  const panelContent = (
-    <div
-      className={cn(
-        'flex flex-col bg-white',
-        isMobile
-          ? 'fixed bottom-0 left-0 right-0 h-[70vh] rounded-t-2xl shadow-2xl z-50 transition-transform duration-300'
-          : 'h-full border-l border-slate-200',
-        isMobile && !isOpen && 'translate-y-full',
-        isMobile && isOpen && 'translate-y-0',
-      )}
-    >
+  const panel = (
+    <div className={cn(
+      'fixed z-50 bg-white shadow-2xl border border-slate-200 flex flex-col',
+      // Mobile: full-width bottom sheet
+      'inset-x-0 bottom-0 rounded-t-2xl',
+      // Desktop: right-side panel, full height minus header
+      'sm:inset-x-auto sm:right-4 sm:bottom-4 sm:rounded-2xl sm:w-[420px]',
+      // Height
+      'h-[72vh] sm:h-[calc(100vh-5rem)]',
+    )}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
-        <p className="text-sm font-semibold text-slate-900">Studio Intelligence</p>
-        {isMobile && (
-          <button
-            onClick={() => setIsOpen(false)}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0 rounded-t-2xl">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-novax-light flex items-center justify-center">
+            <MessageCircle className="w-3.5 h-3.5 text-novax-muted" />
+          </div>
+          <p className="text-sm font-semibold text-slate-900">Studio Intelligence</p>
+        </div>
+        <button
+          onClick={() => setIsOpen(false)}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          title="Close chat"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Message list */}
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {chatHistory.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <p className="text-sm text-slate-500 italic text-center px-4">
-              Ask anything about this session — edits, strategy, or why something
-              was built this way.
+              Ask anything about this session — edits, strategy, or why something was built this way.
             </p>
             <button
               onClick={handleCapabilities}
@@ -244,29 +223,14 @@ export function StudioChatbot({
         )}
 
         {chatHistory.map((msg, i) => (
-          <div
-            key={i}
-            className={cn(
-              'flex',
-              msg.role === 'user' ? 'justify-end' : 'justify-start',
-            )}
-          >
-            <div
-              className={cn(
-                'max-w-[85%] rounded-xl px-3 py-2 text-sm',
-                msg.role === 'user'
-                  ? 'bg-novax text-white'
-                  : 'bg-slate-100 text-slate-800',
-              )}
-            >
+          <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+            <div className={cn(
+              'max-w-[85%] rounded-xl px-3 py-2 text-sm',
+              msg.role === 'user' ? 'bg-novax text-white' : 'bg-slate-100 text-slate-800',
+            )}>
               {msg.content && <p className="leading-relaxed">{msg.content}</p>}
               {msg.edit && onEditDetected && (
-                <EditCard
-                  edit={msg.edit}
-                  onApply={edit => {
-                    onEditDetected(edit)
-                  }}
-                />
+                <EditCard edit={msg.edit} onApply={edit => onEditDetected(edit)} />
               )}
             </div>
           </div>
@@ -281,7 +245,7 @@ export function StudioChatbot({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
+      {/* Input */}
       <div className="border-t border-slate-200 p-3 shrink-0">
         <div className="flex items-end gap-2">
           <textarea
@@ -302,42 +266,38 @@ export function StudioChatbot({
             <Send className="w-4 h-4" />
           </button>
         </div>
+        <p className="text-[10px] text-slate-400 text-center mt-1.5">
+          <kbd className="font-mono bg-slate-100 px-1 rounded">Enter</kbd> send ·{' '}
+          <kbd className="font-mono bg-slate-100 px-1 rounded">Shift+Enter</kbd> new line ·{' '}
+          <kbd className="font-mono bg-slate-100 px-1 rounded">Esc</kbd> close
+        </p>
       </div>
     </div>
   )
 
-  // ── Mobile: FAB + bottom sheet overlay ──────────────────────────────────────
+  return (
+    <>
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/20 z-40 sm:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
 
-  if (isMobile) {
-    return (
-      <>
-        {/* Backdrop */}
-        {isOpen && (
-          <div
-            className="fixed inset-0 bg-black/20 z-40"
-            onClick={() => setIsOpen(false)}
-          />
-        )}
+      {/* Floating open button — always visible when closed */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-novax hover:bg-novax-hover text-white text-sm font-semibold rounded-full shadow-lg hover:shadow-xl transition-all"
+        >
+          <MessageCircle className="w-4 h-4" />
+          Studio Chat
+        </button>
+      )}
 
-        {/* Bottom sheet */}
-        {panelContent}
-
-        {/* FAB */}
-        {!isOpen && (
-          <button
-            onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-4 flex items-center gap-2 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-full shadow-lg z-50 transition-colors"
-          >
-            <MessageCircle className="w-4 h-4" />
-            Chat
-          </button>
-        )}
-      </>
-    )
-  }
-
-  // ── Desktop: inline panel (parent controls layout) ───────────────────────────
-
-  if (!isOpen) return null
-  return panelContent
+      {/* Panel — always rendered when open */}
+      {isOpen && panel}
+    </>
+  )
 }

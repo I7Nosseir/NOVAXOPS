@@ -1,7 +1,10 @@
 // ============================================================
 // POST /api/studio/strategy
-// Quarterly social media strategy generator.
-// Output matches the Esplanade Q1/Q2 presentation format.
+// Two-pass quarterly strategy generator.
+//   Pass 1 — Deep generation  (Claude Opus — full strategy)
+//   Pass 2 — Reflection agent (Claude Sonnet — red-teams every
+//             section, sharpens anything generic, adds
+//             audience_insight + executive_summary)
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -10,7 +13,7 @@ import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intell
 import type { StrategyDocument } from '@/lib/studio-types'
 import { aiGuard } from '@/lib/ai-guard'
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 interface StrategyRequest {
   client_id?: string
@@ -40,7 +43,9 @@ function quarterMonths(quarter: string, year: number): string[] {
   return (map[quarter] ?? ['Month 1', 'Month 2', 'Month 3']).map(m => `${m} ${year}`)
 }
 
-function buildPrompt(d: StrategyRequest): string {
+// ─── Pass 1: Deep strategy generation prompt ──────────────────────────────────
+
+function buildGenerationPrompt(d: StrategyRequest): string {
   const months = quarterMonths(d.quarter, d.year)
 
   return `You are a senior social media strategist at a world-class creative agency. Your quarterly strategies are referenced internally as benchmarks. You have produced work for leading brands across the Middle East and internationally. The work you produce does not just fill a presentation — it changes how a brand shows up in culture.
@@ -65,18 +70,20 @@ Brief: ${d.brief}
 
 Answer internally:
 • What is the single most important cultural or market shift happening in ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} ${d.year} that this brand cannot ignore?
-• What is the gap between where this brand's audience is emotionally right now, and where they want to be? (Not what the brand offers — what the audience desires.)
-• What is the one thing this brand could say this quarter that no competitor would dare say? (Because it's too honest, too specific, too niche — not because it's controversial.)
-• What does the brand's audience fear most in this quarter? What do they secretly desire? These are the two rails the strategy runs on.
+• What is the gap between where this brand's audience is emotionally right now, and where they want to be?
+• What is the one thing this brand could say this quarter that no competitor would dare say?
+• What does the brand's audience fear most this quarter? What do they secretly desire?
+• What does the audience tell themselves they want vs. what they actually need?
 
 STEP 2 — COMPETITIVE DIFFERENTIATION FORCING
 Competitors: ${d.competitors?.join(', ') ?? 'not specified'}
 
 Answer internally:
 • What content format or theme is oversaturated in this industry right now? The strategy must actively avoid it.
-• What emotional territory is UNCLAIMED in this space? (The emotion competitors are not addressing.)
+• What emotional territory is UNCLAIMED in this space?
 • If a viewer sees this brand's content alongside a competitor's, what is the single visual or tonal difference that makes them immediately distinguishable?
-• What would a competitor see in this strategy and think "we can't do that because we don't have the [credibility / authenticity / positioning] to pull it off"?
+• What would a competitor see in this strategy and think "we can't do that because we don't have the credibility to pull it off"?
+• Name the emotional territory that is so underserved by competitors that any brand claiming it would feel like a relief.
 
 STEP 3 — QUARTERLY NARRATIVE ARC
 Months: ${months.join(' → ')}
@@ -84,33 +91,45 @@ Months: ${months.join(' → ')}
 Answer internally:
 • What is the NORTH STAR of this quarter? One sentence: what does the brand stand for by the end of ${months[2].split(' ')[0]}?
 • What does the brand need to ESTABLISH in Month 1 for Month 3 to land?
-• What is the escalation from Month 1 to Month 3? (Not just "more content" — what shifts in the audience relationship?)
+• What is the escalation from Month 1 to Month 3? What shifts in the audience relationship?
 • What is the MOMENT in Month 3 that the entire quarter was building toward?
-• What would a viewer who follows this brand for all 3 months feel by the end? Name the specific emotional transformation.
+• What would a viewer who follows this brand for all 3 months feel by the end?
+• What is at STAKE in this strategy? What does the brand risk if Month 1 fails?
 
 STEP 4 — PLATFORM BEHAVIOR MAPPING
 Platforms: ${d.platforms?.join(', ') ?? 'Instagram, TikTok'}
 
 Answer internally:
 • For each platform: what is the ONE type of content that ONLY makes sense on this platform, and nowhere else?
-• What is the behavioral difference between how the audience uses each platform? (Not demographics — behavior. Why do they open TikTok vs. Instagram in a different state of mind?)
-• What content format creates saves? (Long-term value signals.) What format creates shares? (Identity signals.) These need different treatments.
+• What is the behavioral difference between how the audience uses each platform?
+• What emotional state is the audience in when they open each platform?
+• What content format creates saves? What format creates shares? These need different treatments.
 
 STEP 5 — CULTURAL CALENDAR ANCHORING
 Months: ${months.join(', ')}
 
 Answer internally:
-• Name 3 specific cultural, seasonal, or audience mindset shifts that happen in ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} in ${d.client_name}'s primary region/market.
-• For each month, name the single most important thing happening in the audience's LIFE (not just the calendar) that shapes their emotional state.
-• Are there any religious, national, or seasonal moments this brand should engage with specifically? Name the exact moment and the specific angle.
+• Name 3 specific cultural, seasonal, or audience mindset shifts in ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} in this brand's primary region/market.
+• For each month, name the single most important thing happening in the audience's LIFE that shapes their emotional state.
+• Are there religious, national, or seasonal moments this brand should engage with specifically? Name the exact moment and angle.
+• What are people searching for, buying, or worrying about in each of these three months?
 
-STEP 6 — QUALITY GATEKEEPING (anti-patterns to eliminate)
+STEP 6 — AUDIENCE INSIGHT EXCAVATION
+Answer internally:
+• What does the audience publicly say they want from this brand? What do they privately need?
+• What is the audience's most honest feeling about the category this brand is in?
+• What belief does the audience hold about themselves that this brand could either validate or gently challenge?
+• What has the audience stopped believing in that this brand could make them believe in again?
+
+STEP 7 — QUALITY GATEKEEPING (anti-patterns to eliminate)
 Before writing, verify your strategy avoids:
 • Generic pillar names: "Lifestyle", "Education", "Behind the Scenes" — these are categories, not territories
 • Generic monthly themes: "Summer vibes", "New year energy" — these describe a feeling, not a strategy
 • Platform roles that are just awareness/engagement labels — name the BEHAVIOR
-• Monthly tactics without a specific cultural anchor — "post more Reels in February" is not a tactic
+• Monthly tactics without a specific cultural anchor
 • A strategy arc where Month 2 is just "more of Month 1"
+• The word "empower", "inspire", "connect", "enable" in the positioning statement
+• Content pillars that would work for any brand in this industry
 
 ═══════════════════════════════════════════════════════
 END OF THINKING PHASE — Now produce the strategy document.
@@ -132,31 +151,28 @@ ${d.brand_persona ? `Brand Persona direction: ${d.brand_persona}` : ''}
 ${d.tenant_notes ? `Partner / Tenant Integration Notes: ${d.tenant_notes}` : ''}
 
 ─── QUALITY STANDARDS ──────────────────────────────────────────
-POSITIONING STATEMENT: Names the specific role the brand plays in the audience's life THIS quarter. Not a generic brand promise. Not "empowers" or "connects." Names the exact relationship: what the brand IS for its audience in ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} ${d.year}.
+POSITIONING STATEMENT: Names the specific role the brand plays in the audience's life THIS quarter. Not a generic brand promise. Names the exact relationship: what the brand IS for its audience in ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} ${d.year}.
 Weak: "A brand that empowers women." Strong: "The brand that says out loud what ${months[0].split(' ')[0]} actually feels like for its audience."
 
 CAMPAIGN LINE: 3–7 words. Poetic compression. Could anchor a full quarter of content. Owned-sounding — no other brand in ${d.industry ?? 'this category'} could use it. If a campaign theme is provided, use it exactly.
-Weak: "Live Your Best Life." Strong: Something that only works for this brand, in this quarter.
 
-CONTENT PILLARS: Each pillar names a specific life territory or cultural tension — not a topic category. 5 pillars, each mutually exclusive (no overlap in territory).
+CONTENT PILLARS: Each pillar names a specific life territory or cultural tension — not a topic category. 5 pillars, each mutually exclusive. Each must pass the test: "Would a competitor see this and think 'we should have claimed this'?"
 Weak: "Lifestyle", "Inspiration", "Tips." Strong: "The moments between milestones — the Tuesday morning no one posts about."
 
 PLATFORM ROLES: Each platform gets a different behavioral role — what content ONLY exists on that platform, and why. Named as a specific behavior: "Where the brand gets uncomfortable" / "Where the brand earns trust" — not "awareness" / "engagement."
 
-MONTHLY TACTICS: Each month must be anchored to:
-(a) a specific cultural/emotional shift happening in that month
-(b) a specific audience mindset change
-(c) a content theme that builds on what came before and sets up what comes next
-Format: [Role Name] × [Specific Cultural or Emotional Trigger] — not a generic theme, a named tension.
+MONTHLY TACTICS: Each month must be anchored to a specific cultural/emotional shift. Format: [Role Name] × [Specific Cultural or Emotional Trigger] — not a generic theme, a named tension.
 
-STRATEGY ARC: 3-phase arc with narrative momentum. Month 1 plants the seed. Month 2 deepens the investment. Month 3 delivers the payoff. The audience should feel the brand building toward something.
+STRATEGY ARC: 3-phase arc with narrative momentum. Month 1 plants the seed. Month 2 deepens the investment. Month 3 delivers the payoff. Something is at stake. The audience should feel the brand building toward something real.
+
+AUDIENCE INSIGHT: The single sentence that makes the entire strategy click. The thing the audience has never heard a brand say but immediately recognizes as true.
 
 ─── OUTPUT ─────────────────────────────────────────────────────
-Return ONLY valid JSON — no markdown, no commentary, no ellipsis in final output:
+Return ONLY valid JSON — no markdown, no commentary:
 {
   "positioning_statement": "One specific sentence: what role the brand plays in its audience's life in ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} ${d.year}. Must be specific to this brand, this quarter, this moment.",
 
-  "campaign_line": "${d.campaign_theme ? d.campaign_theme : `Generate a 3–7 word campaign line that only ${d.client_name} could own this quarter`}",
+  "campaign_line": "${d.campaign_theme ? d.campaign_theme : `3–7 word campaign line that only ${d.client_name} could own this quarter`}",
 
   "quarter_role": "2–3 sentences: the strategic narrative of this quarter — what it builds from, what it builds toward, why this specific moment in the calendar matters for this brand",
 
@@ -164,12 +180,18 @@ Return ONLY valid JSON — no markdown, no commentary, no ellipsis in final outp
 
   "north_star": "One sentence: what the brand stands for by the end of ${months[2]} — the audience's relationship with the brand after following it for the full quarter",
 
+  "audience_insight": "One sentence: the single most honest insight about what this audience secretly wants or fears this quarter — the insight that makes the whole strategy click. Something competitors have missed.",
+
   "competitive_gap": "One sentence: the specific emotional or creative territory that competitors are NOT occupying that this strategy claims",
 
-  "creative_tension": "One sentence: the specific uncomfortable or bold creative choice in this strategy that a generic competitor would not make",
+  "creative_tension": "One sentence: the specific uncomfortable or bold creative choice in this strategy — the thing a generic competitor would not do",
+
+  "executive_summary": "3 sentences: (1) What the strategy claims this quarter — the specific positioning move. (2) Why ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} ${d.year} is the right moment to claim it — the cultural or market reason. (3) What a viewer who follows for all 3 months will feel by the end — the emotional transformation.",
+
+  "obstacle": "One sentence: the main obstacle or audience barrier this strategy must overcome to succeed",
 
   "content_pillars": [
-    { "name": "Pillar Name — 2–3 words, specific and ownable", "description": "One sentence: the specific life territory or cultural tension this pillar covers. What makes it specific to ${d.client_name} and not a generic brand in this space." },
+    { "name": "Pillar Name — 2–3 words, specific and ownable", "description": "One sentence: the specific life territory or cultural tension this pillar covers. What makes it specific to ${d.client_name}." },
     { "name": "...", "description": "..." },
     { "name": "...", "description": "..." },
     { "name": "...", "description": "..." },
@@ -185,8 +207,8 @@ Return ONLY valid JSON — no markdown, no commentary, no ellipsis in final outp
   "platform_roles": [
     {
       "platform": "Platform name",
-      "role": "One specific tagline: the behavioral role this platform plays for this brand this quarter — not 'awareness', a named behavior",
-      "description": "2–3 sentences: what content type lives ONLY here, the visual and tonal style, why this platform gets this role and not another",
+      "role": "One specific tagline: the behavioral role this platform plays — not 'awareness', a named behavior",
+      "description": "2–3 sentences: what content type lives ONLY here, the visual and tonal style, why this platform gets this role",
       "content_that_only_lives_here": "One specific content format or series that is platform-native and cannot work on any other platform"
     }
   ],
@@ -196,8 +218,8 @@ Return ONLY valid JSON — no markdown, no commentary, no ellipsis in final outp
       "month": "${months[0]}",
       "role": "2-word role name — specific to this month's cultural moment",
       "theme_line": "[Role Name] × [Specific Cultural or Emotional Trigger for ${months[0].split(' ')[0]}]",
-      "description": "2–3 sentences: the specific cultural moment or audience mindset shift in ${months[0].split(' ')[0]}, what the brand does in response, why this approach and not a generic one",
-      "cultural_anchor": "The specific event, seasonal shift, or audience life moment that anchors this month's content — a real date or named event, not a generic theme",
+      "description": "2–3 sentences: the specific cultural moment or audience mindset shift in ${months[0].split(' ')[0]}, what the brand does in response, why this approach",
+      "cultural_anchor": "The specific event, seasonal shift, or audience life moment that anchors this month — a real date or named moment",
       "brand_persona_adjectives": ["Specific adjective for this month only", "Specific adjective", "Specific adjective", "Specific adjective"],
       "brand_persona_description": "One sentence: the brand's emotional posture in ${months[0].split(' ')[0]} — a state of being, not a tone list",
       "focus": ["Specific content beat 1 — named format + specific topic", "Specific content beat 2", "Specific content beat 3", "Specific content beat 4"],
@@ -205,25 +227,15 @@ Return ONLY valid JSON — no markdown, no commentary, no ellipsis in final outp
     },
     {
       "month": "${months[1]}",
-      "role": "...",
-      "theme_line": "...",
-      "description": "...",
-      "cultural_anchor": "...",
-      "brand_persona_adjectives": ["...", "...", "...", "..."],
-      "brand_persona_description": "...",
-      "focus": ["...", "...", "...", "..."],
-      "outcome": ["...", "...", "..."]
+      "role": "...", "theme_line": "...", "description": "...", "cultural_anchor": "...",
+      "brand_persona_adjectives": ["...", "...", "...", "..."], "brand_persona_description": "...",
+      "focus": ["...", "...", "...", "..."], "outcome": ["...", "...", "..."]
     },
     {
       "month": "${months[2]}",
-      "role": "...",
-      "theme_line": "...",
-      "description": "...",
-      "cultural_anchor": "...",
-      "brand_persona_adjectives": ["...", "...", "...", "..."],
-      "brand_persona_description": "...",
-      "focus": ["...", "...", "...", "..."],
-      "outcome": ["...", "...", "..."]
+      "role": "...", "theme_line": "...", "description": "...", "cultural_anchor": "...",
+      "brand_persona_adjectives": ["...", "...", "...", "..."], "brand_persona_description": "...",
+      "focus": ["...", "...", "...", "..."], "outcome": ["...", "...", "..."]
     }
   ],
 
@@ -234,13 +246,13 @@ Return ONLY valid JSON — no markdown, no commentary, no ellipsis in final outp
   },
 
   "tenant_integration": [
-    "Integration principle 1 — how partners or products appear without feeling like ads: a specific approach",
+    "Integration principle 1 — how partners appear without feeling like ads: a specific approach",
     "Principle 2",
     "Principle 3"
   ],
 
   "strategy_flow": [
-    { "beat": "1", "label": "${months[0].split(' ')[0]}", "phase": "Phase name from arc", "description": "One sentence: the specific thing that happens at this moment in the arc — a named content action or audience shift" },
+    { "beat": "1", "label": "${months[0].split(' ')[0]}", "phase": "Phase name from arc", "description": "One sentence: the specific thing that happens at this moment in the arc" },
     { "beat": "2", "label": "Mid-${months[1].split(' ')[0]}", "phase": "Phase name", "description": "..." },
     { "beat": "3", "label": "Late ${months[1].split(' ')[0]}", "phase": "Phase name", "description": "..." },
     { "beat": "4", "label": "${months[2].split(' ')[0]}", "phase": "Phase name", "description": "..." },
@@ -256,6 +268,146 @@ ABSOLUTE RULES:
 - Platform roles must be behaviorally differentiated — if two platforms could swap descriptions, rewrite both
 - Return ONLY valid JSON — no markdown wrapper, no commentary, no apology`
 }
+
+// ─── Pass 2: Reflection + deepening prompt ────────────────────────────────────
+
+function buildReflectionPrompt(initial: StrategyDocument, d: StrategyRequest): string {
+  const months = quarterMonths(d.quarter, d.year)
+
+  return `You are the Creative Director at a world-class social media agency. A senior strategist has submitted this quarterly strategy for final approval. Your job: red-team every section ruthlessly, then return an improved strategy.
+
+THE BRIEF:
+Client: ${d.client_name}
+Industry: ${d.industry ?? 'not specified'}
+Quarter: ${d.quarter} ${d.year} — Months: ${months.join(', ')}
+Brief: ${d.brief}
+
+THE SUBMITTED STRATEGY:
+${JSON.stringify(initial, null, 2)}
+
+───────────────────────────────────────────────────────────────
+WHAT SEPARATES AN EXCELLENT STRATEGY FROM AN AVERAGE ONE
+───────────────────────────────────────────────────────────────
+
+POSITIONING: Excellent names the EXACT relationship between brand and audience this quarter.
+  Generic (reject): "The brand that empowers its community" — any brand could say this.
+  Excellent (keep): Names the specific role this brand plays in the audience's life in these exact months.
+
+AUDIENCE INSIGHT: Must be the sentence the audience has never heard a brand say but immediately recognizes as true. Not a market observation — a felt truth.
+  Generic (reject): "Audiences want authentic content" — this is always true.
+  Excellent (keep): Names the specific unspoken desire or fear that is uniquely strong in these three months for this audience.
+
+CONTENT PILLARS: Must be cultural territories, not topic categories.
+  Generic (reject): "Education", "Lifestyle", "Inspiration", "Community", "Behind the Scenes"
+  Excellent (keep): Pillars that name a specific life moment, tension, or question that ONLY ${d.client_name}'s audience would recognize.
+
+MONTHLY TACTICS: Each month's theme_line must contain a SPECIFIC tension happening in that exact month.
+  Generic (reject): "New energy", "Building momentum", "Community focus"
+  Excellent (keep): "[Named role] × [Specific cultural/emotional trigger for that exact month in this region]"
+
+PLATFORM ROLES: Must describe a BEHAVIORAL STATE, not a channel function.
+  Generic (reject): "Instagram: awareness platform | TikTok: engagement hub"
+  Excellent (keep): Describes what the audience is DOING emotionally when they encounter this brand on each platform.
+
+STRATEGY ARC: Must have something at stake. Month 2 must NOT be "more of Month 1."
+  Generic (reject): Month 1: Establish → Month 2: Grow → Month 3: Convert
+  Excellent (keep): A named emotional transformation — what the audience believes or feels differently at the end of each month.
+
+EXECUTIVE SUMMARY: Must read like a creative brief, not a slide deck intro.
+  Generic (reject): A paragraph summarizing the sections.
+  Excellent (keep): 3 sentences that make a reader think "yes, that's exactly the right move right now."
+
+───────────────────────────────────────────────────────────────
+YOUR TASK
+───────────────────────────────────────────────────────────────
+For each section above:
+1. Ask: "Could a generic competitor brand in this industry use this exact text without changing a word?"
+2. If yes → rewrite it to be specific, owned, and impossible to swap out.
+3. If no → keep it exactly as submitted.
+
+Then: Ensure the executive_summary and audience_insight are sharp enough to anchor the whole document. Rewrite them if they are not.
+
+Return the COMPLETE improved strategy as valid JSON. Every field must be present. No "..." placeholders.
+
+CRITICAL: Return ONLY valid JSON — no markdown, no commentary, no preamble:
+{
+  "positioning_statement": "...",
+  "campaign_line": "${d.campaign_theme ? d.campaign_theme : '...'}",
+  "quarter_role": "...",
+  "identity_shift": "...",
+  "north_star": "...",
+  "audience_insight": "The sentence that makes the whole strategy click — what the audience secretly wants/fears in ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} that competitors have missed",
+  "competitive_gap": "...",
+  "creative_tension": "...",
+  "executive_summary": "Sentence 1: What the strategy claims for ${d.client_name} this quarter — the specific positioning move. Sentence 2: Why ${months[0].split(' ')[0]}–${months[2].split(' ')[0]} ${d.year} is the right moment — the cultural or market reason. Sentence 3: What a viewer who follows for all 3 months will feel by the end.",
+  "obstacle": "...",
+  "content_pillars": [
+    { "name": "...", "description": "..." },
+    { "name": "...", "description": "..." },
+    { "name": "...", "description": "..." },
+    { "name": "...", "description": "..." },
+    { "name": "...", "description": "..." }
+  ],
+  "strategy_arc": [
+    { "number": "01", "phase_name": "...", "month": "${months[0]}", "description": "..." },
+    { "number": "02", "phase_name": "...", "month": "${months[1]}", "description": "..." },
+    { "number": "03", "phase_name": "...", "month": "${months[2]}", "description": "..." }
+  ],
+  "platform_roles": [ ... ],
+  "monthly_tactics": [ ... ],
+  "format_roles": { "reels": [...], "motion_graphics": [...], "static_carousel": [...] },
+  "tenant_integration": [...],
+  "strategy_flow": [...]
+}`
+}
+
+// ─── JSON helpers ─────────────────────────────────────────────────────────────
+
+function extractJSON(raw: string): string | null {
+  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+  const match = stripped.match(/\{[\s\S]*\}/)
+  return match ? match[0] : null
+}
+
+function mergeStrategy(base: StrategyDocument, reflection: StrategyDocument): StrategyDocument {
+  // Use reflection output as the primary — it has gone through quality checks.
+  // Fall back to base for any field the reflection left null/undefined/empty.
+  const merged: StrategyDocument = { ...base }
+  const keys = Object.keys(reflection) as (keyof StrategyDocument)[]
+  for (const key of keys) {
+    const val = reflection[key]
+    if (val === null || val === undefined) continue
+    if (typeof val === 'string' && val.trim() === '') continue
+    if (Array.isArray(val) && val.length === 0) continue
+    // @ts-expect-error dynamic key assignment
+    merged[key] = val
+  }
+  return merged
+}
+
+// ─── Gemini fallback (single pass only) ──────────────────────────────────────
+
+async function runGemini(prompt: string, geminiKey: string): Promise<string> {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 32000, temperature: 0.80 },
+      }),
+    },
+  )
+  if (!res.ok) {
+    const err = await res.text().catch(() => '')
+    throw new Error(`Gemini error: ${err}`)
+  }
+  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+}
+
+// ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const guard = await aiGuard()
@@ -278,65 +430,98 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'client_name, brief, and quarter are required' }, { status: 400 })
   }
 
-  let prompt = buildPrompt(body)
+  let generationPrompt = buildGenerationPrompt(body)
 
-  // Inject client intelligence memory if available
+  // Inject client intelligence memory
   if (body.client_id) {
     const db = adminSupabase()
     if (db) {
       const block = await buildClientIntelligenceBlock(body.client_id, 'strategy', db).catch(() => '')
-      if (block) prompt = block + '\n\n' + prompt
+      if (block) generationPrompt = block + '\n\n' + generationPrompt
     }
   }
 
-  let raw = ''
+  // ── Gemini-only path (no Anthropic key) ──────────────────────────────────────
+  if (!anthropicKey && geminiKey) {
+    let raw = ''
+    try {
+      raw = await runGemini(generationPrompt, geminiKey)
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'AI error' }, { status: 502 })
+    }
+    const jsonStr = extractJSON(raw)
+    if (!jsonStr) return NextResponse.json({ error: 'Failed to parse strategy from AI', raw }, { status: 502 })
+    try {
+      const result = JSON.parse(jsonStr) as StrategyDocument
+      result.client_name    = body.client_name
+      result.platforms      = body.platforms
+      result.brief          = body.brief
+      result.quarter        = body.quarter
+      result.year           = body.year
+      result.campaign_theme = body.campaign_theme
+      return NextResponse.json({ strategy: result })
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON from AI', raw }, { status: 502 })
+    }
+  }
 
-  if (anthropicKey) {
-    const anthropic = new Anthropic({ apiKey: anthropicKey })
+  // ── Two-pass Claude path ──────────────────────────────────────────────────────
+  const anthropic = new Anthropic({ apiKey: anthropicKey! })
+
+  // ── Pass 1: Deep strategy generation (Opus) ───────────────────────────────────
+  let pass1Doc: StrategyDocument
+  let pass1Raw = ''
+
+  try {
     const msg = await anthropic.messages.create({
       model:      'claude-opus-4-7',
-      max_tokens: 32000,
-      messages:   [{ role: 'user', content: prompt }],
+      max_tokens: 10000,
+      messages:   [{ role: 'user', content: generationPrompt }],
     })
-    raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
-  } else {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 32000, temperature: 0.80 },
-        }),
-      },
-    )
-    if (!res.ok) {
-      const err = await res.text().catch(() => '')
-      return NextResponse.json({ error: `AI error: ${err}` }, { status: 502 })
-    }
-    const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-    raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    pass1Raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
+  } catch (err) {
+    return NextResponse.json({ error: `Pass 1 failed: ${err instanceof Error ? err.message : err}` }, { status: 502 })
   }
 
-  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-  const match = stripped.match(/\{[\s\S]*\}/)
-  if (!match) {
-    return NextResponse.json({ error: 'Failed to parse strategy from AI', raw }, { status: 502 })
+  const pass1JSON = extractJSON(pass1Raw)
+  if (!pass1JSON) {
+    return NextResponse.json({ error: 'Failed to parse strategy from AI (pass 1)', raw: pass1Raw }, { status: 502 })
   }
 
-  let result: StrategyDocument
   try {
-    result = JSON.parse(match[0]) as StrategyDocument
-    result.client_name    = body.client_name
-    result.platforms      = body.platforms
-    result.brief          = body.brief
-    result.quarter        = body.quarter
-    result.year           = body.year
-    result.campaign_theme = body.campaign_theme
+    pass1Doc = JSON.parse(pass1JSON) as StrategyDocument
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON from AI', raw }, { status: 502 })
+    return NextResponse.json({ error: 'Invalid JSON from AI (pass 1)', raw: pass1Raw }, { status: 502 })
   }
 
-  return NextResponse.json({ strategy: result })
+  // ── Pass 2: Reflection agent (Sonnet — fast, structured critique) ─────────────
+  let finalDoc: StrategyDocument = pass1Doc
+
+  try {
+    const reflectionPrompt = buildReflectionPrompt(pass1Doc, body)
+    const msg2 = await anthropic.messages.create({
+      model:      'claude-sonnet-4-6',
+      max_tokens: 10000,
+      messages:   [{ role: 'user', content: reflectionPrompt }],
+    })
+    const pass2Raw = msg2.content[0].type === 'text' ? msg2.content[0].text : ''
+    const pass2JSON = extractJSON(pass2Raw)
+    if (pass2JSON) {
+      const pass2Doc = JSON.parse(pass2JSON) as StrategyDocument
+      finalDoc = mergeStrategy(pass1Doc, pass2Doc)
+    }
+  } catch {
+    // Reflection failed — use pass 1 output (still a full strategy)
+    finalDoc = pass1Doc
+  }
+
+  // Attach metadata
+  finalDoc.client_name    = body.client_name
+  finalDoc.platforms      = body.platforms
+  finalDoc.brief          = body.brief
+  finalDoc.quarter        = body.quarter
+  finalDoc.year           = body.year
+  finalDoc.campaign_theme = body.campaign_theme
+
+  return NextResponse.json({ strategy: finalDoc })
 }

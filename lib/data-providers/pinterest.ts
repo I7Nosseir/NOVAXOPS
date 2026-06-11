@@ -116,38 +116,29 @@ function resolveQueries(niche: string, region: string): string[] {
   return [niche, `${niche} inspiration aesthetic`]
 }
 
-// ── Main fetcher ──────────────────────────────────────────────
+// ── Shared Apify runner ───────────────────────────────────────
 
-export async function fetchPinterestPins(
-  niche:  string,
-  region: string,
+async function runApifyPinterest(
+  startUrls: { url: string }[],
+  maxItems: number,
+  timeoutSeconds = 25,
 ): Promise<PinterestPin[]> {
   const key = process.env.APIFY_API_KEY
   if (!key) return []
 
-  const queries = resolveQueries(niche, region)
-
-  // Build start URLs from Pinterest search
-  const startUrls = queries.map(q => ({
-    url: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(q)}&rs=typed`,
-  }))
-
   try {
     const res = await fetch(
-      `https://api.apify.com/v2/acts/apify~pinterest-scraper/run-sync-get-dataset-items?token=${key}&timeout=25&memory=512`,
+      `https://api.apify.com/v2/acts/apify~pinterest-scraper/run-sync-get-dataset-items?token=${key}&timeout=${timeoutSeconds}&memory=512`,
       {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startUrls,
-          maxItems: 15,
-        }),
-        signal: AbortSignal.timeout(30_000),
+        body: JSON.stringify({ startUrls, maxItems }),
+        signal: AbortSignal.timeout((timeoutSeconds + 10) * 1_000),
       }
     )
 
     if (!res.ok) {
-      console.error(`[pinterest] Apify returned ${res.status} for niche "${niche}"`)
+      console.error(`[pinterest] Apify returned ${res.status}`)
       return []
     }
 
@@ -163,32 +154,18 @@ export async function fetchPinterestPins(
         return true
       })
       .map(p => {
-        // Normalize image URL across different actor response shapes
         const imageUrl =
           p.imageUrl ??
           (typeof p.image === 'string' ? p.image : p.image?.src) ??
           ''
-
-        // Normalize pin URL
         const pinUrl =
           p.link ??
           p.url ??
           (p.id ? `https://www.pinterest.com/pin/${p.id}/` : '')
-
-        // Normalize save count
         const saveCount = p.saveCount ?? p.saves ?? p.repins ?? 0
-
-        // Normalize author
         const authorName =
-          p.authorName ??
-          p.author?.fullName ??
-          p.author?.name ??
-          p.author?.username ??
-          ''
-        const authorHandle =
-          p.authorUsername ??
-          p.author?.username ??
-          ''
+          p.authorName ?? p.author?.fullName ?? p.author?.name ?? p.author?.username ?? ''
+        const authorHandle = p.authorUsername ?? p.author?.username ?? ''
 
         return {
           id:           p.id ?? pinUrl,
@@ -203,11 +180,61 @@ export async function fetchPinterestPins(
         }
       })
       .filter(p => p.url.length > 0)
-      .sort((a, b) => b.saveCount - a.saveCount)
-      .slice(0, 12)
-
   } catch (err) {
-    console.error('[pinterest] fetch failed:', err)
+    console.error('[pinterest] Apify fetch failed:', err)
     return []
   }
+}
+
+// ── Main fetcher (niche-based — used by inspiration page) ─────
+
+export async function fetchPinterestPins(
+  niche:  string,
+  region: string,
+): Promise<PinterestPin[]> {
+  const queries = resolveQueries(niche, region)
+  const startUrls = queries.map(q => ({
+    url: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(q)}&rs=typed`,
+  }))
+  const pins = await runApifyPinterest(startUrls, 15, 25)
+  return pins
+    .sort((a, b) => b.saveCount - a.saveCount)
+    .slice(0, 12)
+}
+
+// ── Custom query fetcher (used by Copy Inspiration Engine) ────
+// Accepts arbitrary query strings + angle metadata.
+// Returns raw normalized pins (no slicing — caller decides limit).
+
+export interface PinterestQueryInput {
+  query: string
+  angle?: string  // e.g. "lifestyle", "emotion", "caption_first"
+}
+
+export interface PinterestPinWithMeta extends PinterestPin {
+  queryUsed:  string
+  queryAngle: string
+}
+
+export async function fetchPinterestPinsCustom(
+  queries: PinterestQueryInput[],
+  maxItems: number,
+  timeoutSeconds = 40,
+): Promise<PinterestPinWithMeta[]> {
+  if (!process.env.APIFY_API_KEY) return []
+  if (queries.length === 0) return []
+
+  const startUrls = queries.map(q => ({
+    url: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(q.query)}&rs=typed`,
+  }))
+
+  const raw = await runApifyPinterest(startUrls, maxItems, timeoutSeconds)
+
+  // Apify doesn't tell us which startUrl produced which result.
+  // We enrich pins with query metadata heuristically (best-effort).
+  return raw.map(pin => ({
+    ...pin,
+    queryUsed:  '',    // unknown at this stage — filled in by caller if needed
+    queryAngle: '',
+  }))
 }

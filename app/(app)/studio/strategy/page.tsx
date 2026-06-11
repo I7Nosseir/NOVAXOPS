@@ -32,13 +32,15 @@ const QUARTERS  = ['Q1', 'Q2', 'Q3', 'Q4'] as const
 const YEARS     = [2025, 2026, 2027]
 
 const LOADING_STEPS: LoadingStep[] = [
-  { label: 'Loading market signals',              status: 'pending' },
-  { label: 'Analysing brand + seasonal context',  status: 'pending' },
-  { label: 'Mapping content pillars',             status: 'pending' },
-  { label: 'Building strategy arc',               status: 'pending' },
-  { label: 'Writing monthly tactics',             status: 'pending' },
-  { label: 'Defining platform roles',             status: 'pending' },
-  { label: 'Assembling full strategy document',   status: 'pending' },
+  { label: 'Loading market signals and cultural context',    status: 'pending' },
+  { label: 'Analysing brand positioning and competitive gaps', status: 'pending' },
+  { label: 'Excavating audience insight',                    status: 'pending' },
+  { label: 'Mapping content pillars',                        status: 'pending' },
+  { label: 'Building quarterly strategy arc',                status: 'pending' },
+  { label: 'Writing monthly tactics with cultural anchors',  status: 'pending' },
+  { label: 'Defining platform roles and format strategy',    status: 'pending' },
+  { label: 'Reflection agent reviewing for depth and specificity', status: 'pending' },
+  { label: 'Sharpening and finalising strategy document',    status: 'pending' },
 ]
 
 type PageState = 'brief' | 'loading' | 'document'
@@ -77,7 +79,6 @@ export default function StrategyPage() {
   const [strategyDoc,   setStrategyDoc]   = useState<StrategyDocument | null>(null)
   const [bossBrief,     setBossBrief]     = useState<BossBrief | null>(null)
   const [chatHistory,   setChatHistory]   = useState<ChatMessage[]>([])
-  const [chatOpen,      setChatOpen]      = useState(false)
   const [pdfExporting,  setPdfExporting]  = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
@@ -137,7 +138,7 @@ export default function StrategyPage() {
 
   // ── Simulate step progression during the API call ───────────────────────────
   function startStepSimulation(apiPromise: Promise<unknown>) {
-    const STEP_DELAYS = [4, 8, 14, 20, 28, 36, 44]
+    const STEP_DELAYS = [6, 14, 24, 36, 50, 65, 80, 105, 130]
     setLoadingSteps(LOADING_STEPS.map((s, i) => ({ ...s, status: i === 0 ? 'active' : 'pending' })))
     let done = false
     apiPromise.finally(() => { done = true })
@@ -263,7 +264,7 @@ export default function StrategyPage() {
 
   function handleNewSession() {
     setPageState('brief'); setSessionId(null); setStrategyDoc(null); setBossBrief(null)
-    setChatHistory([]); setChatOpen(false); setError(null); setBrief('')
+    setChatHistory([]); setError(null); setBrief('')
     setCampaignTheme(''); setCulturalMoments(''); setBrandPersona(''); setTenantNotes('')
   }
 
@@ -457,71 +458,48 @@ export default function StrategyPage() {
 
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && strategyDoc && (
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 min-w-0">
-            <StudioDocument
-              tool="strategy"
-              clientName={selectedClient?.name ?? strategyDoc.client_name ?? ''}
-              clientColor={selectedClient?.color ?? '#1B3D38'}
-              platforms={platforms}
-              content={strategyDoc}
-              bossBrief={bossBrief}
-              language="english"
-              pdfExporting={pdfExporting}
-              onExportPdf={async () => {
-                if (!strategyDoc || pdfExporting) return
-                setPdfExporting(true)
-                try {
-                  await exportStrategyPdf(
-                    strategyDoc,
-                    selectedClient?.name ?? strategyDoc.client_name ?? 'Client',
-                    selectedClient?.color,
-                    platforms,
-                    bossBrief,
-                  )
-                } catch (e) {
-                  console.error('[strategy-pdf] export failed', e)
-                } finally {
-                  setPdfExporting(false)
-                }
-              }}
-              onChatOpen={() => setChatOpen(true)}
-              onEditApplied={(target, newContent) => {
-                if (!strategyDoc) return
-                setStrategyDoc({ ...strategyDoc, [target]: newContent })
-              }}
-            />
-          </div>
+        <StudioDocument
+          tool="strategy"
+          clientName={selectedClient?.name ?? strategyDoc.client_name ?? ''}
+          clientColor={selectedClient?.color ?? '#1B3D38'}
+          platforms={platforms}
+          content={strategyDoc}
+          bossBrief={bossBrief}
+          language="english"
+          pdfExporting={pdfExporting}
+          onExportPdf={async () => {
+            if (!strategyDoc || pdfExporting) return
+            setPdfExporting(true)
+            try {
+              await exportStrategyPdf(
+                strategyDoc,
+                selectedClient?.name ?? strategyDoc.client_name ?? 'Client',
+                selectedClient?.color,
+                platforms,
+                bossBrief,
+              )
+            } catch (e) {
+              console.error('[strategy-pdf] export failed', e)
+            } finally {
+              setPdfExporting(false)
+            }
+          }}
+          onEditApplied={(target, newContent) => {
+            if (!strategyDoc) return
+            setStrategyDoc({ ...strategyDoc, [target]: newContent })
+          }}
+        />
+      )}
 
-          {chatOpen && sessionId && (
-            <>
-              <div className="hidden lg:block w-[380px] shrink-0">
-                <div className="sticky top-4">
-                  <StudioChatbot sessionId={sessionId}
-                    sessionContext={{ tool: 'strategy', document: strategyDoc, client: selectedClient }}
-                    initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => setStrategyDoc(prev => prev ? { ...prev, [edit.target]: edit.new_content } : prev)} />
-                </div>
-              </div>
-              <div className="fixed inset-x-0 bottom-0 z-50 lg:hidden">
-                <div className="bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl" style={{ maxHeight: '70vh' }}>
-                  <StudioChatbot sessionId={sessionId}
-                    sessionContext={{ tool: 'strategy', document: strategyDoc, client: selectedClient }}
-                    initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => setStrategyDoc(prev => prev ? { ...prev, [edit.target]: edit.new_content } : prev)} />
-                </div>
-              </div>
-            </>
-          )}
-
-          {!chatOpen && (
-            <button onClick={() => setChatOpen(true)}
-              className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center gap-2 px-4 py-3 bg-novax text-white text-sm font-semibold rounded-full shadow-lg hover:bg-novax-hover transition-colors">
-              <Brain className="w-4 h-4" />
-              Chat
-            </button>
-          )}
-        </div>
+      {/* Studio chat — self-contained overlay */}
+      {pageState === 'document' && sessionId && (
+        <StudioChatbot
+          key={sessionId}
+          sessionId={sessionId}
+          sessionContext={{ tool: 'strategy', document: strategyDoc, client: selectedClient }}
+          initialHistory={chatHistory}
+          onEditDetected={(edit: EditPayload) => setStrategyDoc(prev => prev ? { ...prev, [edit.target]: edit.new_content } : prev)}
+        />
       )}
     </div>
   )

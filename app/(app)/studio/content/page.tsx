@@ -189,7 +189,6 @@ export default function ContentStudioPage() {
   const [contentDoc,   setContentDoc]   = useState<ContentDocument | null>(null)
   const [bossBrief,    setBossBrief]    = useState<BossBrief | null>(null)
   const [chatHistory,  setChatHistory]  = useState<ChatMessage[]>([])
-  const [chatOpen,     setChatOpen]     = useState(false)
   const [resumeBanner, setResumeBanner] = useState<{ message: string; sessionId: string } | null>(null)
 
   // Intelligence layer
@@ -690,7 +689,6 @@ export default function ContentStudioPage() {
     setContentDoc(null)
     setBossBrief(null)
     setChatHistory([])
-    setChatOpen(false)
     setPausedQuestion(null)
     setError(null)
     setInputs({
@@ -1297,8 +1295,8 @@ export default function ContentStudioPage() {
 
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && contentDoc && (
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 min-w-0 space-y-3">
+        <div className="space-y-3">
+          <div>
             <StudioDocument
               tool="content"
               clientName={selectedClient?.name ?? ''}
@@ -1309,7 +1307,6 @@ export default function ContentStudioPage() {
               bossBrief={bossBrief}
               language={inputs.language}
               onExportPdf={handleExportPdf}
-              onChatOpen={() => setChatOpen(true)}
               onEditApplied={handleEditApplied}
             />
 
@@ -1419,36 +1416,18 @@ export default function ContentStudioPage() {
               taskDescription={inputs.brief}
             />
           </div>
-
-          {chatOpen && sessionId && (
-            <>
-              <div className="hidden lg:block w-[380px] shrink-0">
-                <div className="sticky top-4">
-                  <StudioChatbot sessionId={sessionId}
-                    sessionContext={{ tool: 'content', document: contentDoc, client: selectedClient }}
-                    initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => handleEditApplied(edit.target, edit.new_content)} />
-                </div>
-              </div>
-              <div className="fixed inset-x-0 bottom-0 z-50 lg:hidden">
-                <div className="bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl" style={{ maxHeight: '70vh' }}>
-                  <StudioChatbot sessionId={sessionId}
-                    sessionContext={{ tool: 'content', document: contentDoc, client: selectedClient }}
-                    initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => handleEditApplied(edit.target, edit.new_content)} />
-                </div>
-              </div>
-            </>
-          )}
-
-          {!chatOpen && pageState === 'document' && (
-            <button onClick={() => setChatOpen(true)}
-              className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center gap-2 px-4 py-3 bg-novax text-white text-sm font-semibold rounded-full shadow-lg hover:bg-novax-hover transition-colors">
-              <Zap className="w-4 h-4" />
-              Chat
-            </button>
-          )}
         </div>
+      )}
+
+      {/* Studio chat — self-contained overlay, visible when in document state with a session */}
+      {pageState === 'document' && sessionId && (
+        <StudioChatbot
+          key={sessionId}
+          sessionId={sessionId}
+          sessionContext={{ tool: 'content', document: contentDoc, client: selectedClient }}
+          initialHistory={chatHistory}
+          onEditDetected={(edit: EditPayload) => handleEditApplied(edit.target, edit.new_content)}
+        />
       )}
     </div>
   )

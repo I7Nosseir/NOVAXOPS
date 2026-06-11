@@ -22,6 +22,70 @@ interface FeedbackEntry {
   edited_version: string
 }
 
+// ── Pinterest element guidance ────────────────────────────────────────────────
+const PINTEREST_ELEMENT_GUIDANCE: Record<string, string> = {
+  hook_structure:     'pattern-interrupt openings with structural specificity',
+  sentence_rhythm:    'alternate long and punchy sentences for human rhythm',
+  cta_pattern:        'action-first CTAs with social-proof framing',
+  opening_line:       'bold declarative addressed directly to the reader',
+  tone_voice:         'conversational peer-to-peer tone throughout',
+  structural_formula: 'follow the overall narrative arc from these references',
+}
+
+async function buildPinterestInspirationBlock(
+  clientId: string,
+  db: SupabaseClient
+): Promise<string> {
+  // Only use refs from the last 90 days so the signal stays fresh
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { data: sessions } = await db
+    .from('copy_sessions')
+    .select('id')
+    .eq('client_id', clientId)
+    .gte('created_at', cutoff)
+
+  if (!sessions?.length) return ''
+
+  const sessionIds = (sessions as { id: string }[]).map(s => s.id)
+
+  const { data: links } = await db
+    .from('copy_inspiration_links')
+    .select('element_borrowed, copy_session_id')
+    .in('copy_session_id', sessionIds)
+
+  if (!links?.length || links.length < 2) return ''
+
+  // Aggregate counts per element_borrowed value
+  const counts: Record<string, number> = {}
+  for (const l of links as { element_borrowed: string | null; copy_session_id: string }[]) {
+    const el = l.element_borrowed?.trim() || 'structural_formula'
+    counts[el] = (counts[el] ?? 0) + 1
+  }
+
+  const sessionCount = new Set(
+    (links as { copy_session_id: string }[]).map(l => l.copy_session_id)
+  ).size
+  const totalRefs = links.length
+
+  const topElements = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+
+  const lines = topElements.map(([el, count]) => {
+    const guidance = PINTEREST_ELEMENT_GUIDANCE[el] ?? el.replace(/_/g, ' ')
+    const label    = el.replace(/_/g, ' ')
+    return `• ${label} × ${count} — ${guidance}`
+  })
+
+  return [
+    `── PINTEREST STYLE LEARNING (${totalRefs} saved ref${totalRefs !== 1 ? 's' : ''} across ${sessionCount} session${sessionCount !== 1 ? 's' : ''}) ──`,
+    `Structural patterns this client's team saved as references — apply these preferences:`,
+    lines.join('\n'),
+    `Extract structural DNA only — never copy words verbatim from any reference.`,
+  ].join('\n')
+}
+
 const PRICE_LABELS: Record<string, string> = {
   ultra_premium: 'Ultra-premium',
   premium: 'Premium',
@@ -186,6 +250,12 @@ export async function buildClientIntelligenceBlock(
       .slice(0, 800)
     blocks.push(`── QUARTER STRATEGY (Q${quarter} ${year}) ──\n${excerpt}`)
   }
+
+  // 4. Pinterest inspiration learning — aggregated structural preferences from past copy sessions
+  try {
+    const pinterestBlock = await buildPinterestInspirationBlock(clientId, db)
+    if (pinterestBlock) blocks.push(pinterestBlock)
+  } catch { /* non-critical — inspiration data is supplementary */ }
 
   return blocks.length > 0 ? `\n\n${blocks.join('\n\n')}` : ''
 }

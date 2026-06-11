@@ -99,7 +99,6 @@ export default function CampaignIgniterPage() {
   const [campaignDoc, setCampaignDoc] = useState<CampaignDocument | null>(null)
   const [bossBrief,   setBossBrief]   = useState<BossBrief | null>(null)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
-  const [chatOpen,    setChatOpen]    = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
 
@@ -260,7 +259,6 @@ export default function CampaignIgniterPage() {
     setCampaignDoc(null)
     setBossBrief(null)
     setChatHistory([])
-    setChatOpen(false)
     setError(null)
     setBrief('')
   }
@@ -511,95 +509,58 @@ export default function CampaignIgniterPage() {
 
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && campaignDoc && (
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 min-w-0 space-y-3">
-            <StudioDocument
-              tool="campaign"
-              clientName={selectedClient?.name ?? ''}
-              clientColor={selectedClient?.color ?? '#1B3D38'}
-              clientId={selectedClient?.id}
-              platforms={platforms}
-              content={campaignDoc}
-              bossBrief={bossBrief}
-              language="english"
-              onExportPdf={() => window.print()}
-              onChatOpen={() => setChatOpen(true)}
-              onEditApplied={(target, newContent) => {
-                if (!campaignDoc) return
-                const [, idxStr, field] = target.split('_')
-                const idx = parseInt(idxStr, 10)
-                if (!isNaN(idx) && campaignDoc.concepts?.[idx]) {
-                  const updated = { ...campaignDoc }
-                  updated.concepts = [...updated.concepts]
-                  updated.concepts[idx] = { ...updated.concepts[idx], [field]: newContent }
-                  setCampaignDoc(updated)
-                }
-              }}
-            />
-            <StudioSaveActions
-              client={selectedClient}
-              contentSummary={campaignDoc.concepts?.slice(0, 3).map(c => `${c.campaign_name}: ${c.core_idea}`).join('\n\n') ?? ''}
-              documentTitle={`${selectedClient?.name ?? 'Campaign'} — Campaign Igniter`}
-              taskTitle={`Campaign: ${campaignDoc.concepts?.[0]?.campaign_name ?? 'Campaign Output'}`}
-              contextCategory="Campaign Feedback"
-            />
-          </div>
-
-          {chatOpen && sessionId && (
-            <>
-              <div className="hidden lg:block w-[380px] shrink-0">
-                <div className="sticky top-4">
-                  <StudioChatbot
-                    sessionId={sessionId}
-                    sessionContext={{ tool: 'campaign', document: campaignDoc, client: selectedClient }}
-                    initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => {
-                      const parts = edit.target.split('_')
-                      const idx   = parseInt(parts[1], 10)
-                      const field = parts[2]
-                      if (!isNaN(idx) && campaignDoc.concepts?.[idx]) {
-                        const updated = { ...campaignDoc }
-                        updated.concepts = [...updated.concepts]
-                        updated.concepts[idx] = { ...updated.concepts[idx], [field]: edit.new_content }
-                        setCampaignDoc(updated)
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="fixed inset-x-0 bottom-0 z-50 lg:hidden">
-                <div className="bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl" style={{ maxHeight: '70vh' }}>
-                  <StudioChatbot
-                    sessionId={sessionId}
-                    sessionContext={{ tool: 'campaign', document: campaignDoc, client: selectedClient }}
-                    initialHistory={chatHistory}
-                    onEditDetected={(edit: EditPayload) => {
-                      const parts = edit.target.split('_')
-                      const idx   = parseInt(parts[1], 10)
-                      const field = parts[2]
-                      if (!isNaN(idx) && campaignDoc.concepts?.[idx]) {
-                        const updated = { ...campaignDoc }
-                        updated.concepts = [...updated.concepts]
-                        updated.concepts[idx] = { ...updated.concepts[idx], [field]: edit.new_content }
-                        setCampaignDoc(updated)
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          {!chatOpen && (
-            <button
-              onClick={() => setChatOpen(true)}
-              className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center gap-2 px-4 py-3 bg-novax text-white text-sm font-semibold rounded-full shadow-lg hover:bg-novax-hover transition-colors"
-            >
-              <Flame className="w-4 h-4" />
-              Chat
-            </button>
-          )}
+        <div className="space-y-3">
+          <StudioDocument
+            tool="campaign"
+            clientName={selectedClient?.name ?? ''}
+            clientColor={selectedClient?.color ?? '#1B3D38'}
+            clientId={selectedClient?.id}
+            platforms={platforms}
+            content={campaignDoc}
+            bossBrief={bossBrief}
+            language="english"
+            onExportPdf={() => window.print()}
+            onEditApplied={(target, newContent) => {
+              if (!campaignDoc) return
+              const [, idxStr, field] = target.split('_')
+              const idx = parseInt(idxStr, 10)
+              if (!isNaN(idx) && campaignDoc.concepts?.[idx]) {
+                const updated = { ...campaignDoc }
+                updated.concepts = [...updated.concepts]
+                updated.concepts[idx] = { ...updated.concepts[idx], [field]: newContent }
+                setCampaignDoc(updated)
+              }
+            }}
+          />
+          <StudioSaveActions
+            client={selectedClient}
+            contentSummary={campaignDoc.concepts?.slice(0, 3).map(c => `${c.campaign_name}: ${c.core_idea}`).join('\n\n') ?? ''}
+            documentTitle={`${selectedClient?.name ?? 'Campaign'} — Campaign Igniter`}
+            taskTitle={`Campaign: ${campaignDoc.concepts?.[0]?.campaign_name ?? 'Campaign Output'}`}
+            contextCategory="Campaign Feedback"
+          />
         </div>
+      )}
+
+      {/* Studio chat — self-contained overlay */}
+      {pageState === 'document' && sessionId && (
+        <StudioChatbot
+          key={sessionId}
+          sessionId={sessionId}
+          sessionContext={{ tool: 'campaign', document: campaignDoc, client: selectedClient }}
+          initialHistory={chatHistory}
+          onEditDetected={(edit: EditPayload) => {
+            const parts = edit.target.split('_')
+            const idx   = parseInt(parts[1], 10)
+            const field = parts[2]
+            if (!isNaN(idx) && campaignDoc?.concepts?.[idx]) {
+              const updated = { ...campaignDoc }
+              updated.concepts = [...updated.concepts]
+              updated.concepts[idx] = { ...updated.concepts[idx], [field]: edit.new_content }
+              setCampaignDoc(updated)
+            }
+          }}
+        />
       )}
     </div>
   )

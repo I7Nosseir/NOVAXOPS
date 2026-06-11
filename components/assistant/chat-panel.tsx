@@ -6,7 +6,7 @@ import {
   FileText, Layers, CheckSquare, Building2,
   ExternalLink, Copy, Check, Loader2, PenLine,
   History, Plus, AlertTriangle, Clipboard, ClipboardCheck,
-  FilePlus,
+  FilePlus, Paperclip, ImageIcon,
 } from 'lucide-react'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
@@ -32,6 +32,14 @@ interface ChatMessage {
   content:   string
   docEdit?:  { docId: string; content: string }
   docCreate?: { title: string; content: string; clientId?: string }
+  // Preview-only — base64 data URLs for display in chat, never persisted to DB
+  images?:   string[]
+}
+
+interface PendingImage {
+  preview:   string  // base64 data URL for display
+  data:      string  // raw base64 (no prefix) for API
+  mediaType: string  // e.g. image/jpeg
 }
 
 interface ContextItem {
@@ -337,8 +345,24 @@ function MessageBubble({ msg, docContextItems }: { msg: ChatMessage; docContextI
   if (msg.role === 'user') {
     return (
       <div className="flex justify-end gap-2">
-        <div className="max-w-[85%] bg-novax text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed">
-          {msg.content}
+        <div className="max-w-[85%] space-y-1.5">
+          {/* Image thumbnails */}
+          {msg.images && msg.images.length > 0 && (
+            <div className="flex gap-1.5 justify-end flex-wrap">
+              {msg.images.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={i}
+                  src={src}
+                  alt=""
+                  className="h-20 w-20 object-cover rounded-xl border border-white/20 shadow-sm"
+                />
+              ))}
+            </div>
+          )}
+          <div className="bg-novax text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed">
+            {msg.content}
+          </div>
         </div>
         <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0 mt-1">
           <User className="w-3 h-3 text-slate-500" />
@@ -487,6 +511,7 @@ export function ChatPanel({
   const [streaming,      setStreaming]      = useState(false)
   const [streamingText,  setStreamingText]  = useState('')
   const [errorMsg,       setErrorMsg]       = useState<string | null>(null)
+  const [pendingImages,  setPendingImages]  = useState<PendingImage[]>([])
 
   // ── Session persistence ────────────────────────────────────────
   const { sessions, upsert: upsertSession, remove: removeSession } = useChatSessions()
@@ -510,6 +535,7 @@ export function ChatPanel({
   const inputRef       = useRef<HTMLTextAreaElement>(null)
   const panelRef       = useRef<HTMLDivElement>(null)
   const historyRef     = useRef<HTMLDivElement>(null)
+  const fileInputRef   = useRef<HTMLInputElement>(null)
   const onSaveRef      = useRef(onSave)
   useEffect(() => { onSaveRef.current = onSave }, [onSave])
 
@@ -556,9 +582,10 @@ export function ChatPanel({
   useEffect(() => {
     const title = messages.find(m => m.role === 'user')?.content.slice(0, 60) ?? 'New Chat'
 
-    // DB save — if chatId prop provided, persist via onSave callback
+    // DB save — strip ephemeral image data before persisting
     if (chatId && messages.length > 0 && onSaveRef.current) {
-      onSaveRef.current(chatId, messages, title, selectedClient || undefined)
+      const messagesForDb = messages.map(({ images: _, ...m }) => m)
+      onSaveRef.current(chatId, messagesForDb as ChatMessage[], title, selectedClient || undefined)
     }
 
     // localStorage save — keep for legacy non-DB panels
@@ -608,17 +635,28 @@ export function ChatPanel({
   // ── Send message — must be defined before early return (Rules of Hooks) ──────
   // immediateText bypasses the input state (used by quick-send buttons)
   const sendMessage = useCallback(async (immediateText?: string) => {
-    const text = (immediateText !== undefined ? immediateText : input).trim()
+    const rawText = (immediateText !== undefined ? immediateText : input).trim()
+    // Allow send with images even if no text
+    const text = rawText || (pendingImages.length > 0 ? 'What do you see in this image?' : '')
     if (!text || streaming) return
 
     setErrorMsg(null)
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text }
+    const imagePreviews = pendingImages.map(i => i.preview)
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text,
+      ...(imagePreviews.length > 0 ? { images: imagePreviews } : {}),
+    }
     const history = [...messages, userMsg]
     setMessages(history)
     setInput('')
     if (inputRef.current) {
       inputRef.current.style.height = 'auto'
     }
+    // Clear pending images immediately after attaching to message
+    const imagesForApi = [...pendingImages]
+    setPendingImages([])
     setStreaming(true)
     setStreamingText('')
 
@@ -635,6 +673,9 @@ export function ChatPanel({
           is_ceo:        isCeo,
           user_role:     user?.role,
           user_id:       user?.id,
+          images:        imagesForApi.length > 0
+            ? imagesForApi.map(i => ({ data: i.data, mediaType: i.mediaType }))
+            : undefined,
         }),
       })
 
@@ -754,6 +795,7 @@ export function ChatPanel({
     setShowHistory(false)
     setStreaming(false)
     setStreamingText('')
+    setPendingImages([])
     setTimeout(() => inputRef.current?.focus(), 0)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -859,7 +901,37 @@ export function ChatPanel({
     setErrorMsg(null)
     setStreaming(false)
     setStreamingText('')
+    setPendingImages([])
     setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  const handleImageFile = async (file: File) => {
+    if (pendingImages.length >= 3) return
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowed.includes(file.type)) return
+    return new Promise<void>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string
+        // Split "data:image/jpeg;base64,<data>" → extract raw base64
+        const parts = dataUrl.split(',')
+        const rawData = parts[1] ?? ''
+        setPendingImages(prev =>
+          prev.length < 3
+            ? [...prev, { preview: dataUrl, data: rawData, mediaType: file.type }]
+            : prev
+        )
+        resolve()
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []).slice(0, 3 - pendingImages.length)
+    for (const file of files) await handleImageFile(file)
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   // ── Render ────────────────────────────────────────────────────
@@ -1200,6 +1272,41 @@ export function ChatPanel({
         </div>
       )}
 
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        multiple
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
+
+      {/* Pending image previews */}
+      {pendingImages.length > 0 && (
+        <div className="px-3 pt-2 pb-1 border-t border-slate-100 bg-white flex gap-2 flex-wrap">
+          {pendingImages.map((img, i) => (
+            <div key={i} className="relative group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.preview}
+                alt=""
+                className="h-14 w-14 object-cover rounded-lg border border-slate-200"
+              />
+              <button
+                onClick={() => setPendingImages(prev => prev.filter((_, pi) => pi !== i))}
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </div>
+          ))}
+          <p className="text-[10px] text-slate-400 self-end pb-0.5">
+            {pendingImages.length}/3 image{pendingImages.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
+
       {/* Input area */}
       <div className="relative px-3 pb-3 pt-2 border-t border-slate-100 bg-white rounded-b-2xl">
 
@@ -1259,7 +1366,7 @@ export function ChatPanel({
           </div>
         )}
 
-        {/* Textarea + send */}
+        {/* Textarea + attach + send */}
         <div className={cn(
           'flex items-end gap-2 bg-slate-50 border rounded-xl px-3 py-2 transition-all',
           streaming || sessionIsComplete
@@ -1277,12 +1384,33 @@ export function ChatPanel({
             className="flex-1 text-sm text-slate-800 bg-transparent outline-none resize-none placeholder:text-slate-400 overflow-y-auto leading-relaxed disabled:cursor-not-allowed"
             style={{ height: 'auto', minHeight: '24px', maxHeight: '128px' }}
           />
+
+          {/* Image attach button */}
+          {!sessionIsComplete && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={streaming || pendingImages.length >= 3}
+              title={pendingImages.length >= 3 ? 'Max 3 images' : 'Attach image'}
+              className={cn(
+                'w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mb-0.5 transition-colors',
+                pendingImages.length > 0
+                  ? 'text-novax-muted bg-novax-light'
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100',
+                (streaming || pendingImages.length >= 3) && 'opacity-40 cursor-not-allowed',
+              )}
+            >
+              {pendingImages.length > 0
+                ? <ImageIcon className="w-3.5 h-3.5" />
+                : <Paperclip className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
           <button
             onClick={() => void sendMessage()}
-            disabled={!input.trim() || streaming || sessionIsComplete}
+            disabled={(!input.trim() && pendingImages.length === 0) || streaming || sessionIsComplete}
             className={cn(
               'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mb-0.5 transition-all',
-              input.trim() && !streaming
+              (input.trim() || pendingImages.length > 0) && !streaming
                 ? 'bg-novax text-white hover:bg-novax-hover'
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed',
             )}
