@@ -131,8 +131,15 @@ function ResultPanel({ result, onToggle }: {
   return (
     <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-        <span className="text-xs font-medium text-slate-600">Analysis Result</span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-semibold text-emerald-700 shrink-0">Ready</span>
+          {!result.expanded && (
+            <span className="text-xs text-slate-400 truncate hidden sm:block">
+              {result.content.slice(0, 80).replace(/#+\s/g, '')}…
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <CopyButton text={result.content} />
           <button
             onClick={onToggle}
@@ -1610,7 +1617,7 @@ export default function CeoPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl">
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl overflow-x-auto">
         {tabs.map(({ id, icon, label }) => (
           <div key={id} className="relative">
             <TabButton id={id} active={activeTab === id} icon={icon} label={label} onClick={() => setActiveTab(id)} />

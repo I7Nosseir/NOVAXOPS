@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
   Activity, RefreshCw, Circle, Users, Zap, DollarSign,
-  Clock, Monitor, BookOpen, Layers, ChevronDown, ChevronUp,
+  Clock, Monitor, ChevronDown, ChevronUp,
   AlertCircle, Loader2, TrendingUp,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
@@ -125,14 +125,23 @@ const ROLE_LABELS: Record<string, string> = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+function statusDotColor(status: 'online' | 'recent' | 'offline') {
+  return status === 'online' ? 'bg-emerald-400' : status === 'recent' ? 'bg-amber-400' : 'bg-slate-300'
+}
+
 function StatusDot({ status }: { status: 'online' | 'recent' | 'offline' }) {
+  return <span className={cn('inline-block w-2 h-2 rounded-full shrink-0', statusDotColor(status))} />
+}
+
+function AvatarWithStatus({ user, status }: { user: UserRecord; status: 'online' | 'recent' | 'offline' }) {
   return (
-    <span className={cn(
-      'inline-block w-2 h-2 rounded-full shrink-0',
-      status === 'online'  ? 'bg-emerald-500' :
-      status === 'recent'  ? 'bg-amber-400' :
-                             'bg-slate-300'
-    )} />
+    <div className="relative shrink-0">
+      <UserAvatar user={user} />
+      <span className={cn(
+        'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white',
+        statusDotColor(status),
+      )} />
+    </div>
   )
 }
 
@@ -197,10 +206,7 @@ function LiveNowPanel({ users }: { users: UserRecord[] }) {
           const status = onlineStatus(user.last_seen)
           return (
             <div key={user.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
-              <div className="relative shrink-0">
-                <UserAvatar user={user} />
-                <StatusDot status={status} />
-              </div>
+              <AvatarWithStatus user={user} status={status} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-slate-900 truncate">{user.name}</p>
@@ -435,7 +441,7 @@ export default function ActivityPage() {
     return res.json() as Promise<ActivityData>
   }, [])
 
-  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery<ActivityData>({
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery<ActivityData>({
     queryKey: ['admin-team-activity'],
     queryFn:  fetchData,
     refetchInterval: 30_000,
@@ -490,10 +496,11 @@ export default function ActivityPage() {
           )}
           <button
             onClick={() => refetch()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-novax-muted hover:text-novax hover:bg-novax-light border border-novax-border rounded-lg transition-colors"
+            disabled={isFetching}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-novax-muted hover:text-novax hover:bg-novax-light border border-novax-border rounded-lg transition-colors disabled:opacity-60"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Refresh
+            <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} />
+            {isFetching ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
@@ -505,7 +512,7 @@ export default function ActivityPage() {
           label="Online Now"
           value={totals.online_now}
           sub="active in last 5 min"
-          color="bg-emerald-50 text-emerald-700"
+          color="bg-emerald-50 text-emerald-500 fill-current"
         />
         <StatCard
           icon={Users}
