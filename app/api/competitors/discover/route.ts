@@ -19,6 +19,51 @@ interface DiscoverPayload {
   global: CompetitorSuggestion[]
 }
 
+// Multi-strategy JSON extractor — handles Gemini response variations
+function extractDiscoverPayload(raw: string): DiscoverPayload {
+  // Strip markdown fences (single and nested)
+  const cleaned = raw
+    .replace(/```(?:json)?\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim()
+
+  // Strategy 1: find the outermost { … } object
+  const match = cleaned.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error(`No JSON object found in AI response. Got: ${cleaned.slice(0, 200)}`)
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(match[0]) as Record<string, unknown>
+  } catch {
+    throw new Error(`JSON.parse failed. Raw JSON: ${match[0].slice(0, 300)}`)
+  }
+
+  // Strategy 2: direct { local, global } shape
+  if (Array.isArray(parsed.local) && Array.isArray(parsed.global)) {
+    return { local: parsed.local as CompetitorSuggestion[], global: parsed.global as CompetitorSuggestion[] }
+  }
+
+  // Strategy 3: { competitors: { local, global } }
+  const nested = parsed.competitors as Record<string, unknown> | undefined
+  if (nested && Array.isArray(nested.local) && Array.isArray(nested.global)) {
+    return { local: nested.local as CompetitorSuggestion[], global: nested.global as CompetitorSuggestion[] }
+  }
+
+  // Strategy 4: flat { suggestions: [...] } — split first 3 as local, next 3 as global
+  const flat = (parsed.suggestions ?? parsed.competitors) as CompetitorSuggestion[] | undefined
+  if (Array.isArray(flat) && flat.length > 0) {
+    const withScope = flat as Array<CompetitorSuggestion & { scope?: string }>
+    const local  = withScope.filter(s => s.scope === 'local').slice(0, 3)
+    const global = withScope.filter(s => s.scope !== 'local').slice(0, 3)
+    if (local.length === 0 && global.length === 0) {
+      return { local: flat.slice(0, 3), global: flat.slice(3, 6) }
+    }
+    return { local, global }
+  }
+
+  throw new Error(`Unrecognised JSON shape. Keys: ${Object.keys(parsed).join(', ')}`)
+}
+
 /**
  * POST /api/competitors/discover
  * Body: { client_id, industry, client_name, audience? }
@@ -113,18 +158,14 @@ Return ONLY valid JSON — no markdown, no explanation, no code fences:
       raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
     } else {
       const { geminiGenerate } = await import('@/lib/gemini')
-      raw = await geminiGenerate(prompt, undefined, { jsonMode: true, maxOutputTokens: 1200 })
+      raw = await geminiGenerate(prompt, undefined, { maxOutputTokens: 1200 })
     }
 
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-    payload = JSON.parse(cleaned) as DiscoverPayload
-
-    if (!Array.isArray(payload.local) || !Array.isArray(payload.global)) {
-      throw new Error('Invalid response shape — missing local or global arrays')
-    }
+    payload = extractDiscoverPayload(raw)
   } catch (err) {
-    console.error('[competitors/discover] AI error:', err)
-    return NextResponse.json({ error: 'AI generation failed' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[competitors/discover] AI error:', msg)
+    return NextResponse.json({ error: `AI generation failed: ${msg}` }, { status: 500 })
   }
 
   // Delete existing discovered competitors for this client and replace with new set

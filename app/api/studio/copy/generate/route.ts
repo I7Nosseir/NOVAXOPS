@@ -160,7 +160,10 @@ async function fetchCopyKbBlock(dialect: CopyDialect): Promise<string> {
   if (byCategory.viral_formats?.length) {
     parts.push(
       `PROVEN VIRAL CAPTION STRUCTURES:\n` +
-      byCategory.viral_formats.map(r => r.context_rules).join('\n\n')
+      byCategory.viral_formats.map(r =>
+        r.context_rules +
+        (r.examples?.length ? `\nNative examples: ${r.examples.slice(0, 3).join(' | ')}` : '')
+      ).join('\n\n')
     )
   }
 
@@ -224,7 +227,7 @@ function buildPrompt(opts: {
   toneArchetype: string
   clientIntelBlock: string
   arabicKbBlock: string
-  approvedExamples: { caption: string; framework_used: string | null }[]
+  approvedExamples: { caption: string; framework_used: string | null; dialect?: string | null }[]
   imageCount: number
   isCarousel: boolean
   inspirationRefs?: { title: string; description: string; elementBorrowed: string; elementLabel: string }[]
@@ -274,9 +277,10 @@ function buildPrompt(opts: {
   }
 
   if (approvedExamples.length > 0) {
-    lines.push(`\n── APPROVED EXAMPLES (match this quality and style) ──`)
+    lines.push(`\n── APPROVED EXAMPLES (match this quality and voice — do not copy, use as style reference) ──`)
     approvedExamples.forEach((ex, i) => {
-      lines.push(`Example ${i + 1}${ex.framework_used ? ` [${ex.framework_used}]` : ''}:\n${ex.caption}`)
+      const meta = [ex.framework_used, ex.dialect].filter(Boolean).join(' · ')
+      lines.push(`Example ${i + 1}${meta ? ` [${meta}]` : ''}:\n${ex.caption}`)
     })
   }
 
@@ -508,19 +512,43 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 2. Fetch approved copy examples for few-shot context
-  const approvedExamples: { caption: string; framework_used: string | null }[] = []
+  // 2. Fetch approved copy examples — Arabic gets dialect-preferred examples first
+  const approvedExamples: { caption: string; framework_used: string | null; dialect?: string | null }[] = []
   if (client_id && db) {
-    const { data: exRows } = await db
-      .from('copy_examples')
-      .select('caption, framework_used')
-      .eq('client_id', client_id)
-      .eq('is_approved', true)
-      .eq('language', language === 'both' ? 'both' : language)
-      .order('created_at', { ascending: false })
-      .limit(3)
+    const isArabicGen = language === 'ar' || language === 'both'
+    // For Arabic include both 'ar' and 'both' tagged examples; for EN include 'en' and 'both'
+    const langFilter  = isArabicGen ? ['ar', 'both'] : language === 'en' ? ['en', 'both'] : ['both']
 
-    if (exRows) approvedExamples.push(...exRows)
+    if (isArabicGen) {
+      // First pass: exact dialect match (highest quality few-shot examples)
+      const { data: dialectRows } = await db
+        .from('copy_examples')
+        .select('caption, framework_used, dialect')
+        .eq('client_id', client_id)
+        .eq('is_approved', true)
+        .in('language', langFilter)
+        .eq('dialect', dialect)
+        .order('created_at', { ascending: false })
+        .limit(3)
+      if (dialectRows) approvedExamples.push(...dialectRows)
+    }
+
+    // Fill remaining slots (or all for EN) with any language-matching examples
+    if (approvedExamples.length < 3) {
+      const { data: exRows } = await db
+        .from('copy_examples')
+        .select('caption, framework_used, dialect')
+        .eq('client_id', client_id)
+        .eq('is_approved', true)
+        .in('language', langFilter)
+        .order('created_at', { ascending: false })
+        .limit(3 - approvedExamples.length)
+      if (exRows) {
+        for (const ex of exRows) {
+          if (!approvedExamples.some(e => e.caption === ex.caption)) approvedExamples.push(ex)
+        }
+      }
+    }
   }
 
   // 3. Fetch Arabic KB block (only if generating Arabic)

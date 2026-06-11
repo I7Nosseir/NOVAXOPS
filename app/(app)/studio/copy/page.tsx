@@ -9,7 +9,7 @@ import {
   ArrowLeft, Loader2, CheckCircle, Copy, RefreshCw, ChevronDown, ChevronUp,
   Upload, Link2, X, Image as ImageIcon, Hash, Zap, BookmarkPlus,
   GripVertical, Plus, Layers, Download, FileSpreadsheet, AlertCircle,
-  StopCircle, Clock, Search, ThumbsUp, ThumbsDown, Calendar as CalendarIcon,
+  StopCircle, Clock, Search, ThumbsUp, ThumbsDown,
 } from 'lucide-react'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -334,149 +334,10 @@ function SlideCaptionCard({ sc, language }: { sc: SlideCaption; language: CopyLa
   )
 }
 
-// ── Schedule dialog ───────────────────────────────────────────────────────────
-
-function ScheduleDialog({
-  caption, mediaUrls, clientId, platformDefault, onClose,
-}: {
-  caption: string
-  mediaUrls: string[]
-  clientId?: string
-  platformDefault: string
-  onClose: () => void
-}) {
-  const normPlatform = (p: string) =>
-    p.toLowerCase().replace(/\s+/g, '_').replace('(twitter)', '').replace('x_', 'x')
-
-  const [platform, setPlatform] = useState(() => normPlatform(platformDefault))
-  const [scheduledAt, setScheduledAt] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0)
-    return d.toISOString().slice(0, 16)
-  })
-  const [urlsText,   setUrlsText]   = useState(mediaUrls.join('\n'))
-  const [submitting, setSubmitting] = useState(false)
-  const [result,     setResult]     = useState<{ success?: boolean; draft?: boolean; error?: string } | null>(null)
-
-  async function submit() {
-    if (!clientId) { setResult({ error: 'Select a client at the top to enable scheduling' }); return }
-    setSubmitting(true)
-    try {
-      const mediaArr = urlsText.split(/\n/).map(u => u.trim()).filter(Boolean)
-      const res = await fetch('/api/metricool/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id:    clientId,
-          platforms:    [platform],
-          caption,
-          media_urls:   mediaArr.length > 0 ? mediaArr : undefined,
-          scheduled_at: new Date(scheduledAt).toISOString(),
-        }),
-      })
-      const data = await res.json()
-      if (data.saved_as_draft) setResult({ draft: true })
-      else if (!res.ok)        setResult({ error: data.error ?? 'Scheduling failed' })
-      else                     setResult({ success: true })
-    } catch (err) {
-      setResult({ error: err instanceof Error ? err.message : 'Network error' })
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  if (result?.success || result?.draft) {
-    return (
-      <div className="mx-4 mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-            <p className="text-sm font-semibold text-emerald-700">
-              {result.draft ? 'Saved as draft — no Metricool blog ID set' : 'Scheduled successfully'}
-            </p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
-        </div>
-        <Link href="/publishing" className="mt-2 inline-block text-xs text-emerald-600 underline">
-          View in Publishing
-        </Link>
-      </div>
-    )
-  }
-
-  return (
-    <div className="mx-4 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-slate-700">Schedule this caption</p>
-        <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {!clientId && (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Select a client at the top to enable scheduling
-        </p>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Platform</p>
-          <select value={platform} onChange={e => setPlatform(e.target.value)}
-            className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-novax-border-active"
-          >
-            {PLATFORMS.map(p => (
-              <option key={p} value={normPlatform(p)}>{p}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Date &amp; time</p>
-          <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
-            className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-novax-border-active"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-          Media URLs <span className="font-normal normal-case text-slate-400">(optional — pre-filled from Drive input)</span>
-        </p>
-        <textarea value={urlsText} onChange={e => setUrlsText(e.target.value)} rows={2}
-          placeholder="Drive or CDN URL — one per line"
-          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none focus:border-novax-border-active"
-        />
-      </div>
-
-      {result?.error && (
-        <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-lg">
-          <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-          <p className="text-xs text-red-700">{result.error}</p>
-        </div>
-      )}
-
-      <button onClick={submit} disabled={submitting || !clientId}
-        className={cn(
-          'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all',
-          submitting || !clientId
-            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            : 'bg-novax text-white hover:bg-novax-hover',
-        )}
-      >
-        {submitting
-          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          : <CalendarIcon className="w-3.5 h-3.5" />
-        }
-        {submitting ? 'Scheduling…' : 'Schedule Post'}
-      </button>
-    </div>
-  )
-}
-
 // ── Variant card ──────────────────────────────────────────────────────────────
 
 function VariantCard({
   variant, hashtags, altText, showHashtags, language, onSaveExample,
-  clientId, platform, mediaUrls,
 }: {
   variant: CopyDocument['variants'][number]
   hashtags: string[]
@@ -484,14 +345,10 @@ function VariantCard({
   showHashtags: boolean
   language: CopyLanguage
   onSaveExample: () => void
-  clientId?: string
-  platform: string
-  mediaUrls: string[]
 }) {
-  const [copied,     setCopied]     = useState(false)
-  const [hashOpen,   setHashOpen]   = useState(false)
-  const [altOpen,    setAltOpen]    = useState(false)
-  const [schedOpen,  setSchedOpen]  = useState(false)
+  const [copied,   setCopied]   = useState(false)
+  const [hashOpen, setHashOpen] = useState(false)
+  const [altOpen,  setAltOpen]  = useState(false)
   const isArabic = language === 'ar'
 
   function copyCaption() {
@@ -520,16 +377,6 @@ function VariantCard({
             className="p-1.5 rounded-lg text-slate-400 hover:text-novax hover:bg-novax-light transition-colors"
           >
             <BookmarkPlus className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => setSchedOpen(p => !p)} title="Schedule this caption"
-            className={cn(
-              'p-1.5 rounded-lg transition-colors',
-              schedOpen
-                ? 'text-novax bg-novax-light'
-                : 'text-slate-400 hover:text-novax hover:bg-novax-light',
-            )}
-          >
-            <CalendarIcon className="w-3.5 h-3.5" />
           </button>
           <button onClick={copyCaption}
             className={cn(
@@ -579,17 +426,6 @@ function VariantCard({
               <p className="text-xs text-slate-500 leading-relaxed">{altText}</p>
             </div>
           )}
-        </div>
-      )}
-      {schedOpen && (
-        <div className="border-t border-slate-100 pt-1">
-          <ScheduleDialog
-            caption={variant.caption}
-            mediaUrls={mediaUrls}
-            clientId={clientId}
-            platformDefault={platform}
-            onClose={() => setSchedOpen(false)}
-          />
         </div>
       )}
     </div>
@@ -1219,6 +1055,32 @@ function ResultRow({ result }: { result: BulkResult }) {
 
       {open && result.status === 'done' && (
         <div className="border-t border-slate-100 px-4 py-3 space-y-2">
+          {result.drive_url && (() => {
+            const thumbUrls = result.drive_url
+              .split(/[;\n]/).map(u => u.trim()).filter(Boolean)
+              .map(u => {
+                const { url } = convertGoogleDriveUrl(u)
+                return url
+                  ? (url.startsWith('/') ? `${typeof window !== 'undefined' ? window.location.origin : ''}${url}` : url)
+                  : null
+              })
+              .filter((u): u is string => !!u)
+            if (!thumbUrls.length) return null
+            return (
+              <div className="flex gap-2 flex-wrap pb-1">
+                {thumbUrls.map((src, i) => (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img key={i} src={src} alt={`Slide ${i + 1}`}
+                    className="w-14 h-14 object-cover rounded-lg border border-slate-200 bg-slate-50 shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                ))}
+                {result.is_carousel && (
+                  <span className="self-center text-[10px] text-slate-400">{thumbUrls.length} slides</span>
+                )}
+              </div>
+            )
+          })()}
           {result.slide_captions.length > 0 && (
             <div className="space-y-1">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Slide captions</p>
@@ -2160,15 +2022,6 @@ export default function CopyEnginePage() {
               showHashtags={hashtagStyle !== 'none'}
               language={doc.language}
               onSaveExample={() => saveExample(v)}
-              clientId={clientId || undefined}
-              platform={platform}
-              mediaUrls={
-                contentType === 'single' && driveUrl.trim()
-                  ? [driveUrl.trim()]
-                  : contentType === 'carousel' && carouselImageMode === 'drive' && carouselDriveText.trim()
-                    ? carouselDriveText.split(/[;\n]/).map(u => u.trim()).filter(Boolean)
-                    : []
-              }
             />
           ))}
         </div>

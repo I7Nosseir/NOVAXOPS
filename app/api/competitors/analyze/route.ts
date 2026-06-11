@@ -225,12 +225,15 @@ Return ONLY valid JSON — no markdown, no explanation:
       modelUsed = 'claude-sonnet-4-6'
     } else {
       const { geminiGenerate } = await import('@/lib/gemini')
-      raw       = await geminiGenerate(prompt, undefined, { jsonMode: true, maxOutputTokens: 3000 })
+      raw       = await geminiGenerate(prompt, undefined, { maxOutputTokens: 3000 })
       modelUsed = 'gemini-3-flash-preview'
     }
 
-    const cleaned  = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-    const analysis = JSON.parse(cleaned) as CompetitorAnalysis
+    // Robust JSON extraction — handles markdown fences and surrounding text
+    const stripped = raw.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '').trim()
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) throw new Error(`No JSON object found. Got: ${stripped.slice(0, 200)}`)
+    const analysis = JSON.parse(jsonMatch[0]) as CompetitorAnalysis
 
     const now = new Date().toISOString()
 
@@ -271,8 +274,9 @@ Return ONLY valid JSON — no markdown, no explanation:
 
     return NextResponse.json({ analysis, cached: false, generated_at: analysis.generated_at })
   } catch (err) {
-    console.error('[competitors/analyze]', err)
-    return NextResponse.json({ error: 'Analysis generation failed' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[competitors/analyze]', msg)
+    return NextResponse.json({ error: `Analysis failed: ${msg}` }, { status: 500 })
   }
 }
 
