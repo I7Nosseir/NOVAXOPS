@@ -2674,15 +2674,75 @@ function PublishingPageContent() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      {/* Header — two-row on mobile, single row on desktop */}
+      <div className="space-y-2">
+        {/* Row 1: actions */}
+        <div className="flex items-center gap-2 justify-between">
+          {/* View toggle — always visible */}
+          <div className="flex items-center bg-slate-100 rounded-lg p-0.5 shrink-0">
+            <button
+              onClick={() => setView('grid')}
+              className={cn('p-1.5 rounded-md transition-colors', view === 'grid' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-600')}
+              title="Grid view"
+            >
+              <LayoutGrid className="w-3.5 h-3.5"/>
+            </button>
+            <button
+              onClick={() => setView('calendar')}
+              className={cn('p-1.5 rounded-md transition-colors', view === 'calendar' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-600')}
+              title="Calendar view"
+            >
+              <Calendar className="w-3.5 h-3.5"/>
+            </button>
+          </div>
+
+          {/* Right: secondary actions + compose */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            {/* Sync — icon only on mobile */}
+            <button
+              onClick={() => handleSync()}
+              disabled={syncing}
+              title={`Sync from ${vendorName(user?.role, 'Metricool')}`}
+              className="flex items-center gap-1.5 px-2.5 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 shrink-0"
+            >
+              <RefreshCw className={cn('w-3.5 h-3.5 shrink-0', syncing && 'animate-spin')}/>
+              <span className="hidden sm:inline">{syncing ? 'Syncing…' : 'Sync'}</span>
+            </button>
+            {/* Bulk Schedule — icon only on mobile */}
+            <button
+              onClick={() => setBulkDialog(true)}
+              className="flex items-center gap-1.5 px-2.5 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors shrink-0"
+            >
+              <TableProperties className="w-3.5 h-3.5 shrink-0"/>
+              <span className="hidden sm:inline">Bulk</span>
+            </button>
+            {/* Generate Calendar — icon only on mobile */}
+            <button
+              onClick={() => setBriefDialog(true)}
+              className="flex items-center gap-1.5 px-2.5 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0"/>
+              <span className="hidden sm:inline">Generate</span>
+            </button>
+            {/* Compose — always shows text */}
+            <button
+              onClick={() => setCompose(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors shrink-0"
+            >
+              <Plus className="w-4 h-4 shrink-0"/>
+              Compose
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: filter tabs — horizontally scrollable on mobile */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(['all', 'scheduled', 'published', 'draft'] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0',
                 filter === f ? 'bg-novax text-white' : 'text-slate-600 hover:bg-slate-100'
               )}
             >
@@ -2691,47 +2751,6 @@ function PublishingPageContent() {
               {f === 'all' ? 'All Posts' : `${f.charAt(0).toUpperCase() + f.slice(1)} (${counts[f as keyof typeof counts]})`}
             </button>
           ))}
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          {/* View toggle */}
-          <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-            <button onClick={() => setView('grid')} className={cn('p-1.5 rounded-md transition-colors', view === 'grid' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-600')} title="Grid view">
-              <LayoutGrid className="w-3.5 h-3.5"/>
-            </button>
-            <button onClick={() => setView('calendar')} className={cn('p-1.5 rounded-md transition-colors', view === 'calendar' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-600')} title="Calendar view">
-              <Calendar className="w-3.5 h-3.5"/>
-            </button>
-          </div>
-          <button
-            onClick={() => handleSync()}
-            disabled={syncing}
-            title={`Pull latest post statuses from ${vendorName(user?.role, 'Metricool')}`}
-            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={cn('w-3.5 h-3.5', syncing && 'animate-spin')}/>
-            {syncing ? 'Syncing…' : 'Sync Status'}
-          </button>
-          <button
-            onClick={() => setBulkDialog(true)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors"
-          >
-            <TableProperties className="w-3.5 h-3.5"/>
-            Bulk Schedule
-          </button>
-          <button
-            onClick={() => setBriefDialog(true)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors"
-          >
-            <Sparkles className="w-3.5 h-3.5"/>
-            Generate Calendar
-          </button>
-          <button
-            onClick={() => setCompose(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <Plus className="w-4 h-4"/>
-            Compose Post
-          </button>
         </div>
       </div>
 

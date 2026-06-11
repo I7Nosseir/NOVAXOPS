@@ -95,25 +95,26 @@ async function fetchClientContext(db: SupabaseClient, id: string): Promise<strin
 async function fetchClientMetricoolContext(db: SupabaseClient, clientId: string): Promise<string> {
   try {
     const now = new Date()
-    const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const in30days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
     const [upcomingRes, publishedRes, draftRes] = await Promise.all([
-      // Upcoming scheduled (next 7 days)
+      // All scheduled posts for the next 30 days
       db.from('scheduled_posts')
         .select('id,platforms,caption,scheduled_at,status,metricool_post_id')
         .eq('client_id', clientId)
         .eq('status', 'scheduled')
         .gte('scheduled_at', now.toISOString())
-        .lte('scheduled_at', in7days)
+        .lte('scheduled_at', in30days)
         .order('scheduled_at', { ascending: true })
-        .limit(10),
-      // Published this month
+        .limit(60),
+      // Published this month with captions
       db.from('scheduled_posts')
-        .select('id,platforms,published_at')
+        .select('id,platforms,caption,published_at')
         .eq('client_id', clientId)
         .eq('status', 'published')
         .gte('published_at', startOfMonth)
+        .order('published_at', { ascending: false })
         .limit(30),
       // Drafts
       db.from('scheduled_posts')
@@ -123,28 +124,44 @@ async function fetchClientMetricoolContext(db: SupabaseClient, clientId: string)
         .limit(1),
     ])
 
-    const upcoming = upcomingRes.data ?? []
+    const upcoming  = upcomingRes.data ?? []
     const published = publishedRes.data ?? []
     const draftCount = (draftRes.data ?? []).length
 
     if (!upcoming.length && !published.length && !draftCount) return ''
 
-    const lines: string[] = ['── METRICOOL / PUBLISHING STATUS ──']
+    const lines: string[] = ['── PUBLISHING SCHEDULE (full access) ──']
 
     if (upcoming.length > 0) {
-      lines.push(`Scheduled (next 7 days): ${upcoming.length} post${upcoming.length !== 1 ? 's' : ''}`)
-      for (const p of upcoming.slice(0, 5)) {
+      lines.push(`Scheduled next 30 days: ${upcoming.length} post${upcoming.length !== 1 ? 's' : ''}`)
+      for (const p of upcoming) {
         const platforms = Array.isArray(p.platforms) ? (p.platforms as string[]).join(', ') : String(p.platforms ?? '')
-        const date = p.scheduled_at ? new Date(p.scheduled_at as string).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '?'
-        const caption = typeof p.caption === 'string' ? p.caption.slice(0, 80) : ''
-        lines.push(`  • [${platforms}] ${date} — "${caption}${caption.length >= 80 ? '…' : ''}"`)
+        const date = p.scheduled_at
+          ? new Date(p.scheduled_at as string).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
+          : '?'
+        const caption = typeof p.caption === 'string' ? p.caption : ''
+        lines.push(`  • [${platforms}] ${date}`)
+        if (caption) lines.push(`    "${caption.slice(0, 300)}${caption.length > 300 ? '…' : ''}"`)
       }
     } else {
-      lines.push('Scheduled (next 7 days): 0 posts — calendar is empty')
+      lines.push('Scheduled: 0 posts — calendar is empty for the next 30 days')
     }
 
-    lines.push(`Published this month: ${published.length} post${published.length !== 1 ? 's' : ''}`)
-    if (draftCount > 0) lines.push(`Drafts pending: ${draftCount}+`)
+    if (published.length > 0) {
+      lines.push(`\nPublished this month: ${published.length} post${published.length !== 1 ? 's' : ''}`)
+      for (const p of published.slice(0, 10)) {
+        const platforms = Array.isArray(p.platforms) ? (p.platforms as string[]).join(', ') : String(p.platforms ?? '')
+        const date = p.published_at
+          ? new Date(p.published_at as string).toLocaleDateString('en-GB', { dateStyle: 'short' })
+          : '?'
+        const caption = typeof p.caption === 'string' ? p.caption.slice(0, 120) : ''
+        lines.push(`  • [${platforms}] ${date} — "${caption}${caption.length >= 120 ? '…' : ''}"`)
+      }
+    } else {
+      lines.push(`\nPublished this month: 0 posts`)
+    }
+
+    if (draftCount > 0) lines.push(`Drafts: ${draftCount}+ waiting`)
 
     return lines.join('\n')
   } catch { return '' }
@@ -159,8 +176,23 @@ async function fetchDocumentContext(db: SupabaseClient, id: string): Promise<str
       // Legacy HTML storage
       text = data.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
     } else if (data.content && typeof data.content === 'object') {
-      // Tiptap JSON (ProseMirror)
-      text = tiptapToText(data.content).replace(/\n{3,}/g, '\n\n').trim()
+      const c = data.content as Record<string, unknown>
+      if (Array.isArray(c.rows)) {
+        // Sheet format: { rows: string[][], numCols: number }
+        const rows = (c.rows as string[][]).filter(r => r.some(cell => cell.trim()))
+        if (rows.length > 0) {
+          const numCols = typeof c.numCols === 'number' ? c.numCols : (rows[0]?.length ?? 1)
+          const sep = Array(numCols).fill(':---').join(' | ')
+          text = [
+            `| ${rows[0].join(' | ')} |`,
+            `| ${sep} |`,
+            ...rows.slice(1).map(r => `| ${r.join(' | ')} |`),
+          ].join('\n')
+        }
+      } else {
+        // Tiptap JSON (ProseMirror)
+        text = tiptapToText(data.content).replace(/\n{3,}/g, '\n\n').trim()
+      }
     }
     const savedAt = data.updated_at
       ? ` (last saved: ${new Date(data.updated_at as string).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })})`
@@ -201,10 +233,37 @@ const METRICS_KEYWORDS = [
   'reach', 'impressions', 'followers', 'best post', 'worst post', 'top post',
   'how did', 'how are', 'scheduled', 'published', 'results',
 ]
+const APPROVAL_KEYWORDS = [
+  'approval', 'approve', 'approv', 'pending', 'waiting', 'client review',
+  'to review', 'needs review', 'sign off', 'sign-off',
+]
+const MODERATION_KEYWORDS = [
+  'moderat', 'comment', ' dm ', 'direct message', 'inbox', 'message', 'reply',
+  'respond', 'mention',
+]
+const TASK_KEYWORDS = [
+  'task', 'pipeline', 'stage', 'kanban', 'who is working', 'in progress',
+  'assigned', 'workload', 'who',
+]
 
+function lastMsg(messages: ChatMessage[]): string {
+  return messages[messages.length - 1]?.content?.toLowerCase() ?? ''
+}
 function needsPerformanceData(messages: ChatMessage[]): boolean {
-  const last = messages[messages.length - 1]?.content?.toLowerCase() ?? ''
+  const last = lastMsg(messages)
   return METRICS_KEYWORDS.some(kw => last.includes(kw))
+}
+function needsApprovalContext(messages: ChatMessage[]): boolean {
+  const last = lastMsg(messages)
+  return APPROVAL_KEYWORDS.some(kw => last.includes(kw))
+}
+function needsModerationContext(messages: ChatMessage[]): boolean {
+  const last = lastMsg(messages)
+  return MODERATION_KEYWORDS.some(kw => last.includes(kw))
+}
+function needsTaskContext(messages: ChatMessage[]): boolean {
+  const last = lastMsg(messages)
+  return TASK_KEYWORDS.some(kw => last.includes(kw))
 }
 
 async function fetchPerformanceSummary(db: SupabaseClient, clientId: string): Promise<string> {
@@ -223,6 +282,95 @@ async function fetchPerformanceSummary(db: SupabaseClient, clientId: string): Pr
     ).join('\n')
 
     return `Recent post performance (last 20 snapshots):\n${summary}`
+  } catch { return '' }
+}
+
+// ── Approval queue details ────────────────────────────────────
+
+async function fetchApprovalContext(db: SupabaseClient, clientId?: string): Promise<string> {
+  try {
+    let q = db
+      .from('approval_requests')
+      .select('id,client_id,status,created_at,approval_post_statuses(post_id,decision,notes,scheduled_posts(platforms,caption,scheduled_at))')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (clientId) q = q.eq('client_id', clientId)
+    const { data } = await q
+    if (!data?.length) return ''
+    const lines = [`── PENDING APPROVALS (${data.length}) ──`]
+    for (const req of data) {
+      type StatusRow = { decision: string; notes?: string; scheduled_posts?: unknown[] }
+      const statuses = ((req.approval_post_statuses ?? []) as unknown as StatusRow[])
+      const pending = statuses.filter(s => s.decision === 'pending')
+      lines.push(`  Request (${new Date(req.created_at as string).toLocaleDateString('en-GB')}) — ${pending.length} post${pending.length !== 1 ? 's' : ''} awaiting decision`)
+      for (const s of pending.slice(0, 3)) {
+        const pArr = s.scheduled_posts
+        const p = Array.isArray(pArr) ? (pArr[0] as Record<string, unknown> | undefined) : undefined
+        if (!p) continue
+        const platforms = Array.isArray(p.platforms) ? (p.platforms as string[]).join('/') : ''
+        const caption = typeof p.caption === 'string' ? p.caption.slice(0, 100) : ''
+        lines.push(`    • [${platforms}] "${caption}${caption.length >= 100 ? '…' : ''}"`)
+      }
+    }
+    return lines.join('\n')
+  } catch { return '' }
+}
+
+// ── Moderation queue details ──────────────────────────────────
+
+async function fetchModerationContext(db: SupabaseClient, clientId?: string): Promise<string> {
+  try {
+    let q = db
+      .from('moderation_items')
+      .select('id,client_id,platform,content,contact_name,status,created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (clientId) q = q.eq('client_id', clientId)
+    const { data } = await q
+    if (!data?.length) return ''
+    const lines = [`── PENDING MODERATION (${data.length}) ──`]
+    for (const item of data) {
+      const content = typeof item.content === 'string' ? item.content.slice(0, 150) : ''
+      lines.push(`  • [${item.platform ?? '?'}] ${item.contact_name ?? 'Unknown'}: "${content}${content.length >= 150 ? '…' : ''}"`)
+    }
+    return lines.join('\n')
+  } catch { return '' }
+}
+
+// ── Full pipeline tasks (keyword-triggered) ───────────────────
+
+async function fetchPipelineContext(db: SupabaseClient, clientId?: string): Promise<string> {
+  try {
+    let q = db
+      .from('tasks')
+      .select('id,title,pipeline_stage,priority,due_date,client_id,assigned_to')
+      .eq('status', 'active')
+      .order('pipeline_stage', { ascending: true })
+      .limit(50)
+    if (clientId) q = q.eq('client_id', clientId)
+    const { data: tasks } = await q
+    if (!tasks?.length) return ''
+    const clientIds = [...new Set(tasks.map(t => t.client_id).filter(Boolean))]
+    const { data: clients } = clientIds.length > 0
+      ? await db.from('clients').select('id,name').in('id', clientIds)
+      : { data: [] as Array<{ id: string; name: string }> }
+    const clientMap: Record<string, string> = {}
+    for (const c of clients ?? []) clientMap[c.id] = c.name
+    const byStage: Record<string, string[]> = {}
+    for (const t of tasks) {
+      const stage = t.pipeline_stage as string
+      if (!byStage[stage]) byStage[stage] = []
+      const due = t.due_date ? `, due ${t.due_date}` : ''
+      byStage[stage].push(`    • [${clientMap[t.client_id] ?? '?'}] "${t.title}"${due}`)
+    }
+    const lines = [`── PIPELINE TASKS BY STAGE ──`]
+    for (const [stage, items] of Object.entries(byStage)) {
+      lines.push(`  ${stage.toUpperCase()} (${items.length}):`)
+      lines.push(...items.slice(0, 8))
+    }
+    return lines.join('\n')
   } catch { return '' }
 }
 
@@ -265,75 +413,128 @@ async function fetchCeoAgencyBriefing(db: SupabaseClient): Promise<string> {
   const quarter = Math.ceil((now.getMonth() + 1) / 3)
   const year = now.getFullYear()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const in30days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  // Fetch each independently so one failure doesn't wipe out all context
   const safe = <T>(p: PromiseLike<T>) => Promise.resolve(p).catch(() => ({ data: null, error: 'fetch failed' }))
 
-  const [clientsRes, tasksRes, approvalsRes, moderationRes, ctxRes, stratRes, scheduledRes, publishedRes] = await Promise.all([
-    // crisis_mode is the real column name (NOT is_in_crisis)
+  const [
+    clientsRes, tasksRes, approvalsRes, moderationRes,
+    ctxRes, stratRes, scheduledRes, publishedRes,
+  ] = await Promise.all([
     safe(db.from('clients').select('id,name,crisis_mode,status,brand_identity_json,metricool_blog_id').eq('status', 'active')),
-    safe(db.from('tasks').select('id,client_id,status,due_date,pipeline_stage').eq('status', 'active')),
-    safe(db.from('approval_requests').select('id,status').eq('status', 'pending')),
-    safe(db.from('moderation_items').select('id,status').eq('status', 'pending')),
+    // Include title + description so AI can read what each task is
+    safe(db.from('tasks').select('id,title,description,client_id,status,due_date,pipeline_stage,priority,assigned_to').eq('status', 'active')),
+    // Approvals: include client_id and which posts are pending
+    safe(db.from('approval_requests').select('id,client_id,status,created_at').eq('status', 'pending').order('created_at', { ascending: false }).limit(30)),
+    // Moderation: include content + client
+    safe(db.from('moderation_items').select('id,client_id,status,platform,content,contact_name').eq('status', 'pending').order('created_at', { ascending: false }).limit(20)),
     safe(db.from('client_context_bank').select('client_id,category,summary').eq('is_active', true).order('created_at', { ascending: false }).limit(40)),
     safe(db.from('client_quarterly_strategies').select('client_id,goals,themes').eq('year', year).eq('quarter', quarter)),
-    // Upcoming scheduled posts (next 7 days) — grouped by client
-    safe(db.from('scheduled_posts').select('client_id,status').eq('status', 'scheduled').gte('scheduled_at', now.toISOString()).lte('scheduled_at', in7days)),
-    // Published this month — grouped by client
+    // All scheduled posts next 30 days — with captions
+    safe(
+      db.from('scheduled_posts')
+        .select('client_id,platforms,caption,scheduled_at')
+        .eq('status', 'scheduled')
+        .gte('scheduled_at', now.toISOString())
+        .lte('scheduled_at', in30days)
+        .order('scheduled_at', { ascending: true })
+        .limit(200),
+    ),
+    // Published this month per client
     safe(db.from('scheduled_posts').select('client_id').eq('status', 'published').gte('published_at', startOfMonth)),
   ])
 
   if (clientsRes.error) console.error('[assistant/chat] CEO briefing clients error:', clientsRes.error)
   if (tasksRes.error)   console.error('[assistant/chat] CEO briefing tasks error:', tasksRes.error)
 
-  const clients = clientsRes.data ?? []
-  const tasks   = tasksRes.data ?? []
+  const clients  = clientsRes.data ?? []
+  const tasks    = tasksRes.data ?? []
+  const approvals    = approvalsRes.data ?? []
+  const moderations  = moderationRes.data ?? []
+  const scheduled    = scheduledRes.data ?? []
+  const publishedAll = publishedRes.data ?? []
 
-  const overdueTasks  = tasks.filter(t => t.due_date && new Date(t.due_date) < now)
+  const overdueTasks  = tasks.filter(t => t.due_date && new Date(t.due_date as string) < now)
   const crisisClients = clients.filter(c => c.crisis_mode)
 
-  const ctxByClient   = (ctxRes.data ?? []).reduce((acc: Record<string, string[]>, r) => {
+  const ctxByClient  = (ctxRes.data ?? []).reduce((acc: Record<string, string[]>, r) => {
     if (!acc[r.client_id]) acc[r.client_id] = []
     acc[r.client_id].push(`[${r.category}] ${r.summary}`)
     return acc
   }, {})
   const stratByClient = (stratRes.data ?? []).reduce((acc: Record<string, string>, r) => {
-    acc[r.client_id] = r.goals ? `Goals: ${r.goals}` : ''
+    acc[r.client_id] = r.goals ? String(r.goals) : ''
     return acc
   }, {})
 
-  // Count scheduled + published per client
-  const scheduledByClient: Record<string, number> = {}
-  for (const p of scheduledRes.data ?? []) {
-    scheduledByClient[p.client_id] = (scheduledByClient[p.client_id] ?? 0) + 1
-  }
   const publishedByClient: Record<string, number> = {}
-  for (const p of publishedRes.data ?? []) {
+  for (const p of publishedAll) {
     publishedByClient[p.client_id] = (publishedByClient[p.client_id] ?? 0) + 1
+  }
+  const approvalsByClient: Record<string, number> = {}
+  for (const a of approvals) {
+    approvalsByClient[a.client_id] = (approvalsByClient[a.client_id] ?? 0) + 1
+  }
+  const moderationsByClient: Record<string, number> = {}
+  for (const m of moderations) {
+    if (m.client_id) moderationsByClient[m.client_id] = (moderationsByClient[m.client_id] ?? 0) + 1
   }
 
   const lines: string[] = [
     `── AGENCY OVERVIEW ──`,
-    `Active clients: ${clients.length} | Active tasks: ${tasks.length} | Overdue: ${overdueTasks.length}`,
-    `Pending approvals: ${(approvalsRes.data ?? []).length} | Pending moderation: ${(moderationRes.data ?? []).length}`,
+    `Active clients: ${clients.length} | Active tasks: ${tasks.length} | Overdue tasks: ${overdueTasks.length}`,
+    `Pending approvals: ${approvals.length} | Pending moderation: ${moderations.length}`,
     crisisClients.length > 0 ? `CRISIS MODE: ${crisisClients.map(c => c.name).join(', ')}` : 'No clients in crisis',
-    '',
-    `── PER-CLIENT STATUS ──`,
   ]
 
+  // Overdue task list
+  if (overdueTasks.length > 0) {
+    lines.push(`\nOVERDUE TASKS:`)
+    for (const t of overdueTasks.slice(0, 10)) {
+      const client = clients.find(c => c.id === t.client_id)
+      lines.push(`  • [${client?.name ?? 'Unknown'}] "${t.title}" — ${t.pipeline_stage}, due ${t.due_date}`)
+    }
+  }
+
+  // Pending moderation items
+  if (moderations.length > 0) {
+    lines.push(`\nPENDING MODERATION (${moderations.length}):`)
+    for (const m of moderations.slice(0, 8)) {
+      const client = clients.find(c => c.id === m.client_id)
+      const content = typeof m.content === 'string' ? m.content.slice(0, 100) : ''
+      lines.push(`  • [${client?.name ?? '?'}/${m.platform ?? '?'}] ${m.contact_name ?? 'Unknown'}: "${content}${content.length >= 100 ? '…' : ''}"`)
+    }
+  }
+
+  lines.push('', `── PER-CLIENT STATUS ──`)
+
   for (const client of clients) {
-    const clientTasks   = tasks.filter(t => t.client_id === client.id)
-    const clientOverdue = clientTasks.filter(t => t.due_date && new Date(t.due_date) < now)
-    const ctx       = ctxByClient[client.id] ?? []
-    const strat     = stratByClient[client.id]
-    const scheduled = scheduledByClient[client.id] ?? 0
-    const published = publishedByClient[client.id] ?? 0
-    const b = client.brand_identity_json as Record<string, unknown> | null
+    const clientTasks    = tasks.filter(t => t.client_id === client.id)
+    const clientOverdue  = clientTasks.filter(t => t.due_date && new Date(t.due_date as string) < now)
+    const clientScheduled = scheduled.filter(p => p.client_id === client.id)
+    const published      = publishedByClient[client.id] ?? 0
+    const pendingApprovals = approvalsByClient[client.id] ?? 0
+    const pendingMod     = moderationsByClient[client.id] ?? 0
+    const ctx            = ctxByClient[client.id] ?? []
+    const strat          = stratByClient[client.id]
+    const b              = client.brand_identity_json as Record<string, unknown> | null
 
     lines.push(`\n${client.name}${client.crisis_mode ? ' [CRISIS]' : ''} — ${b?.industry ?? 'Unknown industry'}`)
     lines.push(`  Tasks: ${clientTasks.length} active${clientOverdue.length > 0 ? `, ${clientOverdue.length} overdue` : ''}`)
-    lines.push(`  Metricool: ${scheduled} scheduled (next 7d) | ${published} published this month`)
+    if (pendingApprovals > 0) lines.push(`  Approvals pending: ${pendingApprovals}`)
+    if (pendingMod > 0) lines.push(`  Moderation pending: ${pendingMod}`)
+    lines.push(`  Scheduled (next 30d): ${clientScheduled.length} posts | Published this month: ${published}`)
+
+    // Show all upcoming scheduled posts with captions
+    for (const p of clientScheduled) {
+      const platforms = Array.isArray(p.platforms) ? (p.platforms as string[]).join('/') : String(p.platforms ?? '')
+      const date = p.scheduled_at
+        ? new Date(p.scheduled_at as string).toLocaleDateString('en-GB', { dateStyle: 'short' })
+        : '?'
+      const caption = typeof p.caption === 'string' ? p.caption.slice(0, 150) : ''
+      lines.push(`    • [${platforms}] ${date} — "${caption}${caption.length >= 150 ? '…' : ''}"`)
+    }
+
     if (strat) lines.push(`  Q${quarter} ${year} goal: ${strat.slice(0, 120)}`)
     if (ctx.length > 0) lines.push(`  Memory: ${ctx.slice(0, 3).join(' | ')}`)
   }
@@ -353,6 +554,7 @@ function buildSystemPrompt(
   intelligenceBlock?: string,
   ceoBriefing?:       string,
   userContext?:       string,
+  extraContext?:      string,
 ): string {
   const roleName = ({
     admin:            'Admin',
@@ -422,6 +624,10 @@ You are the NOVAX Engine — that is your identity. Nothing more needs to be sai
 
   if (userContext && !isCeo) {
     prompt += userContext
+  }
+
+  if (extraContext) {
+    prompt += `\n\n${extraContext}`
   }
 
   prompt += `
@@ -545,7 +751,11 @@ export async function POST(req: NextRequest) {
 
   const clientInContextItems = context_items.some(i => i.type === 'client' && i.id === client_id)
 
-  const [clientContext, contextBlocks, perfData, metricoolContext, intelligenceBlock, ceoBriefing, userContext] = await Promise.all([
+  const [
+    clientContext, contextBlocks, perfData, metricoolContext,
+    intelligenceBlock, ceoBriefing, userContext,
+    approvalContext, moderationContext, pipelineContext,
+  ] = await Promise.all([
     client_id && !clientInContextItems ? fetchClientContext(db, client_id) : Promise.resolve(''),
     Promise.all(contextFetches),
     client_id && needsPerformanceData(messages) ? fetchPerformanceSummary(db, client_id) : Promise.resolve(''),
@@ -553,7 +763,13 @@ export async function POST(req: NextRequest) {
     client_id ? buildClientIntelligenceBlock(client_id, 'chat', db).catch(() => '') : Promise.resolve(''),
     is_ceo ? fetchCeoAgencyBriefing(db).catch(err => { console.error('[assistant/chat] CEO briefing failed:', err); return '' }) : Promise.resolve(''),
     user_id && !is_ceo ? fetchUserScopedContext(db, user_id).catch(() => '') : Promise.resolve(''),
+    // Keyword-triggered detail fetchers
+    needsApprovalContext(messages) ? fetchApprovalContext(db, client_id || undefined).catch(() => '') : Promise.resolve(''),
+    needsModerationContext(messages) ? fetchModerationContext(db, client_id || undefined).catch(() => '') : Promise.resolve(''),
+    needsTaskContext(messages)       ? fetchPipelineContext(db, client_id || undefined).catch(() => '') : Promise.resolve(''),
   ])
+
+  const extraContext = [approvalContext, moderationContext, pipelineContext].filter(Boolean).join('\n\n') || undefined
 
   const systemPrompt = buildSystemPrompt(
     is_ceo,
@@ -565,6 +781,7 @@ export async function POST(req: NextRequest) {
     intelligenceBlock || undefined,
     ceoBriefing || undefined,
     userContext || undefined,
+    extraContext,
   )
 
   const useAnthropic = !!process.env.ANTHROPIC_API_KEY

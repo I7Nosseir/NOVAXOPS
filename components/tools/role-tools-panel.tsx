@@ -508,7 +508,7 @@ export function RoleToolsPanel() {
   return (
     <>
       {/* Floating trigger — compact icon, stacked above MyTasksFloat */}
-      <div className="fixed bottom-[8.5rem] right-6 z-50 group">
+      <div className="fixed bottom-[12.5rem] lg:bottom-[8.5rem] right-6 z-50 group">
         <button
           onClick={() => setOpen(v => !v)}
           className={cn(
@@ -530,7 +530,7 @@ export function RoleToolsPanel() {
       {open && (
         <div
           ref={panelRef}
-          className="fixed bottom-[12rem] right-6 z-50 w-[380px] max-h-[55vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+          className="fixed bottom-[16rem] lg:bottom-[12rem] right-4 lg:right-6 z-50 w-[calc(100vw-2rem)] max-w-[380px] max-h-[55vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
           style={{ animation: 'slideUp 0.18s ease-out' }}
         >
           {/* Header */}

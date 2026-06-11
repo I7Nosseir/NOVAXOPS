@@ -199,22 +199,33 @@ function DocEditCard({ docEdit, contextItems }: { docEdit: { docId: string; cont
 
   const docLabel = contextItems.find(c => c.id === docEdit.docId)?.label ?? 'Document'
 
+  const [applyError, setApplyError] = useState<string | null>(null)
+
   const apply = async () => {
     if (applyState !== 'idle') return
     setApplyState('loading')
+    setApplyError(null)
     try {
       const res = await fetch(`/api/docs/${docEdit.docId}/ai-edit`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ content: docEdit.content }),
       })
-      if (!res.ok) throw new Error('Apply failed')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Apply failed' })) as { error?: string }
+        throw new Error(errData.error ?? 'Apply failed')
+      }
       // Update the editor in real-time if the document is open in the same window
       window.dispatchEvent(new CustomEvent('novax:apply-to-doc', {
         detail: { docId: docEdit.docId, text: docEdit.content },
       }))
+      // Signal the docs page to refetch (handles sheet docs that can't use the ref)
+      window.dispatchEvent(new CustomEvent('novax:doc-ai-saved', {
+        detail: { docId: docEdit.docId },
+      }))
       setApplyState('done')
-    } catch {
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : 'Apply failed')
       setApplyState('error')
     }
   }
@@ -228,12 +239,12 @@ function DocEditCard({ docEdit, contextItems }: { docEdit: { docId: string; cont
       <p className="text-xs text-slate-600 leading-relaxed">
         AI has prepared edits for <span className="font-semibold">"{docLabel}"</span>. Review the preview, then apply.
       </p>
-      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-28 overflow-y-auto">
-        <pre className="text-[11px] text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
-          {docEdit.content.slice(0, 600)}{docEdit.content.length > 600 ? '\n…' : ''}
-        </pre>
+      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-28 overflow-y-auto prose prose-xs max-w-none [&_table]:text-[10px] [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-1 [&_td]:py-0.5 [&_th]:border [&_th]:border-slate-200 [&_th]:px-1 [&_th]:py-0.5 [&_th]:bg-slate-50 [&_p]:text-[11px] [&_p]:my-0.5">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {docEdit.content.slice(0, 800)}
+        </ReactMarkdown>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         {applyState === 'done' ? (
           <Link
             href={`/docs/${docEdit.docId}`}
@@ -253,7 +264,7 @@ function DocEditCard({ docEdit, contextItems }: { docEdit: { docId: string; cont
           </button>
         )}
         {applyState === 'error' && (
-          <span className="text-xs text-red-600">Failed — try again</span>
+          <span className="text-xs text-red-600">{applyError ?? 'Failed — try again'}</span>
         )}
       </div>
     </div>
@@ -297,10 +308,10 @@ function DocCreateCard({ docCreate }: { docCreate: { title: string; content: str
       <p className="text-xs text-slate-600 leading-relaxed">
         Approve to create <span className="font-semibold">"{docCreate.title}"</span> as a new document.
       </p>
-      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-28 overflow-y-auto">
-        <pre className="text-[11px] text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
-          {docCreate.content.slice(0, 600)}{docCreate.content.length > 600 ? '\n…' : ''}
-        </pre>
+      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-28 overflow-y-auto prose prose-xs max-w-none [&_table]:text-[10px] [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-1 [&_td]:py-0.5 [&_th]:border [&_th]:border-slate-200 [&_th]:px-1 [&_th]:py-0.5 [&_th]:bg-slate-50 [&_p]:text-[11px] [&_p]:my-0.5">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {docCreate.content.slice(0, 800)}
+        </ReactMarkdown>
       </div>
       <div className="flex items-center gap-2">
         {state === 'done' && newDocId ? (

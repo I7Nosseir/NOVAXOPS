@@ -65,7 +65,7 @@ export function MyTasksFloat() {
   return (
     <>
       {/* FAB — compact icon button, stacked above AI Assistant */}
-      <div className="fixed bottom-[4.75rem] right-6 z-50 group">
+      <div className="fixed bottom-[8.75rem] lg:bottom-[4.75rem] right-6 z-50 group">
         <button
           onClick={() => setOpen(v => !v)}
           className={cn(
@@ -90,7 +90,7 @@ export function MyTasksFloat() {
       {open && (
         <div
           ref={panelRef}
-          className="fixed bottom-[8.5rem] right-6 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[65vh] overflow-hidden"
+          className="fixed bottom-[12.5rem] lg:bottom-[8.5rem] right-4 lg:right-6 z-50 w-[calc(100vw-2rem)] max-w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[65vh] overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">

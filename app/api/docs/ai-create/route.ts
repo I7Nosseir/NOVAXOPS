@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { markdownToTiptap } from '@/lib/markdown-to-tiptap'
+import { markdownToTiptap, markdownTableToSheet, isMarkdownTable } from '@/lib/markdown-to-tiptap'
 import { randomBytes } from 'crypto'
 
 function adminSupabase() {
@@ -21,21 +21,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const title   = (body.title ?? '').trim() || 'Untitled Document'
-  const content = typeof body.content === 'string' ? body.content : ''
-
-  const tiptapContent = markdownToTiptap(content)
-  const share_token   = randomBytes(24).toString('hex')
+  const title      = (body.title ?? '').trim() || 'Untitled Document'
+  const rawContent = typeof body.content === 'string' ? body.content : ''
+  const isTable    = isMarkdownTable(rawContent)
+  const doc_type   = isTable ? 'sheet' : 'doc'
+  const docContent = isTable ? markdownTableToSheet(rawContent) : markdownToTiptap(rawContent)
+  const share_token = randomBytes(24).toString('hex')
 
   const db = adminSupabase()
   const { data, error } = await db
     .from('documents')
     .insert({
       title,
-      content:    tiptapContent,
-      client_id:  body.client_id ?? null,
+      content:     docContent,
+      client_id:   body.client_id ?? null,
       is_template: false,
-      doc_type:   'doc',
+      doc_type,
       share_token,
     })
     .select('id, title, created_at')

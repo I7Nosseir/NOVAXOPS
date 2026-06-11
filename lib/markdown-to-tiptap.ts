@@ -147,6 +147,43 @@ export function markdownToTiptap(markdown: string): object {
   return { type: 'doc', content }
 }
 
+// ── Markdown table → SheetEditor format ─────────────────────────────────────
+// Parses a markdown table into { rows, numCols } expected by SheetEditor.
+// Separator rows (| :--- | --- |) are skipped automatically.
+
+export function markdownTableToSheet(markdown: string): { rows: string[][]; numCols: number } {
+  const isSeparator = (line: string) => /^\|[\s|:-]+\|$/.test(line.trim())
+  const tableLines = markdown
+    .split('\n')
+    .filter(l => {
+      const t = l.trim()
+      return t.startsWith('|') && t.endsWith('|') && !isSeparator(l)
+    })
+  const parseRow = (line: string): string[] =>
+    line.split('|').slice(1, -1).map(cell => cell.trim())
+  const rows = tableLines.map(parseRow)
+  const numCols = Math.max(...rows.map(r => r.length), 1)
+  return {
+    numCols,
+    rows: rows.map(r => {
+      const padded = [...r]
+      while (padded.length < numCols) padded.push('')
+      return padded.slice(0, numCols)
+    }),
+  }
+}
+
+// Detect whether a markdown string is primarily a table
+export function isMarkdownTable(text: string): boolean {
+  const lines = text.trim().split('\n')
+  return (
+    lines.length >= 2 &&
+    lines[0].trim().startsWith('|') &&
+    lines[0].trim().endsWith('|') &&
+    /^\|[\s|:-]+\|$/.test((lines[1] ?? '').trim())
+  )
+}
+
 // ── Tiptap JSON → plain text (inverse, for previews) ────────────────────────
 // Re-exported here so callers don't need to duplicate the logic.
 

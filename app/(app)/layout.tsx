@@ -51,9 +51,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <RoleToolsPanel />
 
             {/* Primary AI Assistant FAB — hidden on the full-page /assistant route */}
+            {/* bottom-[5.5rem] on mobile lifts it above the 64px MobileNav + 24px gap */}
             {!isAssistantPage && (
               <>
-                <div className="fixed bottom-6 right-6 z-50">
+                <div className="fixed bottom-[5.5rem] lg:bottom-6 right-6 z-50">
                   <AssistantFab onClick={() => setChatOpen(v => !v)} isOpen={chatOpen} />
                 </div>
                 <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />

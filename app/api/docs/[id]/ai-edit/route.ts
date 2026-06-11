@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { markdownToTiptap } from '@/lib/markdown-to-tiptap'
+import { markdownToTiptap, markdownTableToSheet } from '@/lib/markdown-to-tiptap'
 
 function adminSupabase() {
   return createClient(
@@ -34,7 +34,7 @@ export async function POST(
   // Verify the document exists
   const { data: existing, error: fetchErr } = await db
     .from('documents')
-    .select('id, title')
+    .select('id, title, doc_type')
     .eq('id', id)
     .single()
 
@@ -42,11 +42,23 @@ export async function POST(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 })
   }
 
-  const tiptapContent = markdownToTiptap(body.content)
+  let newContent: object
+  if (existing.doc_type === 'sheet') {
+    const parsed = markdownTableToSheet(body.content)
+    if (parsed.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'Content must be a markdown table to edit a spreadsheet.' },
+        { status: 400 },
+      )
+    }
+    newContent = parsed
+  } else {
+    newContent = markdownToTiptap(body.content)
+  }
 
   const { data, error } = await db
     .from('documents')
-    .update({ content: tiptapContent, updated_at: new Date().toISOString() })
+    .update({ content: newContent, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select('id, title, updated_at')
     .single()

@@ -42,10 +42,12 @@ export default function DocEditorPage() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
-  const saveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const editorRef  = useRef<DocEditorRef>(null)
+  const saveTimer        = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const editorRef        = useRef<DocEditorRef>(null)
+  const pendingAiUpdate  = useRef(false)
+  const [aiEditVersion, setAiEditVersion] = useState(0)
 
-  // Listen for AI assistant "Apply to document" events
+  // Listen for AI assistant "Apply to document" events (Tiptap editor)
   useEffect(() => {
     const handler = (e: Event) => {
       const { docId, text } = (e as CustomEvent<{ docId: string; text: string }>).detail
@@ -56,19 +58,36 @@ export default function DocEditorPage() {
     return () => window.removeEventListener('novax:apply-to-doc', handler)
   }, [id])
 
+  // Listen for AI save events — invalidate query so SheetEditor gets fresh data
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { docId } = (e as CustomEvent<{ docId: string }>).detail
+      if (docId !== id) return
+      pendingAiUpdate.current = true
+      queryClient.invalidateQueries({ queryKey: ['doc', id] })
+    }
+    window.addEventListener('novax:doc-ai-saved', handler)
+    return () => window.removeEventListener('novax:doc-ai-saved', handler)
+  }, [id, queryClient])
+
   const { data: doc, isLoading } = useQuery<Document>({
     queryKey: ['doc', id],
     queryFn: () => fetch(`/api/docs/${id}`).then(r => r.json()),
     enabled: !!id,
   })
 
-  // Initialise local state from fetched doc
+  // Initialise local state from fetched doc (also handles AI-edit refetches)
   useEffect(() => {
     if (doc?.id) {
       setTitle(doc.title)
       setContent(doc.content ?? {})
       const d = doc.updated_at ? new Date(doc.updated_at) : null
       setLastSaved(d && !isNaN(d.getTime()) ? d : null)
+      // AI edit: force SheetEditor remount so it picks up new content from DB
+      if (pendingAiUpdate.current) {
+        pendingAiUpdate.current = false
+        setAiEditVersion(v => v + 1)
+      }
     }
   }, [doc])
 
@@ -259,7 +278,7 @@ export default function DocEditorPage() {
         {/* Editor — doc or sheet */}
         {doc.doc_type === 'sheet' ? (
           <div className="border border-slate-200 rounded-xl overflow-hidden bg-white" style={{ height: '70vh' }}>
-            <SheetEditor content={content} onChange={handleContentChange} editable title={title} />
+            <SheetEditor key={aiEditVersion} content={content} onChange={handleContentChange} editable title={title} />
           </div>
         ) : (
           <DocEditor ref={editorRef} content={content} onChange={handleContentChange} editable />

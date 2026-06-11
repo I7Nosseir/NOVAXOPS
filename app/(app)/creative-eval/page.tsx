@@ -155,6 +155,10 @@ const STRATEGY_DIMENSIONS = [
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+function verdictCfg(verdict: string) {
+  return VERDICT_CONFIG[verdict as keyof typeof VERDICT_CONFIG] ?? VERDICT_CONFIG.needs_work
+}
+
 function scoreColor(s: number) {
   return s >= 80 ? 'text-emerald-600' : s >= 65 ? 'text-amber-600' : s >= 50 ? 'text-orange-600' : 'text-red-600'
 }
@@ -251,6 +255,20 @@ export default function CreativeEvalPage() {
         setTextContent(await extractXlsxText(f))
       } else if (f.name.endsWith('.txt')) {
         setTextContent(await f.text())
+      } else if (f.name.match(/\.pdf$/i)) {
+        const ab    = await f.arrayBuffer()
+        const bytes = new Uint8Array(ab)
+        let bin = ''
+        for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i])
+        const base64 = btoa(bin)
+        setTextContent('Extracting PDF text…')
+        const res  = await fetch('/api/extract-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64 }),
+        })
+        const data = await res.json() as { text?: string; error?: string }
+        setTextContent(data.text?.trim() || '(Could not extract — paste text manually)')
       } else {
         const raw = await f.text()
         setTextContent(raw.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
@@ -330,6 +348,29 @@ export default function CreativeEvalPage() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
+    <>
+    {/* Full-screen loading overlay — covers sidebar, header, everything */}
+    {evaluating && (
+      <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-white dark:bg-slate-950">
+        <div className="text-center space-y-6">
+          <div className="relative w-20 h-20 mx-auto">
+            <div className="absolute inset-0 rounded-full border-4 border-novax-light"/>
+            <div className="absolute inset-0 rounded-full border-4 border-t-novax animate-spin"/>
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-slate-900 dark:text-white">
+              {inputMode === 'strategy' ? 'Evaluating strategy…' : 'Evaluating creative…'}
+            </p>
+            <p className="text-sm text-slate-500 mt-1">
+              {inputMode === 'strategy'
+                ? 'POV clarity · audience insight · differentiation · stress test'
+                : 'Attention architecture · credibility gap · virality · stress test'}
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="space-y-6 max-w-5xl">
       <p className="text-sm text-slate-500">
         Upload a creative, paste a script, or evaluate a strategy document. Scored against world-class benchmarks — calibrated to be honest, not encouraging.
@@ -431,8 +472,8 @@ export default function CreativeEvalPage() {
                   <FileText className="w-3.5 h-3.5"/>
                   Import file
                 </button>
-                <span className="text-[10px] text-slate-400">.txt · .csv · .xlsx · .docx (partial)</span>
-                <input ref={docInputRef} type="file" accept=".txt,.csv,.xlsx,.xls,.docx" className="hidden"
+                <span className="text-[10px] text-slate-400">.txt · .csv · .xlsx · .pdf · .docx</span>
+                <input ref={docInputRef} type="file" accept=".txt,.csv,.xlsx,.xls,.docx,.pdf" className="hidden"
                   onChange={e => e.target.files?.[0] && void handleDocFile(e.target.files[0])}/>
                 {docFileName && <span className="text-[10px] text-novax-muted font-medium truncate max-w-[120px]">{docFileName}</span>}
               </div>
@@ -562,11 +603,11 @@ export default function CreativeEvalPage() {
                   </div>
                 </div>
                 <div className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold self-start',
-                  VERDICT_CONFIG[stratResult.verdict].color,
-                  VERDICT_CONFIG[stratResult.verdict].bg,
-                  VERDICT_CONFIG[stratResult.verdict].border)}>
+                  verdictCfg(stratResult.verdict).color,
+                  verdictCfg(stratResult.verdict).bg,
+                  verdictCfg(stratResult.verdict).border)}>
                   <Award className="w-3 h-3"/>
-                  {VERDICT_CONFIG[stratResult.verdict].label}
+                  {verdictCfg(stratResult.verdict).label}
                 </div>
               </div>
 
@@ -825,13 +866,13 @@ export default function CreativeEvalPage() {
             : stratResult.verdict === 'start_over' ? 'bg-red-50 border-red-100'
             : 'bg-slate-50 border-slate-200')}>
             <div className="flex items-center gap-2 mb-2">
-              <Award className={cn('w-4 h-4', VERDICT_CONFIG[stratResult.verdict].color)}/>
+              <Award className={cn('w-4 h-4', verdictCfg(stratResult.verdict).color)}/>
               <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Verdict</p>
               <span className={cn('ml-auto text-[10px] font-bold px-2.5 py-1 rounded-full border',
-                VERDICT_CONFIG[stratResult.verdict].color,
-                VERDICT_CONFIG[stratResult.verdict].bg,
-                VERDICT_CONFIG[stratResult.verdict].border)}>
-                {VERDICT_CONFIG[stratResult.verdict].label}
+                verdictCfg(stratResult.verdict).color,
+                verdictCfg(stratResult.verdict).bg,
+                verdictCfg(stratResult.verdict).border)}>
+                {verdictCfg(stratResult.verdict).label}
               </span>
             </div>
             <p className="text-sm text-slate-700 leading-relaxed">{stratResult.verdict_rationale}</p>
@@ -915,5 +956,6 @@ export default function CreativeEvalPage() {
         </div>
       )}
     </div>
+    </>
   )
 }
