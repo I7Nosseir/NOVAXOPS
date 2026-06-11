@@ -260,59 +260,89 @@ export async function buildClientIntelligenceBlock(
   return blocks.length > 0 ? `\n\n${blocks.join('\n\n')}` : ''
 }
 
+type CompetitorAnalysisShape = {
+  opportunities?: string[]
+  hooks_to_avoid?: string[]
+  hooks_to_try?: string[]
+  recommended_formats?: string[]
+  landscape?: Array<{ handle: string; platform: string; followers: number; avg_er: number }>
+  summary?: string
+}
+
+function formatCompetitorBlock(analysis: CompetitorAnalysisShape, asOf: string): string {
+  const lines: string[] = []
+
+  if (analysis.landscape && analysis.landscape.length > 0) {
+    const top = analysis.landscape.slice(0, 3)
+    lines.push(`Top competitors: ${top.map(c => `${c.handle} (${c.platform}, ${c.avg_er}% ER)`).join(', ')}`)
+  }
+  if (analysis.hooks_to_avoid && analysis.hooks_to_avoid.length > 0) {
+    lines.push(`Hook patterns to differentiate from: ${analysis.hooks_to_avoid.slice(0, 3).join('; ')}`)
+  }
+  if (analysis.hooks_to_try && analysis.hooks_to_try.length > 0) {
+    lines.push(`Underused hook opportunities: ${analysis.hooks_to_try.slice(0, 3).join('; ')}`)
+  }
+  if (analysis.recommended_formats && analysis.recommended_formats.length > 0) {
+    lines.push(`Recommended formats (competitor gap): ${analysis.recommended_formats.slice(0, 3).join(', ')}`)
+  }
+  if (analysis.opportunities && analysis.opportunities.length > 0) {
+    lines.push(`Key opportunities: ${analysis.opportunities.slice(0, 2).join('; ')}`)
+  }
+  if (analysis.summary) {
+    lines.push(`Intelligence: ${analysis.summary}`)
+  }
+
+  if (lines.length === 0) return ''
+  return `\n\n── COMPETITIVE CONTEXT (as of ${asOf}) ──\n${lines.join('\n')}\nYour output must be clearly differentiated from the competitor patterns above.`
+}
+
 /**
  * Returns a competitive context block for injection into studio AI prompts.
- * Reads the cached competitor analysis from ai_generation_cache (24h TTL).
- * Returns empty string if no analysis exists yet.
+ * Primary source: competitor_intelligence_reports (typed JSONB table, from migration 034).
+ * Fallback: ai_generation_cache (legacy text cache).
+ * TTL: 7 days on either source.
+ * Returns empty string if no analysis exists or data is stale.
  */
 export async function buildCompetitorContextBlock(
   clientId: string,
   db: SupabaseClient
 ): Promise<string> {
-  const cacheKey = `competitor_analysis_${clientId}`
+  const TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-  const { data: cached } = await db
-    .from('ai_generation_cache')
-    .select('response_text, created_at')
-    .eq('prompt_hash', cacheKey)
-    .single()
-
-  if (!cached) return ''
-
-  // Only use if within 7 days
-  const age = Date.now() - new Date(cached.created_at as string).getTime()
-  if (age > 7 * 24 * 60 * 60 * 1000) return ''
-
+  // Primary: competitor_intelligence_reports (typed, proper FK, from 034 migration)
   try {
-    const analysis = JSON.parse(cached.response_text as string) as {
-      opportunities?: string[]
-      hooks_to_avoid?: string[]
-      hooks_to_try?: string[]
-      recommended_formats?: string[]
-      landscape?: Array<{ handle: string; platform: string; followers: number; avg_er: number }>
-    }
+    const { data: report } = await db
+      .from('competitor_intelligence_reports')
+      .select('report_json, generated_at')
+      .eq('client_id', clientId)
+      .single()
 
-    const lines: string[] = []
+    if (report) {
+      const age = Date.now() - new Date(report.generated_at as string).getTime()
+      if (age <= TTL_MS) {
+        const analysis = report.report_json as CompetitorAnalysisShape
+        const block = formatCompetitorBlock(analysis, new Date(report.generated_at as string).toLocaleDateString())
+        if (block) return block
+      }
+    }
+  } catch { /* table may not exist yet — fall through to cache */ }
 
-    if (analysis.landscape && analysis.landscape.length > 0) {
-      const top = analysis.landscape.slice(0, 3)
-      lines.push(`Top competitors: ${top.map(c => `${c.handle} (${c.platform}, ${c.avg_er}% ER)`).join(', ')}`)
-    }
-    if (analysis.hooks_to_avoid && analysis.hooks_to_avoid.length > 0) {
-      lines.push(`Hook patterns to differentiate from: ${analysis.hooks_to_avoid.slice(0, 3).join('; ')}`)
-    }
-    if (analysis.hooks_to_try && analysis.hooks_to_try.length > 0) {
-      lines.push(`Underused hook opportunities: ${analysis.hooks_to_try.slice(0, 3).join('; ')}`)
-    }
-    if (analysis.recommended_formats && analysis.recommended_formats.length > 0) {
-      lines.push(`Recommended formats (competitor gap): ${analysis.recommended_formats.slice(0, 3).join(', ')}`)
-    }
-    if (analysis.opportunities && analysis.opportunities.length > 0) {
-      lines.push(`Key opportunities: ${analysis.opportunities.slice(0, 2).join('; ')}`)
-    }
+  // Fallback: ai_generation_cache (legacy path — pre-034 reports)
+  try {
+    const cacheKey = `competitor_analysis_${clientId}`
+    const { data: cached } = await db
+      .from('ai_generation_cache')
+      .select('response_text, created_at')
+      .eq('prompt_hash', cacheKey)
+      .single()
 
-    if (lines.length === 0) return ''
-    return `\n\n── COMPETITIVE CONTEXT (as of ${new Date(cached.created_at as string).toLocaleDateString()}) ──\n${lines.join('\n')}\nYour output must be clearly differentiated from the competitor patterns above.`
+    if (!cached) return ''
+
+    const age = Date.now() - new Date(cached.created_at as string).getTime()
+    if (age > TTL_MS) return ''
+
+    const analysis = JSON.parse(cached.response_text as string) as CompetitorAnalysisShape
+    return formatCompetitorBlock(analysis, new Date(cached.created_at as string).toLocaleDateString())
   } catch {
     return ''
   }

@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import { geminiJson } from '@/lib/gemini'
 import type { PostMortemAnalysis, PostMortemDiagnosis } from '@/lib/studio-types'
 import { aiGuard } from '@/lib/ai-guard'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock } from '@/lib/client-intelligence'
 
 export const maxDuration = 60
 
@@ -28,6 +29,7 @@ function adminSupabase() {
 
 interface PostMortemBody {
   session_id?:      string
+  client_id?:       string   // used to inject client intelligence + competitor context into verdict
   session_data: {
     brief:        string
     hook_text:    string
@@ -204,6 +206,7 @@ Return ONLY valid JSON:
 async function buildVerdict(
   analyses: PostMortemDiagnosis['analyses'],
   body: PostMortemBody,
+  contextBlocks: string,
 ): Promise<{ verdict: string; rerun_constraints: Record<string, string> }> {
   const likelyCauses = Object.entries(analyses)
     .filter(([, v]) => v.verdict === 'likely_cause')
@@ -228,11 +231,12 @@ Caption: [${analyses.caption.verdict}] ${analyses.caption.finding}
 ${likelyCauses.length > 0 ? `PRIMARY CAUSES IDENTIFIED:\n${likelyCauses.join('\n')}` : 'No primary cause was isolated — this may be a compounding effect of multiple contributing factors.'}
 ${contributing.length > 0 ? `\nCONTRIBUTING FACTORS:\n${contributing.join('\n')}` : ''}
 
-VERDICT RULES:
+${contextBlocks ? `INTELLIGENCE CONTEXT:\n${contextBlocks.trim()}\nUse competitor benchmarks above when assessing whether the publishing window was contested, whether the hook pattern was saturated, or whether the format was already dominant in this niche.\n\n` : ''}VERDICT RULES:
 - 2–3 sentences maximum. One primary cause named. One clear prescription.
 - If multiple causes exist, rank them by likely impact percentage (e.g. "60% hook, 30% timing, 10% caption")
 - Do not soften. Do not hedge. Do not say "it may have been" — say what it was.
 - If reach is the primary problem (very low reach even by client standards), the verdict must name distribution as the issue — not creative execution.
+- If competitor context is provided and a competitor posted in the same window or used the same hook type, name it explicitly.
 
 RERUN CONSTRAINTS — if this content were to be rerun with changes, what MUST change?
 Provide specific, usable values (not "better hook" — "use curiosity or transformation hook type"):
@@ -279,6 +283,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'AI provider not configured' }, { status: 503 })
   }
 
+  // ── Fetch client intelligence + competitor context (non-blocking — runs in parallel with analyses)
+  let contextBlocks = ''
+  if (body.client_id && HAS_DB) {
+    const db = adminSupabase()
+    const [intelBlock, compBlock] = await Promise.all([
+      buildClientIntelligenceBlock(body.client_id, 'postmortem', db).catch(() => ''),
+      buildCompetitorContextBlock(body.client_id, db).catch(() => ''),
+    ])
+    contextBlocks = [intelBlock, compBlock].filter(Boolean).join('\n')
+  }
+
   // ── 4 parallel Gemini analyses ─────────────────────────────
   const [hookResult, formatResult, timingResult, captionResult] = await Promise.all([
     analyzeHook(body.session_data, body.performance, body.client_context).catch(
@@ -317,7 +332,7 @@ export async function POST(req: NextRequest) {
   // ── Gemini verdict ─────────────────────────────────────────
   let verdictData: { verdict: string; rerun_constraints: Record<string, string> }
   try {
-    verdictData = await buildVerdict(analyses, body)
+    verdictData = await buildVerdict(analyses, body, contextBlocks)
   } catch {
     verdictData = {
       verdict: `Analysis complete. Primary areas of concern: ${

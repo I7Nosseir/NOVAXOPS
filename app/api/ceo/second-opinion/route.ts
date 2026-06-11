@@ -3,6 +3,20 @@ import { requireRole } from '@/lib/api-auth'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 
+async function callAI(prompt: string): Promise<string> {
+  if (process.env.ANTHROPIC_API_KEY) {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const msg = await ai.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2500,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    return msg.content[0].type === 'text' ? msg.content[0].text : ''
+  }
+  return callGemini(prompt)
+}
+
 async function callGemini(prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY!
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`
@@ -26,8 +40,8 @@ interface SecondOpinionRequest {
 
 export async function POST(req: NextRequest) {
   const auth = await requireRole(['admin', 'ceo']); if ('error' in auth) return auth.error
-  if (!process.env.GEMINI_API_KEY) {
-    return NextResponse.json({ error: 'GEMINI_API_KEY is not configured.' }, { status: 500 })
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: 'No AI provider configured.' }, { status: 503 })
   }
 
   let body: SecondOpinionRequest
@@ -204,7 +218,7 @@ Rules: No hashtags. No emojis. Provide specific language, not frameworks. The CE
   }
 
   try {
-    const result = await callGemini(prompt)
+    const result = await callAI(prompt)
     return NextResponse.json({ result })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'AI generation failed.'

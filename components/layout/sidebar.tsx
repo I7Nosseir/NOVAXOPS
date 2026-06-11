@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
   ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2, ListTodo, ScanSearch, FileText,
-  Zap, Brain, Crown, Clapperboard, Flame, Layers,
+  Zap, Brain, Crown, Clapperboard, Flame, Layers, Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -207,6 +207,40 @@ export function Sidebar() {
               </div>
             )
           })()}
+          {/* Admin-only section */}
+          {isAdmin && (() => {
+            const href = '/activity'
+            const active = pathname === href
+            return (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-1.5" style={{ color: 'rgba(91,180,174,0.5)' }}>
+                  Admin
+                </p>
+                <Link
+                  href={href}
+                  onClick={handleNavClick}
+                  className={cn(
+                    'flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group',
+                    active ? 'text-white sidebar-item-active' : 'text-slate-400 hover:text-slate-200'
+                  )}
+                  style={active ? {
+                    background: 'linear-gradient(135deg, rgba(91,180,174,0.11) 0%, rgba(27,61,56,0.18) 100%)',
+                    color: 'var(--sidebar-text-active)',
+                    boxShadow: 'inset 0 1px 0 rgba(91,180,174,0.08)',
+                  } : {}}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.048)' }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = '' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Activity className={cn('w-4 h-4 shrink-0', active ? 'text-novax-accent' : 'text-slate-500 group-hover:text-slate-300')} />
+                    <span>Team Activity</span>
+                  </div>
+                  {active && <ChevronRight className="w-3.5 h-3.5 text-novax-accent opacity-60" />}
+                </Link>
+              </div>
+            )
+          })()}
+
           {NAV_SECTIONS
             .map((section, si) => {
               const visibleItems = section.items.filter(item => canSee(item.permKey))

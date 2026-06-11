@@ -1,6 +1,6 @@
 // ============================================================
 // POST /api/user/activity  — upsert current user's last_seen + page
-// GET  /api/user/activity  — admin/CEO: all users with activity + API usage
+// GET  /api/user/activity  — admin/CEO: full team activity dashboard data
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -28,8 +28,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json() as { current_page?: string }
 
-    // Resolve the internal profile id from auth_id
-    const db  = createAdminClient()
+    const db = createAdminClient()
     const { data: profile } = await db
       .from('users')
       .select('id')
@@ -63,13 +62,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET — returns all users with activity + API usage. Admin/CEO only.
+// GET — full team activity data for the admin monitoring page.
 export async function GET(_req: NextRequest) {
   try {
     const { user, supabase } = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Check role
     const { data: profile } = await supabase
       .from('users')
       .select('role')
@@ -81,49 +79,160 @@ export async function GET(_req: NextRequest) {
     }
 
     const db = createAdminClient()
+    const now = new Date()
 
-    const { data: users, error: usersErr } = await db
-      .from('users')
-      .select('id, name, email, role, avatar_url')
-      .order('name')
+    const todayStart = new Date(now)
+    todayStart.setHours(0, 0, 0, 0)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    if (usersErr) return NextResponse.json({ error: usersErr.message }, { status: 500 })
+    // All queries run in parallel
+    const [
+      { data: users },
+      { data: activity },
+      { data: usageToday },
+      { data: usageMonth },
+      { data: auditRecent },
+      { data: studioToday },
+      { data: docsToday },
+    ] = await Promise.all([
+      db.from('users')
+        .select('id, name, email, role, avatar_url')
+        .order('name'),
 
-    const { data: activity } = await db
-      .from('user_activity')
-      .select('user_id, last_seen, current_page')
+      db.from('user_activity')
+        .select('user_id, last_seen, current_page'),
+
+      // Today's AI usage — cost + call count per user
+      db.from('api_usage')
+        .select('user_id, cost_usd, endpoint, was_cached')
+        .gte('created_at', todayStart.toISOString()),
+
+      // Month's AI usage — cost + call count per user
+      db.from('api_usage')
+        .select('user_id, cost_usd')
+        .gte('created_at', monthStart.toISOString()),
+
+      // Last 40 audit log entries with user info
+      db.from('audit_log')
+        .select('id, user_id, action, entity_type, entity_id, metadata, created_at')
+        .gte('created_at', sevenDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(40),
+
+      // Studio sessions started today
+      db.from('studio_sessions')
+        .select('user_id')
+        .gte('created_at', todayStart.toISOString()),
+
+      // Documents created today
+      db.from('documents')
+        .select('created_by')
+        .gte('created_at', todayStart.toISOString()),
+    ])
+
+    // ── Build per-user stats ─────────────────────────────────────────────────
 
     const activityMap = new Map(
       (activity ?? []).map(a => [a.user_id, a])
     )
 
-    const monthStart = new Date()
-    monthStart.setDate(1)
-    monthStart.setHours(0, 0, 0, 0)
-
-    const { data: usageCounts } = await db
-      .from('api_usage')
-      .select('user_id')
-      .gte('created_at', monthStart.toISOString())
-
-    const callCountMap = new Map<string, number>()
-    for (const row of usageCounts ?? []) {
-      if (row.user_id) {
-        callCountMap.set(row.user_id, (callCountMap.get(row.user_id) ?? 0) + 1)
-      }
+    // Today: calls + cost + agent breakdown per user
+    interface AgentCount { [agent: string]: number }
+    const todayStatsMap = new Map<string, { calls: number; cost: number; agents: AgentCount; cached: number }>()
+    for (const row of usageToday ?? []) {
+      if (!row.user_id) continue
+      const prev = todayStatsMap.get(row.user_id) ?? { calls: 0, cost: 0, agents: {}, cached: 0 }
+      prev.calls++
+      prev.cost += row.cost_usd ?? 0
+      prev.agents[row.endpoint] = (prev.agents[row.endpoint] ?? 0) + 1
+      if (row.was_cached) prev.cached++
+      todayStatsMap.set(row.user_id, prev)
     }
 
-    const result = (users ?? []).map(u => {
+    // Month: calls + cost per user
+    const monthStatsMap = new Map<string, { calls: number; cost: number }>()
+    for (const row of usageMonth ?? []) {
+      if (!row.user_id) continue
+      const prev = monthStatsMap.get(row.user_id) ?? { calls: 0, cost: 0 }
+      prev.calls++
+      prev.cost += row.cost_usd ?? 0
+      monthStatsMap.set(row.user_id, prev)
+    }
+
+    // Studio sessions today per user
+    const studioTodayMap = new Map<string, number>()
+    for (const row of studioToday ?? []) {
+      if (!row.user_id) continue
+      studioTodayMap.set(row.user_id, (studioTodayMap.get(row.user_id) ?? 0) + 1)
+    }
+
+    // Documents created today per user
+    const docsTodayMap = new Map<string, number>()
+    for (const row of docsToday ?? []) {
+      if (!row.created_by) continue
+      docsTodayMap.set(row.created_by, (docsTodayMap.get(row.created_by) ?? 0) + 1)
+    }
+
+    // Assemble user records
+    const userRecords = (users ?? []).map(u => {
       const act = activityMap.get(u.id)
+      const todayAI = todayStatsMap.get(u.id)
+      const monthAI = monthStatsMap.get(u.id)
       return {
-        ...u,
-        last_seen:    act?.last_seen    ?? null,
-        current_page: act?.current_page ?? null,
-        api_calls_this_month: callCountMap.get(u.id) ?? 0,
+        id:            u.id,
+        name:          u.name,
+        email:         u.email,
+        role:          u.role,
+        avatar_url:    u.avatar_url ?? null,
+        last_seen:     act?.last_seen ?? null,
+        current_page:  act?.current_page ?? null,
+        today_ai_calls:      todayAI?.calls ?? 0,
+        today_ai_cost_usd:   Math.round((todayAI?.cost ?? 0) * 10000) / 10000,
+        today_ai_agents:     todayAI?.agents ?? {},
+        today_ai_cached:     todayAI?.cached ?? 0,
+        today_studio_sessions: studioTodayMap.get(u.id) ?? 0,
+        today_docs_created:  docsTodayMap.get(u.id) ?? 0,
+        month_ai_calls:      monthAI?.calls ?? 0,
+        month_ai_cost_usd:   Math.round((monthAI?.cost ?? 0) * 10000) / 10000,
       }
     })
 
-    return NextResponse.json({ users: result })
+    // ── Agency-wide totals ────────────────────────────────────────────────────
+
+    const totals = {
+      today_ai_calls:    (usageToday ?? []).length,
+      today_ai_cost_usd: Math.round((usageToday ?? []).reduce((s, r) => s + (r.cost_usd ?? 0), 0) * 10000) / 10000,
+      month_ai_calls:    (usageMonth ?? []).length,
+      month_ai_cost_usd: Math.round((usageMonth ?? []).reduce((s, r) => s + (r.cost_usd ?? 0), 0) * 10000) / 10000,
+      online_now:        (activity ?? []).filter(a => new Date(a.last_seen) > new Date(now.getTime() - 5 * 60 * 1000)).length,
+    }
+
+    // ── Agent breakdown for today (agency-wide) ───────────────────────────────
+
+    const agentBreakdown: Record<string, number> = {}
+    for (const row of usageToday ?? []) {
+      agentBreakdown[row.endpoint] = (agentBreakdown[row.endpoint] ?? 0) + 1
+    }
+    const agentBreakdownSorted = Object.entries(agentBreakdown)
+      .sort(([, a], [, b]) => b - a)
+      .map(([agent, count]) => ({ agent, count }))
+
+    // ── Attach user names to audit log ────────────────────────────────────────
+
+    const userNameMap = new Map((users ?? []).map(u => [u.id, u.name]))
+    const auditWithNames = (auditRecent ?? []).map(entry => ({
+      ...entry,
+      user_name: entry.user_id ? (userNameMap.get(entry.user_id) ?? 'System') : 'System',
+    }))
+
+    return NextResponse.json({
+      users:           userRecords,
+      totals,
+      agent_breakdown: agentBreakdownSorted,
+      audit_log:       auditWithNames,
+      fetched_at:      now.toISOString(),
+    })
   } catch (err) {
     console.error('[user/activity] GET error:', err)
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 })

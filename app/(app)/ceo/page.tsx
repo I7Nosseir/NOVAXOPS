@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, Copy, Check, Loader2, TrendingUp,
   TrendingDown, Minus, Users, BarChart2, Zap, Scale,
   CheckCircle2, Target, Lightbulb, GitBranch, ShieldAlert,
-  Calendar, FileText, AlertCircle, ChevronRight, Wand2,
+  Calendar, FileText, AlertCircle, ChevronRight, Wand2, RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -447,6 +447,100 @@ function ContextBanner({
   )
 }
 
+// ─── Agency Pulse Panel ────────────────────────────────────────────────────────
+
+function AgencyPulsePanel() {
+  const [result, setResult] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [fetchedAt, setFetchedAt] = useState<Date | null>(null)
+  const [expanded, setExpanded] = useState(true)
+
+  const run = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/ceo/pulse')
+      const data = await res.json() as { result?: string; error?: string; generated_at?: string }
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Generation failed')
+      setResult(data.result ?? '')
+      setFetchedAt(data.generated_at ? new Date(data.generated_at) : new Date())
+      setExpanded(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate pulse.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl overflow-hidden border border-novax/20 bg-novax">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+            <Activity className="w-4.5 h-4.5 text-white" style={{ width: 18, height: 18 }} />
+          </div>
+          <div>
+            <p className="font-bold text-white text-sm">What's Happening</p>
+            <p className="text-white/50 text-xs">Live AI analysis — tasks, pipeline, comments, publishing</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {fetchedAt && (
+            <span className="text-white/40 text-xs hidden sm:block">
+              {fetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          {result && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="text-white/50 hover:text-white transition-colors p-1 rounded"
+            >
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          )}
+          <button
+            onClick={run}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-novax text-sm font-semibold rounded-lg hover:bg-novax-light transition-colors disabled:opacity-60 shrink-0"
+          >
+            {loading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : result
+                ? <RefreshCw className="w-3.5 h-3.5" />
+                : <Activity className="w-3.5 h-3.5" />}
+            {loading ? 'Analysing...' : result ? 'Refresh' : "What's Happening"}
+          </button>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="mx-5 mb-4 px-3 py-2 bg-red-500/20 rounded-lg text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      {/* Result */}
+      {result && expanded && (
+        <div className="mx-5 mb-5 bg-white rounded-xl p-5">
+          <MarkdownContent content={result} />
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!result && !loading && !error && (
+        <div className="px-5 pb-5">
+          <p className="text-white/40 text-xs">
+            Scans all active tasks, overdue items, team comments, and scheduled posts — then gives you a clear read on the agency in under a minute.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Agency Health Tab ─────────────────────────────────────────────────────────
 
 function AgencyHealthTab({ clients, tasks, posts }: {
@@ -478,6 +572,8 @@ function AgencyHealthTab({ clients, tasks, posts }: {
 
   return (
     <div className="space-y-6">
+      <AgencyPulsePanel />
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {stats.map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="bg-white rounded-xl border border-slate-200 p-4">
@@ -597,6 +693,132 @@ function AgencyHealthTab({ clients, tasks, posts }: {
             })}
           </div>
           <p className="text-[11px] text-slate-400 mt-1.5">Target = posts per week × 4. Published or scheduled posts counted for this month so far.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Competitor Intelligence Card ─────────────────────────────────────────────
+
+interface CompetitorSummary {
+  summary: string
+  opportunities: string[]
+  threats: { handle: string; threat_level: string; recommended_response: string }[]
+  generated_at: string
+}
+
+function CompetitorIntelCard({ clientId }: { clientId: string }) {
+  const [data, setData] = useState<CompetitorSummary | null>(null)
+  const [fetching, setFetching] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+
+  useEffect(() => {
+    if (!clientId) { setData(null); return }
+    setFetching(true)
+    fetch(`/api/competitors/analyze?client_id=${clientId}`)
+      .then(r => r.json())
+      .then((res: { analysis?: CompetitorSummary }) => { setData(res.analysis ?? null) })
+      .catch(() => {})
+      .finally(() => setFetching(false))
+  }, [clientId])
+
+  const runAnalysis = async () => {
+    setAnalyzing(true)
+    try {
+      const res = await fetch('/api/competitors/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      })
+      const json = await res.json() as { analysis?: CompetitorSummary }
+      if (json.analysis) setData(json.analysis)
+    } catch { /* non-critical */ }
+    finally { setAnalyzing(false) }
+  }
+
+  if (fetching) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-2 text-sm text-slate-400">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading competitive intelligence...
+      </div>
+    )
+  }
+
+  const topThreat = data?.threats?.[0]
+  const topOpportunity = data?.opportunities?.[0]
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <Target className="w-4 h-4 text-novax" />
+          <p className="text-sm font-semibold text-slate-900">Competitive Intelligence</p>
+          {data?.generated_at && (
+            <span className="text-[10px] text-slate-400 font-medium bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
+              {new Date(data.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => void runAnalysis()}
+          disabled={analyzing}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-novax bg-novax-light hover:bg-novax hover:text-white rounded-lg transition-colors disabled:opacity-50"
+        >
+          {analyzing
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <RefreshCw className="w-3.5 h-3.5" />}
+          {analyzing ? 'Analyzing...' : data ? 'Refresh' : 'Analyze Now'}
+        </button>
+      </div>
+
+      {analyzing && !data && (
+        <div className="px-5 py-4 flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="w-4 h-4 animate-spin text-novax" />
+          Generating competitive intelligence — takes about 30 seconds...
+        </div>
+      )}
+
+      {!data && !analyzing && (
+        <div className="px-5 py-4 text-sm text-slate-400">
+          No competitive intelligence cached. Run analysis to power all strategy tools with real competitor context.
+        </div>
+      )}
+
+      {data && (
+        <div className="divide-y divide-slate-50">
+          {data.summary && (
+            <div className="px-5 py-3.5">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Summary</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{data.summary}</p>
+            </div>
+          )}
+          {topOpportunity && (
+            <div className="px-5 py-3">
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Top Opportunity</p>
+              <p className="text-sm text-slate-700">{topOpportunity}</p>
+            </div>
+          )}
+          {topThreat && (
+            <div className="px-5 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Top Threat</p>
+                <span className={cn(
+                  'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                  topThreat.threat_level === 'high'   ? 'bg-red-50 text-red-700' :
+                  topThreat.threat_level === 'medium' ? 'bg-amber-50 text-amber-700' :
+                  'bg-slate-50 text-slate-600',
+                )}>
+                  {topThreat.threat_level.toUpperCase()}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-slate-900">{topThreat.handle}</p>
+              {topThreat.recommended_response && (
+                <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{topThreat.recommended_response}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -769,6 +991,11 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
           </div>
         </div>
       </div>
+
+      {/* Competitive Intelligence — auto-loads cached intel, powers all analysis tools */}
+      {selectedClient && (
+        <CompetitorIntelCard clientId={selectedClient} />
+      )}
 
       {/* Client strategy context (shown when a client is selected) */}
       {selectedClient && (

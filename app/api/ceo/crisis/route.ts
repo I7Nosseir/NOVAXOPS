@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireRole } from '@/lib/api-auth'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock } from '@/lib/client-intelligence'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 
@@ -14,6 +15,20 @@ function adminSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
+}
+
+async function callAI(prompt: string): Promise<string> {
+  if (process.env.ANTHROPIC_API_KEY) {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const msg = await ai.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2500,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    return msg.content[0].type === 'text' ? msg.content[0].text : ''
+  }
+  return callGemini(prompt)
 }
 
 async function callGemini(prompt: string): Promise<string> {
@@ -55,8 +70,8 @@ interface CrisisRequest {
 
 export async function POST(req: NextRequest) {
   const auth = await requireRole(['admin', 'ceo']); if ('error' in auth) return auth.error
-  if (!process.env.GEMINI_API_KEY) {
-    return NextResponse.json({ error: 'GEMINI_API_KEY is not configured.' }, { status: 500 })
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: 'No AI provider configured.' }, { status: 503 })
   }
 
   let body: CrisisRequest
@@ -67,6 +82,18 @@ export async function POST(req: NextRequest) {
   }
 
   const { tool, client_name, client_data } = body
+
+  // Fetch intelligence context in parallel (non-blocking) — crisis tools benefit from
+  // knowing client brand voice, past wins to anchor recovery, and competitor landscape
+  let intelligenceSection = ''
+  if (HAS_DB) {
+    const db = adminSupabase()
+    const [intelBlock, compBlock] = await Promise.all([
+      buildClientIntelligenceBlock(body.client_id, 'ceo_crisis', db).catch(() => ''),
+      buildCompetitorContextBlock(body.client_id, db).catch(() => ''),
+    ])
+    intelligenceSection = [intelBlock, compBlock].filter(Boolean).join('\n')
+  }
 
   const industry = client_data?.brand_identity?.industry ?? client_data?.industry ?? 'unspecified'
   const brandVoice = client_data?.brand_identity?.tone_of_voice ?? 'professional'
@@ -250,8 +277,13 @@ Rules: No hashtags. No emojis. Every content directive must be specific enough t
       return NextResponse.json({ error: `Unknown crisis tool: ${String(tool)}` }, { status: 400 })
   }
 
+  // Inject client intelligence: brand voice, context bank wins, competitor landscape
+  if (intelligenceSection) {
+    prompt += `\n\n${intelligenceSection}`
+  }
+
   try {
-    const result = await callGemini(prompt)
+    const result = await callAI(prompt)
 
     // Persist to ai_generation_cache (fire-and-forget)
     if (HAS_DB) {

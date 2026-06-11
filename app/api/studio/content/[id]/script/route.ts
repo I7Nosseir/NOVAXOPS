@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase } from '@/lib/client-intelligence'
 import { aiGuard } from '@/lib/ai-guard'
 
 export const maxDuration = 120
@@ -405,12 +405,16 @@ export async function POST(
   let prompt = selectPrompt(body)
   let raw = ''
 
-  // Inject client intelligence
+  // Inject client intelligence + competitor context
   if (body.client_id) {
     const db = adminSupabase()
     if (db) {
-      const block = await buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => '')
-      if (block) prompt = prompt + block
+      const [intelBlock, compBlock] = await Promise.all([
+        buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => ''),
+        buildCompetitorContextBlock(body.client_id, db).catch(() => ''),
+      ])
+      if (intelBlock) prompt = prompt + intelBlock
+      if (compBlock)  prompt = prompt + compBlock
     }
   }
 

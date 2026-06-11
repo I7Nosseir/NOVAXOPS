@@ -255,6 +255,12 @@ export interface CompetitorSnapshot {
   posting_frequency: number
   captured_at: string
   notes?: string
+  scope?: 'local' | 'global'
+  social_url?: string
+  platform_strategy?: string
+  brand_positioning?: string
+  content_themes?: string[]
+  last_analyzed_at?: string
 }
 
 export interface CompetitorPost {

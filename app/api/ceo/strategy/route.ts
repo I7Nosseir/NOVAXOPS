@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireRole } from '@/lib/api-auth'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock } from '@/lib/client-intelligence'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 
@@ -20,6 +21,20 @@ const MONTH_NAMES = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December',
 ]
+
+async function callAI(prompt: string): Promise<string> {
+  if (process.env.ANTHROPIC_API_KEY) {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const msg = await ai.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2500,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    return msg.content[0].type === 'text' ? msg.content[0].text : ''
+  }
+  return callGemini(prompt)
+}
 
 async function callGemini(prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY!
@@ -120,8 +135,8 @@ function buildContextBlock(
 
 export async function POST(req: NextRequest) {
   const auth = await requireRole(['admin', 'ceo']); if ('error' in auth) return auth.error
-  if (!process.env.GEMINI_API_KEY) {
-    return NextResponse.json({ error: 'GEMINI_API_KEY is not configured.' }, { status: 500 })
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: 'No AI provider configured.' }, { status: 503 })
   }
 
   let body: StrategyRequest
@@ -136,6 +151,17 @@ export async function POST(req: NextRequest) {
     quarterly_strategy, monthly_update,
     context_year, context_quarter, context_month,
   } = body
+
+  // Fetch client intelligence + competitor context in parallel (non-blocking)
+  let intelligenceSection = ''
+  if (HAS_DB && body.client_id) {
+    const db = adminSupabase()
+    const [intelBlock, compBlock] = await Promise.all([
+      buildClientIntelligenceBlock(body.client_id, 'ceo_strategy', db).catch(() => ''),
+      buildCompetitorContextBlock(body.client_id, db).catch(() => ''),
+    ])
+    intelligenceSection = [intelBlock, compBlock].filter(Boolean).join('\n')
+  }
 
   const clientName = client_name ?? 'the client'
   const industry = client_data?.brand_identity?.industry ?? client_data?.industry ?? 'unspecified'
@@ -363,8 +389,13 @@ Rules: No hashtags. No emojis. Executive prose only — no bullet points except 
       return NextResponse.json({ error: `Unknown strategy tool: ${String(tool)}` }, { status: 400 })
   }
 
+  // Inject client intelligence context (context bank, AI feedback, Pinterest learning, competitor intel)
+  if (intelligenceSection) {
+    prompt += `\n\n${intelligenceSection}`
+  }
+
   try {
-    const result = await callGemini(prompt)
+    const result = await callAI(prompt)
 
     // Persist to ai_generation_cache (fire-and-forget)
     if (HAS_DB) {
