@@ -255,8 +255,8 @@ export async function POST(req: NextRequest) {
   if (!brief_text?.trim()) {
     return NextResponse.json({ error: 'brief_text is required' }, { status: 400 })
   }
-  if (!process.env.APIFY_API_KEY) {
-    return NextResponse.json({ error: 'Pinterest scraping is not configured (APIFY_API_KEY missing)' }, { status: 503 })
+  if (!process.env.APIFY_API_KEY && !process.env.PINTEREST_ACCESS_TOKEN) {
+    return NextResponse.json({ error: 'Pinterest is not configured — set PINTEREST_ACCESS_TOKEN or APIFY_API_KEY' }, { status: 503 })
   }
 
   const supabase = db()
