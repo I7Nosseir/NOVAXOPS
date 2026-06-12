@@ -104,26 +104,40 @@ export default function DocsPage() {
   const handleImport = async (file: File) => {
     setImporting(true)
     try {
-      let text = ''
       const name = file.name.replace(/\.[^.]+$/, '')
+      const isSpreadsheet = file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+      const isCsv = file.name.endsWith('.csv')
 
-      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
+      if (isSpreadsheet || isCsv) {
         const ab = await file.arrayBuffer()
         const wb = XLSX.read(ab, { type: 'array' })
-        const parts: string[] = []
-        for (const sheetName of wb.SheetNames) {
-          const ws = wb.Sheets[sheetName]
-          const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false })
-          if (csv.trim()) parts.push(`${sheetName}\n${csv}`)
-        }
-        text = parts.join('\n\n')
-      } else {
-        // .docx or .txt — basic text read
-        text = await file.text()
-        // Strip XML/binary for docx
-        if (file.name.endsWith('.docx')) {
-          text = text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
-        }
+        // Use first sheet only for now; convert to SheetContent rows
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' })
+        const numCols = Math.max(...raw.map(r => r.length), 26)
+        // Ensure every row has exactly numCols cells
+        const rows = raw.map(r => {
+          const padded = [...r.map(c => String(c ?? ''))]
+          while (padded.length < numCols) padded.push('')
+          return padded
+        })
+        const content = { rows, numCols }
+        const r = await fetch('/api/docs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: name, content, doc_type: 'sheet' }),
+        })
+        const json = await r.json() as Document
+        if (!r.ok) throw new Error()
+        queryClient.invalidateQueries({ queryKey: ['docs'] })
+        router.push(`/docs/${json.id}`)
+        return
+      }
+
+      // .docx or .txt — basic text read
+      let text = await file.text()
+      if (file.name.endsWith('.docx')) {
+        text = text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
       }
 
       const content = textToTiptap(text)

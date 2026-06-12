@@ -848,22 +848,28 @@ const VELOCITY_ORDER: Record<TrendingContentItem['velocity'], number> = {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const industry  = searchParams.get('industry')  ?? 'beauty'
-  const platform  = searchParams.get('platform')  ?? 'all'
-  const region    = searchParams.get('region')    ?? 'global'
-  const period    = searchParams.get('period')    ?? '30d'
-  const aiFilter_ = searchParams.get('ai_filter') === 'true'
-  const minViews  = parseInt(searchParams.get('min_views') ?? '0', 10)
-  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
+  const industry     = searchParams.get('industry')  ?? 'beauty'
+  const platformRaw  = searchParams.get('platform')  ?? 'all'
+  const region       = searchParams.get('region')    ?? 'global'
+  const period       = searchParams.get('period')    ?? '30d'
+  const aiFilter_    = searchParams.get('ai_filter') === 'true'
+  const minViews     = parseInt(searchParams.get('min_views') ?? '0', 10)
+  const limit        = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
+
+  const ALL_PLATFORMS = ['youtube', 'tiktok', 'instagram', 'pinterest', 'trendsmcp']
+  const activePlatforms = platformRaw === 'all'
+    ? ALL_PLATFORMS
+    : platformRaw.split(',').map(p => p.trim()).filter(p => ALL_PLATFORMS.includes(p))
+  const has = (p: string) => activePlatforms.includes(p)
 
   try {
     // Run all platform fetchers in parallel
     const [youtubeItems, tiktokItems, instagramItems, pinterestItems, trendsmcpItems] = await Promise.all([
-      platform === 'all' || platform === 'youtube'   ? getYouTubeItems(industry, region, period)   : Promise.resolve([]),
-      platform === 'all' || platform === 'tiktok'    ? getTikTokItems(industry, region)             : Promise.resolve([]),
-      platform === 'all' || platform === 'instagram' ? getInstagramItems(industry, region)          : Promise.resolve([]),
-      platform === 'all' || platform === 'pinterest' ? getPinterestItems(industry, region)          : Promise.resolve([]),
-      platform === 'all' || platform === 'trendsmcp' ? getTrendsMcpItems(industry)                  : Promise.resolve([]),
+      has('youtube')   ? getYouTubeItems(industry, region, period) : Promise.resolve([]),
+      has('tiktok')    ? getTikTokItems(industry, region)           : Promise.resolve([]),
+      has('instagram') ? getInstagramItems(industry, region)        : Promise.resolve([]),
+      has('pinterest') ? getPinterestItems(industry, region)        : Promise.resolve([]),
+      has('trendsmcp') ? getTrendsMcpItems(industry)                : Promise.resolve([]),
     ])
 
     // YouTube items are already AI-ranked — insert them first

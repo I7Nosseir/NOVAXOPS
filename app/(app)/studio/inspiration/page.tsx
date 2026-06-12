@@ -59,9 +59,10 @@ const INDUSTRIES = [
 // ── Platform filters ──────────────────────────────────────────
 
 const PLATFORMS = [
-  { value: 'all',       label: 'All'            },
   { value: 'youtube',   label: 'YouTube'        },
   { value: 'tiktok',    label: 'TikTok'         },
+  { value: 'instagram', label: 'Instagram'      },
+  { value: 'pinterest', label: 'Pinterest'      },
   { value: 'trendsmcp', label: 'Cross-platform' },
 ]
 
@@ -252,7 +253,7 @@ export default function InspirationLibraryPage() {
   const [industry,         setIndustry]         = useState('beauty')
   const [customNiche,      setCustomNiche]       = useState('')
   const [inlineTag,        setInlineTag]         = useState('')
-  const [platform,         setPlatform]          = useState('all')
+  const [platforms,        setPlatforms]         = useState<string[]>([])
   const [region,           setRegion]            = useState('global')
   const [period,           setPeriod]            = useState('30d')
   const [minViews,         setMinViews]          = useState('0')
@@ -282,9 +283,10 @@ export default function InspirationLibraryPage() {
     setDisplayCount(ITEMS_PER_PAGE)
     setLoadMoreClicks(0)
     try {
+      const platformParam = platforms.length === 0 ? 'all' : platforms.join(',')
       const params = new URLSearchParams({
         industry,
-        platform,
+        platform: platformParam,
         region,
         period,
         limit:     '200',
@@ -300,7 +302,7 @@ export default function InspirationLibraryPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [industry, platform, region, period, minViews, aiFilter])
+  }, [industry, platforms, region, period, minViews, aiFilter])
 
   // ── Fetch saved board ─────────────────────────────────────
 
@@ -551,25 +553,39 @@ export default function InspirationLibraryPage() {
           </form>
         </div>
 
-        {/* Row 1: Platform tabs + Region */}
+        {/* Row 1: Platform chips (multi-select) + Region */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Platform tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-            {PLATFORMS.map(p => (
+          {/* All toggle */}
+          <button
+            onClick={() => setPlatforms([])}
+            className={cn(
+              'text-xs font-medium rounded-full px-3 py-1.5 border transition-colors',
+              platforms.length === 0
+                ? 'bg-novax text-white border-novax'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border hover:bg-novax-light/50',
+            )}
+          >
+            All
+          </button>
+          {PLATFORMS.map(p => {
+            const active = platforms.includes(p.value)
+            return (
               <button
                 key={p.value}
-                onClick={() => setPlatform(p.value)}
+                onClick={() => setPlatforms(prev =>
+                  active ? prev.filter(v => v !== p.value) : [...prev, p.value]
+                )}
                 className={cn(
-                  'text-xs font-medium rounded-md px-3 py-1.5 transition-colors',
-                  platform === p.value
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700',
+                  'text-xs font-medium rounded-full px-3 py-1.5 border transition-colors',
+                  active
+                    ? 'bg-novax text-white border-novax'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border hover:bg-novax-light/50',
                 )}
               >
                 {p.label}
               </button>
-            ))}
-          </div>
+            )
+          })}
 
           {/* Region selector — combo-box: pick from list or type any country */}
           <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
