@@ -83,9 +83,10 @@ export default function DocEditorPage() {
       setContent(doc.content ?? {})
       const d = doc.updated_at ? new Date(doc.updated_at) : null
       setLastSaved(d && !isNaN(d.getTime()) ? d : null)
-      // AI edit: force SheetEditor remount so it picks up new content from DB
+      // AI edit: cancel any queued save, then remount the editor with fresh DB content
       if (pendingAiUpdate.current) {
         pendingAiUpdate.current = false
+        if (saveTimer.current) { clearTimeout(saveTimer.current); setIsSaving(false) }
         setAiEditVersion(v => v + 1)
       }
     }
@@ -281,7 +282,7 @@ export default function DocEditorPage() {
             <SheetEditor key={aiEditVersion} content={content} onChange={handleContentChange} editable title={title} />
           </div>
         ) : (
-          <DocEditor ref={editorRef} content={content} onChange={handleContentChange} editable />
+          <DocEditor key={aiEditVersion} ref={editorRef} content={content} onChange={handleContentChange} editable />
         )}
       </div>
 
