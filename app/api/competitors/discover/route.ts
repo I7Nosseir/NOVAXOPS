@@ -6,12 +6,25 @@ const HAS_GEMINI    = !!process.env.GEMINI_API_KEY
 const HAS_DB        = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
 
 interface CompetitorSuggestion {
-  handle:      string
-  platform:    string
-  name:        string
-  social_url:  string
-  positioning: string
-  reason:      string
+  handle:              string
+  platform:            string
+  name:                string
+  social_url:          string
+  positioning:         string
+  reason:              string
+  threat_level:        'high' | 'medium' | 'low'
+  audience_overlap:    string
+  content_pillars:     string[]
+  dominant_formats:    string[]
+  posting_frequency:   string
+  estimated_followers: string
+  engagement_style:    string
+  visual_aesthetic:    string
+  key_strengths:       string[]
+  exploitable_gaps:    string[]
+  signature_hooks:     string[]
+  growth_trajectory:   'growing' | 'stable' | 'declining'
+  watch_for:           string
 }
 
 interface DiscoverPayload {
@@ -68,9 +81,8 @@ function extractDiscoverPayload(raw: string): DiscoverPayload {
  * POST /api/competitors/discover
  * Body: { client_id, industry, client_name, audience? }
  *
- * Uses AI to discover exactly 3 local + 3 global competitors.
- * Auto-saves all 6 to competitor_snapshots with scope = 'local' | 'global'.
- * Returns the saved snapshot records so the panel can display them immediately.
+ * Uses AI to discover 3 local + 3 global competitors with deep intelligence profiles.
+ * Auto-saves all 6 to competitor_snapshots. Rich analysis stored in top_content_types JSON.
  */
 export async function POST(req: NextRequest) {
   let body: { client_id?: string; industry?: string; client_name?: string; audience?: string }
@@ -84,7 +96,6 @@ export async function POST(req: NextRequest) {
   if (!HAS_DB)                       return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
   if (!HAS_ANTHROPIC && !HAS_GEMINI) return NextResponse.json({ error: 'No AI provider configured' }, { status: 503 })
 
-  // Fetch client brand identity for better context
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -96,28 +107,46 @@ export async function POST(req: NextRequest) {
     .eq('id', client_id)
     .single()
 
-  const identity = (clientRow?.brand_identity_json ?? {}) as Record<string, unknown>
+  const identity         = (clientRow?.brand_identity_json ?? {}) as Record<string, unknown>
   const resolvedIndustry = (identity.industry as string | undefined) ?? industry ?? 'Unknown'
   const resolvedAudience = (identity.target_audience as string | undefined) ?? audience ?? ''
   const resolvedName     = clientRow?.name ?? client_name ?? 'Unknown'
   const platforms        = Array.isArray(identity.platforms) ? (identity.platforms as string[]).join(', ') : 'Instagram, TikTok'
+  const toneOfVoice      = (identity.tone_of_voice as string | undefined) ?? ''
+  const keyMessages      = Array.isArray(identity.key_messages) ? (identity.key_messages as string[]).join('; ') : ''
 
-  const prompt = `You are a competitive intelligence expert specialising in social media brand strategy.
+  const prompt = `You are a world-class competitive intelligence analyst specialising in social media strategy and brand positioning. Your analysis is used by creative directors and strategists to build winning content strategies.
 
 CLIENT PROFILE:
 - Brand: ${resolvedName}
 - Industry / Niche: ${resolvedIndustry}
 - Target Audience: ${resolvedAudience || 'Not specified'}
 - Active Platforms: ${platforms}
+- Tone of Voice: ${toneOfVoice || 'Not specified'}
+- Key Messages: ${keyMessages || 'Not specified'}
 
-TASK: Identify exactly 6 real competitor brands this client must monitor and benchmark against.
+TASK: Conduct a deep competitive intelligence analysis. Identify exactly 6 real competitor brands — 3 local, 3 global — and produce a comprehensive intelligence profile for each.
 
-Rules:
-1. LOCAL (exactly 3): Brands operating in the same country/region, competing for the same local audience. These are direct rivals the client's customers also consider.
-2. GLOBAL (exactly 3): Internationally-recognised benchmark brands in this exact industry. These set the content, aesthetic, and positioning standard the local market aspires to.
-3. Every brand MUST be real and verifiable on social media — no made-up accounts.
-4. Prioritise brands with strong social media presence (Instagram, TikTok, YouTube).
-5. For each competitor provide their real social media handle on their primary platform.
+DEFINITIONS:
+- LOCAL (exactly 3): Direct rivals operating in the same country/region competing for the same audience. Customers actively compare these brands to our client.
+- GLOBAL (exactly 3): Internationally-recognised benchmark brands in this exact industry/niche. They set the content standard, aesthetic bar, and positioning ceiling the local market aspires to reach.
+
+REQUIREMENTS FOR EACH COMPETITOR PROFILE:
+1. Every brand MUST be real, verifiable, and active on social media.
+2. Use their primary platform (Instagram or TikTok preferred).
+3. threat_level: Assess as 'high' (directly steals audience/budget), 'medium' (partial overlap), or 'low' (aspirational benchmark only).
+4. audience_overlap: Specific description of how much and which segment of the client's audience this competitor also targets.
+5. content_pillars: Exactly 3-4 recurring content themes/topics they consistently publish around.
+6. dominant_formats: Their most-used content formats (e.g. "long-form reels", "educational carousels", "UGC reposts", "behind-the-scenes stories", "product demos").
+7. posting_frequency: Realistic estimate (e.g. "5-7x per week", "1-2x daily").
+8. estimated_followers: Realistic follower range (e.g. "850K-1.2M", "12K-20K").
+9. engagement_style: How their community engages — the emotional register they operate in (e.g. "aspirational lifestyle with high comment sentiment", "educational with saves-heavy engagement", "entertainment-first with heavy sharing").
+10. visual_aesthetic: Specific description of their visual identity (colour palette feel, editing style, shot composition, typography).
+11. key_strengths: Exactly 3 things they do exceptionally well that the client should study and learn from.
+12. exploitable_gaps: Exactly 3 specific weaknesses, blind spots, or underserved content areas where the client has an opening to win.
+13. signature_hooks: 2-3 recurring hook patterns or opening formulas they use in their content (e.g. "They always open reels with a bold claim + fast cut", "Lead with a question that triggers FOMO").
+14. growth_trajectory: Their current momentum — 'growing', 'stable', or 'declining'.
+15. watch_for: One specific strategic move or content trend from this competitor that the client must be ready to counter or adopt within the next 90 days.
 
 Return ONLY valid JSON — no markdown, no explanation, no code fences:
 {
@@ -127,8 +156,21 @@ Return ONLY valid JSON — no markdown, no explanation, no code fences:
       "platform": "instagram",
       "name": "Brand Display Name",
       "social_url": "https://instagram.com/handle",
-      "positioning": "One-sentence description of their market positioning and content strategy",
-      "reason": "Why the client must specifically watch this competitor"
+      "positioning": "2-3 sentence description of their market positioning, content strategy, and what makes them distinctive in this space",
+      "reason": "Specific reason why the client MUST monitor this competitor — what direct threat or learning opportunity they represent",
+      "threat_level": "high",
+      "audience_overlap": "Specific description of overlapping audience segment and degree of overlap",
+      "content_pillars": ["pillar 1", "pillar 2", "pillar 3"],
+      "dominant_formats": ["format 1", "format 2", "format 3"],
+      "posting_frequency": "X-Y times per week",
+      "estimated_followers": "XK-YK",
+      "engagement_style": "Description of community engagement pattern and emotional register",
+      "visual_aesthetic": "Specific description of visual identity, palette, editing style, composition",
+      "key_strengths": ["strength 1", "strength 2", "strength 3"],
+      "exploitable_gaps": ["gap 1", "gap 2", "gap 3"],
+      "signature_hooks": ["hook pattern 1", "hook pattern 2"],
+      "growth_trajectory": "growing",
+      "watch_for": "Specific 90-day strategic watch item"
     }
   ],
   "global": [
@@ -137,8 +179,21 @@ Return ONLY valid JSON — no markdown, no explanation, no code fences:
       "platform": "instagram",
       "name": "Brand Display Name",
       "social_url": "https://instagram.com/handle",
-      "positioning": "One-sentence description of their market positioning and content strategy",
-      "reason": "Why this global player sets the benchmark for this industry"
+      "positioning": "2-3 sentence description of their market positioning, content strategy, and what makes them a global benchmark",
+      "reason": "Specific reason why this global player sets the benchmark — what standard they represent that the client must aspire to",
+      "threat_level": "low",
+      "audience_overlap": "Description of aspirational audience overlap and relevance to client",
+      "content_pillars": ["pillar 1", "pillar 2", "pillar 3"],
+      "dominant_formats": ["format 1", "format 2", "format 3"],
+      "posting_frequency": "X-Y times per week",
+      "estimated_followers": "XM-YM",
+      "engagement_style": "Description of community engagement pattern at global scale",
+      "visual_aesthetic": "Specific description of world-class visual identity and production standard",
+      "key_strengths": ["strength 1", "strength 2", "strength 3"],
+      "exploitable_gaps": ["gap 1", "gap 2", "gap 3"],
+      "signature_hooks": ["hook pattern 1", "hook pattern 2"],
+      "growth_trajectory": "stable",
+      "watch_for": "Specific trend or format innovation from this global player to adopt locally"
     }
   ]
 }`
@@ -152,13 +207,13 @@ Return ONLY valid JSON — no markdown, no explanation, no code fences:
       const ai  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
       const msg = await ai.messages.create({
         model:      'claude-sonnet-4-6',
-        max_tokens: 1200,
+        max_tokens: 16000,
         messages:   [{ role: 'user', content: prompt }],
       })
       raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
     } else {
       const { geminiGenerate } = await import('@/lib/gemini')
-      raw = await geminiGenerate(prompt, undefined, { maxOutputTokens: 1200 })
+      raw = await geminiGenerate(prompt, undefined, { maxOutputTokens: 16000 })
     }
 
     payload = extractDiscoverPayload(raw)
@@ -168,42 +223,45 @@ Return ONLY valid JSON — no markdown, no explanation, no code fences:
     return NextResponse.json({ error: `AI generation failed: ${msg}` }, { status: 500 })
   }
 
-  // Delete existing discovered competitors for this client and replace with new set
-  // (re-discovery replaces old AI suggestions; manually-added ones are preserved via notes field)
   await supabase
     .from('competitor_snapshots')
     .delete()
     .eq('client_id', client_id)
     .is('notes', null)
 
-  // Build rows to upsert
+  const toRow = (s: CompetitorSuggestion, scope: 'local' | 'global') => ({
+    client_id,
+    competitor_handle:  s.handle.startsWith('@') ? s.handle : `@${s.handle}`,
+    platform:           s.platform.toLowerCase(),
+    scope,
+    social_url:         s.social_url ?? null,
+    platform_strategy:  s.positioning ?? null,
+    followers:          0,
+    avg_er:             0,
+    posting_frequency:  0,
+    // Store full rich analysis in the JSON column
+    top_content_types: {
+      threat_level:        s.threat_level,
+      audience_overlap:    s.audience_overlap,
+      content_pillars:     s.content_pillars,
+      dominant_formats:    s.dominant_formats,
+      posting_frequency:   s.posting_frequency,
+      estimated_followers: s.estimated_followers,
+      engagement_style:    s.engagement_style,
+      visual_aesthetic:    s.visual_aesthetic,
+      key_strengths:       s.key_strengths,
+      exploitable_gaps:    s.exploitable_gaps,
+      signature_hooks:     s.signature_hooks,
+      growth_trajectory:   s.growth_trajectory,
+      watch_for:           s.watch_for,
+      reason:              s.reason,
+    },
+    captured_at: new Date().toISOString(),
+  })
+
   const rows = [
-    ...payload.local.slice(0, 3).map(s => ({
-      client_id,
-      competitor_handle:  s.handle.startsWith('@') ? s.handle : `@${s.handle}`,
-      platform:           s.platform.toLowerCase(),
-      scope:              'local',
-      social_url:         s.social_url ?? null,
-      platform_strategy:  s.positioning ?? null,
-      followers:          0,
-      avg_er:             0,
-      posting_frequency:  0,
-      top_content_types:  {},
-      captured_at:        new Date().toISOString(),
-    })),
-    ...payload.global.slice(0, 3).map(s => ({
-      client_id,
-      competitor_handle:  s.handle.startsWith('@') ? s.handle : `@${s.handle}`,
-      platform:           s.platform.toLowerCase(),
-      scope:              'global',
-      social_url:         s.social_url ?? null,
-      platform_strategy:  s.positioning ?? null,
-      followers:          0,
-      avg_er:             0,
-      posting_frequency:  0,
-      top_content_types:  {},
-      captured_at:        new Date().toISOString(),
-    })),
+    ...payload.local.slice(0, 3).map(s => toRow(s, 'local')),
+    ...payload.global.slice(0, 3).map(s => toRow(s, 'global')),
   ]
 
   const { data: saved, error: dbErr } = await supabase

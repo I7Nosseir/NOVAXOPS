@@ -161,6 +161,8 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const { tasks: allTasks } = useTasks()
   const { posts: allPosts } = usePosts()
   const updateClient = useUpdateClient()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [tab, setTab] = useState<'overview' | 'intelligence' | 'competitors' | 'tasks' | 'brief' | 'context' | 'strategy' | 'edit'>('overview')
   const [briefSaving, setBriefSaving] = useState(false)
 
@@ -200,8 +202,10 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
           key_messages:    editMessages.filter(m => m.trim()),
         },
         competitor_context_json: editCompetitors.filter(c => c.trim()),
-        metricool_blog_id:     editMetricoolId.trim() || null,
-        respond_io_channel_id: editRespondIoId.trim() || null,
+        ...(isAdmin && {
+          metricool_blog_id:     editMetricoolId.trim() || null,
+          respond_io_channel_id: editRespondIoId.trim() || null,
+        }),
       } as Parameters<typeof updateClient.mutateAsync>[0])
       setEditSaved(true)
       setTimeout(() => setEditSaved(false), 2500)
@@ -772,32 +776,34 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
                 </div>
               </div>
 
-              {/* Integrations */}
-              <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Integrations</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Metricool Blog ID</label>
-                    <input
-                      type="text"
-                      value={editMetricoolId}
-                      onChange={e => setEditMetricoolId(e.target.value)}
-                      placeholder="e.g. 6329305"
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 font-mono placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Respond.io Channel ID</label>
-                    <input
-                      type="text"
-                      value={editRespondIoId}
-                      onChange={e => setEditRespondIoId(e.target.value)}
-                      placeholder="Channel ID"
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 font-mono placeholder:text-slate-400"
-                    />
+              {/* Integrations — admin only */}
+              {isAdmin && (
+                <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Integrations</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Scheduling Platform ID</label>
+                      <input
+                        type="text"
+                        value={editMetricoolId}
+                        onChange={e => setEditMetricoolId(e.target.value)}
+                        placeholder="e.g. 6329305"
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 font-mono placeholder:text-slate-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Messaging Platform Channel ID</label>
+                      <input
+                        type="text"
+                        value={editRespondIoId}
+                        onChange={e => setEditRespondIoId(e.target.value)}
+                        placeholder="Channel ID"
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 font-mono placeholder:text-slate-400"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

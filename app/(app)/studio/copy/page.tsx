@@ -32,6 +32,29 @@ import type {
 
 const PLATFORMS = ['Instagram', 'TikTok', 'LinkedIn', 'X (Twitter)', 'Facebook', 'YouTube', 'Snapchat']
 
+// ── Test presets ──────────────────────────────────────────────────────────────
+
+const COPY_PRESETS = {
+  lumara: {
+    clientId:  'b1a2c3d4-e5f6-7890-abcd-ef1234567890',
+    language:  'ar' as CopyLanguage,
+    dialect:   'gulf' as CopyDialect,
+    platform:  'Instagram',
+    framework: 'pas' as CopyFramework,
+    brief:     'Lumara Barrier Repair Serum launch week. Show the ritual: apply at night, wake up to visibly calmer skin. Aspirational but real — no CGI glow, actual texture and skin response.',
+    variants:  2 as 1|2|3,
+  },
+  nike: {
+    clientId:  '',
+    language:  'en' as CopyLanguage,
+    dialect:   'gulf' as CopyDialect,
+    platform:  'Instagram',
+    framework: 'storybrand' as CopyFramework,
+    brief:     'Nike Air Max limited drop. UAE sneaker culture, street-authentic. The shoe is the hero — no corporate gloss. Goal: drive saves and DMs on Instagram.',
+    variants:  2 as 1|2|3,
+  },
+} as const
+
 const FRAMEWORKS: { value: CopyFramework; label: string; desc: string }[] = [
   { value: 'auto',             label: 'Auto',             desc: 'AI picks the best framework for the content' },
   { value: 'aida',             label: 'AIDA',             desc: 'Attention → Interest → Desire → Action' },
@@ -1863,6 +1886,22 @@ export default function CopyEnginePage() {
     return tick
   }, [])
 
+  // ── Test presets ─────────────────────────────────────────────
+
+  function applyPreset(key: keyof typeof COPY_PRESETS) {
+    const p = COPY_PRESETS[key]
+    setClientId(p.clientId)
+    setLanguage(p.language)
+    setDialect(p.dialect)
+    setPlatform(p.platform)
+    setFramework(p.framework)
+    setBrief(p.brief)
+    setVariantCount(p.variants)
+    setContentType('single')
+    setPageState('brief')
+    toast.success(`${key === 'lumara' ? 'Lumara' : 'Nike'} preset loaded`)
+  }
+
   // ── Generate ─────────────────────────────────────────────────
 
   async function handleGenerate() {
@@ -2093,7 +2132,7 @@ export default function CopyEnginePage() {
           { value: 'single',      label: 'Single post',     icon: ImageIcon },
           { value: 'carousel',    label: 'Carousel',        icon: Layers },
           { value: 'bulk',        label: 'Bulk',            icon: FileSpreadsheet },
-          { value: 'inspiration', label: 'Inspiration Lab', icon: Search },
+          ...(user?.role === 'admin' ? [{ value: 'inspiration', label: 'Inspiration Lab', icon: Search }] : []),
         ] as { value: ContentType; label: string; icon: React.ElementType }[]).map(tab => (
           <button
             key={tab.value}
@@ -2131,6 +2170,27 @@ export default function CopyEnginePage() {
       {/* ── Single / Carousel form ── */}
       {contentType !== 'bulk' && contentType !== 'inspiration' && (
         <>
+          {/* Test presets — admin only */}
+          {user?.role === 'admin' && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide shrink-0">Test:</span>
+              <button
+                type="button"
+                onClick={() => applyPreset('lumara')}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+              >
+                Lumara — AR
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('nike')}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Nike — EN
+              </button>
+            </div>
+          )}
+
           {/* Row 1: Client + Language */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">

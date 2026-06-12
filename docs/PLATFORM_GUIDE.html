@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NOVAX Ops — Platform Guide</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Arial', 'Helvetica Neue', sans-serif;
+    font-size: 10pt;
+    color: #111;
+    background: #fff;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 0;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  @media print {
+    .page { page-break-after: always; margin: 0; }
+    @page { size: A4 portrait; margin: 0; }
+  }
+  @media screen {
+    body { background: #ddd; }
+    .page { margin: 20px auto; box-shadow: 0 4px 24px rgba(0,0,0,0.18); }
+  }
+
+  :root {
+    --teal:      #1B3D38;
+    --teal-mid:  #2A6B62;
+    --teal-acc:  #5BB4AE;
+    --teal-lt:   #EBF4F3;
+    --red:       #C0392B;
+    --green:     #1D6A3A;
+    --green-bg:  #E8F5EE;
+    --amber:     #92400E;
+    --amber-bg:  #FEF3C7;
+    --grey:      #F3F4F6;
+    --border:    #D1D5DB;
+    --soft:      #6B7280;
+  }
+
+  .inner { padding: 1.2cm 1.9cm 1.4cm; }
+  p { line-height: 1.55; }
+
+  /* ══════════════ PAGE TITLE BAR ══════════════ */
+  .page-title-bar {
+    background: var(--teal);
+    color: #fff;
+    padding: 12px 1.9cm;
+  }
+  .page-title-bar h2 { font-size: 12pt; font-weight: 800; color: #fff; }
+  .page-title-bar .sub { font-size: 8pt; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+  /* ══════════════ COVER ══════════════ */
+  .cover {
+    background: var(--teal);
+    min-height: 297mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2.2cm 2.0cm 1.6cm;
+  }
+  .cover-logo { font-size: 10pt; font-weight: 900; letter-spacing: 3px; color: rgba(255,255,255,0.4); }
+  .cover-main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .cover-eye { font-size: 8pt; letter-spacing: 2.5px; text-transform: uppercase; color: var(--teal-acc); margin-bottom: 12px; font-weight: 700; }
+  .cover h1 { font-size: 30pt; font-weight: 900; color: #fff; line-height: 1.1; }
+  .cover h1 span { color: var(--teal-acc); }
+  .cover-div { width: 44px; height: 3px; background: var(--teal-acc); margin: 18px 0; }
+  .cover-tag { font-size: 10.5pt; font-weight: 300; color: rgba(255,255,255,0.65); line-height: 1.6; max-width: 390px; }
+
+  .cover-scope {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .scope-box {
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 9pt;
+    line-height: 1.6;
+  }
+  .scope-box.show { background: rgba(91,180,174,0.12); border: 1px solid rgba(91,180,174,0.3); color: rgba(255,255,255,0.8); }
+  .scope-box.hide { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
+  .scope-box .slbl { font-size: 7.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .scope-box.show .slbl { color: var(--teal-acc); }
+  .scope-box.hide .slbl { color: rgba(255,255,255,0.3); }
+  .scope-box li { margin-left: 12px; margin-bottom: 2px; }
+
+  .cover-footer { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; }
+  .cover-footer-l { font-size: 8pt; color: rgba(255,255,255,0.3); }
+  .cover-footer-r { font-size: 8pt; font-weight: 700; color: rgba(255,255,255,0.45); }
+
+  /* ══════════════ INTRO ══════════════ */
+  .intro-p { font-size: 9.5pt; color: #444; line-height: 1.65; margin-bottom: 14px; }
+
+  /* ══════════════ SECTION TITLE ══════════════ */
+  .sec-title {
+    font-size: 8pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--teal);
+    border-bottom: 1.5px solid var(--teal);
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+    margin-top: 14px;
+  }
+  .sec-title:first-child { margin-top: 0; }
+
+  /* ══════════════ PAGE REFERENCE GRID ══════════════ */
+  .pg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+  .pg-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+
+  .pg-card-head {
+    background: var(--grey);
+    padding: 6px 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .pg-name { font-size: 9.5pt; font-weight: 800; color: var(--teal); }
+  .pg-role { font-size: 7pt; padding: 2px 7px; border-radius: 10px; font-weight: 700; white-space: nowrap; }
+  .pg-role.all   { background: var(--green-bg); color: var(--green); }
+  .pg-role.mgr   { background: var(--teal-lt); color: var(--teal-mid); }
+  .pg-role.admin { background: var(--amber-bg); color: var(--amber); }
+
+  .pg-body { padding: 7px 11px; font-size: 8.5pt; color: #333; line-height: 1.5; }
+  .pg-what { margin-bottom: 3px; }
+  .pg-btns { font-size: 8pt; color: var(--soft); margin-top: 4px; border-top: 1px dotted var(--border); padding-top: 4px; }
+  .pg-btns b { color: var(--teal-mid); }
+
+  /* ══════════════ WORKFLOW ROWS ══════════════ */
+  .wf-grid { display: flex; flex-direction: column; gap: 7px; }
+
+  .wf-row {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .wf-num {
+    background: var(--teal);
+    color: var(--teal-acc);
+    font-size: 14pt;
+    font-weight: 900;
+    min-width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .wf-meta {
+    background: var(--grey);
+    padding: 8px 11px;
+    min-width: 108px;
+    max-width: 108px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .wf-title { font-size: 9pt; font-weight: 700; color: var(--teal); line-height: 1.3; }
+  .wf-who   { font-size: 7.5pt; color: var(--soft); margin-top: 2px; }
+  .wf-body  { padding: 8px 12px; flex: 1; }
+  .wf-steps { font-size: 8.5pt; color: #333; line-height: 1.6; }
+  .wf-steps ol { margin-left: 14px; }
+  .wf-steps li { margin-bottom: 1px; }
+  .wf-steps em { font-style: normal; color: var(--teal-mid); font-weight: 600; }
+  .wf-result { font-size: 8pt; font-weight: 700; color: var(--green); background: var(--green-bg); display: inline-block; padding: 2px 7px; border-radius: 3px; margin-top: 5px; }
+
+  /* ══════════════ AGENT TABLE ══════════════ */
+  .agent-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  .agent-table th { background: var(--teal); color: #fff; padding: 7px 11px; font-size: 8.5pt; text-align: left; font-weight: 700; }
+  .agent-table td { padding: 7px 11px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+  .agent-table tr:last-child td { border-bottom: none; }
+  .agent-table .a-name { font-weight: 800; color: var(--teal); width: 26%; }
+  .agent-table .a-trigger { color: var(--soft); font-size: 8pt; width: 22%; }
+  .agent-table .a-out { color: #333; }
+  .agent-table tr:nth-child(even) td { background: var(--grey); }
+
+  /* ══════════════ STATUS TABLE ══════════════ */
+  .status-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  .status-table th { background: var(--teal); color: #fff; padding: 7px 11px; font-size: 8.5pt; text-align: left; font-weight: 700; }
+  .status-table td { padding: 6px 11px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .status-table tr:last-child td { border-bottom: none; }
+  .status-table .item { font-weight: 600; color: #222; width: 40%; }
+  .status-table .note { color: #555; font-size: 8.5pt; line-height: 1.5; }
+  .status-table tr:nth-child(even) td { background: var(--grey); }
+  .ok   { color: var(--green);  font-weight: 800; width: 14%; }
+  .warn { color: #D97706;       font-weight: 800; width: 14%; }
+  .no   { color: var(--red);    font-weight: 800; width: 14%; }
+
+  /* ══════════════ REPLACES GRID ══════════════ */
+  .replaces-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+  .repl-box { border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; }
+  .repl-old { font-size: 7.5pt; color: var(--soft); margin-bottom: 2px; text-decoration: line-through; }
+  .repl-new { font-size: 9pt; font-weight: 700; color: var(--teal); }
+
+  /* ══════════════ TWO-COL BOX GRID ══════════════ */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 12px; }
+  .info-box { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .info-box-head { padding: 7px 12px; font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; background: var(--teal); color: #fff; }
+  .info-box-head.warn { background: #D97706; }
+  .info-box-head.green { background: var(--green); }
+  .info-box-body { padding: 9px 12px; font-size: 8.5pt; color: #333; line-height: 1.6; }
+  .info-box-body li { margin-left: 14px; margin-bottom: 2px; }
+  .info-box-body b { color: var(--teal); }
+
+  /* ══════════════ CALLOUT ══════════════ */
+  .callout {
+    margin-top: 11px;
+    background: var(--teal-lt);
+    border-left: 3px solid var(--teal-acc);
+    padding: 9px 13px;
+    border-radius: 0 5px 5px 0;
+    font-size: 9pt;
+    color: var(--teal);
+    line-height: 1.65;
+  }
+  .callout.amber { background: var(--amber-bg); border-color: #D97706; color: var(--amber); }
+  .callout.red   { background: #FFF5F5; border-color: var(--red); color: var(--red); }
+  .callout strong { font-weight: 800; }
+
+  /* ══════════════ YEAR BOX ══════════════ */
+  .value-box {
+    background: var(--teal);
+    color: #fff;
+    border-radius: 6px;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .vb-label { font-size: 9pt; color: rgba(255,255,255,0.6); max-width: 260px; line-height: 1.5; }
+  .vb-num   { font-size: 22pt; font-weight: 900; color: var(--teal-acc); text-align: right; }
+  .vb-sub   { font-size: 8pt; color: rgba(255,255,255,0.5); margin-top: 2px; text-align: right; }
+
+  /* ══════════════ CHECKLIST ══════════════ */
+  .checklist { list-style: none; font-size: 9pt; color: #333; line-height: 1.7; }
+  .checklist li { display: flex; align-items: flex-start; gap: 8px; border-bottom: 1px solid var(--border); padding: 5px 0; }
+  .checklist li:last-child { border-bottom: none; }
+  .chk-box { width: 14px; height: 14px; min-width: 14px; border: 1.5px solid var(--border); border-radius: 3px; margin-top: 1px; }
+  .chk-label { flex: 1; }
+  .chk-who { font-size: 7.5pt; color: var(--soft); margin-top: 1px; }
+</style>
+</head>
+<body>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 1 — COVER
+══════════════════════════════════════ -->
+<div class="page">
+<div class="cover">
+
+  <div class="cover-logo">NOVAX</div>
+
+  <div class="cover-main">
+    <p class="cover-eye">Internal — Launch Edition · June 2026</p>
+    <h1>Platform<br><span>Guide</span></h1>
+    <div class="cover-div"></div>
+    <p class="cover-tag">Every page, every button, and how work moves from brief to published — in one place.</p>
+
+    <div class="cover-scope">
+      <div class="scope-box show">
+        <div class="slbl">Available at launch</div>
+        <ul>
+          <li>Dashboard</li>
+          <li>Pipeline (task board)</li>
+          <li>My Tasks</li>
+          <li>Clients &amp; Projects</li>
+          <li>Publishing &amp; Calendar</li>
+          <li>Client Approval Portal</li>
+          <li>Moderation Queue</li>
+          <li>Reports (PDF &amp; PPT export)</li>
+          <li>Assets &amp; Google Drive</li>
+          <li>AI Assistant</li>
+          <li>Documents</li>
+          <li>Creative Eval</li>
+          <li>Workload</li>
+        </ul>
+      </div>
+      <div class="scope-box hide">
+        <div class="slbl">Coming in Wave 2</div>
+        <ul>
+          <li>AI Content Studio</li>
+          <li>Hook Lab</li>
+          <li>Strategy Command Center</li>
+          <li>Campaign Igniter</li>
+          <li>Inspiration Board</li>
+          <li>Post-Mortem Tool</li>
+          <li>Visual Content Engine</li>
+          <li>Peak Format Generator</li>
+          <li>Competitive Intelligence</li>
+          <li>Media Buying Planner</li>
+          <li>AI Image Creation</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div class="cover-footer-l">NOVAX Internal — Do not share externally</div>
+    <div class="cover-footer-r">NOVAX Ops &nbsp;·&nbsp; perfumeexhibition.com</div>
+  </div>
+
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 2 — YOUR WORKSPACE
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>Your workspace — every page and what it does</h2>
+  <p class="sub">Role tags: <strong style="color:#86efac">Everyone</strong> &nbsp;·&nbsp; <strong style="color:#99f6e4">Managers &amp; senior roles</strong> &nbsp;·&nbsp; <strong style="color:#fde68a">Admin only</strong></p>
+</div>
+<div class="inner">
+
+  <p class="intro-p">
+    Open the platform at <strong>perfumeexhibition.com</strong>. The sidebar on the left is your navigation. Each item takes you to a different page. You only see the pages your role has access to — if something is missing, contact the admin.
+  </p>
+
+  <div class="pg-grid">
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Dashboard</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Your daily overview. Live KPIs across all clients: reach, engagement, active tasks, scheduled posts. Weekly activity chart and a feed of the latest published content with real performance numbers.</p>
+        <div class="pg-btns"><b>Refresh</b> — pulls latest social numbers from the scheduling platform.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Pipeline</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">The main task board. 10 stages from Strategy to Reporting. Every piece of work lives here as a card. Drag cards between stages. Click any card to open the full task detail and AI agents.</p>
+        <div class="pg-btns"><b>New Task</b> — create a task. <b>Filter chips</b> — filter by client, assignee, or priority.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">My Tasks</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Shows only the tasks assigned to you — across all clients. Your personal to-do list. Check this at the start of each day. Click any task to open the detail panel.</p>
+        <div class="pg-btns"><b>Filter</b> — by stage, priority, or client. <b>Search</b> — find a specific task by name.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Clients</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">All client brands in one list. Click a client to see their brand identity, tone of voice, active tasks, and the AI memory built up over time. Crisis Mode toggle flags sensitive situations across the whole platform.</p>
+        <div class="pg-btns"><b>New Client</b> — 9-step onboarding wizard. <b>Add Entry</b> — save a new insight to the client's AI memory.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Projects</span>
+        <span class="pg-role mgr">Managers</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Campaign containers. Tasks belong to projects. See progress bars, stage distribution, and timeline at a glance. Filter between active and completed campaigns.</p>
+        <div class="pg-btns"><b>New Project</b> — create a campaign and assign it to a client.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Publishing</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">The content calendar and scheduling tool. Write a post, pick platforms and a time, and it goes live automatically. Switch between Grid and Calendar view. Import a spreadsheet to bulk-schedule a full month.</p>
+        <div class="pg-btns"><b>Compose</b> — write and schedule a post. <b>Generate Calendar</b> — AI drafts a month of post ideas from a brief.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Approval</span>
+        <span class="pg-role mgr">Managers</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Client sign-off portal. Create an approval request, add the posts, and send the client a branded link. No PDF, no email attachments. The client approves or requests changes per post. You see their decisions live.</p>
+        <div class="pg-btns"><b>New Request</b> — build a batch of posts for client review. <b>Send Email</b> — sends the link to the client automatically.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Moderation</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Your comment and DM inbox. Comments from social platforms arrive here. The AI drafts a reply in the client's brand voice. Review, edit, then send — or escalate to a senior team member.</p>
+        <div class="pg-btns"><b>AI Reply</b> — generates a suggested reply. <b>Escalate</b> — flags for senior review. <b>Ignore</b> — archives spam.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Assets</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">The shared media library. Upload files directly or import from Google Drive. Search by name, filter by client or file type. Everything the team needs in one place — no more hunting through Drive folders.</p>
+        <div class="pg-btns"><b>Upload</b> — drag-and-drop files. <b>Import from Drive</b> — browse and pull files from Google Drive.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Reports</span>
+        <span class="pg-role mgr">Managers</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Client performance reports generated in one click. Select a client and date range. The platform pulls the data, the AI writes the narrative, and you export a branded PDF or PowerPoint. What used to take hours takes two minutes.</p>
+        <div class="pg-btns"><b>AI Narrative</b> — writes the performance summary. <b>Export PDF</b> / <b>Export PPTX</b> — branded output ready to send.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Workload</span>
+        <span class="pg-role mgr">Managers</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Team capacity view. One card per team member showing their task count and a load bar — green means healthy, red means overloaded. See who has room for new work at a glance and redistribute tasks before things pile up.</p>
+        <div class="pg-btns">Click any team member card to see their current task list.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">AI Assistant</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">A free-form AI chat that knows your clients and tasks. Ask it to draft copy, brainstorm ideas, summarise a brief, or explain a trend. Scope it to a specific client for more relevant answers. Not a generic chatbot — it has your brand context built in.</p>
+        <div class="pg-btns">Type your request. Prefix with a client name to get client-specific answers.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Documents</span>
+        <span class="pg-role all">Everyone</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">In-platform document editor for briefs, SOPs, strategy docs, and meeting notes. Rich text editor with headings, tables, and formatting. Share with a public read-only link. Start from a template or blank.</p>
+        <div class="pg-btns"><b>New Document</b> — blank or from template. <b>Share</b> — generates a read-only link. <b>Export PDF</b> — download.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Creative Eval</span>
+        <span class="pg-role mgr">Managers</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Upload a design or video and the AI scores it across 5 dimensions before it goes to the client: brand fit, hook strength, visual quality, CTA clarity, and engagement prediction. Use the score to brief the designer with precision instead of vague feedback.</p>
+        <div class="pg-btns"><b>Upload</b> — drop in an image or video file. Scores appear within seconds.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Performance</span>
+        <span class="pg-role mgr">Managers</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Deep analytics per post, competitor tracking, and AI pattern detection. See which formats are winning, when your audience is most active, and how competitors are growing. Data synced daily from the scheduling platform.</p>
+        <div class="pg-btns"><b>Sync</b> — pulls latest post stats. <b>Add Competitor</b> — start tracking a competitor account.</div>
+      </div>
+    </div>
+
+    <div class="pg-card">
+      <div class="pg-card-head">
+        <span class="pg-name">Settings</span>
+        <span class="pg-role admin">Admin only</span>
+      </div>
+      <div class="pg-body">
+        <p class="pg-what">Platform configuration. Integrations (API connections), Team management (invite users, set roles), and page permissions (control what each person can see). Everything that keeps the platform running.</p>
+        <div class="pg-btns"><b>Invite User</b> — send an onboarding email to a new team member with their role and access settings.</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 3 — HOW WORK MOVES
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>How work moves — the six workflows you will use every day</h2>
+  <p class="sub">Follow these end-to-end. Everything in the platform connects through these flows.</p>
+</div>
+<div class="inner">
+
+  <div class="wf-grid">
+
+    <div class="wf-row">
+      <div class="wf-num">1</div>
+      <div class="wf-meta">
+        <div class="wf-title">Brief to Published Post</div>
+        <div class="wf-who">Whole team</div>
+      </div>
+      <div class="wf-body">
+        <div class="wf-steps">
+          <ol>
+            <li>Receive a brief. Go to <em>Pipeline → New Task</em>. Set client, title, brief text, stage = Strategy, assign to strategist.</li>
+            <li>Strategist opens the task → runs <em>Task Analyzer</em> to check the brief is complete.</li>
+            <li>Card moves through Copy → Design → Review by dragging.</li>
+            <li>Copywriter opens the task → runs <em>Copywriter agent</em> → picks the best variant.</li>
+            <li>Account manager goes to <em>Approval</em> → creates a request → sends link to client.</li>
+            <li>Client approves → card moves to Scheduled → social manager opens <em>Publishing → Compose</em>, adds the approved copy and media, sets date and time.</li>
+            <li>Post publishes automatically. Card moves to Published.</li>
+          </ol>
+        </div>
+        <span class="wf-result">End state: post is live, task is in Reporting stage with performance tracked</span>
+      </div>
+    </div>
+
+    <div class="wf-row">
+      <div class="wf-num">2</div>
+      <div class="wf-meta">
+        <div class="wf-title">Client Approval</div>
+        <div class="wf-who">Account managers</div>
+      </div>
+      <div class="wf-body">
+        <div class="wf-steps">
+          <ol>
+            <li>Go to <em>Approval → New Request</em>. Select the client. Add the posts that need sign-off. Set a review deadline.</li>
+            <li>Click <em>Send Email</em> — the client receives a branded link. No login required on their end.</li>
+            <li>Client opens the link, reviews each post image + caption, and marks Approve or Request Changes with optional notes.</li>
+            <li>Their decisions appear live in your Approval panel. If changes requested, the notes show inline — address them and re-send.</li>
+          </ol>
+        </div>
+        <span class="wf-result">End state: signed-off content ready to schedule, no email threads</span>
+      </div>
+    </div>
+
+    <div class="wf-row">
+      <div class="wf-num">3</div>
+      <div class="wf-meta">
+        <div class="wf-title">Handling a Comment</div>
+        <div class="wf-who">Social managers</div>
+      </div>
+      <div class="wf-body">
+        <div class="wf-steps">
+          <ol>
+            <li>Open <em>Moderation</em> — new comments appear in the queue, newest first, with the platform and account they came from.</li>
+            <li>Read the comment. Click <em>AI Reply</em> — the AI drafts a reply in the client's brand voice.</li>
+            <li>Edit the draft if needed. Click <em>Send</em>.</li>
+            <li>For complaints or sensitive comments: click <em>Escalate</em> to flag for a senior team member. For spam: <em>Ignore</em>.</li>
+          </ol>
+        </div>
+        <span class="wf-result">End state: comment resolved, archived, and team notified if escalated</span>
+      </div>
+    </div>
+
+    <div class="wf-row">
+      <div class="wf-num">4</div>
+      <div class="wf-meta">
+        <div class="wf-title">Monthly Report</div>
+        <div class="wf-who">Account managers</div>
+      </div>
+      <div class="wf-body">
+        <div class="wf-steps">
+          <ol>
+            <li>Go to <em>Reports</em>. Select the client and set the date range (e.g. June 1–30).</li>
+            <li>The platform pulls performance data automatically from the scheduling platform.</li>
+            <li>Click <em>AI Narrative</em> — the AI writes a 3-paragraph performance summary in plain, client-ready English.</li>
+            <li>Review the narrative and make any edits. Click <em>Export PDF</em> or <em>Export PPTX</em>.</li>
+            <li>Send the file directly to the client.</li>
+          </ol>
+        </div>
+        <span class="wf-result">End state: branded report ready in under 5 minutes</span>
+      </div>
+    </div>
+
+    <div class="wf-row">
+      <div class="wf-num">5</div>
+      <div class="wf-meta">
+        <div class="wf-title">Scheduling a Month of Content</div>
+        <div class="wf-who">Social managers</div>
+      </div>
+      <div class="wf-body">
+        <div class="wf-steps">
+          <ol>
+            <li>Go to <em>Publishing → Generate Calendar</em>. Select the client, platforms, and content themes for the month.</li>
+            <li>The AI drafts a full calendar of post ideas — titles, captions, platform, and suggested dates.</li>
+            <li>Review and adjust. Delete or rewrite any post that does not fit.</li>
+            <li>Click Schedule All — all posts queue in the scheduling platform automatically.</li>
+            <li>Alternatively: upload a pre-prepared Excel sheet via the Import button to bulk-schedule.</li>
+          </ol>
+        </div>
+        <span class="wf-result">End state: full month of content live in the calendar in one session</span>
+      </div>
+    </div>
+
+    <div class="wf-row">
+      <div class="wf-num">6</div>
+      <div class="wf-meta">
+        <div class="wf-title">Adding a New Client</div>
+        <div class="wf-who">Account managers, admin</div>
+      </div>
+      <div class="wf-body">
+        <div class="wf-steps">
+          <ol>
+            <li>Go to <em>Clients → New Client</em>. Work through the 9-step wizard: Identity → Social platforms → Competitors → Brand description → Tone of voice → Target audience → Strategy goals → KPI targets → Team resources.</li>
+            <li>Once saved, the client appears across all pages — pipeline, publishing, reports, everything.</li>
+            <li>Open the client and go to the <em>Intelligence tab</em>. Add the first context entry: a key win, a brand voice example, or a known audience insight. This is the seed of the client's AI memory.</li>
+          </ol>
+        </div>
+        <span class="wf-result">End state: client fully onboarded, AI knows their brand, team can start work immediately</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="callout">
+    <strong>The pipeline is the single source of truth.</strong> If a task is not in the pipeline, it does not exist for the team. Get every brief into the platform from day one — do not keep work in WhatsApp, Notion, or email. The whole system only works when work flows through it.
+  </div>
+
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 4 — AI ON EVERY TASK + LAUNCH
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <h2>AI on every task — and what is ready at launch</h2>
+  <p class="sub">The AI reads the client's brand identity and context before writing anything. It is not a generic tool — it knows your clients.</p>
+</div>
+<div class="inner">
+
+  <div class="sec-title">The five AI agents — inside every task on the pipeline</div>
+  <p style="font-size:9pt; color:#555; margin-bottom:10px; line-height:1.6;">Open any task card and go to the <strong>AI Agents tab</strong>. Each agent is a button. Click it, get a result. The output is cached after the first run — re-running is instant and free. Rate each output with thumbs up or down. The AI learns from your ratings over time and improves per client.</p>
+
+  <table class="agent-table" style="margin-bottom:14px;">
+    <thead>
+      <tr>
+        <th>Agent</th>
+        <th>Best used when</th>
+        <th>What you get</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="a-name">Task Analyzer</td>
+        <td class="a-trigger">Brief just arrived</td>
+        <td class="a-out">Flags missing information, identifies the right approach, and breaks the brief into clear execution steps. Run this first on any new task.</td>
+      </tr>
+      <tr>
+        <td class="a-name">Copywriter</td>
+        <td class="a-trigger">Task is in Copy stage</td>
+        <td class="a-out">Writes 3 copy variants for the post: Aspirational, Benefit-led, and Conversational. English or Arabic depending on the client. No hashtags or emojis unless the brief asks for them.</td>
+      </tr>
+      <tr>
+        <td class="a-name">Researcher</td>
+        <td class="a-trigger">Before starting ideation</td>
+        <td class="a-out">Pulls market context, competitor gaps, and trending angles relevant to this client and brief. Gives the copywriter and strategist a running start.</td>
+      </tr>
+      <tr>
+        <td class="a-name">Asset Finder</td>
+        <td class="a-trigger">Looking for visuals</td>
+        <td class="a-out">Reads the brief and produces a list of keywords to search in the asset library and Google Drive. Saves the designer from starting a search from scratch.</td>
+      </tr>
+      <tr>
+        <td class="a-name">Post Caption</td>
+        <td class="a-trigger">Visual is ready</td>
+        <td class="a-out">Attach the final image or video to the task and run this agent. It writes a caption specifically for that visual — not a generic caption from the brief.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="sec-title">What is ready at launch — honest status</div>
+
+  <table class="status-table" style="margin-bottom:12px;">
+    <thead>
+      <tr>
+        <th style="width:36%">Feature</th>
+        <th style="width:12%">Status</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="item">Login, onboarding, role access</td>
+        <td class="ok">Ready</td>
+        <td class="note">All roles working. First-login onboarding sets name, phone, password.</td>
+      </tr>
+      <tr>
+        <td class="item">Pipeline — drag, filter, task detail</td>
+        <td class="ok">Ready</td>
+        <td class="note">Live realtime — moves by other team members appear instantly without refreshing.</td>
+      </tr>
+      <tr>
+        <td class="item">Publishing + Metricool scheduling</td>
+        <td class="ok">Ready</td>
+        <td class="note">Compose, schedule, edit, delete, bulk import via Excel — all confirmed working.</td>
+      </tr>
+      <tr>
+        <td class="item">Client approval portal</td>
+        <td class="ok">Ready</td>
+        <td class="note">Client-facing portal works without login. Email notifications wired.</td>
+      </tr>
+      <tr>
+        <td class="item">Reports — AI narrative + export</td>
+        <td class="ok">Ready</td>
+        <td class="note">PDF and PPTX export confirmed. AI narrative uses Gemini (see note below).</td>
+      </tr>
+      <tr>
+        <td class="item">AI agents (all 5 in task panel)</td>
+        <td class="warn">Works</td>
+        <td class="note">Running on Gemini fallback — Claude API key not yet set in Vercel. Quality is good but not at full Claude level. Set ANTHROPIC_API_KEY to unlock Claude.</td>
+      </tr>
+      <tr>
+        <td class="item">Moderation — receive comments</td>
+        <td class="ok">Ready</td>
+        <td class="note">Comments arrive from the messaging platform correctly. AI reply drafts work.</td>
+      </tr>
+      <tr>
+        <td class="item">Moderation — send Instagram replies</td>
+        <td class="warn">Partial</td>
+        <td class="note">Instagram public comment replies are blocked by Instagram's API — vendor constraint, not a bug. Facebook DMs and public comments work. Draft replies in the platform, post manually on Instagram if needed.</td>
+      </tr>
+      <tr>
+        <td class="item">Dashboard, Workload, Library, Assets</td>
+        <td class="ok">Ready</td>
+        <td class="note">All fully functional on live Supabase data.</td>
+      </tr>
+      <tr>
+        <td class="item">Studio tools</td>
+        <td class="warn">Hidden</td>
+        <td class="note">Built and working but gated via page permissions for Wave 2. Admin can unlock per user at any time from Settings → Team.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="sec-title">What this replaces</div>
+
+  <div class="replaces-grid">
+    <div class="repl-box"><div class="repl-old">ClickUp</div><div class="repl-new">Pipeline + My Tasks + Workload</div></div>
+    <div class="repl-box"><div class="repl-old">Scheduling tool (direct)</div><div class="repl-new">Publishing page</div></div>
+    <div class="repl-box"><div class="repl-old">Approval via email / PDF</div><div class="repl-new">Approval portal</div></div>
+    <div class="repl-box"><div class="repl-old">Manual comment handling</div><div class="repl-new">Moderation queue</div></div>
+    <div class="repl-box"><div class="repl-old">Reporting spreadsheets</div><div class="repl-new">Reports + AI narrative</div></div>
+    <div class="repl-box"><div class="repl-old">Google Docs for briefs</div><div class="repl-new">Documents + AI Assistant</div></div>
+    <div class="repl-box"><div class="repl-old">WhatsApp for task assignment</div><div class="repl-new">Pipeline + task comments</div></div>
+    <div class="repl-box"><div class="repl-old">Manual feedback sessions</div><div class="repl-new">Creative Eval (AI scoring)</div></div>
+    <div class="repl-box"><div class="repl-old">Notion / Drive for client briefs</div><div class="repl-new">Clients → Intelligence tab</div></div>
+  </div>
+
+  <div class="callout amber">
+    <strong>One action before Sunday:</strong> Set <strong>ANTHROPIC_API_KEY</strong> in Vercel → Project Settings → Environment Variables. This single change upgrades every AI feature from Gemini to Claude across the entire platform. Takes 2 minutes. The platform works without it — but Claude quality is meaningfully better, especially for Arabic copy.
+  </div>
+
+</div>
+</div>
+
+
+</body>
+</html>

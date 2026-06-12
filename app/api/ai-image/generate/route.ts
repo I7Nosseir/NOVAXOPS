@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase'
 import sharp from 'sharp'
+
+const DAILY_IMAGE_CAP = 50
 
 const STYLE_SUFFIXES: Record<string, string> = {
   photorealistic: 'photorealistic, professional photography, 8K ultra-high resolution, razor-sharp detail, professional studio lighting, high dynamic range, perfect exposure, masterful composition',
@@ -12,16 +17,16 @@ const STYLE_SUFFIXES: Record<string, string> = {
 
 const QUALITY_SUFFIX = ', professional quality, no artifacts, no blur, no distortion, no watermarks'
 
+// Pro model removed — too expensive for internal use
 const GEMINI_IMAGE_MODELS = new Set([
   'gemini-2.5-flash-image',
   'gemini-3.1-flash-image-preview',
-  'gemini-3-pro-image-preview',
 ])
 
+// Ultra model removed — too expensive for internal use
 const IMAGEN_MODELS = new Set([
   'imagen-4.0-generate-001',
   'imagen-4.0-fast-generate-001',
-  'imagen-4.0-ultra-generate-001',
 ])
 
 const AR_VALUES: Record<string, { w: number; h: number }> = {
@@ -52,17 +57,10 @@ function extractMentions(prompt: string): string[] {
   return [...new Set(matches)].map(m => m.slice(1))
 }
 
-// Auto-select model: upgrade to Pro when logo or text precision is needed
 function selectResizeModel(toggles: ResizeToggles, userModel?: string): string {
-  const precisionRequired = toggles.hasLogo || toggles.hasText
-  if (userModel && GEMINI_IMAGE_MODELS.has(userModel)) {
-    // Auto-upgrade Flash → Pro when logo/text precision matters
-    if (precisionRequired && userModel === 'gemini-3.1-flash-image-preview') {
-      return 'gemini-3-pro-image-preview'
-    }
-    return userModel
-  }
-  return precisionRequired ? 'gemini-3-pro-image-preview' : 'gemini-3.1-flash-image-preview'
+  // No longer auto-upgrades to Pro — use the user's chosen Gemini model, defaulting to flash
+  if (userModel && GEMINI_IMAGE_MODELS.has(userModel)) return userModel
+  return 'gemini-3.1-flash-image-preview'
 }
 
 function buildResizerPrompt(aspectRatio: string, toggles: ResizeToggles): string {
@@ -147,6 +145,61 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'GEMINI_API_KEY is not configured.' }, { status: 500 })
   }
 
+  // ── Auth + daily cap enforcement ──────────────────────────────────────────────
+  let userId: string | null = null
+  let usedToday = 0
+  let adminDb: ReturnType<typeof createAdminClient> | null = null
+
+  try {
+    const cookieStore = await cookies()
+    const authClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll() } }
+    )
+    const { data: { user } } = await authClient.auth.getUser()
+    if (user) {
+      userId = user.id
+      adminDb = createAdminClient()
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const { count } = await adminDb
+        .from('api_usage')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('service', 'gemini')
+        .eq('endpoint', 'image_generation')
+        .gte('created_at', todayStart.toISOString())
+      usedToday = count ?? 0
+      if (usedToday >= DAILY_IMAGE_CAP) {
+        return NextResponse.json({
+          error: `Daily limit of ${DAILY_IMAGE_CAP} images reached. Resets at midnight.`,
+          remaining: 0,
+        }, { status: 429 })
+      }
+    }
+  } catch { /* proceed without cap enforcement if auth check fails */ }
+
+  const logUsage = async () => {
+    if (userId && adminDb) {
+      await adminDb.from('api_usage').insert({
+        service: 'gemini',
+        endpoint: 'image_generation',
+        user_id: userId,
+        tokens_in: 0,
+        tokens_out: 0,
+        credits_used: 0,
+        cost_usd: 0,
+      })
+    }
+  }
+
+  const withRemaining = (data: Record<string, unknown>) => ({
+    ...data,
+    ...(userId != null ? { remaining: Math.max(0, DAILY_IMAGE_CAP - usedToday - 1) } : {}),
+  })
+
+  // ── Body parsing ──────────────────────────────────────────────────────────────
   let body: {
     prompt?: string
     style?: string
@@ -186,7 +239,7 @@ export async function POST(req: NextRequest) {
   const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
   try {
-    // ── Resize mode ────────────────────────────────────────────────────────────
+    // ── Resize mode ─────────────────────────────────────────────────────────────
     if (isResize) {
       const sourceRef = refs[0]
       const toggles: ResizeToggles = resizeToggles ?? {
@@ -207,19 +260,15 @@ export async function POST(req: NextRequest) {
         let cropW: number, cropH: number
 
         if (Math.abs(targetAR - srcAR) < 0.01) {
-          // Same AR — return as-is
           cropW = srcW; cropH = srcH
         } else if (targetAR < srcAR) {
-          // Target is taller/narrower — crop the sides
           cropH = srcH
           cropW = Math.round(srcH * targetAR)
         } else {
-          // Target is wider/shorter — crop top/bottom
           cropW = srcW
           cropH = Math.round(srcW / targetAR)
         }
 
-        // Clamp to source dimensions
         cropW = Math.min(cropW, srcW)
         cropH = Math.min(cropH, srcH)
 
@@ -230,15 +279,14 @@ export async function POST(req: NextRequest) {
           .png()
           .toBuffer()
 
-        return NextResponse.json({
+        await logUsage()
+        return NextResponse.json(withRemaining({
           imageData: cropped.toString('base64'),
           mimeType: 'image/png',
-        })
+        }))
       }
 
       // ── Path B: Extension — AI generates background, Sharp composites original ──
-
-      // If Imagen selected, fall back to best Gemini model
       const resizeModel = selectResizeModel(toggles, GEMINI_IMAGE_MODELS.has(model) ? model : undefined)
       const resizerInstruction = buildResizerPrompt(aspectRatio, toggles)
 
@@ -287,17 +335,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: reason }, { status: 502 })
       }
 
-      // ── Sharp compositing: overlay original pixels on AI-generated canvas ─────
-      // Only applied when the source covers ≥50% of the target canvas area.
-      // For large AR inversions (e.g. 16:9→9:16, coverage ~32%), the source is
-      // only a thin strip — compositing destroys the composition. In those cases
-      // Gemini's full recomposition is correct and compositing is skipped.
       const aiBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
       const aiMeta = await sharp(aiBuffer).metadata()
       const aiW = aiMeta.width ?? srcW
       const aiH = aiMeta.height ?? srcH
 
-      // Scale source to fit inside AI canvas maintaining exact source AR
       const scale = Math.min(aiW / srcW, aiH / srcH)
       const scaledW = Math.round(srcW * scale)
       const scaledH = Math.round(srcH * scale)
@@ -305,14 +347,13 @@ export async function POST(req: NextRequest) {
       const coverage = (scaledW * scaledH) / (aiW * aiH)
 
       if (coverage < 0.5) {
-        // Source covers <50% of canvas — trust Gemini's full recomposition directly
-        return NextResponse.json({
+        await logUsage()
+        return NextResponse.json(withRemaining({
           imageData: imagePart.inlineData.data,
           mimeType: imagePart.inlineData.mimeType ?? 'image/png',
-        })
+        }))
       }
 
-      // Source covers ≥50% — composite original pixels back for pixel-perfect fidelity
       const left = Math.round((aiW - scaledW) / 2)
       const top = Math.round((aiH - scaledH) / 2)
 
@@ -326,13 +367,14 @@ export async function POST(req: NextRequest) {
         .png()
         .toBuffer()
 
-      return NextResponse.json({
+      await logUsage()
+      return NextResponse.json(withRemaining({
         imageData: composited.toString('base64'),
         mimeType: 'image/png',
-      })
+      }))
     }
 
-    // ── Generate mode ──────────────────────────────────────────────────────────
+    // ── Generate mode ───────────────────────────────────────────────────────────
 
     if (GEMINI_IMAGE_MODELS.has(model)) {
       const reqParts: GeminiPart[] = []
@@ -381,7 +423,7 @@ export async function POST(req: NextRequest) {
       }
 
       const url = `${BASE}/${model}:generateContent?key=${apiKey}`
-      const payload = {
+      const geminiPayload = {
         contents: [{ role: 'user', parts: reqParts }],
         generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
       }
@@ -389,7 +431,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(geminiPayload),
       })
 
       const json = await res.json() as {
@@ -417,13 +459,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: reason }, { status: 502 })
       }
 
-      return NextResponse.json({
+      await logUsage()
+      return NextResponse.json(withRemaining({
         imageData: imagePart.inlineData.data,
         mimeType: imagePart.inlineData.mimeType ?? 'image/png',
-      })
+      }))
     }
 
-    // ── Imagen 4 (predict) ─────────────────────────────────────────────────────
+    // ── Imagen 4 (predict) ──────────────────────────────────────────────────────
     if (IMAGEN_MODELS.has(model)) {
       const IMAGEN_AR_MAP: Record<string, string> = {
         '1:1': '1:1', '9:16': '9:16', '16:9': '16:9', '4:3': '4:3', '3:4': '3:4', '4:5': '3:4',
@@ -435,7 +478,7 @@ export async function POST(req: NextRequest) {
       const fullPrompt = `${cappedPrompt}. ${styleSuffix}${QUALITY_SUFFIX}`
 
       const url = `${BASE}/${model}:predict?key=${apiKey}`
-      const payload = {
+      const imagenPayload = {
         instances: [{ prompt: fullPrompt }],
         parameters: {
           sampleCount: 1,
@@ -449,7 +492,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(imagenPayload),
       })
 
       const json = await res.json() as {
@@ -466,10 +509,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'No image returned from Imagen API' }, { status: 502 })
       }
 
-      return NextResponse.json({
+      await logUsage()
+      return NextResponse.json(withRemaining({
         imageData: prediction.bytesBase64Encoded,
         mimeType: prediction.mimeType ?? 'image/png',
-      })
+      }))
     }
 
     return NextResponse.json({ error: `Unknown model: ${model}` }, { status: 400 })

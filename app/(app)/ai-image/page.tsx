@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef, useCallback, useId, useLayoutEffect } from 'react'
+import { useState, useRef, useCallback, useId, useLayoutEffect, useEffect } from 'react'
 import {
   Wand2, Download, Plus, Trash2, Type, AlignLeft, AlignCenter, AlignRight,
   Bold, Italic, RefreshCw, Sparkles, ChevronDown, GripHorizontal,
   ImagePlus, X, Layers, Maximize2, AtSign, ChevronRight,
-  Info, Pencil, Check, BookOpen, Brain, Save, ExternalLink,
-  ChevronUp, Target, Zap, Eye,
+  Info, Pencil, Check, Brain, Save, ExternalLink,
+  ChevronUp, Target, Zap, Eye, LayoutGrid, User, Sunset,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { IdeationOutput, IdeationConcept } from '@/app/api/ai-image/ideate/route'
@@ -35,16 +35,14 @@ interface RefImage {
 const DEFAULT_MODEL = 'gemini-3.1-flash-image-preview'
 
 const MODELS = [
-  { id: 'gemini-3.1-flash-image-preview', label: 'Flash Image Preview', tag: '$0.045 · Fast', supportsRef: true  },
-  { id: 'gemini-2.5-flash-image',         label: 'Flash Image',         tag: 'Fast',          supportsRef: true  },
-  { id: 'gemini-3-pro-image-preview',     label: 'Pro Image Preview',   tag: 'Preview · Pro', supportsRef: true  },
-  { id: 'imagen-4.0-fast-generate-001',   label: 'Imagen 4 Fast',       tag: 'Fast · AR',     supportsRef: false },
-  { id: 'imagen-4.0-generate-001',        label: 'Imagen 4',            tag: 'AR support',    supportsRef: false },
-  { id: 'imagen-4.0-ultra-generate-001',  label: 'Imagen 4 Ultra',      tag: 'Best quality',  supportsRef: false },
+  { id: 'gemini-3.1-flash-image-preview', label: 'Gemini Flash',      tag: 'Fast · Reference', supportsRef: true  },
+  { id: 'gemini-2.5-flash-image',         label: 'Gemini Flash 2.5',  tag: 'Reference',         supportsRef: true  },
+  { id: 'imagen-4.0-fast-generate-001',   label: 'Imagen 4 Fast',     tag: 'Fast · Native AR',  supportsRef: false },
+  { id: 'imagen-4.0-generate-001',        label: 'Imagen 4',          tag: 'Native AR · HQ',    supportsRef: false },
 ]
 
 const SUPPORTS_NATIVE_AR = new Set([
-  'imagen-4.0-fast-generate-001', 'imagen-4.0-generate-001', 'imagen-4.0-ultra-generate-001',
+  'imagen-4.0-fast-generate-001', 'imagen-4.0-generate-001',
 ])
 
 const STYLES = [
@@ -80,13 +78,236 @@ const TOV_ROLES: { id: TOVItem['role']; label: string }[] = [
   { id: 'callout',  label: 'Callout'  },
 ]
 
-const PROMPT_PRESETS = [
-  { label: 'Luxury Product',   prompt: 'A luxury [product] on polished black marble with dramatic single-source side lighting, deep rich shadows, warm metallic reflections, ultra-premium editorial atmosphere' },
-  { label: 'Campaign Hero',    prompt: '[Subject] against a dramatic architectural urban backdrop at blue hour, cinematic compression, powerful and aspirational mood, campaign hero shot' },
-  { label: 'Lifestyle Scene',  prompt: '[Person/product] in a sun-drenched modern apartment interior, natural light streaming through floor-to-ceiling windows, effortless luxury lifestyle, warm editorial tones' },
-  { label: 'Beauty Shot',      prompt: 'Close-up of [product] surrounded by [ingredients/elements], soft diffused ethereal light, premium beauty editorial, delicate and refined atmosphere' },
-  { label: 'Dark Drama',       prompt: 'Dramatic low-key [subject] against pure matte black background, single precision key light creating powerful chiaroscuro shadows, mysterious and intense' },
-  { label: 'Street Story',     prompt: '[Subject] in an authentic urban environment, dynamic street energy, editorial documentary feel, golden hour side light cutting through city architecture' },
+// ── Template system ────────────────────────────────────────────────────────────
+
+type TemplateCategory = 'product' | 'ugc' | 'lifestyle'
+
+interface TemplateField {
+  key: string
+  label: string
+  type: 'text' | 'select'
+  placeholder?: string
+  options?: { value: string; label: string }[]
+}
+
+interface ImageTemplate {
+  id: string
+  name: string
+  category: TemplateCategory
+  description: string
+  fields: TemplateField[]
+  build: (v: Record<string, string>) => string
+}
+
+const IMAGE_TEMPLATES: ImageTemplate[] = [
+  {
+    id: 'hero-product',
+    name: 'Hero Product Shot',
+    category: 'product',
+    description: 'Premium editorial product against a styled surface',
+    fields: [
+      { key: 'product', label: 'Product', type: 'text', placeholder: 'e.g. matte black perfume bottle' },
+      { key: 'surface', label: 'Surface', type: 'select', options: [
+        { value: 'polished black marble with gold veining', label: 'Black Marble' },
+        { value: 'white marble with subtle veining', label: 'White Marble' },
+        { value: 'brushed dark concrete', label: 'Dark Concrete' },
+        { value: 'rich walnut wood grain', label: 'Dark Wood' },
+        { value: 'reflective black glass shelf', label: 'Black Glass' },
+      ]},
+      { key: 'lighting', label: 'Lighting', type: 'select', options: [
+        { value: 'dramatic single-source side lighting, deep rich shadows, warm metallic reflections', label: 'Dramatic & Moody' },
+        { value: 'soft diffused ethereal lighting, delicate shadows, refined atmosphere', label: 'Soft & Ethereal' },
+        { value: 'warm golden hour light, gentle glowing highlights', label: 'Golden Warm' },
+        { value: 'clean three-point studio lighting, pristine clarity', label: 'Clean Studio' },
+      ]},
+    ],
+    build: (v) => `${v.product} on ${v.surface}, ${v.lighting}, ultra-premium editorial atmosphere, commercial product photography, 8K detail, advertising campaign quality`,
+  },
+  {
+    id: 'flat-lay',
+    name: 'Flat Lay Scene',
+    category: 'product',
+    description: 'Overhead flat lay with curated styling elements',
+    fields: [
+      { key: 'product', label: 'Product', type: 'text', placeholder: 'e.g. skincare serum bottle' },
+      { key: 'background', label: 'Background', type: 'select', options: [
+        { value: 'crisp white linen fabric', label: 'White Linen' },
+        { value: 'warm beige marble', label: 'Beige Marble' },
+        { value: 'dark slate stone', label: 'Dark Slate' },
+        { value: 'light natural wood', label: 'Natural Wood' },
+        { value: 'sage green linen', label: 'Sage Green' },
+      ]},
+      { key: 'accents', label: 'Accent Items', type: 'text', placeholder: 'e.g. dried flowers, small stones, leaves' },
+    ],
+    build: (v) => `Overhead flat lay of ${v.product} on ${v.background}, surrounded by ${v.accents}, perfect spacing and symmetry, editorial product photography, natural diffused light, magazine quality composition`,
+  },
+  {
+    id: 'lifestyle-product',
+    name: 'Lifestyle Product',
+    category: 'product',
+    description: 'Product in a real-world aspirational environment',
+    fields: [
+      { key: 'product', label: 'Product', type: 'text', placeholder: 'e.g. leather handbag' },
+      { key: 'setting', label: 'Setting', type: 'select', options: [
+        { value: 'sun-drenched modern apartment with floor-to-ceiling windows', label: 'Modern Apartment' },
+        { value: 'stylish outdoor café terrace', label: 'Outdoor Café' },
+        { value: 'minimalist home office desk', label: 'Home Office' },
+        { value: 'luxury hotel suite', label: 'Luxury Hotel' },
+        { value: 'lush green garden', label: 'Garden' },
+      ]},
+      { key: 'mood', label: 'Mood', type: 'select', options: [
+        { value: 'warm and luxurious, rich textures', label: 'Warm & Luxurious' },
+        { value: 'fresh and clean, bright natural light', label: 'Fresh & Clean' },
+        { value: 'urban and modern, editorial edge', label: 'Urban & Modern' },
+        { value: 'natural and organic, earthy warmth', label: 'Natural & Organic' },
+      ]},
+    ],
+    build: (v) => `${v.product} in a ${v.setting}, ${v.mood} atmosphere, natural lifestyle photography, authentic and aspirational, editorial quality`,
+  },
+  {
+    id: 'beauty-closeup',
+    name: 'Beauty Close-up',
+    category: 'product',
+    description: 'Macro product detail with beauty editorial lighting',
+    fields: [
+      { key: 'product', label: 'Product', type: 'text', placeholder: 'e.g. rose gold face oil' },
+      { key: 'elements', label: 'Key Elements', type: 'text', placeholder: 'e.g. rose petals, dewy droplets' },
+      { key: 'atmosphere', label: 'Atmosphere', type: 'select', options: [
+        { value: 'ethereal and dreamy, soft bokeh, translucent glow', label: 'Ethereal & Dreamy' },
+        { value: 'bold and dramatic, high contrast precision', label: 'Bold & Dramatic' },
+        { value: 'fresh and clean, bright airy minimal', label: 'Fresh & Clean' },
+        { value: 'warm and indulgent, rich golden tones', label: 'Warm & Luxe' },
+      ]},
+    ],
+    build: (v) => `Extreme close-up macro of ${v.product}, ${v.elements} surrounding it, ${v.atmosphere}, premium beauty editorial photography, ultra-refined and delicate atmosphere, 8K detail`,
+  },
+  {
+    id: 'ugc-unboxing',
+    name: 'Authentic Unboxing',
+    category: 'ugc',
+    description: 'Real unboxing moment — creator-style content',
+    fields: [
+      { key: 'product', label: 'Product', type: 'text', placeholder: 'e.g. luxury skincare gift set' },
+      { key: 'energy', label: 'Creator Energy', type: 'select', options: [
+        { value: 'excited and delighted, genuine surprise expression', label: 'Excited & Surprised' },
+        { value: 'calm and aesthetic, slow luxurious reveal', label: 'Calm & Aesthetic' },
+        { value: 'warm and genuine, natural smile of satisfaction', label: 'Natural & Warm' },
+      ]},
+      { key: 'setting', label: 'Setting', type: 'select', options: [
+        { value: 'clean white desk with soft window light', label: 'Clean White Desk' },
+        { value: 'cozy home environment, warm ambient light', label: 'Cozy Home' },
+        { value: 'bedroom vanity with ring light glow', label: 'Bedroom Vanity' },
+        { value: 'natural light near a large window', label: 'Natural Light Window' },
+      ]},
+    ],
+    build: (v) => `Person's hands carefully unboxing ${v.product}, ${v.energy}, ${v.setting} background, authentic UGC content creator style, warm soft natural light, real-life relatable feel, trustworthy composition`,
+  },
+  {
+    id: 'day-in-life',
+    name: 'Day in the Life',
+    category: 'ugc',
+    description: 'Product integrated into a real daily routine',
+    fields: [
+      { key: 'product', label: 'Product', type: 'text', placeholder: 'e.g. morning supplement' },
+      { key: 'lifestyle', label: 'Lifestyle Type', type: 'select', options: [
+        { value: 'busy professional, polished and efficient', label: 'Busy Professional' },
+        { value: 'wellness-focused, mindful and serene', label: 'Wellness-Focused' },
+        { value: 'creative and artistic, expressive environment', label: 'Creative & Artistic' },
+        { value: 'luxury leisure, effortlessly indulgent', label: 'Luxury Leisure' },
+      ]},
+      { key: 'time', label: 'Moment', type: 'select', options: [
+        { value: 'morning routine, soft golden morning light', label: 'Morning Routine' },
+        { value: 'afternoon break, warm daylight', label: 'Afternoon Break' },
+        { value: 'evening wind-down, warm ambient light', label: 'Evening Wind-Down' },
+      ]},
+    ],
+    build: (v) => `Person using ${v.product} during their ${v.time}, ${v.lifestyle} lifestyle, authentic lifestyle photography, candid real moment, editorial documentary style, aspirational but relatable`,
+  },
+  {
+    id: 'product-review',
+    name: 'Product Review Moment',
+    category: 'ugc',
+    description: 'Genuine reaction moment that builds trust',
+    fields: [
+      { key: 'product', label: 'Product', type: 'text', placeholder: 'e.g. ceramic coffee mug' },
+      { key: 'emotion', label: 'Reaction', type: 'select', options: [
+        { value: 'genuine delight and satisfaction', label: 'Genuine Delight' },
+        { value: 'thoughtful appreciation and quality recognition', label: 'Thoughtful Appreciation' },
+        { value: 'pleasant surprise at quality', label: 'Surprising Discovery' },
+      ]},
+      { key: 'setting', label: 'Setting', type: 'select', options: [
+        { value: 'cozy home kitchen, warm morning light', label: 'Home Kitchen' },
+        { value: 'stylish café interior', label: 'Café' },
+        { value: 'bright modern home living space', label: 'Home Living Space' },
+      ]},
+    ],
+    build: (v) => `Person holding and closely examining ${v.product} with an expression of ${v.emotion}, ${v.setting}, authentic review content aesthetic, warm natural light, real moment captured, genuinely trustworthy composition`,
+  },
+  {
+    id: 'morning-ritual',
+    name: 'Morning Ritual',
+    category: 'lifestyle',
+    description: 'Curated morning scene with aspirational energy',
+    fields: [
+      { key: 'product', label: 'Product / Category', type: 'text', placeholder: 'e.g. matcha powder and ceramic bowl' },
+      { key: 'aesthetic', label: 'Aesthetic', type: 'select', options: [
+        { value: 'minimal and modern, clean lines, muted tones', label: 'Minimal & Modern' },
+        { value: 'warm and cozy, soft textures, earthy palette', label: 'Warm & Cozy' },
+        { value: 'bright and fresh, light and airy, optimistic', label: 'Bright & Fresh' },
+        { value: 'dark and moody, dramatic shadows, rich tones', label: 'Dark & Moody' },
+      ]},
+    ],
+    build: (v) => `${v.product} in a curated morning ritual scene, ${v.aesthetic}, soft morning light streaming through window, lifestyle flat lay and environmental styling, aspirational daily routine, magazine-quality composition`,
+  },
+  {
+    id: 'luxury-moment',
+    name: 'Luxury Moment',
+    category: 'lifestyle',
+    description: 'Premium brand placed in high-end environment',
+    fields: [
+      { key: 'product', label: 'Product', type: 'text', placeholder: 'e.g. scented candle collection' },
+      { key: 'environment', label: 'Environment', type: 'select', options: [
+        { value: 'high-end hotel suite with marble and floor-to-ceiling windows', label: 'Luxury Hotel Suite' },
+        { value: 'modern penthouse with panoramic city views', label: 'Modern Penthouse' },
+        { value: 'exclusive spa retreat with natural stone and soft candles', label: 'Spa Retreat' },
+        { value: 'intimate fine dining setting with soft candlelight', label: 'Fine Dining' },
+      ]},
+      { key: 'emotion', label: 'Emotion', type: 'select', options: [
+        { value: 'calm and deeply indulgent, pure relaxation', label: 'Calm & Indulgent' },
+        { value: 'romantic and intimate, soft warmth', label: 'Romantic & Intimate' },
+        { value: 'sophisticated and powerful, confident quiet luxury', label: 'Sophisticated & Powerful' },
+      ]},
+    ],
+    build: (v) => `${v.product} in a ${v.environment}, ${v.emotion} emotional tone, ultra-luxury lifestyle photography, rich textures and premium materials, warm ambient light, aspirational premium campaign editorial quality`,
+  },
+  {
+    id: 'campaign-hero',
+    name: 'Campaign Hero',
+    category: 'lifestyle',
+    description: 'World-class advertising hero shot',
+    fields: [
+      { key: 'subject', label: 'Product / Subject', type: 'text', placeholder: 'e.g. new limited edition fragrance bottle' },
+      { key: 'theme', label: 'Visual Theme', type: 'select', options: [
+        { value: 'power and success, bold and commanding', label: 'Power & Success' },
+        { value: 'natural beauty, organic and pure, earthy warmth', label: 'Natural Beauty' },
+        { value: 'urban edge, raw energy, modern cool', label: 'Urban Edge' },
+        { value: 'timeless elegance, classic luxury, refined', label: 'Timeless Elegance' },
+      ]},
+      { key: 'background', label: 'Background', type: 'select', options: [
+        { value: 'dramatic architectural structure, geometric shadows', label: 'Dramatic Architecture' },
+        { value: 'epic natural landscape at golden hour', label: 'Natural Landscape' },
+        { value: 'pure studio infinity background, seamless', label: 'Studio Infinity' },
+        { value: 'authentic urban street, editorial grit', label: 'Urban Street' },
+      ]},
+    ],
+    build: (v) => `Campaign hero shot of ${v.subject}, ${v.theme} visual direction, ${v.background}, professional advertising photography, cinematic compression and power, world-class production quality, iconic and unforgettable`,
+  },
+]
+
+const TEMPLATE_CATEGORIES: { id: TemplateCategory; label: string; icon: React.ElementType }[] = [
+  { id: 'product',   label: 'Product',   icon: LayoutGrid },
+  { id: 'ugc',       label: 'UGC',       icon: User       },
+  { id: 'lifestyle', label: 'Lifestyle', icon: Sunset     },
 ]
 
 function newLayer(id: string): TextLayer {
@@ -117,6 +338,97 @@ function ScoreDot({ score, max = 5 }: { score: number; max?: number }) {
       {Array.from({ length: max }).map((_, i) => (
         <div key={i} className={cn('w-1.5 h-1.5 rounded-full', i < score ? 'bg-novax-accent' : 'bg-slate-200')} />
       ))}
+    </div>
+  )
+}
+
+// ── TemplateBuilder ───────────────────────────────────────────────────────────
+
+function TemplateBuilder({ onApply }: { onApply: (prompt: string) => void }) {
+  const [category, setCategory] = useState<TemplateCategory>('product')
+  const [selected, setSelected] = useState<string | null>(null)
+  const [values, setValues] = useState<Record<string, string>>({})
+
+  const templates = IMAGE_TEMPLATES.filter(t => t.category === category)
+  const activeTemplate = IMAGE_TEMPLATES.find(t => t.id === selected) ?? null
+
+  const handleSelect = (id: string) => {
+    if (selected === id) { setSelected(null); setValues({}); return }
+    setSelected(id)
+    setValues({})
+  }
+
+  const handleApply = () => {
+    if (!activeTemplate) return
+    const allFilled = activeTemplate.fields.every(f => values[f.key]?.trim())
+    if (!allFilled) return
+    onApply(activeTemplate.build(values))
+  }
+
+  const allFilled = activeTemplate ? activeTemplate.fields.every(f => values[f.key]?.trim()) : false
+
+  return (
+    <div className="space-y-3">
+      {/* Category tabs */}
+      <div className="flex gap-1">
+        {TEMPLATE_CATEGORIES.map(cat => (
+          <button key={cat.id} onClick={() => { setCategory(cat.id); setSelected(null); setValues({}) }}
+            className={cn('flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border',
+              category === cat.id ? 'bg-novax text-white border-novax' : 'border-slate-200 text-slate-500 hover:border-novax-border hover:text-novax')}>
+            <cat.icon className="w-3 h-3" />
+            {cat.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Template grid */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {templates.map(t => (
+          <button key={t.id} onClick={() => handleSelect(t.id)}
+            className={cn('px-2.5 py-2.5 text-left border rounded-xl transition-all',
+              selected === t.id
+                ? 'bg-novax-light border-novax-border-active'
+                : 'border-slate-200 hover:border-novax-border bg-white')}>
+            <p className={cn('text-[11px] font-semibold leading-tight', selected === t.id ? 'text-novax' : 'text-slate-700')}>{t.name}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{t.description}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Field form — appears when a template is selected */}
+      {activeTemplate && (
+        <div className="bg-novax-light border border-novax-border rounded-xl p-3 space-y-2.5">
+          {activeTemplate.fields.map(field => (
+            <div key={field.key}>
+              <label className="text-[10px] font-semibold text-novax uppercase tracking-wider block mb-1">{field.label}</label>
+              {field.type === 'text' ? (
+                <input
+                  value={values[field.key] ?? ''}
+                  onChange={e => setValues(v => ({ ...v, [field.key]: e.target.value }))}
+                  placeholder={field.placeholder}
+                  className="w-full px-2.5 py-2 text-xs border border-novax-border bg-white rounded-lg text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted"
+                />
+              ) : (
+                <div className="relative">
+                  <select
+                    value={values[field.key] ?? ''}
+                    onChange={e => setValues(v => ({ ...v, [field.key]: e.target.value }))}
+                    className="w-full px-2.5 py-2 text-xs border border-novax-border bg-white rounded-lg text-slate-700 outline-none focus:border-novax-muted appearance-none pr-7">
+                    <option value="">Select {field.label.toLowerCase()}…</option>
+                    {field.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                </div>
+              )}
+            </div>
+          ))}
+          <button onClick={handleApply} disabled={!allFilled}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors">
+            <Wand2 className="w-3 h-3" />
+            Build Prompt
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -410,6 +722,20 @@ function IdeationResult({ output, onUseConcept }: { output: IdeationOutput; onUs
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AIImagePage() {
+  // Usage cap
+  const [capRemaining, setCapRemaining] = useState<number | null>(null)
+  const [capLimit] = useState(50)
+
+  useEffect(() => {
+    fetch('/api/ai-image/cap')
+      .then(r => r.json())
+      .then((d: { remaining?: number }) => { if (typeof d.remaining === 'number') setCapRemaining(d.remaining) })
+      .catch(() => {})
+  }, [])
+
+  // Template picker
+  const [showTemplates, setShowTemplates] = useState(false)
+
   // Tabs
   const [activeTab, setActiveTab] = useState<'generate' | 'resize' | 'think' | 'tov'>('generate')
 
@@ -422,7 +748,6 @@ export default function AIImagePage() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showNeg, setShowNeg] = useState(false)
-  const [showPresets, setShowPresets] = useState(false)
 
   // Canvas state
   const [imageData, setImageData] = useState<string | null>(null)
@@ -576,9 +901,10 @@ export default function AIImagePage() {
           ...(refImages.length > 0 && selectedModel.supportsRef ? { referenceImages: refImages } : {}),
         }),
       })
-      const data = await res.json() as { imageData?: string; mimeType?: string; error?: string }
+      const data = await res.json() as { imageData?: string; mimeType?: string; error?: string; remaining?: number }
       if (!res.ok || data.error) { setError(data.error ?? 'Generation failed'); return }
       setImageData(data.imageData!); setImageMime(data.mimeType ?? 'image/png')
+      if (typeof data.remaining === 'number') setCapRemaining(data.remaining)
     } catch (e) { setError(e instanceof Error ? e.message : 'Network error')
     } finally { setGenerating(false) }
   }
@@ -598,9 +924,10 @@ export default function AIImagePage() {
           resizeToggles,
         }),
       })
-      const data = await res.json() as { imageData?: string; mimeType?: string; error?: string }
+      const data = await res.json() as { imageData?: string; mimeType?: string; error?: string; remaining?: number }
       if (!res.ok || data.error) { setResizeError(data.error ?? 'Resize failed'); return }
       setImageData(data.imageData!); setImageMime(data.mimeType ?? 'image/png')
+      if (typeof data.remaining === 'number') setCapRemaining(data.remaining)
     } catch (e) { setResizeError(e instanceof Error ? e.message : 'Network error')
     } finally { setResizing(false) }
   }
@@ -783,21 +1110,16 @@ export default function AIImagePage() {
               <p className="text-sm font-semibold text-slate-800">AI Image Generation</p>
             </div>
 
-            {/* Quick presets */}
+            {/* Template picker */}
             <div>
-              <button onClick={() => setShowPresets(p => !p)}
+              <button onClick={() => setShowTemplates(p => !p)}
                 className="flex items-center gap-1 text-xs text-slate-500 hover:text-novax transition-colors">
-                <ChevronRight className={cn('w-3 h-3 transition-transform', showPresets && 'rotate-90')} />
-                Quick start prompts
+                <ChevronRight className={cn('w-3 h-3 transition-transform', showTemplates && 'rotate-90')} />
+                Content templates
               </button>
-              {showPresets && (
-                <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  {PROMPT_PRESETS.map(p => (
-                    <button key={p.label} onClick={() => { setPrompt(p.prompt); setShowPresets(false) }}
-                      className="px-2.5 py-2 text-[11px] font-medium text-left border border-slate-200 hover:border-novax-border hover:text-novax text-slate-600 rounded-lg transition-colors leading-tight">
-                      {p.label}
-                    </button>
-                  ))}
+              {showTemplates && (
+                <div className="mt-2">
+                  <TemplateBuilder onApply={p => { setPrompt(p.slice(0, 2000)); setShowTemplates(false) }} />
                 </div>
               )}
             </div>
@@ -929,10 +1251,21 @@ export default function AIImagePage() {
               </div>
             </div>
 
-            <button onClick={handleGenerate} disabled={!prompt.trim() || generating}
+            {/* Daily cap indicator */}
+            {capRemaining !== null && (
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-400">Daily limit</span>
+                <span className={cn('font-mono font-semibold', capRemaining <= 5 ? 'text-amber-500' : capRemaining === 0 ? 'text-red-500' : 'text-slate-400')}>
+                  {capRemaining} / {capLimit} remaining
+                </span>
+              </div>
+            )}
+
+            <button onClick={handleGenerate} disabled={!prompt.trim() || generating || capRemaining === 0}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors">
               {generating ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating…</> : <><Sparkles className="w-4 h-4" /> Generate Image</>}
             </button>
+            {capRemaining === 0 && <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200 text-center">Daily limit reached — resets at midnight</p>}
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-200">{error}</p>}
           </div>
         )}
@@ -1033,9 +1366,6 @@ export default function AIImagePage() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-semibold text-slate-600">Model <span className="font-normal text-slate-400">(Gemini required)</span></label>
-                {(resizeToggles.hasLogo || resizeToggles.hasText) && model === 'gemini-3.1-flash-image-preview' && (
-                  <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Auto-upgrading to Pro</span>
-                )}
               </div>
               <div className="space-y-1">
                 {MODELS.filter(m => m.supportsRef).map(m => (
