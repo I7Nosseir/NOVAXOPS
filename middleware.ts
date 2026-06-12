@@ -41,6 +41,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/brief/') ||
     pathname.startsWith('/_next/') ||
     pathname === '/landing' ||
+    pathname === '/privacy' ||
     pathname === '/manifest.json' ||
     pathname === '/sw.js' ||
     pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico)$/)

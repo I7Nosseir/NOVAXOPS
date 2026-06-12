@@ -73,7 +73,7 @@ Return ONLY the JSON — no markdown, no explanation.`
 
   if (!raw && geminiKey) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

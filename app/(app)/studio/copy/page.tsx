@@ -1170,10 +1170,10 @@ function InspirationLabSection({
   onRefsChange: (refs: InsLabRef[]) => void
   onSessionReady: (sessionId: string | null) => void
 }) {
-  const [phase,         setPhase]         = useState<InspirationPhase>('idle')
-  const [brief,         setBrief]         = useState('')
-  const [platform,      setPlatform]      = useState(defaultPlatform || 'Instagram')
-  const [sessionId,     setSessionId]     = useState<string | null>(null)
+  const [phase,          setPhase]          = useState<InspirationPhase>('idle')
+  const [brief,          setBrief]          = useState('')
+  const [selPlatforms,   setSelPlatforms]   = useState<string[]>([defaultPlatform || 'Instagram'])
+  const [sessionId,      setSessionId]      = useState<string | null>(null)
   const [clusters,      setClusters]      = useState<InsLabCluster[]>([])
   const [feedback,      setFeedback]      = useState<Record<string, 'more' | 'less' | null>>({})
   const [pins,          setPins]          = useState<InsLabPin[]>([])
@@ -1197,6 +1197,14 @@ function InspirationLabSection({
     setClusters([]); setFeedback({}); setPins([]); setError(null)
     setSavedRefs({}); setBorrowingPin(null); notifyRefs({})
     onSessionReady(null)
+  }
+
+  function togglePlatform(p: string) {
+    setSelPlatforms(prev =>
+      prev.includes(p)
+        ? prev.length > 1 ? prev.filter(v => v !== p) : prev  // keep at least 1
+        : [...prev, p]
+    )
   }
 
   function scoreColor(s: number) {
@@ -1248,7 +1256,8 @@ function InspirationLabSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           brief_text:   brief,
-          platform,
+          platform:     selPlatforms.join(','),
+          platforms:    selPlatforms,
           client_id:    clientId || undefined,
           language:     parentLanguage,
           content_type: parentContentType,
@@ -1318,15 +1327,32 @@ function InspirationLabSection({
           </p>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Platform</label>
-          <select
-            value={platform}
-            onChange={e => setPlatform(e.target.value)}
-            className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-novax-border-active"
-          >
-            {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            Platform{selPlatforms.length > 1 ? `s (${selPlatforms.length})` : ''}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {PLATFORMS.map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => togglePlatform(p)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                  selPlatforms.includes(p)
+                    ? 'bg-novax text-white border-novax'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-novax-border hover:bg-novax-light/50',
+                )}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          {selPlatforms.length > 1 && (
+            <p className="text-[11px] text-novax-muted">
+              Inspiration will be optimised for all selected platforms. Separate variants are generated per platform.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">

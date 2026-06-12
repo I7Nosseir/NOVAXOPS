@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react'
 import Link from 'next/link'
-import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, RefreshCw, ImagePlus } from 'lucide-react'
+import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, RefreshCw, ImagePlus, Save, CheckCircle2, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { supabase } from '@/lib/supabase'
 import { useTasks } from '@/lib/hooks/use-tasks'
@@ -161,8 +161,56 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const { tasks: allTasks } = useTasks()
   const { posts: allPosts } = usePosts()
   const updateClient = useUpdateClient()
-  const [tab, setTab] = useState<'overview' | 'intelligence' | 'competitors' | 'tasks' | 'brief' | 'context' | 'strategy'>('overview')
+  const [tab, setTab] = useState<'overview' | 'intelligence' | 'competitors' | 'tasks' | 'brief' | 'context' | 'strategy' | 'edit'>('overview')
   const [briefSaving, setBriefSaving] = useState(false)
+
+  // ── Edit tab state ─────────────────────────────────────────────────────────
+  const [editName,          setEditName]          = useState(client.name)
+  const [editStatus,        setEditStatus]        = useState<Client['status']>(client.status)
+  const [editColor,         setEditColor]         = useState(client.color)
+  const [editIndustry,      setEditIndustry]      = useState(client.brand_identity.industry ?? '')
+  const [editTone,          setEditTone]          = useState(client.brand_identity.tone_of_voice ?? '')
+  const [editAudience,      setEditAudience]      = useState(client.brand_identity.target_audience ?? '')
+  const [editMessages,      setEditMessages]      = useState<string[]>(client.brand_identity.key_messages ?? [])
+  const [editCompetitors,   setEditCompetitors]   = useState<string[]>(client.competitor_context ?? [])
+  const [editMetricoolId,   setEditMetricoolId]   = useState(client.metricool_blog_id ?? '')
+  const [editRespondIoId,   setEditRespondIoId]   = useState(client.respond_io_channel_id ?? '')
+  const [editSaving,        setEditSaving]        = useState(false)
+  const [editSaved,         setEditSaved]         = useState(false)
+  const [newMessage,        setNewMessage]        = useState('')
+  const [newCompetitor,     setNewCompetitor]     = useState('')
+
+  const handleEditSave = async () => {
+    if (!editName.trim()) return
+    setEditSaving(true)
+    setEditSaved(false)
+    try {
+      const newInitials = editName.trim().split(/\s+/).map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+      await updateClient.mutateAsync({
+        id: client.id,
+        name: editName.trim(),
+        initials: newInitials,
+        status: editStatus,
+        color: editColor,
+        brand_identity_json: {
+          ...client.brand_identity,
+          industry:        editIndustry.trim(),
+          tone_of_voice:   editTone.trim(),
+          target_audience: editAudience.trim(),
+          key_messages:    editMessages.filter(m => m.trim()),
+        },
+        competitor_context_json: editCompetitors.filter(c => c.trim()),
+        metricool_blog_id:     editMetricoolId.trim() || null,
+        respond_io_channel_id: editRespondIoId.trim() || null,
+      } as Parameters<typeof updateClient.mutateAsync>[0])
+      setEditSaved(true)
+      setTimeout(() => setEditSaved(false), 2500)
+    } catch (err) {
+      console.error('[client-edit]', err)
+    } finally {
+      setEditSaving(false)
+    }
+  }
   const [analyzing, setAnalyzing] = useState(false)
   const [localIntel, setLocalIntel] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -280,6 +328,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
         <div className="flex items-center gap-1 px-6 py-2 border-b border-slate-100 shrink-0 overflow-x-auto">
           {([
             { key: 'overview',      label: 'Overview' },
+            { key: 'edit',          label: 'Edit Client' },
             { key: 'intelligence',  label: 'Intelligence' },
             { key: 'competitors',   label: 'Competitors' },
             { key: 'context',       label: 'Context Bank' },
@@ -536,6 +585,221 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
               </div>
             )}
           </>}
+
+          {tab === 'edit' && (
+            <div className="space-y-6">
+              {/* Save bar */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Edit Client</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Changes apply immediately across the whole platform.</p>
+                </div>
+                <button
+                  onClick={handleEditSave}
+                  disabled={editSaving || !editName.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  {editSaving
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin"/>
+                    : editSaved
+                      ? <CheckCircle2 className="w-3.5 h-3.5"/>
+                      : <Save className="w-3.5 h-3.5"/>}
+                  {editSaved ? 'Saved' : 'Save Changes'}
+                </button>
+              </div>
+
+              {/* Basic Info */}
+              <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Basic Info</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Client Name</label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Status</label>
+                    <select
+                      value={editStatus}
+                      onChange={e => setEditStatus(e.target.value as Client['status'])}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="prospect">Prospect</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Industry / Category</label>
+                  <input
+                    type="text"
+                    value={editIndustry}
+                    onChange={e => setEditIndustry(e.target.value)}
+                    placeholder="e.g. Veterinary Clinic, Fashion Retail, F&B"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Brand Color</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={editColor}
+                      onChange={e => setEditColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={editColor}
+                      onChange={e => setEditColor(e.target.value)}
+                      placeholder="#1B3D38"
+                      className="w-32 px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 font-mono"
+                    />
+                    <div className="w-8 h-8 rounded-lg border border-slate-200" style={{ background: editColor }}/>
+                  </div>
+                </div>
+              </div>
+
+              {/* Brand Identity */}
+              <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Brand Identity</p>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tone of Voice</label>
+                  <textarea
+                    value={editTone}
+                    onChange={e => setEditTone(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Warm, professional, and educational. Speaks to pet owners who care deeply about their animals."
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Target Audience</label>
+                  <textarea
+                    value={editAudience}
+                    onChange={e => setEditAudience(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Pet owners aged 25–45 in the UAE who treat their animals as family members."
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Key Messages</label>
+                  <div className="space-y-2 mb-2">
+                    {editMessages.map((msg, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <input
+                          type="text"
+                          value={msg}
+                          onChange={e => {
+                            const next = [...editMessages]
+                            next[i] = e.target.value
+                            setEditMessages(next)
+                          }}
+                          className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700"
+                        />
+                        <button
+                          onClick={() => setEditMessages(editMessages.filter((_, j) => j !== i))}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-0.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5"/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={e => setNewMessage(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newMessage.trim()) {
+                          setEditMessages([...editMessages, newMessage.trim()])
+                          setNewMessage('')
+                        }
+                      }}
+                      placeholder="Add a key message, press Enter"
+                      className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400"
+                    />
+                    <button
+                      onClick={() => { if (newMessage.trim()) { setEditMessages([...editMessages, newMessage.trim()]); setNewMessage('') } }}
+                      className="px-3 py-2 text-sm bg-novax-light text-novax hover:bg-novax hover:text-white rounded-lg transition-colors font-medium"
+                    >
+                      <Plus className="w-4 h-4"/>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Competitors */}
+              <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Competitor Context</p>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {editCompetitors.map((c, i) => (
+                    <span key={i} className="flex items-center gap-1.5 px-3 py-1 text-xs rounded-full border border-slate-200 bg-white text-slate-600">
+                      {c}
+                      <button onClick={() => setEditCompetitors(editCompetitors.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-500 transition-colors">
+                        <X className="w-3 h-3"/>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newCompetitor}
+                    onChange={e => setNewCompetitor(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newCompetitor.trim()) {
+                        setEditCompetitors([...editCompetitors, newCompetitor.trim()])
+                        setNewCompetitor('')
+                      }
+                    }}
+                    placeholder="Add competitor name or handle, press Enter"
+                    className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400"
+                  />
+                  <button
+                    onClick={() => { if (newCompetitor.trim()) { setEditCompetitors([...editCompetitors, newCompetitor.trim()]); setNewCompetitor('') } }}
+                    className="px-3 py-2 text-sm bg-novax-light text-novax hover:bg-novax hover:text-white rounded-lg transition-colors"
+                  >
+                    <Plus className="w-4 h-4"/>
+                  </button>
+                </div>
+              </div>
+
+              {/* Integrations */}
+              <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Integrations</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Metricool Blog ID</label>
+                    <input
+                      type="text"
+                      value={editMetricoolId}
+                      onChange={e => setEditMetricoolId(e.target.value)}
+                      placeholder="e.g. 6329305"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 font-mono placeholder:text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Respond.io Channel ID</label>
+                    <input
+                      type="text"
+                      value={editRespondIoId}
+                      onChange={e => setEditRespondIoId(e.target.value)}
+                      placeholder="Channel ID"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 font-mono placeholder:text-slate-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

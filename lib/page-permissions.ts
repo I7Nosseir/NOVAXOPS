@@ -26,6 +26,9 @@ export const PAGE_DEFS = [
   { key: 'studio-visual',           label: 'Visual Engine',          group: 'Studio' },
   { key: 'studio-formats',          label: 'Peak Format Generator',  group: 'Studio' },
   { key: 'studio-media-buying',     label: 'Media Buying Plan',      group: 'Studio' },
+  { key: 'studio-copy',             label: 'Copy Engine',            group: 'Studio' },
+  // Creative evaluation
+  { key: 'strategy-eval',           label: 'Strategy & Content Eval', group: 'Creative' },
 ] as const
 
 export type PageKey = typeof PAGE_DEFS[number]['key']

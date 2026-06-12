@@ -65,7 +65,7 @@ async function fetchDialectRules(
     kbCache = { data: (data ?? []) as KBRow[], fetchedAt: now }
   }
 
-  const rows = kbCache.data.filter(() => true)
+  const rows = kbCache.data
 
   const allBanned = rows
     .flatMap(r => r.banned_phrases ?? [])
