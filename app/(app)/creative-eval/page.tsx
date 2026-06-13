@@ -127,30 +127,30 @@ const VERDICT_CONFIG = {
 }
 
 const CORE_DIMENSIONS = [
-  { key: 'thumb_stop_rate'     as const, label: 'Thumb-Stop Rate',       description: 'Scroll-halt in 1.7s window (Meta research)' },
-  { key: 'emotional_resonance' as const, label: 'Emotional Resonance',   description: 'Arousal intensity — high arousal drives 2× sharing (Berger 2012)' },
-  { key: 'brand_coherence'     as const, label: 'Brand Coherence',       description: 'Visual + tonal alignment to brand identity' },
-  { key: 'message_clarity'     as const, label: 'Message Clarity',       description: '3-second message extraction test (Cognitive Load Theory)' },
-  { key: 'visual_quality'      as const, label: 'Visual Quality',        description: 'Technical & compositional excellence' },
-  { key: 'share_save_potential'as const, label: 'Share & Save Potential',description: 'STEPPS framework trigger density (Berger)' },
-  { key: 'platform_fit'        as const, label: 'Platform Fit',          description: 'Native optimisation per stated platform(s)' },
+  { key: 'thumb_stop_rate'     as const, label: 'Scroll Stop',            description: 'Would someone pause mid-scroll for this?' },
+  { key: 'emotional_resonance' as const, label: 'Emotional Pull',         description: 'Does it make people feel something strongly?' },
+  { key: 'brand_coherence'     as const, label: 'Brand Fit',              description: 'Looks and sounds like this brand' },
+  { key: 'message_clarity'     as const, label: 'Message Clarity',        description: 'Can you understand the point in 3 seconds?' },
+  { key: 'visual_quality'      as const, label: 'Visual Quality',         description: 'Technical and compositional quality' },
+  { key: 'share_save_potential'as const, label: 'Share & Save Potential', description: 'Would people share this or save it for later?' },
+  { key: 'platform_fit'        as const, label: 'Platform Fit',           description: 'Optimised for the target platform' },
 ]
 
 const STRATEGIC_DIMENSIONS = [
-  { key: 'strategic_contribution' as const, label: 'Strategic Contribution', description: 'Contributes to brand memory structure vs. pure activation (Byron Sharp)' },
-  { key: 'audience_truth'         as const, label: 'Audience Truth',         description: 'Real human tension, not surface demographics' },
-  { key: 'credibility_gap'        as const, label: 'Credibility Gap',        description: 'Higher = brand can credibly make this claim (inverted: high is good)' },
+  { key: 'strategic_contribution' as const, label: 'Brand Building',    description: 'Does it build the brand long-term, not just drive clicks?' },
+  { key: 'audience_truth'         as const, label: 'Audience Insight',  description: 'Built on what this audience actually thinks and feels' },
+  { key: 'credibility_gap'        as const, label: 'Brand Credibility', description: 'Can this brand back up what it\'s claiming? (higher = more credible)' },
 ]
 
 const STRATEGY_DIMENSIONS = [
-  { key: 'clarity_of_pov'              as const, label: 'Clarity of POV',             description: 'Single, defensible strategic point-of-view' },
-  { key: 'audience_insight_depth'      as const, label: 'Audience Insight Depth',      description: 'Real tension vs. demographic description' },
-  { key: 'competitive_differentiation' as const, label: 'Competitive Differentiation', description: "Genuinely different from competitors' playbook" },
-  { key: 'platform_calibration'        as const, label: 'Platform Calibration',        description: 'Per-platform strategy vs. one-size-fits-all' },
-  { key: 'executional_feasibility'     as const, label: 'Executional Feasibility',     description: 'Deliverable by real team with real resources' },
-  { key: 'measurability'               as const, label: 'Measurability',               description: 'KPIs tied to tactics, not vanity metrics' },
-  { key: 'cultural_intelligence'       as const, label: 'Cultural Intelligence',        description: 'MENA market fit — calendar, dialect, platform mix' },
-  { key: 'strategic_logic'             as const, label: 'Strategic Logic',             description: 'Coherent chain: insight → choice → tactic → outcome' },
+  { key: 'clarity_of_pov'              as const, label: 'Clear Direction',        description: 'Has a single, clear strategic direction' },
+  { key: 'audience_insight_depth'      as const, label: 'Audience Understanding', description: 'Built on real audience tensions, not just demographics' },
+  { key: 'competitive_differentiation' as const, label: 'Stands Out',             description: 'Does something competitors are not already doing' },
+  { key: 'platform_calibration'        as const, label: 'Platform Strategy',      description: 'Genuinely adapted per platform, not just reformatted' },
+  { key: 'executional_feasibility'     as const, label: 'Realistic to Execute',   description: 'Deliverable by the actual team with real resources' },
+  { key: 'measurability'               as const, label: 'Measurable Goals',       description: 'Clear metrics tied to specific tactics' },
+  { key: 'cultural_intelligence'       as const, label: 'Local Market Fit',       description: 'Reflects the regional market — not a generic template' },
+  { key: 'strategic_logic'             as const, label: 'Logical Flow',           description: 'Every tactic connects to a clear audience insight and outcome' },
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -298,14 +298,14 @@ export default function CreativeEvalPage() {
     const blob = await res.blob()
     // Resize to max 960px to stay within API body limits
     const bitmap = await createImageBitmap(blob)
-    const MAX = 960
+    const MAX = 720
     const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height))
     const w = Math.round(bitmap.width * scale)
     const h = Math.round(bitmap.height * scale)
     const c = document.createElement('canvas')
     c.width = w; c.height = h
     c.getContext('2d')!.drawImage(bitmap, 0, 0, w, h)
-    return { base64: c.toDataURL('image/jpeg', 0.8).split(',')[1], mimeType: 'image/jpeg' }
+    return { base64: c.toDataURL('image/jpeg', 0.72).split(',')[1], mimeType: 'image/jpeg' }
   }
 
   const canEvaluate = inputMode === 'media'
@@ -336,17 +336,32 @@ export default function CreativeEvalPage() {
       }
 
       const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      let data: { error?: string; text?: string } = {}
+      let data: { error?: string; text?: string; message?: string } = {}
       try {
         data = await res.json()
       } catch {
-        setEvalError(res.status === 413 ? 'File is too large — try a smaller image.' : `Server error (${res.status}) — please try again.`)
+        setEvalError(res.status === 413 ? 'Image is too large. Try a smaller file or compress it first.' : `Server error (${res.status}) — please try again.`)
         return
       }
-      if (!res.ok || data.error) { setEvalError(data.error ?? 'Evaluation failed.'); return }
+      if (!res.ok) {
+        setEvalError(
+          res.status === 413
+            ? 'Image is too large. Try a smaller file or compress it first.'
+            : (data.error ?? data.message ?? `Server error (${res.status}).`)
+        )
+        return
+      }
+      if (data.error) { setEvalError(data.error); return }
 
-      const raw = (data.text as string).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-      const parsed = JSON.parse(raw)
+      const rawText = data.text ?? ''
+      const raw = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+      let parsed: EvalResult | StrategyEvalResult
+      try {
+        parsed = JSON.parse(raw)
+      } catch {
+        setEvalError('The AI returned an unexpected response. Please try again.')
+        return
+      }
       if (isStrategy) setStratResult(parsed as StrategyEvalResult)
       else setResult(parsed as EvalResult)
     } catch (err) {
@@ -374,8 +389,8 @@ export default function CreativeEvalPage() {
             </p>
             <p className="text-sm text-slate-500 mt-1">
               {inputMode === 'strategy'
-                ? 'POV clarity · audience insight · differentiation · stress test'
-                : 'Attention architecture · credibility gap · virality · stress test'}
+                ? 'Direction · audience understanding · differentiation · stress test'
+                : 'Scroll stop · emotional pull · brand fit · rewrite suggestions'}
             </p>
           </div>
         </div>
@@ -519,7 +534,7 @@ export default function CreativeEvalPage() {
                   {inputMode === 'strategy' ? 'Paste a strategy to run the evaluation.' : inputMode === 'media' ? 'Upload a creative to run the evaluation.' : 'Paste content to evaluate.'}
                 </p>
                 <p className="text-xs text-slate-400 mt-1">
-                  {inputMode === 'strategy' ? '8 strategic dimensions · stress test · quick wins' : '10 dimensions · attention architecture · rewrite suggestions'}
+                  {inputMode === 'strategy' ? '8 dimensions · stress test · quick wins · what to fix' : '10 dimensions · attention flow · rewrite suggestions'}
                 </p>
               </div>
             </div>
@@ -641,13 +656,13 @@ export default function CreativeEvalPage() {
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Layers className="w-4 h-4 text-novax-muted"/>
-                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Attention Architecture</p>
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Attention Flow</p>
               </div>
               <div className="grid grid-cols-3 gap-4 mb-3">
                 {[
-                  { label: '0–1.7s Hook', score: result.attention_architecture.hook_window, note: 'Pre-attentive trigger' },
-                  { label: '1.7–7s Retention', score: result.attention_architecture.retention_driver, note: 'Reason to keep watching' },
-                  { label: '7s+ Payoff', score: result.attention_architecture.payoff_quality, note: 'Worth the viewer\'s time' },
+                  { label: 'Opening (0–3s)', score: result.attention_architecture.hook_window, note: 'Does it grab attention immediately?' },
+                  { label: 'Middle', score: result.attention_architecture.retention_driver, note: 'Is there a reason to keep watching?' },
+                  { label: 'Finish', score: result.attention_architecture.payoff_quality, note: 'Is the payoff worth the viewer\'s time?' },
                 ].map(({ label, score, note }) => (
                   <div key={label} className="text-center p-3 bg-slate-50 rounded-xl">
                     <p className="text-[10px] text-slate-400 mb-1">{label}</p>
@@ -677,7 +692,7 @@ export default function CreativeEvalPage() {
               result.stress_test.is_objection_fatal ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-200')}>
               <div className="flex items-center gap-2 mb-3">
                 <ShieldAlert className={cn('w-4 h-4', result.stress_test.is_objection_fatal ? 'text-red-600' : 'text-slate-500')}/>
-                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Stress Test — Adversarial Review</p>
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Stress Test — Biggest Weakness</p>
                 <span className={cn('ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full',
                   result.stress_test.is_objection_fatal ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700')}>
                   {result.stress_test.is_objection_fatal ? 'Objection is fatal' : 'Objection is manageable'}
@@ -861,9 +876,6 @@ export default function CreativeEvalPage() {
             </div>
           )}
 
-          <p className="text-[10px] text-slate-400 text-center">
-            Scored against: Berger &amp; Milkman virality research · Meta 1.7s dwell study · STEPPS · Cognitive Load Theory · Byron Sharp brand distinctiveness · Cialdini persuasion principles · Les Binet brand-response balance
-          </p>
         </div>
       )}
 
@@ -894,7 +906,7 @@ export default function CreativeEvalPage() {
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <ShieldAlert className="w-4 h-4 text-slate-500"/>
-                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Strategic Stress Test — Core Assumption</p>
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Stress Test — Key Assumption</p>
               </div>
               <div className="space-y-4">
                 <div>
@@ -961,9 +973,6 @@ export default function CreativeEvalPage() {
             </div>
           </div>
 
-          <p className="text-[10px] text-slate-400 text-center">
-            Scored against: Byron Sharp brand distinctiveness · Berger STEPPS · Les Binet brand-response balance · Mark Ritson brand strategy rigour · Don Miller StoryBrand · MENA market benchmarks
-          </p>
         </div>
       )}
     </div>

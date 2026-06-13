@@ -768,6 +768,11 @@ engagement_prediction rules:
 - "low": everything else
 
 ═══════════════════════════════════════════════════════
+LANGUAGE MANDATE — CRITICAL
+═══════════════════════════════════════════════════════
+Write ALL text fields in plain, direct English. Do NOT cite academic authors or paper years (no "Berger 2012", no "Byron Sharp", no "Sweller"). Do NOT use framework acronyms in output text (no STEPPS, AIDA, PAS, BLUF, MECE, STEPPS). Explain everything as if briefing a talented content creator — be specific about what you see, why it works or doesn't, and exactly what to change. No fake precision on percentages (don't say "+40% scroll-stop rate" — say "this will grab attention much faster").
+
+═══════════════════════════════════════════════════════
 OUTPUT — return ONLY valid JSON, no markdown, no fences
 ═══════════════════════════════════════════════════════
 {
@@ -785,41 +790,41 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
   "virality_score": <number>,
   "engagement_prediction": "low" | "medium" | "high" | "viral",
   "attention_architecture": {
-    "hook_window": <0-100 score for 0-1.7s>,
-    "retention_driver": <0-100 score for 1.7-7s>,
-    "payoff_quality": <0-100 score for 7s+>,
-    "verdict": "<one sentence: what happens at each stage>"
+    "hook_window": <0-100 score for the first 3 seconds>,
+    "retention_driver": <0-100 score for the middle section>,
+    "payoff_quality": <0-100 score for the ending payoff>,
+    "verdict": "<one plain sentence: what works and what doesn't at each stage>"
   },
   "stress_test": {
-    "skeptic_objection": "<the strongest argument against this content>",
+    "skeptic_objection": "<the strongest plain-language objection a tough critic would raise>",
     "is_objection_fatal": <true|false>,
-    "rebuttal": "<why it works anyway, or why it doesn't>"
+    "rebuttal": "<plain explanation: why it works despite the objection, or why it doesn't>"
   },
   "rewrite_suggestions": [
     {
       "element": "<Opening hook | Headline | CTA | Visual treatment | Body copy>",
       "current": "<what it currently says or shows>",
-      "suggested": "<the exact rewrite or specific visual change>",
-      "expected_lift": "<e.g. +15-20% thumb-stop rate>",
-      "reasoning": "<why this works better, citing a specific principle>"
+      "suggested": "<the exact rewrite or specific visual change — be concrete>",
+      "expected_lift": "<plain description of what will improve — e.g. 'much stronger opening' not '+40%'>",
+      "reasoning": "<plain English: why this specific change will work better>"
     }
   ],
-  "red_flags": ["<specific red flag found, or empty array>"],
+  "red_flags": ["<specific issue found in plain language, or empty array>"],
   "score_evidence": [
     {
       "dimension": "<dimension name>",
       "score": <number>,
-      "evidence": "<the specific observable element that justifies this score>",
-      "benchmark": "<what world-class looks like in this dimension>"
+      "evidence": "<what you specifically see in this content that justifies this score>",
+      "benchmark": "<in plain terms, what great content looks like for this dimension>"
     }
   ],
-  "psychological_triggers": ["<specific Cialdini or behavioural trigger present>"],
-  "viral_elements": ["<specific element driving virality>"],
-  "missing_elements": ["<specific element with estimated impact if added>"],
-  "platform_recommendations": ["<Platform: specific technical reason>"],
-  "ab_test_suggestion": "<Control: X vs Variant: Y — what metric to measure>",
-  "strengths": ["<evidence-based observation citing what you see>"],
-  "improvements": ["<specific, measurable improvement with expected outcome>"]${fileType === 'video' ? ',\n  "hook_analysis": "<Frame-by-frame: what fires in 0-3s, what fails, scroll-stop probability>"' : isTextMode ? ',\n  "hook_analysis": "<Opening line analysis: curiosity gap, promised value, or pattern-interrupt?>"' : ''}
+  "psychological_triggers": ["<plain English description of the emotional or behavioral hook this uses — e.g. 'makes viewers feel like insiders' not 'Social Currency (STEPPS)'>"],
+  "viral_elements": ["<specific element driving virality, explained simply>"],
+  "missing_elements": ["<what's missing and why adding it would help, in plain terms>"],
+  "platform_recommendations": ["<Platform name: plain reason this content fits or doesn't for that platform>"],
+  "ab_test_suggestion": "<what to test and what you'd expect to learn — in plain terms>",
+  "strengths": ["<specific, plain observation about what works and why>"],
+  "improvements": ["<clear, actionable improvement — what to change and why it will help, no jargon>"]${fileType === 'video' ? ',\n  "hook_analysis": "<Plain description of what happens in the first 3 seconds — what grabs attention, what doesn\'t, and what to fix>"' : isTextMode ? ',\n  "hook_analysis": "<Plain analysis of the opening line — does it make the reader want to continue? What would make it stronger?>"' : ''}
 }`
       break
     }
@@ -941,6 +946,11 @@ OVERALL SCORE = weighted average:
 (clarity_of_pov × 0.18) + (audience_insight_depth × 0.18) + (competitive_differentiation × 0.15) + (platform_calibration × 0.12) + (executional_feasibility × 0.12) + (measurability × 0.10) + (cultural_intelligence × 0.10) + (strategic_logic × 0.05)
 
 ═══════════════════════════════════════════════════════
+LANGUAGE MANDATE — CRITICAL
+═══════════════════════════════════════════════════════
+Write ALL text fields in plain, direct English. Do NOT cite academic authors or use framework acronyms (no "Byron Sharp", no "Mark Ritson", no MECE, no BLUF, no STEPPS). Explain every finding as if briefing a smart marketing team member who doesn't study strategy theory. Be specific, direct, and practical.
+
+═══════════════════════════════════════════════════════
 OUTPUT — return ONLY valid JSON, no markdown, no fences
 ═══════════════════════════════════════════════════════
 {
@@ -954,15 +964,15 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
   "cultural_intelligence": <number>,
   "strategic_logic": <number>,
   "strategic_stress_test": {
-    "core_assumption": "<the key assumption the strategy rests on>",
-    "failure_mode": "<how the strategy fails if assumption is wrong>",
-    "mitigation": "<what would make it more resilient>"
+    "core_assumption": "<plain statement of the key assumption this strategy depends on>",
+    "failure_mode": "<what specifically goes wrong if that assumption is false>",
+    "mitigation": "<concrete change that would make the strategy work even if the assumption is wrong>"
   },
-  "critical_gaps": ["<specific missing piece>"],
-  "quick_wins": ["<specific actionable item for this week>"],
-  "competitor_blind_spots": ["<what competitors are doing that this strategy ignores>"],
+  "critical_gaps": ["<specific missing piece explained in plain terms — what's absent and why it matters>"],
+  "quick_wins": ["<specific action the team can take this week — be concrete>"],
+  "competitor_blind_spots": ["<what competitors are doing well that this strategy ignores — be specific>"],
   "verdict": "world_class" | "strong" | "solid" | "needs_work" | "start_over",
-  "verdict_rationale": "<2-3 sentences: what works, what's broken, the one fix>"
+  "verdict_rationale": "<2-3 plain sentences: what the strategy gets right, what is broken, and the single most important thing to fix>"
 }`
       break
     }
