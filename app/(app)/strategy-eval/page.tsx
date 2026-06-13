@@ -4,45 +4,71 @@ import { useState, useRef } from 'react'
 import {
   Loader2, Brain, Target, AlertTriangle, CheckCircle, TrendingUp, Zap,
   BarChart2, SplitSquareVertical, Flame, Monitor, ChevronDown, FileText,
-  ShieldAlert, Lightbulb,
+  ShieldAlert, Lightbulb, Database, Award, ArrowRight, Clock,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 
-async function extractFileText(file: File): Promise<string> {
-  if (file.name.toLowerCase().endsWith('.pdf')) {
-    const formData = new FormData()
-    formData.append('file', file)
-    const res = await fetch('/api/extract-text', { method: 'POST', body: formData })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error((err as { error?: string }).error ?? 'PDF extraction failed')
-    }
-    const data = await res.json() as { text?: string }
-    return data.text ?? '(Could not extract PDF text — paste content manually)'
+// ── Client-side PDF extraction (no server upload — avoids 413) ───────────────
+
+async function extractPdfText(file: File): Promise<string> {
+  const pdfjs = await import('pdfjs-dist')
+  // Use CDN worker — avoids Turbopack/webpack bundling issues
+  pdfjs.GlobalWorkerOptions.workerSrc =
+    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+
+  const buffer = await file.arrayBuffer()
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise
+  const textPages: string[] = []
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    const pageText = content.items
+      .map((item) => ((item as { str?: string }).str ?? ''))
+      .join(' ')
+      .trim()
+    if (pageText) textPages.push(pageText)
   }
-  if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
+  return textPages.join('\n\n') || '(Could not extract PDF text — paste content manually)'
+}
+
+async function extractFileText(file: File): Promise<{ text: string; detectedType: 'copy' | 'data' }> {
+  const name = file.name.toLowerCase()
+
+  if (name.endsWith('.pdf')) {
+    return { text: await extractPdfText(file), detectedType: 'copy' }
+  }
+
+  if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
     const ab = await file.arrayBuffer()
     const wb = XLSX.read(ab, { type: 'array' })
     const lines: string[] = []
-    for (const name of wb.SheetNames) {
-      const ws = wb.Sheets[name]
+    for (const sheetName of wb.SheetNames) {
+      const ws = wb.Sheets[sheetName]
       const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false })
-      if (csv.trim()) lines.push(`[Sheet: ${name}]\n${csv}`)
+      if (csv.trim()) lines.push(`[Sheet: ${sheetName}]\n${csv}`)
     }
-    return lines.join('\n\n')
+    return { text: lines.join('\n\n'), detectedType: 'data' }
   }
-  if (file.name.endsWith('.txt')) return file.text()
-  // docx: basic text extraction
+
+  if (name.endsWith('.txt')) {
+    return { text: await file.text(), detectedType: 'copy' }
+  }
+
+  // docx and other: basic text extraction
   const raw = await file.text()
   const cleaned = raw.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
-  return cleaned || '(Could not auto-extract — paste content manually)'
+  return {
+    text: cleaned || '(Could not auto-extract — paste content manually)',
+    detectedType: 'copy',
+  }
 }
 
-type EvalMode = 'strategy' | 'content'
+// ── Types ────────────────────────────────────────────────────────────────────
 
-// ── Strategy result — matches strategy_eval API response ─────────────────────
+type EvalMode = 'strategy' | 'content'
+type ContentType = 'copy' | 'data'
 
 interface StrategyResult {
   overall: number
@@ -54,11 +80,7 @@ interface StrategyResult {
   measurability: number
   cultural_intelligence: number
   strategic_logic: number
-  strategic_stress_test: {
-    core_assumption: string
-    failure_mode: string
-    mitigation: string
-  }
+  strategic_stress_test: { core_assumption: string; failure_mode: string; mitigation: string }
   critical_gaps: string[]
   quick_wins: string[]
   competitor_blind_spots: string[]
@@ -66,9 +88,7 @@ interface StrategyResult {
   verdict_rationale: string
 }
 
-// ── Content result — matches content_eval API response ───────────────────────
-
-interface ContentResult {
+interface CopyResult {
   overall: number
   hook_strength: number
   narrative_arc: number
@@ -77,15 +97,38 @@ interface ContentResult {
   platform_fit: number
   emotional_arousal: number
   message_clarity: number
+  persuasion_architecture: number
   virality_score: number
   engagement_prediction: 'low' | 'medium' | 'high' | 'viral'
   emotional_trigger: string
   hook_analysis: string
+  cialdini_principles_used: string[]
   strengths: string[]
   improvements: string[]
   missing_elements: string[]
   platform_recommendations: string[]
   ab_test_suggestion: string
+  hubspot_benchmark_note: string
+}
+
+interface DataResult {
+  overall: number
+  data_quality: number
+  insight_depth: number
+  benchmark_alignment: number
+  strategic_clarity: number
+  actionability: number
+  completeness: number
+  content_type_detected: string
+  key_findings: string[]
+  benchmark_gaps: string[]
+  top_performers: string[]
+  underperformers: string[]
+  strategic_recommendations: string[]
+  missing_data_points: string[]
+  priority_actions: { action: string; expected_impact: string; timeline: string }[]
+  verdict: 'exceptional' | 'strong' | 'adequate' | 'insufficient' | 'unusable'
+  verdict_rationale: string
 }
 
 // ── Config ───────────────────────────────────────────────────────────────────
@@ -105,25 +148,43 @@ const ENGAGEMENT_CONFIG = {
   viral:  { label: 'Viral Potential',   color: 'text-purple-600',  bg: 'bg-purple-50',  border: 'border-purple-200' },
 }
 
+const DATA_VERDICT_CONFIG = {
+  exceptional:  { label: 'Exceptional Data', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+  strong:       { label: 'Strong Dataset',   color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  adequate:     { label: 'Adequate',         color: 'text-sky-600', bg: 'bg-sky-50', border: 'border-sky-200' },
+  insufficient: { label: 'Insufficient',     color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+  unusable:     { label: 'Unusable',         color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+}
+
 const STRATEGY_DIMENSIONS = [
-  { key: 'clarity_of_pov'            as const, label: 'Clarity of POV',             description: 'Single, defensible POV that reframes the competitive space' },
-  { key: 'audience_insight_depth'    as const, label: 'Audience Insight',            description: 'Real human tension — specific aspiration, fear, or contradiction' },
-  { key: 'competitive_differentiation' as const, label: 'Competitive Differentiation', description: 'Blue Ocean — specific moves competitors are not making' },
-  { key: 'platform_calibration'      as const, label: 'Platform Calibration',        description: 'Differentiated strategy per platform — not one message posted everywhere' },
-  { key: 'executional_feasibility'   as const, label: 'Executional Feasibility',     description: 'Volume and scope realistic for implied team size and budget' },
-  { key: 'measurability'             as const, label: 'Measurability',               description: 'KPIs with baselines and target dates — beyond vanity metrics' },
-  { key: 'cultural_intelligence'     as const, label: 'Cultural Intelligence',        description: 'MENA fit — calendar, dialect, platform penetration, consumer behaviour' },
-  { key: 'strategic_logic'           as const, label: 'Strategic Logic',             description: 'Coherent argument: insight → choice → tactic → measurable outcome' },
+  { key: 'clarity_of_pov'               as const, label: 'Clarity of POV',             description: 'Single, defensible POV that reframes the competitive space' },
+  { key: 'audience_insight_depth'       as const, label: 'Audience Insight',            description: 'Real human tension — specific aspiration, fear, or contradiction' },
+  { key: 'competitive_differentiation'  as const, label: 'Competitive Differentiation', description: 'Blue Ocean — specific moves competitors are not making' },
+  { key: 'platform_calibration'         as const, label: 'Platform Calibration',        description: 'Differentiated strategy per platform — not one message posted everywhere' },
+  { key: 'executional_feasibility'      as const, label: 'Executional Feasibility',     description: 'Volume and scope realistic for implied team size and budget' },
+  { key: 'measurability'                as const, label: 'Measurability',               description: 'KPIs with baselines and target dates — beyond vanity metrics' },
+  { key: 'cultural_intelligence'        as const, label: 'Cultural Intelligence',        description: 'MENA fit — calendar, dialect, platform penetration, consumer behaviour' },
+  { key: 'strategic_logic'              as const, label: 'Strategic Logic',             description: 'Coherent argument: insight → choice → tactic → measurable outcome' },
 ]
 
-const CONTENT_DIMENSIONS = [
-  { key: 'hook_strength'     as const, label: 'Hook Strength',      description: 'Scroll-halt probability in 1.7s (Meta research)' },
-  { key: 'emotional_arousal' as const, label: 'Emotional Arousal',  description: 'Arousal intensity — high arousal drives 2× sharing (Berger & Milkman 2012)' },
-  { key: 'narrative_arc'     as const, label: 'Narrative Arc',       description: 'Hook → tension → resolution — structural investment before payoff' },
-  { key: 'message_clarity'   as const, label: 'Message Clarity',     description: '3-second extraction test (Cognitive Load Theory — Sweller)' },
-  { key: 'brand_voice_match' as const, label: 'Brand Voice Match',   description: 'Tonal alignment — feels native to the brand, not generic' },
-  { key: 'cta_effectiveness' as const, label: 'CTA Effectiveness',   description: 'Specific, frictionless action placed after value delivery' },
-  { key: 'platform_fit'      as const, label: 'Platform Fit',        description: 'Native-format optimisation — line breaks, length, culture-match' },
+const COPY_DIMENSIONS = [
+  { key: 'hook_strength'          as const, label: 'Hook / Opening Strength', description: 'Scroll-halt probability — pattern interrupt quality in first 3 seconds (Meta research)' },
+  { key: 'emotional_arousal'      as const, label: 'Emotional Arousal',       description: 'High-arousal emotions drive 2× shares (Berger & Milkman 2012)' },
+  { key: 'narrative_arc'          as const, label: 'Narrative Arc',           description: 'Hook → tension → resolution — structural investment before payoff' },
+  { key: 'message_clarity'        as const, label: 'Message Clarity',         description: '3-second extraction test — Cognitive Load Theory (Sweller)' },
+  { key: 'brand_voice_match'      as const, label: 'Brand Voice Match',       description: 'Tonal alignment — feels native to the brand, not generic' },
+  { key: 'cta_effectiveness'      as const, label: 'CTA Effectiveness',       description: 'Specific, frictionless action placed after value delivery (HubSpot)' },
+  { key: 'platform_fit'           as const, label: 'Platform Fit',            description: 'Native-format optimisation — length, culture, algorithm alignment' },
+  { key: 'persuasion_architecture' as const, label: 'Persuasion Architecture', description: 'Cialdini principles present — social proof, scarcity, authority, liking, reciprocity' },
+]
+
+const DATA_DIMENSIONS = [
+  { key: 'data_quality'       as const, label: 'Data Quality',         description: 'Completeness, consistency, and structural reliability of the dataset' },
+  { key: 'insight_depth'      as const, label: 'Insight Depth',        description: 'Quality and richness of extractable patterns — what stories the data tells' },
+  { key: 'benchmark_alignment' as const, label: 'Benchmark Alignment', description: 'Performance vs. Sprout Social / HubSpot 2024 industry standards' },
+  { key: 'strategic_clarity'  as const, label: 'Strategic Clarity',    description: 'How clearly the data narrates a strategic direction for the next 90 days' },
+  { key: 'actionability'      as const, label: 'Actionability',        description: 'Ease of deriving concrete, measurable next steps from the dataset' },
+  { key: 'completeness'       as const, label: 'Completeness',         description: 'Key metrics present vs. missing for a full performance intelligence picture' },
 ]
 
 const PLATFORMS = [
@@ -153,10 +214,7 @@ function ScoreBar({ label, description, score }: { label: string; description: s
       </div>
       <p className="text-[10px] text-slate-400 mb-1.5">{description}</p>
       <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-        <div
-          className={cn('h-full rounded-full transition-all duration-700', scoreBg(score))}
-          style={{ width: `${score}%` }}
-        />
+        <div className={cn('h-full rounded-full transition-all duration-700', scoreBg(score))} style={{ width: `${score}%` }} />
       </div>
     </div>
   )
@@ -172,14 +230,9 @@ function ImpactRing({ score, label }: { score: number; label: string }) {
       <div className="relative w-20 h-20">
         <svg className="w-20 h-20 -rotate-90" viewBox="0 0 64 64">
           <circle cx="32" cy="32" r={radius} fill="none" stroke="#f1f5f9" strokeWidth="5"/>
-          <circle
-            cx="32" cy="32" r={radius} fill="none"
-            stroke={color} strokeWidth="5"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 1s ease' }}
-          />
+          <circle cx="32" cy="32" r={radius} fill="none" stroke={color} strokeWidth="5"
+            strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+            style={{ transition: 'stroke-dashoffset 1s ease' }}/>
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-lg font-black text-slate-900 leading-none">{score}</span>
@@ -209,6 +262,7 @@ function InsightList({ items, dotColor }: { items: string[]; dotColor: string })
 export default function StrategyEvalPage() {
   const { clients } = useClients()
   const [mode, setMode] = useState<EvalMode>('strategy')
+  const [contentType, setContentType] = useState<ContentType>('copy')
   const [clientId, setClientId] = useState('')
   const [platform, setPlatform] = useState('instagram')
   const [text, setText] = useState('')
@@ -216,7 +270,8 @@ export default function StrategyEvalPage() {
   const [extracting, setExtracting] = useState(false)
   const [evaluating, setEvaluating] = useState(false)
   const [strategyResult, setStrategyResult] = useState<StrategyResult | null>(null)
-  const [contentResult, setContentResult] = useState<ContentResult | null>(null)
+  const [copyResult, setCopyResult] = useState<CopyResult | null>(null)
+  const [dataResult, setDataResult] = useState<DataResult | null>(null)
   const [evalError, setEvalError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -224,9 +279,11 @@ export default function StrategyEvalPage() {
     setDocFileName(f.name)
     setExtracting(true)
     setText('')
+    setEvalError(null)
     try {
-      const extracted = await extractFileText(f)
+      const { text: extracted, detectedType } = await extractFileText(f)
       setText(extracted)
+      if (mode === 'content') setContentType(detectedType)
     } catch (err) {
       setText('(Could not extract file content — paste manually)')
       setEvalError(err instanceof Error ? err.message : 'File extraction failed')
@@ -240,7 +297,8 @@ export default function StrategyEvalPage() {
   const handleModeSwitch = (m: EvalMode) => {
     setMode(m)
     setStrategyResult(null)
-    setContentResult(null)
+    setCopyResult(null)
+    setDataResult(null)
     setEvalError(null)
   }
 
@@ -248,7 +306,8 @@ export default function StrategyEvalPage() {
     if (!text.trim()) return
     setEvaluating(true)
     setStrategyResult(null)
-    setContentResult(null)
+    setCopyResult(null)
+    setDataResult(null)
     setEvalError(null)
     try {
       const res = await fetch('/api/ai', {
@@ -263,14 +322,16 @@ export default function StrategyEvalPage() {
           textContent: text,
           platform: mode === 'content' ? platform : undefined,
           evalMode: mode,
+          contentType: mode === 'content' ? contentType : undefined,
         }),
       })
       const data = await res.json() as { text?: string; error?: string }
       if (!res.ok || data.error) { setEvalError(data.error ?? 'Evaluation failed.'); return }
       const raw = (data.text ?? '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-      const parsed = JSON.parse(raw) as StrategyResult | ContentResult
+      const parsed = JSON.parse(raw)
       if (mode === 'strategy') setStrategyResult(parsed as StrategyResult)
-      else setContentResult(parsed as ContentResult)
+      else if (contentType === 'data') setDataResult(parsed as DataResult)
+      else setCopyResult(parsed as CopyResult)
     } catch (err) {
       setEvalError(err instanceof Error ? err.message : 'Evaluation failed. Please try again.')
     } finally {
@@ -278,16 +339,18 @@ export default function StrategyEvalPage() {
     }
   }
 
-  const hasResult = mode === 'strategy' ? !!strategyResult : !!contentResult
-  const dimensions = mode === 'strategy' ? STRATEGY_DIMENSIONS : CONTENT_DIMENSIONS
-  const result = (mode === 'strategy' ? strategyResult : contentResult) as Record<string, unknown> | null
+  const hasResult = mode === 'strategy' ? !!strategyResult : contentType === 'data' ? !!dataResult : !!copyResult
+  const dimensions = mode === 'strategy' ? STRATEGY_DIMENSIONS : contentType === 'data' ? DATA_DIMENSIONS : COPY_DIMENSIONS
+  const result = (mode === 'strategy' ? strategyResult : contentType === 'data' ? dataResult : copyResult) as Record<string, unknown> | null
   const isLoading = evaluating || extracting
 
-  // Resolve verdict safely — guard against unexpected API values
   const verdictKey = strategyResult?.verdict && strategyResult.verdict in STRATEGY_VERDICT_CONFIG
-    ? strategyResult.verdict
-    : 'solid'
+    ? strategyResult.verdict : 'solid'
   const verdictCfg = STRATEGY_VERDICT_CONFIG[verdictKey as keyof typeof STRATEGY_VERDICT_CONFIG]
+
+  const dataVerdictKey = dataResult?.verdict && dataResult.verdict in DATA_VERDICT_CONFIG
+    ? dataResult.verdict : 'adequate'
+  const dataVerdictCfg = DATA_VERDICT_CONFIG[dataVerdictKey as keyof typeof DATA_VERDICT_CONFIG]
 
   return (
     <>
@@ -305,14 +368,18 @@ export default function StrategyEvalPage() {
                   ? 'Extracting document…'
                   : mode === 'strategy'
                     ? 'Running Strategy Evaluation…'
-                    : 'Running Content Evaluation…'}
+                    : contentType === 'data'
+                      ? 'Running Analytics Intelligence Analysis…'
+                      : 'Running Content Evaluation…'}
               </p>
               <p className="text-sm text-slate-500 mt-1">
                 {extracting
                   ? `Reading ${docFileName}`
                   : mode === 'strategy'
                     ? 'Blue Ocean · Cultural Intelligence · Stress-testing assumptions…'
-                    : 'Hook strength · Berger arousal · Cognitive load…'}
+                    : contentType === 'data'
+                      ? 'Pattern recognition · Benchmark comparison · Strategic gaps…'
+                      : 'Hook science · Berger arousal · Cialdini principles · HubSpot standards…'}
               </p>
             </div>
           </div>
@@ -321,7 +388,7 @@ export default function StrategyEvalPage() {
 
       <div className="space-y-6 max-w-5xl">
         <p className="text-sm text-slate-500">
-          Paste a strategy document or a piece of content. The AI applies research-backed frameworks — SMART criteria, Blue Ocean Strategy, Berger-Milkman virality science, and platform algorithm research — to produce a scored, actionable evaluation.
+          Paste a strategy, social copy, or upload a performance data file. The AI applies research-backed frameworks — Blue Ocean Strategy, Berger-Milkman virality science, Cialdini persuasion principles, HubSpot CTA research, and Sprout Social benchmarks — to produce a scored, actionable evaluation.
         </p>
 
         {/* ── Mode tabs ── */}
@@ -338,7 +405,7 @@ export default function StrategyEvalPage() {
               )}
             >
               {m === 'strategy' ? <Brain className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
-              {m === 'strategy' ? 'Strategy' : 'Content'}
+              {m === 'strategy' ? 'Strategy Eval' : 'Content Eval'}
             </button>
           ))}
         </div>
@@ -355,26 +422,49 @@ export default function StrategyEvalPage() {
               <select
                 value={clientId}
                 onChange={e => setClientId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted bg-white"
               >
                 <option value="">No client — evaluate generically</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
 
-            {/* Platform selector — content mode only */}
+            {/* Content mode selectors — content eval only */}
             {mode === 'content' && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Platform</label>
-                <div className="relative">
-                  <select
-                    value={platform}
-                    onChange={e => setPlatform(e.target.value)}
-                    className="w-full px-3 py-2 pr-8 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white appearance-none"
-                  >
-                    {PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              <div className="grid grid-cols-2 gap-3">
+                {/* Content type toggle */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Content Type</label>
+                  <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white">
+                    <button
+                      onClick={() => setContentType('copy')}
+                      className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors',
+                        contentType === 'copy' ? 'bg-novax text-white' : 'text-slate-500 hover:bg-slate-50')}
+                    >
+                      <FileText className="w-3 h-3"/> Copy
+                    </button>
+                    <button
+                      onClick={() => setContentType('data')}
+                      className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors border-l border-slate-200',
+                        contentType === 'data' ? 'bg-novax text-white' : 'text-slate-500 hover:bg-slate-50')}
+                    >
+                      <Database className="w-3 h-3"/> Analytics Data
+                    </button>
+                  </div>
+                </div>
+                {/* Platform selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Platform</label>
+                  <div className="relative">
+                    <select
+                      value={platform}
+                      onChange={e => setPlatform(e.target.value)}
+                      className="w-full px-3 py-2 pr-8 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-muted bg-white appearance-none"
+                    >
+                      {PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
             )}
@@ -383,11 +473,11 @@ export default function StrategyEvalPage() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-semibold text-slate-700">
-                  {mode === 'strategy' ? 'Strategy Document or Brief' : 'Copy, Caption, or Script'}
+                  {mode === 'strategy' ? 'Strategy Document or Brief' : contentType === 'data' ? 'Analytics Data / CSV Export' : 'Copy, Caption, or Script'}
                 </label>
                 <div className="flex items-center gap-2">
                   {docFileName && (
-                    <span className="text-[10px] text-novax-muted font-medium truncate max-w-[100px]">{docFileName}</span>
+                    <span className="text-[10px] text-novax-muted font-medium truncate max-w-[120px]">{docFileName}</span>
                   )}
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -410,15 +500,20 @@ export default function StrategyEvalPage() {
                 value={text}
                 onChange={e => setText(e.target.value)}
                 rows={10}
-                placeholder={mode === 'strategy'
-                  ? 'Paste your strategy document, quarterly plan, content strategy brief, or any strategic text…'
-                  : 'Paste your caption, post copy, reel script, or any content text…'}
-                className="w-full px-3.5 py-3 text-sm border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white resize-none leading-relaxed placeholder:text-slate-300"
+                placeholder={
+                  mode === 'strategy'
+                    ? 'Paste your strategy document, quarterly plan, or content strategy brief…'
+                    : contentType === 'data'
+                      ? 'Paste your CSV export, performance data, or upload a spreadsheet using Import…\n\nTip: Export from your analytics platform and paste or upload here.'
+                      : 'Paste your caption, reel script, email body, ad copy, or any social content…'}
+                className="w-full px-3.5 py-3 text-sm border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-novax-muted bg-white resize-none leading-relaxed placeholder:text-slate-300"
               />
               <p className="text-[10px] text-slate-400 mt-1">
                 {text.length > 0
-                  ? `${text.length} characters`
-                  : 'No minimum — longer input produces more accurate scoring · .txt .xlsx .csv .docx .pdf supported'}
+                  ? `${text.length} characters · ${text.split(/\s+/).filter(Boolean).length} words`
+                  : mode === 'content' && contentType === 'data'
+                    ? '.csv .xlsx .xls supported — auto-detected and switched to Analytics mode on import'
+                    : '.txt .xlsx .csv .docx .pdf supported — parsed locally, no upload'}
               </p>
             </div>
 
@@ -431,7 +526,9 @@ export default function StrategyEvalPage() {
                 ? <><Loader2 className="w-4 h-4 animate-spin" />Analysing…</>
                 : mode === 'strategy'
                   ? <><Brain className="w-4 h-4" />Run Strategy Evaluation</>
-                  : <><Zap className="w-4 h-4" />Run Content Evaluation</>}
+                  : contentType === 'data'
+                    ? <><Database className="w-4 h-4" />Run Analytics Intelligence</>
+                    : <><Zap className="w-4 h-4" />Run Content Evaluation</>}
             </button>
           </div>
 
@@ -440,18 +537,18 @@ export default function StrategyEvalPage() {
             {!hasResult && !evaluating && !evalError && (
               <div className="h-full flex items-center justify-center p-8 text-center bg-slate-50 rounded-2xl border border-slate-200">
                 <div>
-                  {mode === 'strategy'
-                    ? <Brain className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                  {mode === 'strategy' ? <Brain className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                    : contentType === 'data' ? <Database className="w-8 h-8 text-slate-300 mx-auto mb-3" />
                     : <Zap className="w-8 h-8 text-slate-300 mx-auto mb-3" />}
                   <p className="text-sm text-slate-500">
-                    {mode === 'strategy'
-                      ? 'Paste a strategy to run the evaluation.'
-                      : 'Paste content copy to run the evaluation.'}
+                    {mode === 'strategy' ? 'Paste a strategy to run the evaluation.'
+                      : contentType === 'data' ? 'Upload or paste analytics data to analyse.'
+                      : 'Paste content copy to evaluate.'}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">
-                    {mode === 'strategy'
-                      ? '8 dimensions · verdict · stress test'
-                      : '7 dimensions · virality score · hook analysis'}
+                    {mode === 'strategy' ? '8 dimensions · verdict · stress test'
+                      : contentType === 'data' ? '6 dimensions · benchmark comparison · priority actions'
+                      : '8 dimensions · virality score · Cialdini analysis'}
                   </p>
                 </div>
               </div>
@@ -468,7 +565,7 @@ export default function StrategyEvalPage() {
 
             {hasResult && result && !evaluating && (
               <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
-                {/* Header: overall + ring + verdict/engagement badge */}
+                {/* Header: overall + ring + verdict badge */}
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider mb-1">Overall Score</p>
@@ -482,32 +579,45 @@ export default function StrategyEvalPage() {
                   <ImpactRing
                     score={mode === 'strategy'
                       ? ((result.strategic_logic as number) ?? 0)
-                      : ((result.virality_score as number) ?? 0)}
-                    label={mode === 'strategy' ? 'logic' : 'viral'}
+                      : contentType === 'data'
+                        ? ((result.insight_depth as number) ?? 0)
+                        : ((result.virality_score as number) ?? 0)}
+                    label={mode === 'strategy' ? 'logic' : contentType === 'data' ? 'insight' : 'viral'}
                   />
                   {mode === 'strategy' && strategyResult && (
                     <div className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold self-start', verdictCfg.color, verdictCfg.bg, verdictCfg.border)}>
-                      <TrendingUp className="w-3 h-3" />
-                      {verdictCfg.label}
+                      <TrendingUp className="w-3 h-3" />{verdictCfg.label}
                     </div>
                   )}
-                  {mode === 'content' && contentResult && (() => {
-                    const cfg = ENGAGEMENT_CONFIG[contentResult.engagement_prediction] ?? ENGAGEMENT_CONFIG.medium
+                  {mode === 'content' && contentType !== 'data' && copyResult && (() => {
+                    const cfg = ENGAGEMENT_CONFIG[copyResult.engagement_prediction] ?? ENGAGEMENT_CONFIG.medium
                     return (
                       <div className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold self-start', cfg.color, cfg.bg, cfg.border)}>
-                        <TrendingUp className="w-3 h-3" />
-                        {cfg.label}
+                        <TrendingUp className="w-3 h-3" />{cfg.label}
                       </div>
                     )
                   })()}
+                  {mode === 'content' && contentType === 'data' && dataResult && (
+                    <div className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold self-start', dataVerdictCfg.color, dataVerdictCfg.bg, dataVerdictCfg.border)}>
+                      <Database className="w-3 h-3" />{dataVerdictCfg.label}
+                    </div>
+                  )}
                 </div>
 
-                {/* 7–8 score bars */}
+                {/* Score bars */}
                 <div className="space-y-3">
                   {dimensions.map(({ key, label, description }) => (
                     <ScoreBar key={key} label={label} description={description} score={(result[key] as number) ?? 0} />
                   ))}
                 </div>
+
+                {/* Data: content type detected */}
+                {contentType === 'data' && dataResult?.content_type_detected && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                    <Database className="w-3 h-3 text-slate-400"/>
+                    <p className="text-[10px] text-slate-500">Detected: <span className="font-semibold">{dataResult.content_type_detected}</span></p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -517,10 +627,9 @@ export default function StrategyEvalPage() {
         {hasResult && result && !evaluating && (
           <div className="space-y-4">
 
-            {/* ── STRATEGY report ── */}
+            {/* STRATEGY report */}
             {mode === 'strategy' && strategyResult && (
               <>
-                {/* Row 1: Gaps + Blind spots + Quick wins */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2 mb-3">
@@ -529,7 +638,6 @@ export default function StrategyEvalPage() {
                     </div>
                     <InsightList items={strategyResult.critical_gaps} dotColor="bg-red-400" />
                   </div>
-
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
@@ -537,7 +645,6 @@ export default function StrategyEvalPage() {
                     </div>
                     <InsightList items={strategyResult.competitor_blind_spots} dotColor="bg-amber-400" />
                   </div>
-
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Lightbulb className="w-3.5 h-3.5 text-sky-500" />
@@ -546,8 +653,6 @@ export default function StrategyEvalPage() {
                     <InsightList items={strategyResult.quick_wins} dotColor="bg-sky-400" />
                   </div>
                 </div>
-
-                {/* Row 2: Stress test + Verdict rationale */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2 mb-3">
@@ -571,7 +676,6 @@ export default function StrategyEvalPage() {
                       </div>
                     )}
                   </div>
-
                   <div className="bg-novax-light rounded-xl border border-novax-border p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <BarChart2 className="w-3.5 h-3.5 text-novax-muted" />
@@ -580,15 +684,14 @@ export default function StrategyEvalPage() {
                     <p className="text-xs text-slate-700 leading-relaxed">{strategyResult.verdict_rationale}</p>
                   </div>
                 </div>
-
                 <p className="text-[10px] text-slate-400 text-center">
                   Scored against: Blue Ocean Strategy · SMART criteria · OKR measurement framework · Platform algorithm research · MENA cultural intelligence
                 </p>
               </>
             )}
 
-            {/* ── CONTENT report ── */}
-            {mode === 'content' && contentResult && (
+            {/* COPY report */}
+            {mode === 'content' && contentType === 'copy' && copyResult && (
               <>
                 {/* Hook analysis banner */}
                 <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
@@ -596,66 +699,189 @@ export default function StrategyEvalPage() {
                     <Flame className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
                     <div>
                       <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1.5">
-                        Hook Analysis — 0-3 Second Window
-                        {contentResult.emotional_trigger && (
+                        Opening / Hook Analysis
+                        {copyResult.emotional_trigger && (
                           <span className="ml-2 text-[10px] normal-case font-normal px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                            {contentResult.emotional_trigger}
+                            {copyResult.emotional_trigger}
                           </span>
                         )}
                       </p>
-                      <p className="text-xs text-amber-800 leading-relaxed">{contentResult.hook_analysis}</p>
+                      <p className="text-xs text-amber-800 leading-relaxed">{copyResult.hook_analysis}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Row 1: Missing + Strengths + Improvements */}
+                {/* Cialdini principles + HubSpot benchmark */}
+                {(copyResult.cialdini_principles_used?.length > 0 || copyResult.hubspot_benchmark_note) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {copyResult.cialdini_principles_used?.length > 0 && (
+                      <div className="bg-white rounded-xl border border-slate-200 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Award className="w-3.5 h-3.5 text-purple-500" />
+                          <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Cialdini Principles Detected</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {copyResult.cialdini_principles_used.map((p, i) => (
+                            <span key={i} className="text-[10px] font-semibold px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100">{p}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {copyResult.hubspot_benchmark_note && (
+                      <div className="bg-sky-50 rounded-xl border border-sky-100 p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <BarChart2 className="w-3.5 h-3.5 text-sky-600" />
+                          <p className="text-xs font-semibold text-sky-700 uppercase tracking-wider">HubSpot Benchmark Note</p>
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed">{copyResult.hubspot_benchmark_note}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Target className="w-3.5 h-3.5 text-red-500" />
                       <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Missing for Impact</p>
                     </div>
-                    <InsightList items={contentResult.missing_elements} dotColor="bg-red-400" />
+                    <InsightList items={copyResult.missing_elements} dotColor="bg-red-400" />
                   </div>
-
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
                       <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Strengths</p>
                     </div>
-                    <InsightList items={contentResult.strengths} dotColor="bg-emerald-400" />
+                    <InsightList items={copyResult.strengths} dotColor="bg-emerald-400" />
                   </div>
-
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                       <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Improvements</p>
                     </div>
-                    <InsightList items={contentResult.improvements} dotColor="bg-amber-400" />
+                    <InsightList items={copyResult.improvements} dotColor="bg-amber-400" />
                   </div>
                 </div>
 
-                {/* Row 2: Platform recs + A/B test */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Monitor className="w-3.5 h-3.5 text-sky-500" />
                       <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Platform Fit Analysis</p>
                     </div>
-                    <InsightList items={contentResult.platform_recommendations} dotColor="bg-sky-400" />
+                    <InsightList items={copyResult.platform_recommendations} dotColor="bg-sky-400" />
                   </div>
-
                   <div className="bg-novax-light rounded-xl border border-novax-border p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <SplitSquareVertical className="w-3.5 h-3.5 text-novax-muted" />
                       <p className="text-xs font-semibold text-novax uppercase tracking-wider">A/B Test Recommendation</p>
                     </div>
-                    <p className="text-xs text-slate-700 leading-relaxed">{contentResult.ab_test_suggestion}</p>
+                    <p className="text-xs text-slate-700 leading-relaxed">{copyResult.ab_test_suggestion}</p>
                   </div>
                 </div>
 
                 <p className="text-[10px] text-slate-400 text-center">
-                  Scored against: Berger & Milkman virality research · Meta 1.7s dwell study · Sweller Cognitive Load Theory · Cialdini persuasion principles · Platform algorithm research
+                  Scored against: Berger & Milkman virality research · Meta 1.7s dwell study · Sweller Cognitive Load Theory · Cialdini 6 Principles · HubSpot CTA standards · Platform algorithm research
+                </p>
+              </>
+            )}
+
+            {/* DATA ANALYTICS report */}
+            {mode === 'content' && contentType === 'data' && dataResult && (
+              <>
+                {/* Verdict rationale */}
+                <div className="p-4 bg-novax-light border border-novax-border rounded-xl">
+                  <div className="flex items-start gap-2">
+                    <BarChart2 className="w-3.5 h-3.5 text-novax-muted mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-novax uppercase tracking-wider mb-1.5">Intelligence Summary</p>
+                      <p className="text-xs text-slate-700 leading-relaxed">{dataResult.verdict_rationale}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Key findings + Benchmark gaps */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Lightbulb className="w-3.5 h-3.5 text-sky-500" />
+                      <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Key Findings</p>
+                    </div>
+                    <InsightList items={dataResult.key_findings} dotColor="bg-sky-400" />
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                      <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Benchmark Gaps (Sprout / HubSpot)</p>
+                    </div>
+                    <InsightList items={dataResult.benchmark_gaps} dotColor="bg-amber-400" />
+                  </div>
+                </div>
+
+                {/* Top performers + Underperformers */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                      <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Top Performers</p>
+                    </div>
+                    <InsightList items={dataResult.top_performers} dotColor="bg-emerald-400" />
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Target className="w-3.5 h-3.5 text-red-500" />
+                      <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Underperformers</p>
+                    </div>
+                    <InsightList items={dataResult.underperformers} dotColor="bg-red-400" />
+                  </div>
+                </div>
+
+                {/* Priority actions */}
+                {dataResult.priority_actions?.length > 0 && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <ArrowRight className="w-3.5 h-3.5 text-novax-muted" />
+                      <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Priority Actions</p>
+                    </div>
+                    <div className="space-y-3">
+                      {dataResult.priority_actions.map((a, i) => (
+                        <div key={i} className="flex items-start gap-3 p-3 bg-novax-light rounded-xl border border-novax-border">
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5" style={{ background: '#1B3D38' }}>{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-800 mb-1">{a.action}</p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-[10px] text-emerald-700 font-medium">{a.expected_impact}</span>
+                              <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <Clock className="w-3 h-3"/>{a.timeline}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Strategic recommendations + Missing data */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <TrendingUp className="w-3.5 h-3.5 text-novax-muted" />
+                      <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Strategic Recommendations</p>
+                    </div>
+                    <InsightList items={dataResult.strategic_recommendations} dotColor="bg-novax-border" />
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ShieldAlert className="w-3.5 h-3.5 text-slate-400" />
+                      <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Missing Data Points</p>
+                    </div>
+                    <InsightList items={dataResult.missing_data_points} dotColor="bg-slate-300" />
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-400 text-center">
+                  Benchmarks: Sprout Social 2024 Benchmarks · HubSpot Social Media Report 2024 · Later Media · Hootsuite Global Digital 2024
                 </p>
               </>
             )}

@@ -119,6 +119,7 @@ interface AIRequest {
   textContent?: string
   platforms?: string[]
   evalMode?: 'strategy' | 'content'
+  contentType?: 'copy' | 'data'
 }
 
 // Agents that operate on a specific task and benefit from caching
@@ -802,7 +803,7 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'strategy_eval': {
-      maxTokensOverride = 4000
+      maxTokensOverride = 8000
       model = ADVANCED_MODEL
       const strategyText = body.textContent ?? ''
 
@@ -1067,8 +1068,138 @@ Return ONLY the rewritten text. No labels, no explanation, no quotes around it.`
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'content_eval': {
+      maxTokensOverride = 8000
+      model = ADVANCED_MODEL
       const evalPlatform = body.platform ?? 'unspecified'
-      prompt = `You are a behavioural copywriting scientist specialising in social media content performance prediction. Apply neuroscience, persuasion science, and platform algorithm research to evaluate this content with clinical precision.
+      const isDataEval = body.contentType === 'data'
+
+      if (isDataEval) {
+        // ── Data / Analytics intelligence mode ───────────────────────────────
+        prompt = `You are a world-class social media data analyst — the calibre of Sprout Social's intelligence team, HubSpot's content research division, and Hootsuite's global analytics unit. You analyse raw performance data with the rigor of McKinsey and the platform depth of Later Media.
+
+CLIENT CONTEXT
+Client: ${clientName}
+Industry: ${industry}
+Platform Focus: ${evalPlatform}
+
+RAW DATA TO ANALYSE:
+${body.brief ?? ''}
+
+─────────────────────────────────────────────────────────────────
+ANALYSIS FRAMEWORK — apply ALL lenses below:
+─────────────────────────────────────────────────────────────────
+
+STEP 1 — IDENTIFY what type of data this is:
+- Social media performance export (ER, reach, impressions, likes, comments, saves, shares)
+- Content calendar data (dates, formats, captions, platforms)
+- Audience or demographics data
+- Competitor data
+- A mix of the above
+Note what is clearly present and what is inferred.
+
+STEP 2 — CONTENT PERFORMANCE PATTERNS (if ER/engagement data present):
+- What content types, formats, or captions drive the highest engagement rate?
+- What is the mean, median, and top-decile ER across the dataset?
+- 2024 INDUSTRY BENCHMARKS (Sprout Social / Hootsuite):
+  * Instagram: 0.70% avg ER (range 0.54–1.22% by industry)
+  * TikTok: 2.65% avg ER (range 1.5–5.96% by niche)
+  * Facebook: 0.15% avg ER
+  * LinkedIn: 2.74% avg ER per impression
+  * YouTube: 4.0–8.0% avg ER (views-based)
+- Flag content that is 2× above average — what makes those posts different?
+- Flag content that is 50% below average — what do they have in common?
+
+STEP 3 — POSTING PATTERN ANALYSIS:
+- What days/times correlate with higher performance?
+- Is posting frequency consistent? (HubSpot recommends 3–5x/week for Instagram, 1–2x/day for TikTok)
+- Is there a drop-off in quality vs. quantity correlation?
+
+STEP 4 — AUDIENCE SIGNAL EXTRACTION:
+- Which posts drive saves (utility/value signal) vs. shares (identity signal) vs. comments (community signal)?
+- What does the saves-to-reach ratio reveal about content resonance?
+- Are there virality signals — posts where reach greatly exceeded follower count?
+
+STEP 5 — BENCHMARK COMPARISON (HubSpot / Sprout Social / Hootsuite 2024):
+- Compare client metrics to platform averages above
+- Calculate how far above/below benchmark the dataset is performing
+- Identify the single largest performance gap vs. best-in-class
+
+STEP 6 — STRATEGIC INTELLIGENCE GAPS:
+- What crucial metrics are MISSING that would complete the picture?
+- What formats or content pillars are underrepresented?
+- What would the McKinsey "so what" be — the single insight that changes strategy?
+
+─────────────────────────────────────────────────────────────────
+SCORING (0–100, be calibrated — 85+ is genuinely exceptional):
+─────────────────────────────────────────────────────────────────
+- data_quality: Completeness, consistency, structural usability. Can you extract reliable patterns?
+- insight_depth: How rich are the extractable patterns? Does this data tell a strategic story?
+- benchmark_alignment: How does performance compare to the 2024 industry standards above?
+- strategic_clarity: How clearly does the data point to a single strategic direction?
+- actionability: How easy is it to derive specific, prioritised next actions from this data?
+- completeness: What % of the key metrics for a full intelligence picture are present?
+
+overall = (insight_depth × 0.30) + (benchmark_alignment × 0.25) + (actionability × 0.20) + (data_quality × 0.15) + (strategic_clarity × 0.05) + (completeness × 0.05)
+
+─────────────────────────────────────────────────────────────────
+
+Return ONLY a valid JSON object, no markdown, no code fences:
+{
+  "overall": <0-100 weighted composite>,
+  "data_quality": <0-100>,
+  "insight_depth": <0-100>,
+  "benchmark_alignment": <0-100>,
+  "strategic_clarity": <0-100>,
+  "actionability": <0-100>,
+  "completeness": <0-100>,
+  "content_type_detected": "<describe what type of data this is — e.g. 'Instagram performance export with reach, ER, saves'>",
+  "key_findings": [
+    "<specific, evidence-based finding with numbers from the actual data — e.g. 'Carousel posts average 4.2% ER vs 1.1% for static images'>",
+    "<next finding — minimum 5 findings, maximum 8>"
+  ],
+  "benchmark_gaps": [
+    "<Metric: client value (X%) vs. industry benchmark (Y%) — implication for strategy>",
+    "<minimum 3, maximum 5>"
+  ],
+  "top_performers": [
+    "<describe the pattern shared by best-performing content — format, caption style, posting time, etc.>",
+    "<minimum 3, maximum 5>"
+  ],
+  "underperformers": [
+    "<describe lowest-performing content patterns and what they have in common>",
+    "<minimum 3, maximum 5>"
+  ],
+  "strategic_recommendations": [
+    "<data-driven recommendation with specific expected impact — e.g. 'Shift 60% of posts to carousel format — projected +2.1pp ER improvement based on current pattern'>",
+    "<minimum 4, maximum 6>"
+  ],
+  "missing_data_points": [
+    "<important metric absent from the dataset that would materially improve analysis — e.g. 'Story views/exits ratio missing'>",
+    "<minimum 3>"
+  ],
+  "priority_actions": [
+    {
+      "action": "<specific, concrete action>",
+      "expected_impact": "<quantified expected improvement — e.g. '+1.5pp avg ER'>",
+      "timeline": "<e.g. 'Next 2 weeks' or 'Q3 2025'>"
+    }
+  ],
+  "verdict": "exceptional" | "strong" | "adequate" | "insufficient" | "unusable",
+  "verdict_rationale": "<4-5 sentences: what the data reveals, how it benchmarks, the single most important strategic implication, and what the team should do next>"
+}`
+      } else {
+        // ── Social copy evaluation mode ───────────────────────────────────────
+        prompt = `You are a senior content performance analyst — the calibre of HubSpot's content team, Sprout Social's insights division, and the world's top direct-response copywriters. You evaluate social media content with the precision of a behavioural scientist and the eye of a conversion optimizer.
+
+Apply these research frameworks with rigour:
+— Fogg Behavior Model (Motivation × Ability × Trigger)
+— Cialdini's 6 Principles of Persuasion (social proof, scarcity, authority, liking, reciprocity, commitment)
+— Berger-Milkman Emotional Arousal Theory (high-arousal emotions = 2× shares)
+— Jobs-to-be-Done Theory (what emotional or functional job does this content do?)
+— Sweller's Cognitive Load Theory (working memory 7±2 chunks)
+— Meta's 1.7-second mobile scroll dwell time research
+— HubSpot CTA Optimization Research (specificity + friction reduction = +300% CTR)
+— Nielsen's Attention Economy research (reading pattern = F-shape; opening line = 80% of value)
 
 CLIENT CONTEXT
 Client: ${clientName}
@@ -1080,42 +1211,65 @@ Platform: ${evalPlatform}
 CONTENT TO EVALUATE:
 ${body.brief ?? ''}
 
-SCORING DIMENSIONS — score each 0–100. Be calibrated: 85+ is genuinely exceptional. 70 = good. 50 = average, would perform below median. Below 50 = would be ignored.
+─────────────────────────────────────────────────────────────────
+SCORING DIMENSIONS — score each 0–100.
+Calibration: 90+ = top 5% globally. 80 = strong. 70 = good but improvable. 50 = average, below-median performance. <50 = would largely be ignored.
+─────────────────────────────────────────────────────────────────
 
-1. HOOK STRENGTH (0-3 Second Window)
-   Scientific basis: Meta research — average mobile scroll dwell time 1.7 seconds. First line must create a pattern interrupt that halts the scroll.
-   Evaluate: Does the opening line create a curiosity gap, counterintuitive statement, or emotionally loaded statement under 125 characters? Is it specific (numbers, names, scenarios) or generic? Does it address the reader directly?
-   90-100: Would halt >80% of target audience immediately.
-   70-89: Strong hook with minor friction.
-   50-69: Generic opener — most scroll past.
-   <50: No interrupt mechanism — invisible in feed.
+1. HOOK / OPENING STRENGTH
+Scientific basis: Meta research — 1.7-second average mobile scroll dwell. Nielsen: 80% of the content's value is determined by whether the opening gets read.
+Evaluation criteria:
+• Does the opening create a pattern interrupt (curiosity gap, counterintuitive claim, emotionally charged statement, specific number)?
+• Is it under 125 characters (Instagram/Facebook "see more" threshold)?
+• Does it address the reader directly or speak about a relatable scenario?
+• Is it specific (numbers, names, concrete scenarios) or vague and generic?
+NOTE: If this is long-form content (email, article, strategy doc) rather than a social post caption, evaluate the opening paragraph's ability to hook the reader into reading the full piece — not as a 1.7-second scroll hook but as a reader engagement mechanism.
+90–100: Would halt >80% of target audience. Creates immediate investment.
+70–89: Strong with minor friction — most would continue reading.
+50–69: Generic opener — majority would not continue.
+<50: No mechanism to capture attention — invisible in feed.
 
-2. NARRATIVE ARC (Structure Quality)
-   Evaluate: Is there a clear structural progression (Problem → Tension → Resolution, or Hook → Story → Payoff)? Does each sentence earn its place? Does it build investment before the payoff? Is there a satisfying close?
+2. EMOTIONAL AROUSAL (Berger-Milkman Framework)
+High-arousal emotions (awe, excitement, anger, amusement, anxiety) drive 2× more sharing than low-arousal (sadness, contentment). Positive high-arousal is the apex.
+Evaluate: Which specific emotion is activated? What is the arousal intensity (low/medium/high)? Is arousal maintained throughout or front-loaded then dropped? Is this the right emotion for the content goal?
 
-3. BRAND VOICE MATCH (Tonal Alignment)
-   Evaluate: Does the language, formality, and vocabulary match "${brandVoice}"? Are there tonal inconsistencies (too corporate, too casual)? Does it feel native to ${clientName} or generic brand copy?
+3. NARRATIVE ARC (Structural Quality)
+Evaluate: Is there a clear progression — Problem → Tension → Resolution, or Hook → Story → Payoff, or Challenge → Stakes → Relief?
+Does each sentence earn its place? Does content build investment before the payoff? Is there a satisfying, purposeful close?
+Is the JTBD (Job-to-be-Done) fulfilled — functional or emotional job stated and resolved?
 
-4. CTA EFFECTIVENESS (Action Architecture)
-   Evaluate: Is there a clear next step? Is it specific (what exactly to do) and frictionless (low effort)? Is it placed optimally (after value delivery)? Does it match the content's emotional tone?
+4. MESSAGE CLARITY (Cognitive Load Assessment)
+Sweller: working memory holds 7±2 chunks. Overloaded copy kills conversion and sharing.
+Evaluate: Can the single core message be extracted in under 3 seconds? Are sentences direct? Is vocabulary appropriate for ${audience}? Is there one primary CTA/message or multiple competing ones?
 
-5. PLATFORM FIT (Native Format Optimisation)
-   Platform: ${evalPlatform}
-   Evaluate: Is the first line under 125 characters (Instagram/Facebook "see more" threshold)? Is the length appropriate for this platform? Are line breaks used for readability? Is the tone native to this platform's culture? Does it avoid cross-posting signals?
+5. BRAND VOICE MATCH
+Evaluate against "${brandVoice}": Does the language, formality, and vocabulary feel native to ${clientName}? Are there tonal inconsistencies? Does it feel authentic to the brand or like generic agency copy?
 
-6. EMOTIONAL AROUSAL (Berger-Milkman Analysis)
-   Scientific basis: Berger & Milkman (2012) — high-arousal emotions (awe, excitement, anger, amusement, anxiety) drive 2× more shares than low-arousal. Positive high-arousal is optimal.
-   Evaluate: Which specific emotion does this content activate? What is the arousal intensity? Is this the optimal emotion for the goal? Is arousal maintained throughout or front-loaded then dropped?
+6. CTA EFFECTIVENESS (HubSpot Action Architecture)
+HubSpot research: specific CTAs outperform vague ones by 202%. Frictionless CTAs outperform friction-heavy by 3×.
+Evaluate: Is there a clear next step? Is it specific (exactly what to do)? Is it placed after value delivery (not at the top)? Does it match the content's emotional tone? Is friction minimized?
 
-7. MESSAGE CLARITY (Cognitive Load Assessment)
-   Scientific basis: Sweller's Cognitive Load Theory — working memory is limited to 7±2 chunks. Overloaded copy kills conversion.
-   Evaluate: Can the core message be extracted in under 3 seconds? Are sentences clear and direct? Is there a single primary message or multiple competing ones? Is the vocabulary at the right level for ${audience}?
+7. PLATFORM FIT (${evalPlatform} Native Format)
+Evaluate: First line under 125 chars? Length appropriate for ${evalPlatform}? Line breaks used for mobile readability? Tone native to ${evalPlatform} culture? Avoids cross-posting signals? Hashtag strategy (if any) appropriate?
 
+8. PERSUASION ARCHITECTURE (Cialdini Analysis)
+Evaluate which of the 6 principles are present and how effectively deployed:
+• Social Proof: numbers, testimonials, peer behaviour references
+• Scarcity/Urgency: limited time, limited quantity, FOMO triggers
+• Authority: expertise signals, credentials, data citations
+• Liking: shared identity, empathy, warmth, humour
+• Reciprocity: value given before ask
+• Commitment: micro-yes moments before the main ask
+Score reflects both breadth (how many present) and depth (how skillfully used).
+
+─────────────────────────────────────────────────────────────────
 WEIGHTED OVERALL:
-overall = (hook_strength × 0.30) + (emotional_arousal × 0.20) + (narrative_arc × 0.15) + (message_clarity × 0.15) + (brand_voice_match × 0.10) + (cta_effectiveness × 0.05) + (platform_fit × 0.05)
+overall = (hook_strength × 0.25) + (emotional_arousal × 0.20) + (narrative_arc × 0.15) + (message_clarity × 0.15) + (persuasion_architecture × 0.10) + (brand_voice_match × 0.08) + (cta_effectiveness × 0.05) + (platform_fit × 0.02)
 
-virality_score: 0-100 composite — hook_strength × 0.40 + emotional_arousal × 0.40 + narrative_arc × 0.20.
-engagement_prediction: "viral" if overall >= 85 AND virality_score >= 80, "high" if overall >= 72, "medium" if >= 55, "low" if < 55.
+virality_score: hook_strength × 0.40 + emotional_arousal × 0.35 + narrative_arc × 0.25
+engagement_prediction: "viral" if overall >= 87 AND virality_score >= 82, "high" if overall >= 74, "medium" if >= 56, "low" if < 56
+
+─────────────────────────────────────────────────────────────────
 
 Return ONLY a valid JSON object, no markdown, no code fences:
 {
@@ -1127,16 +1281,31 @@ Return ONLY a valid JSON object, no markdown, no code fences:
   "platform_fit": <number>,
   "emotional_arousal": <number>,
   "message_clarity": <number>,
+  "persuasion_architecture": <number>,
   "virality_score": <number>,
   "engagement_prediction": "low" | "medium" | "high" | "viral",
-  "emotional_trigger": "<single dominant emotion triggered — be specific, e.g. 'anticipatory excitement' not just 'excitement'>",
-  "hook_analysis": "<What fires in lines 1-3? What is the scroll-stop mechanism? What would improve it? 2-3 sentences.>",
-  "strengths": ["<evidence-based observation quoting or referencing specific words or phrases from the content>"],
-  "improvements": ["<specific, measurable improvement with expected performance impact>"],
-  "missing_elements": ["<specific element absent that would materially improve performance — be concrete>"],
-  "platform_recommendations": ["<Platform: specific technical reason this content fits or doesn't fit>"],
-  "ab_test_suggestion": "<Control: [current version element] vs Variant: [proposed change] — Metric to measure: [specific KPI]>"
+  "emotional_trigger": "<the single dominant emotion activated — be specific: 'anticipatory excitement' not 'excitement', 'righteous indignation' not 'anger'>",
+  "hook_analysis": "<Analyse what fires in the opening — what is the attention mechanism? What specific words or phrases create the pattern interrupt? If no hook exists, explain what the opening does and doesn't do. How would you rewrite line 1 for maximum scroll-halt? 3-4 sentences.>",
+  "cialdini_principles_used": ["<Principle Name: how it's used and effectiveness — e.g. 'Social Proof: references 10,000 customers — moderate effectiveness, too generic'>"],
+  "strengths": [
+    "<evidence-based strength, quoting or referencing specific words/phrases from the content — minimum 3>",
+    "<min 3, max 5>"
+  ],
+  "improvements": [
+    "<specific, actionable improvement with expected performance impact — e.g. 'Replace opening with a curiosity gap: estimated +40% scroll-stop rate'>",
+    "<min 3, max 5>"
+  ],
+  "missing_elements": [
+    "<specific missing element that would materially improve performance — be concrete and prescriptive>",
+    "<min 3>"
+  ],
+  "platform_recommendations": [
+    "<Platform (${evalPlatform}): specific technical reason this content fits or doesn't — reference character limits, algorithm signals, native format standards>"
+  ],
+  "ab_test_suggestion": "<Control: [quote the specific current element] vs Variant: [describe the proposed change] — Primary metric: [specific KPI] — Expected impact: [quantified projection]>",
+  "hubspot_benchmark_note": "<How does this content compare to HubSpot's best practices for ${evalPlatform}? Reference their 2024 research where relevant. 2-3 sentences.>"
 }`
+      }
       break
     }
 
@@ -1167,7 +1336,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
 
       const response = await anthropic.messages.create({
         model,
-        max_tokens: maxTokensOverride ?? 2048,
+        max_tokens: maxTokensOverride ?? 4096,
         messages: [{ role: 'user', content }],
       })
 
