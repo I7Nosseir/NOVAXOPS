@@ -126,7 +126,7 @@ interface AIRequest {
   commentText?: string; commenterName?: string; postCaption?: string; platform?: string
   brief?: string; month?: string; frequency?: string; language?: 'en' | 'ar'
   media_url?: string  // public image or video URL — images passed as vision block, videos as text context
-  imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video' | 'text'
+  imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video' | 'text' | 'pdf'
   fileBase64?: string; fileMimeType?: string  // direct file upload (PDF etc) — bypasses text extraction
   textContent?: string
   platforms?: string[]
@@ -162,11 +162,9 @@ export async function POST(req: NextRequest) {
       const file = fd.get('file')
       if (file && file instanceof Blob) {
         const ab = await file.arrayBuffer()
-        const bytes = new Uint8Array(ab)
-        let bin = ''
-        for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i])
-        body.fileBase64 = btoa(bin)
+        body.fileBase64 = Buffer.from(ab).toString('base64')
         body.fileMimeType = file.type || 'application/pdf'
+        console.log(`[multipart] PDF base64 size: ${Math.round(body.fileBase64.length / 1024)}KB, mime: ${body.fileMimeType}`)
       }
     } else {
       body = await req.json()
@@ -610,7 +608,19 @@ The "anchor" field is null for regular posts and a string (event name) for ancho
         : []
       const platformStr = evalPlatforms.length > 0 ? evalPlatforms.join(', ') : 'General social media'
 
-      if (body.imageBase64 && body.mimeType) {
+      const isPdfMode = fileType === 'pdf' || (!!body.fileBase64 && body.fileMimeType?.includes('pdf'))
+
+      // Build PDF file block for Anthropic (Claude)
+      if (isPdfMode && body.fileBase64 && body.fileMimeType?.includes('pdf')) {
+        console.log(`[creative_eval] PDF received, base64 size: ${Math.round(body.fileBase64.length / 1024)}KB`)
+        fileBlock = {
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: body.fileBase64 },
+        }
+      }
+
+      // Build image block for Anthropic (image/video thumbnail)
+      if (!isPdfMode && body.imageBase64 && body.mimeType) {
         const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const
         const mt = validTypes.includes(body.mimeType as typeof validTypes[number])
           ? (body.mimeType as typeof validTypes[number])
@@ -621,10 +631,11 @@ The "anchor" field is null for regular posts and a string (event name) for ancho
         }
       }
 
-      const isTextMode = fileType === 'text'
-      const textBlock  = isTextMode && body.textContent
-        ? `\nCONTENT TO EVALUATE:\n"""\n${body.textContent}\n"""\n`
-        : ''
+      const assetTypeLabel = isPdfMode
+        ? 'Script / copy document (PDF — read and evaluate the full content)'
+        : fileType === 'video'
+          ? 'Video (first-frame thumbnail analysis)'
+          : 'Static image'
 
       prompt = `You are a senior creative strategist and performance scientist. You evaluate social media content the way a rigorous, experienced strategist would — with calibrated standards, evidence-based reasoning, and willingness to give low scores when the work doesn't earn high ones.
 
@@ -640,7 +651,8 @@ Target Audience: ${audience}
 Key Messages: ${keyMessages || 'Not specified'}
 Competitors: ${competitors}
 Target Platforms: ${platformStr}
-Asset Type: ${isTextMode ? 'Written copy / script' : fileType === 'video' ? 'Video (first-frame analysis)' : 'Static image'}${textBlock}
+Asset Type: ${assetTypeLabel}
+${isPdfMode ? 'The creative content is in the attached PDF — read it fully before scoring.' : ''}
 
 ═══════════════════════════════════════════════════════
 CALIBRATION MANDATE — READ BEFORE SCORING
@@ -722,7 +734,7 @@ Name which STEPPS elements are present. Score density of triggers. No triggers =
 
 7. PLATFORM FIT
 Platforms: ${platformStr}
-${isTextMode
+${isPdfMode
   ? 'Assess: copy length vs platform norms, caption structure, CTA format, tone-of-voice fit per platform, opening line vs character limits.'
   : 'Assess: aspect ratio fit (9:16 for Reels/TikTok, 1:1 or 4:5 for Instagram feed), text overlay density (Facebook penalises >20%), sound-off clarity (85% of Facebook video watched muted — Nielsen), mobile-first composition, platform-native vs cross-posted feel.'}
 
@@ -832,7 +844,7 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
   "platform_recommendations": ["<Platform name: plain reason this content fits or doesn't for that platform>"],
   "ab_test_suggestion": "<what to test and what you'd expect to learn — in plain terms>",
   "strengths": ["<specific, plain observation about what works and why>"],
-  "improvements": ["<clear, actionable improvement — what to change and why it will help, no jargon>"]${fileType === 'video' ? ',\n  "hook_analysis": "<Plain description of what happens in the first 3 seconds — what grabs attention, what doesn\'t, and what to fix>"' : isTextMode ? ',\n  "hook_analysis": "<Plain analysis of the opening line — does it make the reader want to continue? What would make it stronger?>"' : ''}
+  "improvements": ["<clear, actionable improvement — what to change and why it will help, no jargon>"]${fileType === 'video' ? ',\n  "hook_analysis": "<Plain description of what happens in the first 3 seconds — what grabs attention, what doesn\'t, and what to fix>"' : isPdfMode ? ',\n  "hook_analysis": "<Plain analysis of the opening line — does it make the reader want to continue? What would make it stronger?>"' : ''}
 }`
       break
     }

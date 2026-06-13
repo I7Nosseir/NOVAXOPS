@@ -11,7 +11,7 @@ import {
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
 
-type FileType = 'image' | 'video'
+type FileType = 'image' | 'video' | 'pdf'
 type InputMode = 'media' | 'strategy'
 
 const PLATFORMS = [
@@ -211,7 +211,7 @@ export default function CreativeEvalPage() {
   const [clientId, setClientId]         = useState('')
   const [inputMode, setInputMode]       = useState<InputMode>('media')
   const [platforms, setPlatforms]       = useState<string[]>(['instagram', 'tiktok'])
-  const [file, setFile]                 = useState<{ name: string; url: string; type: FileType } | null>(null)
+  const [file, setFile]                 = useState<{ name: string; url: string; type: FileType; rawFile?: File; size?: number } | null>(null)
   const [stratFile, setStratFile]       = useState<{ name: string; file: File; size: number } | null>(null)
   const [evaluating, setEvaluating]     = useState(false)
   const [result, setResult]             = useState<EvalResult | null>(null)
@@ -225,7 +225,15 @@ export default function CreativeEvalPage() {
     setPlatforms(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
 
   const handleMediaFile = (f: File) => {
-    setFile({ name: f.name, url: URL.createObjectURL(f), type: f.type.startsWith('video/') ? 'video' : 'image' })
+    if (f.type === 'application/pdf' || f.name.match(/\.pdf$/i)) {
+      if (f.size > 5 * 1024 * 1024) {
+        setEvalError('PDF is too large — maximum size is 5MB.')
+        return
+      }
+      setFile({ name: f.name, url: '', type: 'pdf', rawFile: f, size: f.size })
+    } else {
+      setFile({ name: f.name, url: URL.createObjectURL(f), type: f.type.startsWith('video/') ? 'video' : 'image' })
+    }
     setResult(null); setStratResult(null); setEvalError(null)
   }
 
@@ -307,8 +315,15 @@ export default function CreativeEvalPage() {
 
       let res: Response
 
-      if (inputMode === 'media' && file) {
-        const { base64, mimeType } = await toBase64(file.url, file.type)
+      if (inputMode === 'media' && file && file.type === 'pdf' && file.rawFile) {
+        // PDF creative eval — send as binary multipart (no base64 JSON overhead)
+        const fd = new FormData()
+        fd.set('params', JSON.stringify({ ...basePayload, fileType: 'pdf' }))
+        fd.set('file', file.rawFile)
+        console.log('[eval] Sending creative PDF via multipart, size:', Math.round((file.size ?? 0) / 1024) + 'KB')
+        res = await fetch('/api/ai', { method: 'POST', body: fd })
+      } else if (inputMode === 'media' && file) {
+        const { base64, mimeType } = await toBase64(file.url, file.type as 'image' | 'video')
         const payload = { ...basePayload, imageBase64: base64, mimeType, fileType: file.type }
         res = await fetch('/api/ai', {
           method: 'POST',
@@ -454,7 +469,7 @@ export default function CreativeEvalPage() {
             </div>
           )}
 
-          {/* Media input */}
+          {/* Creative input — image, video, or PDF */}
           {inputMode === 'media' && (
             <>
               {!file ? (
@@ -463,9 +478,21 @@ export default function CreativeEvalPage() {
                   className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-novax-border-active hover:bg-slate-50 transition-colors cursor-pointer">
                   <Upload className="w-8 h-8 text-slate-300 mx-auto mb-3"/>
                   <p className="text-sm font-medium text-slate-700">Drop creative here or browse</p>
-                  <p className="text-xs text-slate-400 mt-1">PNG, JPG, MP4, MOV · Max 50MB</p>
-                  <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden"
+                  <p className="text-xs text-slate-400 mt-1">PNG, JPG, MP4, MOV, PDF · PDF max 5MB</p>
+                  <input ref={mediaInputRef} type="file" accept="image/*,video/*,.pdf" className="hidden"
                     onChange={e => e.target.files?.[0] && handleMediaFile(e.target.files[0])}/>
+                </div>
+              ) : file.type === 'pdf' ? (
+                <div className="flex items-center gap-3 p-4 bg-novax-light rounded-xl border border-novax-border">
+                  <FileText className="w-5 h-5 text-novax-muted shrink-0"/>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 truncate">{file.name}</p>
+                    <p className="text-xs text-slate-400">{file.size ? (file.size / 1024).toFixed(0) + ' KB' : 'PDF document'}</p>
+                  </div>
+                  <button onClick={() => { setFile(null); setResult(null) }}
+                    className="w-7 h-7 rounded-full bg-white/70 flex items-center justify-center text-slate-500 hover:bg-red-50 hover:text-red-500 transition-colors">
+                    <X className="w-3.5 h-3.5"/>
+                  </button>
                 </div>
               ) : (
                 <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50">
