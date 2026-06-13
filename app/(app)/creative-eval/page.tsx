@@ -4,16 +4,15 @@ import { useState, useRef } from 'react'
 import {
   Upload, X, Loader2, TrendingUp, Eye, AlertTriangle, CheckCircle,
   Brain, Flame, Target, Share2, Monitor, Sparkles, FlaskConical,
-  SplitSquareVertical, FileText, ImageIcon, AlignLeft, FileSearch,
+  SplitSquareVertical, FileText, ImageIcon, FileSearch,
   ShieldAlert, Lightbulb, Crosshair, Users, Award, TriangleAlert,
   ChevronDown, ChevronUp, Layers,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
-import * as XLSX from 'xlsx'
 
 type FileType = 'image' | 'video'
-type InputMode = 'media' | 'text' | 'strategy'
+type InputMode = 'media' | 'strategy'
 
 const PLATFORMS = [
   { id: 'instagram', label: 'Instagram' },
@@ -205,17 +204,6 @@ function ViralityRing({ score }: { score: number }) {
   )
 }
 
-async function extractXlsxText(file: File): Promise<string> {
-  const ab  = await file.arrayBuffer()
-  const wb  = XLSX.read(ab, { type: 'array' })
-  const out: string[] = []
-  for (const name of wb.SheetNames) {
-    const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name], { blankrows: false })
-    if (csv.trim()) out.push(`[Sheet: ${name}]\n${csv}`)
-  }
-  return out.join('\n\n')
-}
-
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function CreativeEvalPage() {
@@ -224,15 +212,14 @@ export default function CreativeEvalPage() {
   const [inputMode, setInputMode]       = useState<InputMode>('media')
   const [platforms, setPlatforms]       = useState<string[]>(['instagram', 'tiktok'])
   const [file, setFile]                 = useState<{ name: string; url: string; type: FileType } | null>(null)
-  const [textContent, setTextContent]   = useState('')
-  const [docFileName, setDocFileName]   = useState('')
+  const [stratFile, setStratFile]       = useState<{ name: string; file: File; size: number } | null>(null)
   const [evaluating, setEvaluating]     = useState(false)
   const [result, setResult]             = useState<EvalResult | null>(null)
   const [stratResult, setStratResult]   = useState<StrategyEvalResult | null>(null)
   const [evalError, setEvalError]       = useState<string | null>(null)
   const [evidenceOpen, setEvidenceOpen] = useState(false)
   const mediaInputRef = useRef<HTMLInputElement>(null)
-  const docInputRef   = useRef<HTMLInputElement>(null)
+  const stratInputRef = useRef<HTMLInputElement>(null)
 
   const togglePlatform = (id: string) =>
     setPlatforms(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
@@ -248,35 +235,23 @@ export default function CreativeEvalPage() {
     if (f) handleMediaFile(f)
   }
 
-  const handleDocFile = async (f: File) => {
-    setDocFileName(f.name); setResult(null); setStratResult(null); setEvalError(null)
-    try {
-      if (f.name.match(/\.xlsx?$|\.csv$/i)) {
-        setTextContent(await extractXlsxText(f))
-      } else if (f.name.endsWith('.txt')) {
-        setTextContent(await f.text())
-      } else if (f.name.match(/\.pdf$/i)) {
-        const ab    = await f.arrayBuffer()
-        const bytes = new Uint8Array(ab)
-        let bin = ''
-        for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i])
-        const base64 = btoa(bin)
-        setTextContent('Extracting PDF text…')
-        const res  = await fetch('/api/extract-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base64 }),
-        })
-        const data = await res.json() as { text?: string; error?: string }
-        setTextContent(data.text?.trim() || '(Could not extract — paste text manually)')
-      } else {
-        const raw = await f.text()
-        setTextContent(raw.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
-          || '(Could not extract — paste text manually)')
-      }
-    } catch {
-      setTextContent('(Could not extract — paste text manually)')
+  const handleStratFile = (f: File) => {
+    if (!f.name.match(/\.pdf$/i)) {
+      setEvalError('Only PDF files are supported for strategy evaluation.')
+      return
     }
+    if (f.size > 5 * 1024 * 1024) {
+      setEvalError('PDF is too large — maximum size is 5MB. Try exporting a smaller version.')
+      return
+    }
+    setStratFile({ name: f.name, file: f, size: f.size })
+    setResult(null); setStratResult(null); setEvalError(null)
+  }
+
+  const handleStratDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const f = e.dataTransfer.files[0]
+    if (f) handleStratFile(f)
   }
 
   const toBase64 = async (url: string, type: FileType): Promise<{ base64: string; mimeType: string }> => {
@@ -286,10 +261,12 @@ export default function CreativeEvalPage() {
         v.onloadeddata = () => { v.currentTime = 0.1 }
         v.onseeked = () => {
           const c = document.createElement('canvas')
-          c.width = Math.min(v.videoWidth, 1280)
+          c.width = Math.min(v.videoWidth, 512)
           c.height = Math.round(c.width * (v.videoHeight / v.videoWidth))
           c.getContext('2d')!.drawImage(v, 0, 0, c.width, c.height)
-          resolve({ base64: c.toDataURL('image/jpeg', 0.8).split(',')[1], mimeType: 'image/jpeg' })
+          const result = { base64: c.toDataURL('image/jpeg', 0.65).split(',')[1], mimeType: 'image/jpeg' }
+          console.log('[eval] Video thumbnail base64 size:', Math.round(result.base64.length / 1024) + 'KB')
+          resolve(result)
         }
         v.onerror = reject
       })
@@ -305,12 +282,12 @@ export default function CreativeEvalPage() {
     const c = document.createElement('canvas')
     c.width = w; c.height = h
     c.getContext('2d')!.drawImage(bitmap, 0, 0, w, h)
-    return { base64: c.toDataURL('image/jpeg', 0.72).split(',')[1], mimeType: 'image/jpeg' }
+    const result = { base64: c.toDataURL('image/jpeg', 0.65).split(',')[1], mimeType: 'image/jpeg' }
+    console.log('[eval] Image base64 size:', Math.round(result.base64.length / 1024) + 'KB')
+    return result
   }
 
-  const canEvaluate = inputMode === 'media'
-    ? !!file
-    : textContent.trim().length > 20
+  const canEvaluate = inputMode === 'media' ? !!file : !!stratFile
 
   const evaluate = async () => {
     if (!canEvaluate) return
@@ -320,7 +297,7 @@ export default function CreativeEvalPage() {
       const isStrategy = inputMode === 'strategy'
       const agent = isStrategy ? 'strategy_eval' : 'creative_eval'
 
-      let payload: Record<string, unknown> = {
+      const basePayload: Record<string, unknown> = {
         agent,
         client: selectedClient
           ? { id: selectedClient.id, name: selectedClient.name, brand_identity: selectedClient.brand_identity }
@@ -328,25 +305,45 @@ export default function CreativeEvalPage() {
         platforms: platforms.length > 0 ? platforms : undefined,
       }
 
+      let res: Response
+
       if (inputMode === 'media' && file) {
         const { base64, mimeType } = await toBase64(file.url, file.type)
-        payload = { ...payload, imageBase64: base64, mimeType, fileType: file.type }
+        const payload = { ...basePayload, imageBase64: base64, mimeType, fileType: file.type }
+        res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      } else if (inputMode === 'strategy' && stratFile) {
+        // Send PDF as binary multipart — avoids base64 JSON body overhead
+        const fd = new FormData()
+        fd.set('params', JSON.stringify(basePayload))
+        fd.set('file', stratFile.file)
+        console.log('[eval] Sending PDF via multipart, size:', Math.round(stratFile.size / 1024) + 'KB')
+        res = await fetch('/api/ai', { method: 'POST', body: fd })
       } else {
-        payload = { ...payload, textContent: textContent.trim(), fileType: 'text' }
+        return
       }
 
-      const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       let data: { error?: string; text?: string; message?: string } = {}
       try {
         data = await res.json()
       } catch {
-        setEvalError(res.status === 413 ? 'Image is too large. Try a smaller file or compress it first.' : `Server error (${res.status}) — please try again.`)
-        return
-      }
-      if (!res.ok) {
+        console.error('[eval] Failed to parse response JSON, status:', res.status)
         setEvalError(
           res.status === 413
-            ? 'Image is too large. Try a smaller file or compress it first.'
+            ? 'File is too large. For images try a smaller file; for PDFs compress to under 5MB.'
+            : `Server error (${res.status}) — please try again.`
+        )
+        return
+      }
+
+      if (!res.ok) {
+        console.error('[eval] Non-OK response:', res.status, data)
+        setEvalError(
+          res.status === 413
+            ? 'File is too large. For images try a smaller file; for PDFs compress to under 5MB.'
             : (data.error ?? data.message ?? `Server error (${res.status}).`)
         )
         return
@@ -358,13 +355,15 @@ export default function CreativeEvalPage() {
       let parsed: EvalResult | StrategyEvalResult
       try {
         parsed = JSON.parse(raw)
-      } catch {
-        setEvalError('The AI returned an unexpected response. Please try again.')
+      } catch (parseErr) {
+        console.error('[eval] JSON parse failed. Raw response start:', rawText.slice(0, 200))
+        setEvalError('The AI returned an unexpected response format. Please try again.')
         return
       }
       if (isStrategy) setStratResult(parsed as StrategyEvalResult)
       else setResult(parsed as EvalResult)
     } catch (err) {
+      console.error('[eval] Unexpected error:', err)
       setEvalError(err instanceof Error ? err.message : 'Evaluation failed.')
     } finally {
       setEvaluating(false)
@@ -399,17 +398,21 @@ export default function CreativeEvalPage() {
 
     <div className="space-y-6 max-w-5xl">
       <p className="text-sm text-slate-500">
-        Upload a creative, paste a script, or evaluate a strategy document. Scored against world-class benchmarks — calibrated to be honest, not encouraging.
+        Upload a creative or a strategy PDF. Scored against world-class benchmarks — calibrated to be honest, not encouraging.
       </p>
 
       {/* Mode toggle */}
       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
         {([
-          { id: 'media',    label: 'Media',          icon: ImageIcon  },
-          { id: 'text',     label: 'Text / Script',  icon: AlignLeft  },
-          { id: 'strategy', label: 'Strategy',       icon: FileSearch },
+          { id: 'media',    label: 'Creative',  icon: ImageIcon  },
+          { id: 'strategy', label: 'Strategy',  icon: FileSearch },
         ] as const).map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => { setInputMode(id); setResult(null); setStratResult(null); setEvalError(null) }}
+          <button key={id} onClick={() => {
+            setInputMode(id)
+            setResult(null); setStratResult(null); setEvalError(null)
+            if (id === 'media') setStratFile(null)
+            if (id === 'strategy') setFile(null)
+          }}
             className={cn(
               'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
               inputMode === id ? 'bg-white text-novax shadow-sm' : 'text-slate-500 hover:text-slate-700',
@@ -489,27 +492,33 @@ export default function CreativeEvalPage() {
             </>
           )}
 
-          {/* Text / Script / Strategy input */}
-          {(inputMode === 'text' || inputMode === 'strategy') && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <button onClick={() => docInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
-                  <FileText className="w-3.5 h-3.5"/>
-                  Import file
-                </button>
-                <span className="text-[10px] text-slate-400">.txt · .csv · .xlsx · .pdf · .docx</span>
-                <input ref={docInputRef} type="file" accept=".txt,.csv,.xlsx,.xls,.docx,.pdf" className="hidden"
-                  onChange={e => e.target.files?.[0] && void handleDocFile(e.target.files[0])}/>
-                {docFileName && <span className="text-[10px] text-novax-muted font-medium truncate max-w-[120px]">{docFileName}</span>}
-              </div>
-              <textarea value={textContent} onChange={e => setTextContent(e.target.value)} rows={inputMode === 'strategy' ? 14 : 10}
-                placeholder={inputMode === 'strategy'
-                  ? 'Paste the strategy document, quarterly plan, content pillars, or campaign brief…'
-                  : 'Paste your caption, reel script, carousel copy, or ad text…'}
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white resize-none"/>
-              <p className="text-[10px] text-slate-400">{textContent.length} characters</p>
-            </div>
+          {/* Strategy PDF input */}
+          {inputMode === 'strategy' && (
+            <>
+              {!stratFile ? (
+                <div onDrop={handleStratDrop} onDragOver={e => e.preventDefault()}
+                  onClick={() => stratInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-novax-border-active hover:bg-slate-50 transition-colors cursor-pointer">
+                  <FileText className="w-8 h-8 text-slate-300 mx-auto mb-3"/>
+                  <p className="text-sm font-medium text-slate-700">Drop strategy PDF here or browse</p>
+                  <p className="text-xs text-slate-400 mt-1">PDF only · Max 5MB</p>
+                  <input ref={stratInputRef} type="file" accept=".pdf" className="hidden"
+                    onChange={e => e.target.files?.[0] && handleStratFile(e.target.files[0])}/>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 p-4 bg-novax-light rounded-xl border border-novax-border">
+                  <FileText className="w-5 h-5 text-novax-muted shrink-0"/>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 truncate">{stratFile.name}</p>
+                    <p className="text-xs text-slate-400">{(stratFile.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                  <button onClick={() => { setStratFile(null); setStratResult(null); setEvalError(null) }}
+                    className="w-7 h-7 rounded-full bg-white/70 flex items-center justify-center text-slate-500 hover:bg-red-50 hover:text-red-500 transition-colors">
+                    <X className="w-3.5 h-3.5"/>
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {canEvaluate && (
@@ -531,7 +540,7 @@ export default function CreativeEvalPage() {
               <div>
                 <Eye className="w-8 h-8 text-slate-300 mx-auto mb-3"/>
                 <p className="text-sm text-slate-500">
-                  {inputMode === 'strategy' ? 'Paste a strategy to run the evaluation.' : inputMode === 'media' ? 'Upload a creative to run the evaluation.' : 'Paste content to evaluate.'}
+                  {inputMode === 'strategy' ? 'Upload a strategy PDF to run the evaluation.' : 'Upload a creative to run the evaluation.'}
                 </p>
                 <p className="text-xs text-slate-400 mt-1">
                   {inputMode === 'strategy' ? '8 dimensions · stress test · quick wins · what to fix' : '10 dimensions · attention flow · rewrite suggestions'}

@@ -88,19 +88,27 @@ async function callGemini(prompt: string, image?: GeminiImage): Promise<string> 
   const key = process.env.GEMINI_API_KEY!
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`
   const parts: object[] = []
-  if (image) parts.push({ inline_data: { mime_type: image.mimeType, data: image.base64 } })
+  if (image) {
+    console.log(`[callGemini] Attaching inline_data: ${image.mimeType}, base64 size: ${Math.round(image.base64.length / 1024)}KB`)
+    parts.push({ inline_data: { mime_type: image.mimeType, data: image.base64 } })
+  }
   parts.push({ text: prompt })
+  const bodyStr = JSON.stringify({ contents: [{ parts }] })
+  console.log(`[callGemini] Request body size: ${Math.round(bodyStr.length / 1024)}KB`)
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts }] }),
+    body: bodyStr,
   })
   if (!res.ok) {
     const err = await res.text().catch(() => res.status.toString())
-    throw new Error(`Gemini error ${res.status}: ${err}`)
+    console.error(`[callGemini] Error ${res.status}:`, err.slice(0, 300))
+    throw new Error(`Gemini error ${res.status}: ${err.slice(0, 200)}`)
   }
   const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  console.log(`[callGemini] Response text length: ${text.length} chars`)
+  return text
 }
 
 interface AIRequest {
@@ -834,14 +842,16 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
       maxTokensOverride = 16000
       enableThinking = true
       model = ADVANCED_MODEL
-      // Build file block if a document was uploaded directly (PDF etc.)
+      // Build file block if a PDF was uploaded (Claude path)
       if (body.fileBase64 && body.fileMimeType === 'application/pdf') {
+        console.log(`[strategy_eval] PDF received, base64 size: ${Math.round(body.fileBase64.length / 1024)}KB`)
         fileBlock = {
           type: 'document',
           source: { type: 'base64', media_type: 'application/pdf', data: body.fileBase64 },
         }
       }
       const strategyText = body.textContent ?? ''
+      const hasPdf = !!body.fileBase64 && !!body.fileMimeType?.includes('pdf')
 
       prompt = `You are a senior brand strategist with 20 years of experience across global agencies. You evaluate strategies the way a rigorous CMO or strategy director would — looking for logical coherence, real audience insight, executable plans, and genuine differentiation. You do not flatter weak strategy with polite language.
 
@@ -858,9 +868,10 @@ Key Messages: ${keyMessages || 'Not specified'}
 Competitors: ${competitors}
 
 STRATEGY TO EVALUATE:
-"""
-${strategyText}
-"""
+${hasPdf
+  ? 'The strategy document is attached as a PDF. Read its full content carefully before evaluating.'
+  : `"""\n${strategyText}\n"""`
+}
 
 ═══════════════════════════════════════════════════════
 CALIBRATION MANDATE
@@ -1449,6 +1460,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
     return NextResponse.json({ text, model: usedModel, cost_usd, cached: false })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'AI generation failed.'
+    console.error(`[AI route] agent=${agent} error:`, message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
