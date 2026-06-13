@@ -91,6 +91,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const queryClient      = useQueryClient()
 
   const canManage = !!authUser && ['admin', 'ceo', 'creative_director', 'account_manager', 'strategist'].includes(authUser.role)
+  const isCreator = !!authUser && authUser.id === task?.created_by
 
   const { data: allDocs = [] } = useQuery<{ id: string; title: string; is_template: boolean }[]>({
     queryKey: ['docs'],
@@ -301,22 +302,27 @@ export function TaskDetailPanel({ task, onClose }: Props) {
           </div>
 
           {/* Pipeline stage progress strip */}
-          <div className="hidden xl:flex items-center gap-0.5 w-60 shrink-0">
-            {PIPELINE_STAGES.map((s, idx) => {
-              const isActive = s === task.pipeline_stage
-              const isPast   = idx < stageIdx
-              const cfg      = STAGE_CONFIG[s]
-              return (
-                <div
-                  key={s}
-                  title={cfg.label}
-                  className={cn(
-                    'h-1.5 flex-1 rounded-full transition-colors',
-                    isActive ? cfg.bg : isPast ? 'bg-novax-border' : 'bg-slate-100',
-                  )}
-                />
-              )
-            })}
+          <div className="hidden md:flex flex-col items-end gap-1 shrink-0">
+            <div className="flex items-center gap-0.5 w-52">
+              {PIPELINE_STAGES.map((s, idx) => {
+                const isActive = s === task.pipeline_stage
+                const isPast   = idx < stageIdx
+                const cfg      = STAGE_CONFIG[s]
+                return (
+                  <div
+                    key={s}
+                    title={cfg.label}
+                    className={cn(
+                      'h-1.5 flex-1 rounded-full transition-colors',
+                      isActive ? cfg.bg : isPast ? 'bg-novax-border' : 'bg-slate-100',
+                    )}
+                  />
+                )
+              })}
+            </div>
+            <span className="text-[10px] font-medium text-slate-400 leading-none">
+              {stage.label} · {stageIdx + 1} / {PIPELINE_STAGES.length}
+            </span>
           </div>
 
           {/* Actions */}
@@ -331,7 +337,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
               Studio
             </a>
 
-            {canManage && (
+            {(canManage || isCreator) && (
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => { setShowMenu(v => !v); setDeleteConfirm(false) }}

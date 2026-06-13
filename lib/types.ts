@@ -135,6 +135,7 @@ export interface Task {
   project_id: string | null
   client_id: string
   assigned_to: string | null
+  created_by?: string | null
   title: string
   description: string
   final_submission?: string | null
@@ -385,6 +386,36 @@ export interface ContentBriefRequest {
   submitted_at: string | null
   created_by: string | null
   created_at: string
+}
+
+// Work Diary ---------------------------------------------------------------
+
+export interface DiaryTask {
+  client_name: string
+  description: string
+  time_minutes: number
+}
+
+export interface DiaryAiFeedback {
+  tool: string
+  issue_types: string[]
+  notes: string
+}
+
+export interface WorkDiary {
+  id: string
+  user_id: string
+  date: string // YYYY-MM-DD
+  tasks_worked: DiaryTask[]
+  blockers: string[]
+  blockers_notes: string | null
+  highlights: string | null
+  energy_score: number | null
+  ai_feedback_notes: DiaryAiFeedback[]
+  free_notes: string | null
+  created_at: string
+  updated_at: string
+  user?: { name: string; color: string; initials: string; role: string }
 }
 
 export interface PerformanceIntel {

@@ -20,6 +20,7 @@ export type CreateTaskPayload = {
   client_id: string
   project_id: string | null
   assigned_to: string | null
+  created_by?: string | null
   pipeline_stage: PipelineStage
   priority: Priority
   status: TaskStatus
@@ -35,6 +36,7 @@ function mapTask(row: Record<string, unknown>): Task {
     project_id: (row.project_id as string) ?? null,
     client_id: row.client_id as string,
     assigned_to: (row.assigned_to as string) ?? null,
+    created_by: (row.created_by as string) ?? null,
     title: row.title as string,
     description: (row.description as string) ?? '',
     final_submission: (row.final_submission as string) ?? null,

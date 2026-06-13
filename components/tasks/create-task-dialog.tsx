@@ -11,6 +11,7 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useCreateTask } from '@/lib/hooks/use-tasks'
+import { useAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { PipelineStage, Priority } from '@/lib/types'
@@ -32,6 +33,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const { clients } = useClients()
   const { projects } = useProjects()
   const { users } = useUsers()
+  const { user: authUser } = useAuth()
   const createTask = useCreateTask()
 
   const [title, setTitle] = useState('')
@@ -144,6 +146,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
         client_id: clientId,
         project_id: projectId || null,
         assigned_to: assignedTo || null,
+        created_by: authUser?.id ?? null,
         pipeline_stage: stage,
         priority,
         status: 'active',

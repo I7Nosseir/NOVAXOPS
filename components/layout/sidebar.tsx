@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
   ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2, ListTodo, ScanSearch, FileText,
-  Zap, Brain, Crown, Clapperboard, Flame, Layers, Activity, ImagePlus,
+  Zap, Brain, Crown, Clapperboard, Flame, Layers, Activity, ImagePlus, BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -34,6 +34,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
       { href: '/pipeline',    icon: Kanban,           label: 'Pipeline' },
       { href: '/tasks',       icon: ListTodo,         label: 'Tasks' },
+      { href: '/diary',       icon: BookOpen,         label: 'My Diary' },
       { href: '/clients',     icon: Building2,        label: 'Clients',    permKey: 'clients' },
       { href: '/projects',    icon: FolderKanban,     label: 'Projects',   permKey: 'projects' },
       { href: '/publishing',  icon: Send,             label: 'Publishing', permKey: 'publishing' },
