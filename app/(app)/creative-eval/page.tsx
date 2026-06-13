@@ -296,11 +296,16 @@ export default function CreativeEvalPage() {
     }
     const res  = await fetch(url)
     const blob = await res.blob()
-    const ab   = await blob.arrayBuffer()
-    const bytes = new Uint8Array(ab)
-    let bin = ''
-    for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i])
-    return { base64: btoa(bin), mimeType: blob.type || 'image/jpeg' }
+    // Resize to max 960px to stay within API body limits
+    const bitmap = await createImageBitmap(blob)
+    const MAX = 960
+    const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height))
+    const w = Math.round(bitmap.width * scale)
+    const h = Math.round(bitmap.height * scale)
+    const c = document.createElement('canvas')
+    c.width = w; c.height = h
+    c.getContext('2d')!.drawImage(bitmap, 0, 0, w, h)
+    return { base64: c.toDataURL('image/jpeg', 0.8).split(',')[1], mimeType: 'image/jpeg' }
   }
 
   const canEvaluate = inputMode === 'media'
@@ -330,8 +335,14 @@ export default function CreativeEvalPage() {
         payload = { ...payload, textContent: textContent.trim(), fileType: 'text' }
       }
 
-      const res  = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      const data = await res.json()
+      const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      let data: { error?: string; text?: string } = {}
+      try {
+        data = await res.json()
+      } catch {
+        setEvalError(res.status === 413 ? 'File is too large — try a smaller image.' : `Server error (${res.status}) — please try again.`)
+        return
+      }
       if (!res.ok || data.error) { setEvalError(data.error ?? 'Evaluation failed.'); return }
 
       const raw = (data.text as string).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
