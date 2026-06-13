@@ -5,7 +5,7 @@ import {
   X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle,
   Clock, Zap, Copy, MoreHorizontal, Trash2, Eye, BookOpen as ReadIcon,
   ChevronDown, ChevronRight, Monitor, FileText, Plus, ExternalLink,
-  Wand2, ClipboardList,
+  Wand2, ClipboardList, SendHorizontal,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -63,6 +63,8 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const [draftTitle, setDraftTitle]             = useState('')
   const [draftDesc, setDraftDesc]               = useState('')
   const [draftFinalSubmission, setDraftFinalSubmission] = useState('')
+  const [draftWorkSubmission, setDraftWorkSubmission]   = useState('')
+  const [workSaving, setWorkSaving]             = useState(false)
   const [draftStage, setDraftStage]             = useState<PipelineStage>('strategy')
   const [draftPriority, setDraftPriority]       = useState<Priority>('medium')
   const [draftAssignee, setDraftAssignee]       = useState('')
@@ -174,6 +176,20 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   }
 
   const markRead = () => acknowledge('read')
+
+  const handleSaveWorkSubmission = async () => {
+    if (!draftWorkSubmission.trim() || workSaving) return
+    setWorkSaving(true)
+    try {
+      await updateTask.mutateAsync({ id: task.id, work_submission: draftWorkSubmission.trim() })
+      toast.success('Work submitted')
+      setEditingField(null)
+    } catch {
+      toast.error('Failed to save submission')
+    } finally {
+      setWorkSaving(false)
+    }
+  }
 
   const handleDelete = () => {
     deleteTask.mutate(task.id, { onSuccess: onClose })
@@ -578,6 +594,65 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                 )}
               </div>
             </div>
+
+            {/* ── WORK SUBMISSION ────────────────────────────────────── */}
+            {(isAssignee || task.work_submission || canManage) && (task.assigned_to) && (
+              <div className="border-t border-slate-100 px-6 py-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <SendHorizontal className="w-3.5 h-3.5 text-novax-muted" />
+                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Submit Your Work</p>
+                    {task.work_submission && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Submitted</span>
+                    )}
+                  </div>
+                  {task.work_submission && isAssignee && editingField !== 'work_submission' && (
+                    <button
+                      onClick={() => { setDraftWorkSubmission(task.work_submission ?? ''); setEditingField('work_submission') }}
+                      className="text-xs text-slate-400 hover:text-novax transition-colors"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+
+                {isAssignee && (editingField === 'work_submission' || !task.work_submission) ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={draftWorkSubmission}
+                      autoFocus={editingField === 'work_submission'}
+                      rows={3}
+                      onChange={e => setDraftWorkSubmission(e.target.value)}
+                      placeholder={`Paste a link, file path, or describe your deliverable…${task.final_submission ? `\n\nExpected: ${task.final_submission}` : ''}`}
+                      onKeyDown={e => {
+                        if (e.key === 'Escape') { setDraftWorkSubmission(task.work_submission ?? ''); setEditingField(null) }
+                      }}
+                      className="w-full text-sm text-slate-700 border border-novax-border rounded-xl p-3 outline-none focus:border-novax-muted resize-none leading-relaxed bg-white"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveWorkSubmission}
+                        disabled={workSaving || !draftWorkSubmission.trim()}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white rounded-lg disabled:opacity-50 transition-colors"
+                        style={{ background: '#1B3D38' }}
+                      >
+                        {workSaving ? <Loader2 className="w-3 h-3 animate-spin"/> : <SendHorizontal className="w-3 h-3"/>}
+                        {workSaving ? 'Submitting…' : 'Submit'}
+                      </button>
+                      {task.work_submission && (
+                        <button onClick={() => { setDraftWorkSubmission(task.work_submission ?? ''); setEditingField(null) }} className="px-3 py-2 text-xs border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600">
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : task.work_submission ? (
+                  <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap break-all leading-relaxed">{task.work_submission}</p>
+                  </div>
+                ) : null}
+              </div>
+            )}
 
             {/* ── AI WORKSPACE ───────────────────────────────────────── */}
             <div className="border-t border-slate-100 px-6 py-5 space-y-3">

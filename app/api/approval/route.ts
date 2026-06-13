@@ -229,7 +229,7 @@ export async function PATCH(req: NextRequest) {
       }
     })
 
-    const teamEmail = createdByUser?.email ?? process.env.NOVA_TEAM_EMAIL
+    const teamEmail = createdByUser?.email ?? process.env.CEO_EMAIL
     if (teamEmail) {
       const approvedCount = statuses.filter(s => s === 'approved').length
       const changesCount = statuses.filter(s => s === 'changes_requested').length

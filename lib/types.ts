@@ -138,6 +138,7 @@ export interface Task {
   title: string
   description: string
   final_submission?: string | null
+  work_submission?: string | null
   pipeline_stage: PipelineStage
   priority: Priority
   status: TaskStatus

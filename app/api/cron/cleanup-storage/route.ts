@@ -36,7 +36,11 @@ function storagePathFromUrl(url: string): string {
  * 4. Deletes orphaned storage files.
  * 5. Clears media_urls on published posts older than 7 days to trim DB row size.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  const secret = req.headers.get('authorization')?.replace('Bearer ', '')
+  if (secret !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const cutoff7d  = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 

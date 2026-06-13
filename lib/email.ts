@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-const FROM = process.env.RESEND_FROM_ADDRESS ?? 'NOVAX Ops <noreply@novaxops.com>'
+const FROM = process.env.RESEND_FROM_ADDRESS ?? 'NOVAX Ops <onboarding@resend.dev>'
 
 function client() {
   return new Resend(process.env.RESEND_API_KEY)
