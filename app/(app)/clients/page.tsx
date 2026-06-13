@@ -489,8 +489,8 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             </div>
             )}
 
-            {/* 90-day strategy */}
-            {intel.strategy_90_days && intel.strategy_90_days.length > 0 && (
+            {/* 90-day strategy — admin only (requires Studio access) */}
+            {isAdmin && intel.strategy_90_days && intel.strategy_90_days.length > 0 && (
             <div>
               <h3 className="font-semibold text-slate-900 mb-3">90-Day Strategy</h3>
               <div className="space-y-2">
