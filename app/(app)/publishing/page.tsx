@@ -620,7 +620,7 @@ interface CaptionVariant {
   text: string
 }
 
-function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; initialCaption?: string }) {
+function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [] }: { onClose: () => void; initialCaption?: string; initialMediaUrls?: string[] }) {
   const assignedClientIds = useMyAssignedClientIds()
   const { clients: allClients } = useClients()
   const clients = assignedClientIds !== null
@@ -637,11 +637,13 @@ function ComposeDialog({ onClose, initialCaption = '' }: { onClose: () => void; 
   const [scheduleDate, setScheduleDate] = useState('')
   const [lang, setLang] = useState<'en' | 'ar' | 'both'>('en')
 
-  // Media
-  const [mediaMode, setMediaMode] = useState<'single' | 'carousel'>('single')
-  const [singleUrl, setSingleUrl] = useState('')
+  // Media — pre-fill from approval "Schedule" link if provided
+  const [mediaMode, setMediaMode] = useState<'single' | 'carousel'>(initialMediaUrls.length > 1 ? 'carousel' : 'single')
+  const [singleUrl, setSingleUrl] = useState(initialMediaUrls.length === 1 ? initialMediaUrls[0] : '')
   const [driveConverted, setDriveConverted] = useState(false)
-  const [carouselUrls, setCarouselUrls] = useState<string[]>(['', ''])
+  const [carouselUrls, setCarouselUrls] = useState<string[]>(
+    initialMediaUrls.length > 1 ? initialMediaUrls : ['', '']
+  )
   const [customPerPlatform, setCustomPerPlatform] = useState(false)
   const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({})
   const [uploading, setUploading] = useState(false)
@@ -2606,22 +2608,26 @@ function PublishingPageContent() {
   const searchParams = useSearchParams()
   const [compose, setCompose] = useState(false)
   const [templateCaption, setTemplateCaption] = useState('')
+  const [templateMediaUrls, setTemplateMediaUrls] = useState<string[]>([])
   const [briefDialog, setBriefDialog] = useState(false)
   const [bulkDialog, setBulkDialog] = useState(false)
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
   const [view, setView] = useState<'grid' | 'calendar'>('grid')
   const [syncing, setSyncing] = useState(false)
 
-  // Auto-open compose when arriving from library "Use as template"
+  // Auto-open compose when arriving from library "Use as template" or approval "Schedule"
   const templateHandled = useRef(false)
   useEffect(() => {
     if (templateHandled.current) return
     const cap = searchParams.get('caption')
-    if (cap) {
+    const mediaUrlsParam = searchParams.get('media_urls') ?? searchParams.get('media_url') ?? ''
+    if (cap || mediaUrlsParam) {
       templateHandled.current = true
-      setTemplateCaption(decodeURIComponent(cap))
+      if (cap) setTemplateCaption(decodeURIComponent(cap))
+      if (mediaUrlsParam) {
+        setTemplateMediaUrls(decodeURIComponent(mediaUrlsParam).split('|').filter(Boolean))
+      }
       setCompose(true)
-      // Clean URL without reload
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [searchParams])
@@ -2783,7 +2789,7 @@ function PublishingPageContent() {
         <CalendarView onCompose={() => setCompose(true)}/>
       )}
 
-      {compose && <ComposeDialog onClose={() => { setCompose(false); setTemplateCaption('') }} initialCaption={templateCaption}/>}
+      {compose && <ComposeDialog onClose={() => { setCompose(false); setTemplateCaption(''); setTemplateMediaUrls([]) }} initialCaption={templateCaption} initialMediaUrls={templateMediaUrls}/>}
       {briefDialog && <BriefToCalendarDialog onClose={() => setBriefDialog(false)}/>}
       {bulkDialog && <BulkScheduleDialog onClose={() => setBulkDialog(false)}/>}
     </div>

@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail, Trash2, FileImage } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail, Trash2, FileImage, Link2, Download, TableProperties, CalendarPlus, ChevronLeft, ChevronRight } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { useClients } from '@/lib/hooks/use-clients'
 import { usePosts } from '@/lib/hooks/use-posts'
 import { useApprovalRequests, useCreateApproval } from '@/lib/hooks/use-approvals'
@@ -9,6 +11,7 @@ import { useRealtime } from '@/lib/hooks/use-realtime'
 import { formatDate, cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import { supabase } from '@/lib/supabase'
+import { convertGoogleDriveUrl } from '@/lib/google-drive'
 
 const STATUS_CONFIG = {
   pending:           { label: 'Awaiting Review', color: 'text-amber-600',   bg: 'bg-amber-50',   icon: Clock },
@@ -22,7 +25,59 @@ const POST_STATUS_BADGE = {
   changes_requested: { label: 'Changes Requested',  color: 'text-red-600',    bg: 'bg-red-50'     },
 }
 
-type AdhocDraft = { id: string; mediaUrl: string | null; caption: string; uploading: boolean }
+type AdhocDraft = {
+  id: string
+  mediaUrls: string[]
+  driveInput: string
+  caption: string
+  uploading: boolean
+}
+
+// ─── Thumbnail strip for multi-slide preview ─────────────────────────────────
+function MediaStrip({ urls }: { urls: string[] }) {
+  const [idx, setIdx] = useState(0)
+  if (urls.length === 0) return null
+  const url = urls[idx]
+  const isVideo = /\.(mp4|mov|webm)/i.test(url)
+
+  return (
+    <div className="space-y-1.5">
+      <div className="relative rounded-lg overflow-hidden bg-slate-100 aspect-square w-20 flex items-center justify-center">
+        {isVideo
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          ? <video src={url} className="w-full h-full object-cover"/>
+          // eslint-disable-next-line @next/next/no-img-element
+          : <img src={url} alt="" className="w-full h-full object-cover"/>
+        }
+        {urls.length > 1 && (
+          <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1 rounded">
+            {idx + 1}/{urls.length}
+          </span>
+        )}
+      </div>
+      {urls.length > 1 && (
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => setIdx(i => Math.max(0, i - 1))}
+            disabled={idx === 0}
+            className="p-0.5 rounded border border-slate-200 disabled:opacity-30"
+          >
+            <ChevronLeft className="w-3 h-3 text-slate-500"/>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIdx(i => Math.min(urls.length - 1, i + 1))}
+            disabled={idx === urls.length - 1}
+            className="p-0.5 rounded border border-slate-200 disabled:opacity-30"
+          >
+            <ChevronRight className="w-3 h-3 text-slate-500"/>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   const { clients } = useClients()
@@ -35,10 +90,12 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   const [contactEmail, setContactEmail] = useState('')
   const [createdToken, setCreatedToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  // Per-post media upload state: postId → { uploading, url }
-  const [postMedia, setPostMedia] = useState<Record<string, { uploading: boolean; url: string | null }>>({})
+
+  // Scheduled post media: postId → { uploading, urls }
+  const [postMedia, setPostMedia] = useState<Record<string, { uploading: boolean; urls: string[] }>>({})
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
-  // Ad-hoc items (custom posts not from scheduled_posts)
+
+  // Ad-hoc items
   const [adhocItems, setAdhocItems] = useState<AdhocDraft[]>([])
   const adhocRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
@@ -47,40 +104,159 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   const toggle = (id: string) =>
     setSelectedPosts(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
-  const handleMediaUpload = async (postId: string, file: File) => {
-    setPostMedia(prev => ({ ...prev, [postId]: { uploading: true, url: null } }))
+  // ── Scheduled post: multi-file carousel upload ────────────────────────────
+  const handleMediaUpload = async (postId: string, files: FileList) => {
+    setPostMedia(prev => ({ ...prev, [postId]: { uploading: true, urls: prev[postId]?.urls ?? [] } }))
+    const uploaded: string[] = []
     try {
-      const ext = file.name.split('.').pop() ?? 'jpg'
-      const path = `approval-media/${Date.now()}-${postId}.${ext}`
-      const { data, error } = await supabase.storage.from('assets').upload(path, file, { upsert: true })
-      if (error || !data) throw error ?? new Error('Upload failed')
-      const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(data.path)
-      await supabase.from('scheduled_posts').update({ media_urls: [publicUrl] }).eq('id', postId)
-      setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, url: publicUrl } }))
+      for (const file of Array.from(files)) {
+        const ext = file.name.split('.').pop() ?? 'jpg'
+        const path = `approval-media/${Date.now()}-${postId}-${uploaded.length}.${ext}`
+        const { data, error } = await supabase.storage.from('assets').upload(path, file, { upsert: true })
+        if (error || !data) continue
+        const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(data.path)
+        uploaded.push(publicUrl)
+      }
+      const existing = postMedia[postId]?.urls ?? []
+      const allUrls = [...existing, ...uploaded]
+      await supabase.from('scheduled_posts').update({ media_urls: allUrls }).eq('id', postId)
+      setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, urls: allUrls } }))
     } catch {
-      setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, url: null } }))
+      setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, urls: postMedia[postId]?.urls ?? [] } }))
     }
   }
 
+  // ── Adhoc: multi-file upload ──────────────────────────────────────────────
+  const handleAdhocUpload = async (id: string, files: FileList) => {
+    setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, uploading: true } : x))
+    const uploaded: string[] = []
+    try {
+      for (const file of Array.from(files)) {
+        const ext = file.name.split('.').pop() ?? 'jpg'
+        const path = `approval-media/adhoc-${Date.now()}-${id.slice(0, 8)}-${uploaded.length}.${ext}`
+        const { data, error } = await supabase.storage.from('assets').upload(path, file, { upsert: true })
+        if (error || !data) continue
+        const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(data.path)
+        uploaded.push(publicUrl)
+      }
+      setAdhocItems(prev => prev.map(x => x.id === id
+        ? { ...x, uploading: false, mediaUrls: [...x.mediaUrls, ...uploaded] }
+        : x
+      ))
+    } catch {
+      setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, uploading: false } : x))
+    }
+  }
+
+  // ── Adhoc: Drive URL resolve ──────────────────────────────────────────────
+  const handleDriveInput = (id: string, raw: string) => {
+    setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, driveInput: raw } : x))
+    if (!raw.trim()) return
+    const { url, wasDrive } = convertGoogleDriveUrl(raw.trim())
+    if (!wasDrive) return
+    const resolved = url.startsWith('/') ? `${window.location.origin}${url}` : url
+    setAdhocItems(prev => prev.map(x =>
+      x.id === id ? { ...x, mediaUrls: [...x.mediaUrls, resolved], driveInput: '' } : x
+    ))
+  }
+
+  const removeAdhocMedia = (id: string, urlIdx: number) => {
+    setAdhocItems(prev => prev.map(x =>
+      x.id === id ? { ...x, mediaUrls: x.mediaUrls.filter((_, i) => i !== urlIdx) } : x
+    ))
+  }
+
   const addAdhocItem = () => {
-    setAdhocItems(prev => [...prev, { id: crypto.randomUUID(), mediaUrl: null, caption: '', uploading: false }])
+    setAdhocItems(prev => [...prev, { id: crypto.randomUUID(), mediaUrls: [], driveInput: '', caption: '', uploading: false }])
   }
 
   const removeAdhocItem = (id: string) => {
     setAdhocItems(prev => prev.filter(x => x.id !== id))
   }
 
-  const handleAdhocUpload = async (id: string, file: File) => {
-    setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, uploading: true } : x))
+  // ── Bulk CSV: download template ──────────────────────────────────────────
+  function downloadTemplate() {
+    const wb = XLSX.utils.book_new()
+    const headers = ['Caption', 'Media URL', 'Carousel URLs']
+    const example = [
+      'Your post caption goes here.',
+      'https://drive.google.com/file/d/SLIDE1_ID/view',
+      'https://drive.google.com/file/d/SLIDE2_ID/view|https://drive.google.com/file/d/SLIDE3_ID/view',
+    ]
+    const info = [
+      ['NOVAX Ops — Approval Bulk Import Template'],
+      [''],
+      ['Column', 'Description'],
+      ['Caption', 'The post caption or description (required)'],
+      ['Media URL', 'Google Drive share link or public URL for the main image/video (optional)'],
+      ['Carousel URLs', 'Additional slides — URLs separated by a pipe |  (optional)'],
+      [''],
+      ['Tips'],
+      ['• Google Drive links are auto-converted — paste the share URL directly.'],
+      ['• File must be shared as "Anyone with the link can view" in Google Drive.'],
+      ['• Carousel: put the first image in "Media URL", then extra slides in "Carousel URLs" separated by |'],
+    ]
+    const wsInfo = XLSX.utils.aoa_to_sheet(info)
+    wsInfo['!cols'] = [{ wch: 16 }, { wch: 60 }]
+    XLSX.utils.book_append_sheet(wb, wsInfo, 'Instructions')
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, example])
+    ws['!cols'] = [{ wch: 60 }, { wch: 60 }, { wch: 80 }]
+    ws['!freeze'] = { xSplit: 0, ySplit: 1 }
+    XLSX.utils.book_append_sheet(wb, ws, 'Approval')
+    XLSX.writeFile(wb, 'NOVAX_Approval_Bulk_Template.xlsx')
+  }
+
+  // ── Bulk CSV: import ─────────────────────────────────────────────────────
+  async function handleImportFile(file: File) {
     try {
-      const ext = file.name.split('.').pop() ?? 'jpg'
-      const path = `approval-media/adhoc-${Date.now()}-${id.slice(0, 8)}.${ext}`
-      const { data, error } = await supabase.storage.from('assets').upload(path, file, { upsert: true })
-      if (error || !data) throw error ?? new Error('Upload failed')
-      const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(data.path)
-      setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, uploading: false, mediaUrl: publicUrl } : x))
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
+      const sheetName =
+        wb.SheetNames.find(n => n.toLowerCase().includes('approval')) ?? wb.SheetNames[0]
+      const ws = wb.Sheets[sheetName]
+      const rows2d = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, raw: false, defval: '' })
+      const headerIdx = rows2d.findIndex(r => r.some(c => String(c).toLowerCase().includes('caption')))
+      if (headerIdx === -1) return
+      const headers = rows2d[headerIdx].map(h => String(h).toLowerCase().trim())
+      const col = (name: string) => headers.findIndex(h => h.includes(name))
+      const iCapt = col('caption')
+      const iUrl = col('media')
+      const iCarousel = col('carousel')
+
+      const imported: AdhocDraft[] = []
+      for (let i = headerIdx + 1; i < rows2d.length; i++) {
+        const r = rows2d[i]
+        const caption = iCapt >= 0 ? String(r[iCapt] ?? '').trim() : ''
+        if (!caption) continue
+
+        const rawUrl = iUrl >= 0 ? String(r[iUrl] ?? '').trim() : ''
+        const { url: mainUrl, wasDrive } = convertGoogleDriveUrl(rawUrl)
+        const resolvedMain = wasDrive && mainUrl.startsWith('/') ? `${window.location.origin}${mainUrl}` : mainUrl
+
+        const rawCarousel = iCarousel >= 0 ? String(r[iCarousel] ?? '').trim() : ''
+        const extraUrls = rawCarousel
+          .split('|')
+          .map(u => u.trim())
+          .filter(Boolean)
+          .map(u => {
+            const { url: cu, wasDrive: wd } = convertGoogleDriveUrl(u)
+            return wd && cu.startsWith('/') ? `${window.location.origin}${cu}` : cu
+          })
+
+        const mediaUrls = [resolvedMain, ...extraUrls].filter(Boolean)
+
+        imported.push({
+          id: crypto.randomUUID(),
+          caption,
+          mediaUrls,
+          driveInput: '',
+          uploading: false,
+        })
+      }
+      if (imported.length > 0) setAdhocItems(prev => [...prev, ...imported])
     } catch {
-      setAdhocItems(prev => prev.map(x => x.id === id ? { ...x, uploading: false } : x))
+      // silently ignore parse errors
     }
   }
 
@@ -96,7 +272,8 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
         expiry_days: parseInt(expiry),
         ad_hoc_items: adhocItems.filter(x => x.caption.trim()).map(x => ({
           caption: x.caption,
-          ...(x.mediaUrl ? { media_url: x.mediaUrl } : {}),
+          media_urls: x.mediaUrls.length > 0 ? x.mediaUrls : undefined,
+          media_url: x.mediaUrls[0] ?? undefined,
         })),
         ...(contactEmail ? { client_email: contactEmail, client_name: selectedClient?.name } : {}),
       },
@@ -113,6 +290,8 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+
+  const bulkImportRef = useRef<HTMLInputElement | null>(null)
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
@@ -182,8 +361,8 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                 <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
                   {clientPosts.map(post => {
                     const media = postMedia[post.id]
-                    const existingUrl = (post as { media_url?: string }).media_url
-                    const previewUrl = media?.url ?? existingUrl ?? null
+                    const existingUrls: string[] = (post as { media_urls?: string[] }).media_urls ?? ((post as { media_url?: string }).media_url ? [(post as { media_url?: string }).media_url!] : [])
+                    const previewUrls = media?.urls.length ? media.urls : existingUrls
                     const isSelected = selectedPosts.includes(post.id)
                     return (
                       <div
@@ -193,9 +372,7 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                           isSelected ? 'border-novax shadow-sm' : 'border-slate-200 hover:border-slate-300',
                         )}
                       >
-                        {/* Card row */}
                         <label className="flex items-start gap-0 cursor-pointer">
-                          {/* Thumbnail */}
                           <div
                             className={cn(
                               'relative w-[72px] shrink-0 self-stretch bg-slate-100 flex items-center justify-center transition-colors',
@@ -203,14 +380,19 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                             )}
                             onClick={() => toggle(post.id)}
                           >
-                            {previewUrl ? (
-                              /\.(mp4|mov|webm)/i.test(previewUrl)
+                            {previewUrls.length > 0 ? (
+                              /\.(mp4|mov|webm)/i.test(previewUrls[0])
                                 // eslint-disable-next-line jsx-a11y/media-has-caption
-                                ? <video src={previewUrl} className="w-full h-full object-cover min-h-[72px]"/>
+                                ? <video src={previewUrls[0]} className="w-full h-full object-cover min-h-[72px]"/>
                                 // eslint-disable-next-line @next/next/no-img-element
-                                : <img src={previewUrl} alt="" className="w-full h-full object-cover min-h-[72px]"/>
+                                : <img src={previewUrls[0]} alt="" className="w-full h-full object-cover min-h-[72px]"/>
                             ) : (
                               <ImageIcon className="w-5 h-5 text-slate-300"/>
+                            )}
+                            {previewUrls.length > 1 && (
+                              <span className="absolute top-1 right-1 bg-black/60 text-white text-[8px] px-1 rounded">
+                                +{previewUrls.length - 1}
+                              </span>
                             )}
                             {isSelected && (
                               <div className="absolute inset-0 bg-novax/10 flex items-end justify-end p-1">
@@ -219,7 +401,6 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                             )}
                           </div>
 
-                          {/* Meta */}
                           <div className="flex-1 min-w-0 p-3">
                             <div className="flex items-center gap-1.5 mb-1">
                               {post.platforms.map(p => <PlatformIcon key={p} platform={p} size="xs"/>)}
@@ -236,34 +417,45 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                           />
                         </label>
 
-                        {/* Media upload — shown when selected */}
                         {isSelected && (
                           <div className="border-t border-novax-light px-3 pb-3 pt-2 bg-novax-light/30">
                             <input
                               type="file"
                               accept="image/*,video/*"
+                              multiple
                               className="hidden"
                               ref={el => { fileInputRefs.current[post.id] = el }}
                               onChange={e => {
-                                const file = e.target.files?.[0]
-                                if (file) handleMediaUpload(post.id, file)
+                                const files = e.target.files
+                                if (files?.length) handleMediaUpload(post.id, files)
                                 e.target.value = ''
                               }}
                             />
-                            <button
-                              type="button"
-                              onClick={() => fileInputRefs.current[post.id]?.click()}
-                              disabled={media?.uploading}
-                              className="flex items-center gap-1.5 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
-                            >
-                              {media?.uploading ? (
-                                <><Loader2 className="w-3 h-3 animate-spin"/> Uploading…</>
-                              ) : previewUrl ? (
-                                <><Upload className="w-3 h-3"/> Replace media</>
-                              ) : (
-                                <><Upload className="w-3 h-3"/> Add media for client preview</>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => fileInputRefs.current[post.id]?.click()}
+                                disabled={media?.uploading}
+                                className="flex items-center gap-1.5 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
+                              >
+                                {media?.uploading ? (
+                                  <><Loader2 className="w-3 h-3 animate-spin"/> Uploading…</>
+                                ) : previewUrls.length > 0 ? (
+                                  <><Upload className="w-3 h-3"/> Add more slides ({previewUrls.length})</>
+                                ) : (
+                                  <><Upload className="w-3 h-3"/> Add media for client preview</>
+                                )}
+                              </button>
+                              {previewUrls.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPostMedia(prev => ({ ...prev, [post.id]: { uploading: false, urls: [] } }))}
+                                  className="text-[11px] text-red-400 hover:text-red-600 font-medium transition-colors"
+                                >
+                                  Clear
+                                </button>
                               )}
-                            </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -280,14 +472,42 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                   Custom Posts
                   <span className="font-normal text-slate-400 ml-1">(unscheduled content)</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={addAdhocItem}
-                  className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
-                >
-                  <Plus className="w-3 h-3"/>
-                  Add post
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Bulk import */}
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    ref={bulkImportRef}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = '' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={downloadTemplate}
+                    className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-medium transition-colors"
+                    title="Download bulk import template"
+                  >
+                    <Download className="w-3 h-3"/>
+                    Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => bulkImportRef.current?.click()}
+                    className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
+                    title="Import from Excel/CSV"
+                  >
+                    <TableProperties className="w-3 h-3"/>
+                    Import
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addAdhocItem}
+                    className="flex items-center gap-1 text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
+                  >
+                    <Plus className="w-3 h-3"/>
+                    Add post
+                  </button>
+                </div>
               </div>
               {adhocItems.length === 0 ? (
                 <p className="text-xs text-slate-400">No custom posts added. Use this for content not yet scheduled.</p>
@@ -302,47 +522,70 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                         </button>
                       </div>
                       <div className="p-3 space-y-2.5">
-                        {/* Media upload */}
-                        <input
-                          type="file"
-                          accept="image/*,video/*"
-                          className="hidden"
-                          ref={el => { adhocRefs.current[item.id] = el }}
-                          onChange={e => {
-                            const file = e.target.files?.[0]
-                            if (file) handleAdhocUpload(item.id, file)
-                            e.target.value = ''
-                          }}
-                        />
-                        {item.mediaUrl ? (
-                          <div className="flex items-center gap-2">
-                            {/\.(mp4|mov|webm)/i.test(item.mediaUrl)
-                              // eslint-disable-next-line jsx-a11y/media-has-caption
-                              ? <video src={item.mediaUrl} className="w-16 h-16 rounded-lg object-cover bg-slate-100"/>
-                              // eslint-disable-next-line @next/next/no-img-element
-                              : <img src={item.mediaUrl} alt="" className="w-16 h-16 rounded-lg object-cover"/>
-                            }
+                        {/* Media section */}
+                        <div className="flex gap-3">
+                          {/* Thumbnail strip */}
+                          {item.mediaUrls.length > 0 && (
+                            <div className="relative">
+                              <MediaStrip urls={item.mediaUrls}/>
+                            </div>
+                          )}
+                          <div className="flex-1 space-y-2">
+                            {/* Upload files */}
+                            <input
+                              type="file"
+                              accept="image/*,video/*"
+                              multiple
+                              className="hidden"
+                              ref={el => { adhocRefs.current[item.id] = el }}
+                              onChange={e => {
+                                const files = e.target.files
+                                if (files?.length) handleAdhocUpload(item.id, files)
+                                e.target.value = ''
+                              }}
+                            />
                             <button
                               type="button"
                               onClick={() => adhocRefs.current[item.id]?.click()}
-                              className="text-[11px] text-novax-muted hover:text-novax font-medium transition-colors"
+                              disabled={item.uploading}
+                              className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-novax px-3 py-1.5 border border-dashed border-slate-300 hover:border-novax-border rounded-lg transition-colors w-full justify-center"
                             >
-                              Replace media
+                              {item.uploading
+                                ? <><Loader2 className="w-3 h-3 animate-spin"/> Uploading…</>
+                                : <><FileImage className="w-3 h-3"/> {item.mediaUrls.length > 0 ? 'Add more slides' : 'Upload files'}</>
+                              }
                             </button>
+
+                            {/* Drive URL input */}
+                            <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+                              <Link2 className="w-3 h-3 text-slate-400 shrink-0"/>
+                              <input
+                                type="text"
+                                value={item.driveInput}
+                                onChange={e => handleDriveInput(item.id, e.target.value)}
+                                placeholder="Paste Google Drive URL…"
+                                className="text-[11px] text-slate-700 flex-1 outline-none bg-transparent placeholder:text-slate-400"
+                              />
+                            </div>
+
+                            {/* Remove individual slides */}
+                            {item.mediaUrls.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {item.mediaUrls.map((_, i) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => removeAdhocMedia(item.id, i)}
+                                    className="text-[10px] text-red-400 hover:text-red-600 px-1.5 py-0.5 border border-red-100 rounded transition-colors"
+                                  >
+                                    Remove slide {i + 1}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => adhocRefs.current[item.id]?.click()}
-                            disabled={item.uploading}
-                            className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-novax px-3 py-2 border border-dashed border-slate-300 hover:border-novax-border rounded-lg transition-colors w-full justify-center"
-                          >
-                            {item.uploading
-                              ? <><Loader2 className="w-3 h-3 animate-spin"/> Uploading…</>
-                              : <><FileImage className="w-3 h-3"/> Upload media (optional)</>
-                            }
-                          </button>
-                        )}
+                        </div>
+
                         {/* Caption */}
                         <textarea
                           value={item.caption}
@@ -430,6 +673,7 @@ export default function ApprovalPage() {
   useRealtime('approval_requests', ['approvals'])
   useRealtime('approval_post_statuses', ['approvals'])
 
+  const router = useRouter()
   const { clients } = useClients()
   const { posts: allPosts } = usePosts()
   const { requests, isLoading } = useApprovalRequests()
@@ -442,6 +686,13 @@ export default function ApprovalPage() {
     navigator.clipboard.writeText(url).catch(() => {})
     setCopied(token)
     setTimeout(() => setCopied(null), 2000)
+  }
+
+  const scheduleItem = (caption: string, mediaUrls: string[]) => {
+    const params = new URLSearchParams()
+    params.set('caption', encodeURIComponent(caption))
+    if (mediaUrls.length > 0) params.set('media_urls', encodeURIComponent(mediaUrls.join('|')))
+    router.push(`/publishing?${params.toString()}`)
   }
 
   const stats = {
@@ -547,7 +798,7 @@ export default function ApprovalPage() {
                       <p className="text-xs text-slate-400 text-center py-4">Post data unavailable</p>
                     )}
 
-                    {/* ── Scheduled posts — two-column layout ── */}
+                    {/* ── Scheduled posts ── */}
                     {posts.map(post => {
                       const postStatus = req.post_statuses[post.id] ?? 'pending'
                       const postNote = req.post_notes[post.id]
@@ -556,7 +807,6 @@ export default function ApprovalPage() {
                       return (
                         <div key={post.id} className="bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
                           <div className="grid grid-cols-[112px_1fr]">
-                            {/* Media column */}
                             <div className="bg-slate-200 flex items-center justify-center min-h-[100px]">
                               {post.media_url ? (
                                 /\.(mp4|mov|webm)/i.test(post.media_url)
@@ -568,8 +818,6 @@ export default function ApprovalPage() {
                                 <ImageIcon className="w-6 h-6 text-slate-400"/>
                               )}
                             </div>
-
-                            {/* Content column */}
                             <div className="p-3 flex flex-col justify-between min-w-0">
                               <div>
                                 <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
@@ -599,29 +847,37 @@ export default function ApprovalPage() {
                       )
                     })}
 
-                    {/* ── Ad-hoc items — same two-column layout ── */}
+                    {/* ── Ad-hoc items ── */}
                     {(req.items ?? []).map(item => {
                       const itemStatus = req.post_statuses[item.id] ?? 'pending'
                       const itemNote = req.post_notes[item.id]
                       const badge = POST_STATUS_BADGE[itemStatus as keyof typeof POST_STATUS_BADGE] ?? POST_STATUS_BADGE.pending
+                      const isApproved = itemStatus === 'approved'
+                      const itemMediaUrls: string[] = (item as { media_urls?: string[] }).media_urls
+                        ?? (item.media_url ? [item.media_url] : [])
+                      const isVideo = (url: string) => /\.(mp4|mov|webm)/i.test(url)
 
                       return (
                         <div key={item.id} className="bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
                           <div className="grid grid-cols-[112px_1fr]">
-                            {/* Media column */}
-                            <div className="bg-slate-200 flex items-center justify-center min-h-[100px]">
-                              {item.media_url ? (
-                                /\.(mp4|mov|webm)/i.test(item.media_url)
+                            <div className="bg-slate-200 flex items-center justify-center min-h-[100px] relative">
+                              {itemMediaUrls.length > 0 ? (
+                                isVideo(itemMediaUrls[0]) ? (
                                   // eslint-disable-next-line jsx-a11y/media-has-caption
-                                  ? <video src={item.media_url} className="w-full h-full object-cover"/>
+                                  <video src={itemMediaUrls[0]} className="w-full h-full object-cover"/>
+                                ) : (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  : <img src={item.media_url} alt="" className="w-full h-full object-cover"/>
+                                  <img src={itemMediaUrls[0]} alt="" className="w-full h-full object-cover"/>
+                                )
                               ) : (
                                 <FileImage className="w-6 h-6 text-slate-400"/>
                               )}
+                              {itemMediaUrls.length > 1 && (
+                                <span className="absolute top-1 right-1 bg-black/60 text-white text-[8px] px-1 rounded">
+                                  {itemMediaUrls.length} slides
+                                </span>
+                              )}
                             </div>
-
-                            {/* Content column */}
                             <div className="p-3 flex flex-col justify-between min-w-0">
                               <div>
                                 <div className="mb-1.5">
@@ -629,12 +885,24 @@ export default function ApprovalPage() {
                                 </div>
                                 <p className="text-xs text-slate-700 leading-relaxed line-clamp-4">{item.caption}</p>
                               </div>
-                              <span className={cn(
-                                'inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full mt-2 self-start',
-                                badge.bg, badge.color,
-                              )}>
-                                {badge.label}
-                              </span>
+                              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                <span className={cn(
+                                  'inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full',
+                                  badge.bg, badge.color,
+                                )}>
+                                  {badge.label}
+                                </span>
+                                {isApproved && (
+                                  <button
+                                    type="button"
+                                    onClick={() => scheduleItem(item.caption, itemMediaUrls)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-novax text-white hover:bg-novax-hover transition-colors"
+                                  >
+                                    <CalendarPlus className="w-3 h-3"/>
+                                    Schedule
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
 

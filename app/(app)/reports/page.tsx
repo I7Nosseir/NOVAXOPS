@@ -18,6 +18,29 @@ import {
 } from 'lucide-react'
 import type { PaidAdsData } from '@/lib/report-prompts'
 
+// ─── Dynamic period options ─────────────────────────────────────────────────────
+function generatePeriodOptions(): string[] {
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const now = new Date()
+  const options: string[] = []
+  // Last 13 months (current month first)
+  for (let i = 0; i < 13; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    options.push(`${MONTHS[d.getMonth()]} ${d.getFullYear()}`)
+  }
+  // Last 6 quarters
+  let qYear = now.getFullYear()
+  let qNum  = Math.ceil((now.getMonth() + 1) / 3)
+  for (let i = 0; i < 6; i++) {
+    qNum--
+    if (qNum < 1) { qNum = 4; qYear-- }
+    options.push(`Q${qNum} ${qYear}`)
+  }
+  return options
+}
+
+const PERIOD_OPTIONS = generatePeriodOptions()
+
 // ─── Brand palette ─────────────────────────────────────────────────────────────
 const B = {
   primary: '#1B3D38',
@@ -929,7 +952,7 @@ function parsePeriodToRange(period: string): { startDate: string; endDate: strin
 export default function ReportsPage() {
   const { clients }                               = useClients()
   const [selectedClient, setSelectedClient]       = useState('')
-  const [period, setPeriod]                       = useState('May 2026')
+  const [period, setPeriod]                       = useState(() => PERIOD_OPTIONS[0])
   const [generating, setGenerating]               = useState(false)
   const [generated, setGenerated]                 = useState(false)
   const [liveStats, setLiveStats]                 = useState<Record<string, number> | null>(null)
@@ -1215,7 +1238,7 @@ export default function ReportsPage() {
                 onChange={e => { setPeriod(e.target.value); setGenerated(false); setAiReport(null) }}
                 className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
               >
-                {['May 2026', 'April 2026', 'March 2026', 'February 2026', 'January 2026', 'Q1 2026', 'Q4 2025'].map(p => (
+                {PERIOD_OPTIONS.map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>

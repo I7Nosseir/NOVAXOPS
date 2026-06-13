@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     expiry_days?: number
     client_email?: string
     client_name?: string
-    ad_hoc_items?: { caption: string; media_url?: string }[]
+    ad_hoc_items?: { caption: string; media_url?: string; media_urls?: string[] }[]
   }
   try {
     body = await req.json()
@@ -98,7 +98,8 @@ export async function POST(req: NextRequest) {
   const items = adhocList.map((x) => ({
     id: randomBytes(8).toString('hex'),
     caption: x.caption,
-    media_url: x.media_url ?? null,
+    media_url: x.media_url ?? x.media_urls?.[0] ?? null,
+    media_urls: x.media_urls && x.media_urls.length > 0 ? x.media_urls : (x.media_url ? [x.media_url] : null),
     status: 'pending',
   }))
 

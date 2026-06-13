@@ -14,6 +14,7 @@ interface ApprovalPost extends ScheduledPost {
 interface AdHocItem {
   id: string
   media_url?: string | null
+  media_urls?: string[] | null
   caption: string
 }
 
@@ -376,17 +377,21 @@ export default function ApprovalPortalPage() {
                   </div>
                 </div>
 
-                {item.media_url && (
-                  isVideo(item.media_url) ? (
+                {(() => {
+                  const allUrls = item.media_urls?.filter(Boolean) ?? (item.media_url ? [item.media_url] : [])
+                  if (allUrls.length === 0) return null
+                  if (allUrls.length > 1) return <CarouselMedia urls={allUrls as string[]}/>
+                  const url = allUrls[0] as string
+                  return isVideo(url) ? (
                     // eslint-disable-next-line jsx-a11y/media-has-caption
-                    <video src={item.media_url} controls className="mb-4 w-full rounded-xl bg-slate-100 max-h-64 object-contain"/>
+                    <video src={url} controls className="mb-4 w-full rounded-xl bg-slate-100 max-h-64 object-contain"/>
                   ) : (
                     <div className="mb-4 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.media_url} alt="" className="w-full object-contain max-h-72"/>
+                      <img src={url} alt="" className="w-full object-contain max-h-72"/>
                     </div>
                   )
-                )}
+                })()}
 
                 <p className="text-sm text-slate-700 leading-relaxed mb-4">{item.caption}</p>
 

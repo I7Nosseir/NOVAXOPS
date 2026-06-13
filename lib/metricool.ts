@@ -401,6 +401,11 @@ export interface MetricoolPostAnalytics {
   imageUrl?: string
   text?: string
   title?: string
+  // Instagram captions return as `content`; TikTok as `videoDescription`
+  content?: string
+  videoDescription?: string
+  caption?: string
+  description?: string
   // Content type — injected by fetchNetworkPosts from the endpoint network name
   content_type?: 'reel' | 'story' | 'post' | 'video' | 'carousel' | 'short'
 }
@@ -497,13 +502,13 @@ async function fetchNetworkPosts(
 
   return (items as MetricoolPostAnalytics[]).map(p => {
     const r = p as MetricoolPostAnalytics & Record<string, unknown>
-    // TikTok native API uses view_count / playCount; YouTube uses videoViews
-    const videoViews = Number(r.videoViews ?? r.views ?? r.view_count ?? r.playCount ?? r.play_count ?? 0)
+    // TikTok native API uses view_count / playCount / plays; YouTube uses videoViews
+    const videoViews = Number(r.videoViews ?? r.totalViews ?? r.totalVideoViews ?? r.videoViewCount ?? r.views ?? r.view_count ?? r.playCount ?? r.play_count ?? r.plays ?? 0)
     const impressions = Number(p.impressions ?? 0) > 0
       ? Number(p.impressions)
       : (network === 'tiktok' || network === 'youtube' || network === 'youtube_short') ? videoViews : 0
-    // Facebook may return uniqueReach / organicReach instead of reach
-    const rawReach = Number(p.reach ?? r.uniqueReach ?? r.organicReach ?? r.totalReach ?? 0)
+    // Facebook may return uniqueReach / organicReach; TikTok may return uniqueViewers
+    const rawReach = Number(p.reach ?? r.uniqueReach ?? r.uniqueViewers ?? r.unique_viewers ?? r.uniqueVideoViews ?? r.unique_video_views ?? r.organicReach ?? r.totalReach ?? 0)
     const reach = rawReach > 0 ? rawReach : impressions
     // Post URL field names: Instagram → url, Facebook → link, TikTok → shareUrl
     const postUrl = String(p.url ?? p.link ?? r.shareUrl ?? p.permalink ?? r.postUrl ?? r.postLink ?? '')
@@ -562,6 +567,8 @@ async function fetchNetworkPosts(
       url:      postUrl.startsWith('http') ? postUrl : undefined,
       thumbnail: thumbnail.startsWith('http') ? thumbnail : (p.thumbnail ?? undefined),
       isVideo:   isVideoNetwork,
+      // Normalize caption: Instagram → content, TikTok → videoDescription, fallback to text/title
+      text: (String(r.content ?? r.videoDescription ?? r.caption ?? r.description ?? p.text ?? p.title ?? '').trim()) || undefined,
     }
   })
 }

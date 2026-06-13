@@ -289,9 +289,11 @@ export async function POST(req: NextRequest) {
   const { prevStart, prevEnd } = prevPeriodDates(startDate, endDate, reportType)
   const nets = platforms?.length ? platforms : undefined
 
-  const mapPost = (p: { id?: string; network?: string; publishDate?: string; url?: string; text?: string; title?: string; reach?: number; impressions?: number; likes?: number; comments?: number; shares?: number; saves?: number }): TopPost => ({
+  const mapPost = (p: { id?: string; network?: string; publishDate?: string; url?: string; text?: string; title?: string; content?: string; videoDescription?: string; caption?: string; reach?: number; impressions?: number; likes?: number; comments?: number; shares?: number; saves?: number }): TopPost => ({
     id: p.id, network: p.network, publishDate: p.publishDate,
-    url: p.url, text: p.text ?? p.title,
+    url: p.url,
+    // Instagram returns caption as `content`; TikTok as `videoDescription`
+    text: p.text ?? p.content ?? p.videoDescription ?? p.caption ?? p.title,
     reach: p.reach ?? 0, impressions: p.impressions ?? 0,
     likes: p.likes ?? 0, comments: p.comments ?? 0,
     shares: p.shares ?? 0, saves: p.saves ?? 0,
