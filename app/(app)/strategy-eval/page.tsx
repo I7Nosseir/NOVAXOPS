@@ -307,23 +307,37 @@ export default function StrategyEvalPage() {
     setDataResult(null)
     setEvalError(null)
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent: mode === 'strategy' ? 'strategy_eval' : 'content_eval',
-          client: selectedClient
-            ? { id: selectedClient.id, name: selectedClient.name, brand_identity: selectedClient.brand_identity }
-            : undefined,
-          // File mode: send raw base64, no pre-extracted text
-          ...(fileData
-            ? { fileBase64: fileData.base64, fileMimeType: fileData.mimeType }
-            : { brief: text, textContent: text }),
-          platform: mode === 'content' ? platform : undefined,
-          evalMode: mode,
-          contentType: mode === 'content' ? contentType : undefined,
-        }),
-      })
+      const params = {
+        agent: mode === 'strategy' ? 'strategy_eval' : 'content_eval',
+        client: selectedClient
+          ? { id: selectedClient.id, name: selectedClient.name, brand_identity: selectedClient.brand_identity }
+          : undefined,
+        ...(!fileData ? { brief: text, textContent: text } : {}),
+        platform: mode === 'content' ? platform : undefined,
+        evalMode: mode,
+        contentType: mode === 'content' ? contentType : undefined,
+      }
+
+      let fetchInit: RequestInit
+      if (fileData) {
+        // Send file as binary FormData to bypass JSON body size limits
+        const bytes = atob(fileData.base64)
+        const arr = new Uint8Array(bytes.length)
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+        const blob = new Blob([arr], { type: fileData.mimeType })
+        const fd = new FormData()
+        fd.append('file', blob, fileData.filename)
+        fd.append('params', JSON.stringify(params))
+        fetchInit = { method: 'POST', body: fd }
+      } else {
+        fetchInit = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params),
+        }
+      }
+
+      const res = await fetch('/api/ai', fetchInit)
       const data = await res.json() as { text?: string; error?: string }
       if (!res.ok || data.error) { setEvalError(data.error ?? 'Evaluation failed.'); return }
       const raw = (data.text ?? '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()

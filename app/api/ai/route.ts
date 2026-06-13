@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 import Anthropic from '@anthropic-ai/sdk'
 import { createHash } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
@@ -142,7 +145,24 @@ export async function POST(req: NextRequest) {
 
   let body: AIRequest
   try {
-    body = await req.json()
+    const ct = req.headers.get('content-type') ?? ''
+    if (ct.includes('multipart/form-data')) {
+      // File upload path — PDF sent as binary FormData to avoid JSON body size limits
+      const fd = await req.formData()
+      const paramsRaw = fd.get('params')
+      body = JSON.parse(typeof paramsRaw === 'string' ? paramsRaw : '{}') as AIRequest
+      const file = fd.get('file')
+      if (file && file instanceof Blob) {
+        const ab = await file.arrayBuffer()
+        const bytes = new Uint8Array(ab)
+        let bin = ''
+        for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i])
+        body.fileBase64 = btoa(bin)
+        body.fileMimeType = file.type || 'application/pdf'
+      }
+    } else {
+      body = await req.json()
+    }
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
   }
