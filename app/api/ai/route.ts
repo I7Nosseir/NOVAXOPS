@@ -116,6 +116,7 @@ interface AIRequest {
   brief?: string; month?: string; frequency?: string; language?: 'en' | 'ar'
   media_url?: string  // public image or video URL — images passed as vision block, videos as text context
   imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video' | 'text'
+  fileBase64?: string; fileMimeType?: string  // direct file upload (PDF etc) — bypasses text extraction
   textContent?: string
   platforms?: string[]
   evalMode?: 'strategy' | 'content'
@@ -187,7 +188,9 @@ export async function POST(req: NextRequest) {
   let prompt = ''
   let model = PRIMARY_MODEL
   let imageBlock: Anthropic.ImageBlockParam | null = null
+  let fileBlock: Anthropic.DocumentBlockParam | null = null
   let maxTokensOverride: number | null = null
+  let enableThinking = false
 
   switch (agent) {
 
@@ -803,8 +806,16 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'strategy_eval': {
-      maxTokensOverride = 8000
+      maxTokensOverride = 16000
+      enableThinking = true
       model = ADVANCED_MODEL
+      // Build file block if a document was uploaded directly (PDF etc.)
+      if (body.fileBase64 && body.fileMimeType === 'application/pdf') {
+        fileBlock = {
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: body.fileBase64 },
+        }
+      }
       const strategyText = body.textContent ?? ''
 
       prompt = `You are a senior brand strategist with 20 years of experience across global agencies. You evaluate strategies the way a rigorous CMO or strategy director would — looking for logical coherence, real audience insight, executable plans, and genuine differentiation. You do not flatter weak strategy with polite language.
@@ -1068,8 +1079,16 @@ Return ONLY the rewritten text. No labels, no explanation, no quotes around it.`
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'content_eval': {
-      maxTokensOverride = 8000
+      maxTokensOverride = 16000
+      enableThinking = true
       model = ADVANCED_MODEL
+      // Build file block if a document was uploaded directly (PDF etc.)
+      if (body.fileBase64 && body.fileMimeType === 'application/pdf') {
+        fileBlock = {
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: body.fileBase64 },
+        }
+      }
       const evalPlatform = body.platform ?? 'unspecified'
       const isDataEval = body.contentType === 'data'
 
@@ -1330,26 +1349,45 @@ Return ONLY a valid JSON object, no markdown, no code fences:
 
     if (useAnthropic) {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-      const content: Anthropic.MessageParam['content'] = imageBlock
-        ? [imageBlock, { type: 'text', text: prompt }]
-        : prompt
 
-      const response = await anthropic.messages.create({
+      // Build content blocks: file/image first, then prompt text
+      const contentBlocks: Anthropic.MessageParam['content'] = fileBlock
+        ? [fileBlock, { type: 'text', text: prompt }]
+        : imageBlock
+          ? [imageBlock, { type: 'text', text: prompt }]
+          : prompt
+
+      const createParams: Anthropic.MessageCreateParamsNonStreaming = {
         model,
         max_tokens: maxTokensOverride ?? 4096,
-        messages: [{ role: 'user', content }],
-      })
+        messages: [{ role: 'user', content: contentBlocks }],
+      }
 
-      text = response.content[0].type === 'text' ? response.content[0].text : ''
+      // Extended thinking — adds internal reasoning before producing output
+      if (enableThinking) {
+        const budget = Math.floor((maxTokensOverride ?? 4096) * 0.6) // 60% of max for thinking
+        Object.assign(createParams, { thinking: { type: 'enabled', budget_tokens: budget } })
+      }
+
+      const response = await anthropic.messages.create(createParams)
+
+      // Extract text blocks only — skip thinking blocks
+      text = response.content
+        .filter(b => b.type === 'text')
+        .map(b => (b as Anthropic.TextBlock).text)
+        .join('')
       tokensIn = response.usage.input_tokens
       tokensOut = response.usage.output_tokens
       cost_usd = (tokensIn * 0.000003) + (tokensOut * 0.000015)
     } else {
-      const geminiImage: GeminiImage | undefined =
-        body.imageBase64 && body.mimeType
-          ? { base64: body.imageBase64, mimeType: body.mimeType }
-          : undefined
-      text = await callGemini(prompt, geminiImage)
+      // Gemini: pass file as inline_data (supports PDF + images)
+      const geminiFile: GeminiImage | undefined =
+        body.fileBase64 && body.fileMimeType
+          ? { base64: body.fileBase64, mimeType: body.fileMimeType }
+          : body.imageBase64 && body.mimeType
+            ? { base64: body.imageBase64, mimeType: body.mimeType }
+            : undefined
+      text = await callGemini(prompt, geminiFile)
       usedModel = GEMINI_MODEL
     }
 

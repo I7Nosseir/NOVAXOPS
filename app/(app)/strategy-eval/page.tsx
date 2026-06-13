@@ -4,42 +4,31 @@ import { useState, useRef } from 'react'
 import {
   Loader2, Brain, Target, AlertTriangle, CheckCircle, TrendingUp, Zap,
   BarChart2, SplitSquareVertical, Flame, Monitor, ChevronDown, FileText,
-  ShieldAlert, Lightbulb, Database, Award, ArrowRight, Clock,
+  ShieldAlert, Lightbulb, Database, Award, ArrowRight, Clock, X as XIcon,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 
-// ── Client-side PDF extraction (no server upload — avoids 413) ───────────────
+// ── File preparation — PDF goes straight to AI as base64, no text extraction ──
 
-async function extractPdfText(file: File): Promise<string> {
-  const pdfjs = await import('pdfjs-dist')
-  // Use CDN worker — avoids Turbopack/webpack bundling issues
-  pdfjs.GlobalWorkerOptions.workerSrc =
-    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+type FileResult =
+  | { mode: 'file'; base64: string; mimeType: string; detectedType: 'copy' | 'data' }
+  | { mode: 'text'; text: string; detectedType: 'copy' | 'data' }
 
-  const buffer = await file.arrayBuffer()
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise
-  const textPages: string[] = []
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
-    const pageText = content.items
-      .map((item) => ((item as { str?: string }).str ?? ''))
-      .join(' ')
-      .trim()
-    if (pageText) textPages.push(pageText)
-  }
-  return textPages.join('\n\n') || '(Could not extract PDF text — paste content manually)'
-}
-
-async function extractFileText(file: File): Promise<{ text: string; detectedType: 'copy' | 'data' }> {
+async function prepareFile(file: File): Promise<FileResult> {
   const name = file.name.toLowerCase()
 
+  // PDF → base64, sent directly to AI (Claude document block / Gemini inline_data)
   if (name.endsWith('.pdf')) {
-    return { text: await extractPdfText(file), detectedType: 'copy' }
+    const buffer = await file.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+    return { mode: 'file', base64: btoa(binary), mimeType: 'application/pdf', detectedType: 'copy' }
   }
 
+  // CSV / Excel → extract to text (AI reads tabular data as CSV text)
   if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
     const ab = await file.arrayBuffer()
     const wb = XLSX.read(ab, { type: 'array' })
@@ -49,20 +38,18 @@ async function extractFileText(file: File): Promise<{ text: string; detectedType
       const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false })
       if (csv.trim()) lines.push(`[Sheet: ${sheetName}]\n${csv}`)
     }
-    return { text: lines.join('\n\n'), detectedType: 'data' }
+    return { mode: 'text', text: lines.join('\n\n'), detectedType: 'data' }
   }
 
+  // TXT → read as text
   if (name.endsWith('.txt')) {
-    return { text: await file.text(), detectedType: 'copy' }
+    return { mode: 'text', text: await file.text(), detectedType: 'copy' }
   }
 
-  // docx and other: basic text extraction
+  // DOCX and others → basic text strip
   const raw = await file.text()
   const cleaned = raw.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, '\n').trim()
-  return {
-    text: cleaned || '(Could not auto-extract — paste content manually)',
-    detectedType: 'copy',
-  }
+  return { mode: 'text', text: cleaned || '', detectedType: 'copy' }
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -266,8 +253,8 @@ export default function StrategyEvalPage() {
   const [clientId, setClientId] = useState('')
   const [platform, setPlatform] = useState('instagram')
   const [text, setText] = useState('')
-  const [docFileName, setDocFileName] = useState('')
-  const [extracting, setExtracting] = useState(false)
+  const [fileData, setFileData] = useState<{ base64: string; mimeType: string; filename: string; size: number } | null>(null)
+  const [preparing, setPreparing] = useState(false)
   const [evaluating, setEvaluating] = useState(false)
   const [strategyResult, setStrategyResult] = useState<StrategyResult | null>(null)
   const [copyResult, setCopyResult] = useState<CopyResult | null>(null)
@@ -276,23 +263,32 @@ export default function StrategyEvalPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleImportFile = async (f: File) => {
-    setDocFileName(f.name)
-    setExtracting(true)
-    setText('')
+    setPreparing(true)
     setEvalError(null)
+    setFileData(null)
+    setText('')
     try {
-      const { text: extracted, detectedType } = await extractFileText(f)
-      setText(extracted)
-      if (mode === 'content') setContentType(detectedType)
+      const result = await prepareFile(f)
+      if (mode === 'content') setContentType(result.detectedType)
+      if (result.mode === 'file') {
+        setFileData({ base64: result.base64, mimeType: result.mimeType, filename: f.name, size: f.size })
+      } else {
+        setText(result.text)
+      }
     } catch (err) {
-      setText('(Could not extract file content — paste manually)')
-      setEvalError(err instanceof Error ? err.message : 'File extraction failed')
+      setEvalError(err instanceof Error ? err.message : 'File preparation failed')
     } finally {
-      setExtracting(false)
+      setPreparing(false)
     }
   }
 
   const selectedClient = clients.find(c => c.id === clientId)
+
+  const clearFile = () => {
+    setFileData(null)
+    setText('')
+    setEvalError(null)
+  }
 
   const handleModeSwitch = (m: EvalMode) => {
     setMode(m)
@@ -300,10 +296,11 @@ export default function StrategyEvalPage() {
     setCopyResult(null)
     setDataResult(null)
     setEvalError(null)
+    clearFile()
   }
 
   const evaluate = async () => {
-    if (!text.trim()) return
+    if (!fileData && !text.trim()) return
     setEvaluating(true)
     setStrategyResult(null)
     setCopyResult(null)
@@ -318,8 +315,10 @@ export default function StrategyEvalPage() {
           client: selectedClient
             ? { id: selectedClient.id, name: selectedClient.name, brand_identity: selectedClient.brand_identity }
             : undefined,
-          brief: text,
-          textContent: text,
+          // File mode: send raw base64, no pre-extracted text
+          ...(fileData
+            ? { fileBase64: fileData.base64, fileMimeType: fileData.mimeType }
+            : { brief: text, textContent: text }),
           platform: mode === 'content' ? platform : undefined,
           evalMode: mode,
           contentType: mode === 'content' ? contentType : undefined,
@@ -342,7 +341,8 @@ export default function StrategyEvalPage() {
   const hasResult = mode === 'strategy' ? !!strategyResult : contentType === 'data' ? !!dataResult : !!copyResult
   const dimensions = mode === 'strategy' ? STRATEGY_DIMENSIONS : contentType === 'data' ? DATA_DIMENSIONS : COPY_DIMENSIONS
   const result = (mode === 'strategy' ? strategyResult : contentType === 'data' ? dataResult : copyResult) as Record<string, unknown> | null
-  const isLoading = evaluating || extracting
+  const isLoading = evaluating || preparing
+  const canEvaluate = !!fileData || !!text.trim()
 
   const verdictKey = strategyResult?.verdict && strategyResult.verdict in STRATEGY_VERDICT_CONFIG
     ? strategyResult.verdict : 'solid'
@@ -364,8 +364,8 @@ export default function StrategyEvalPage() {
             </div>
             <div>
               <p className="text-base font-semibold text-novax">
-                {extracting
-                  ? 'Extracting document…'
+                {preparing
+                  ? 'Preparing document…'
                   : mode === 'strategy'
                     ? 'Running Strategy Evaluation…'
                     : contentType === 'data'
@@ -373,13 +373,13 @@ export default function StrategyEvalPage() {
                       : 'Running Content Evaluation…'}
               </p>
               <p className="text-sm text-slate-500 mt-1">
-                {extracting
-                  ? `Reading ${docFileName}`
+                {preparing
+                  ? 'Encoding for AI analysis…'
                   : mode === 'strategy'
-                    ? 'Blue Ocean · Cultural Intelligence · Stress-testing assumptions…'
+                    ? 'Deep reading · Blue Ocean · Cultural Intelligence · Stress-testing…'
                     : contentType === 'data'
                       ? 'Pattern recognition · Benchmark comparison · Strategic gaps…'
-                      : 'Hook science · Berger arousal · Cialdini principles · HubSpot standards…'}
+                      : 'Deep reading · Hook science · Berger arousal · Cialdini principles…'}
               </p>
             </div>
           </div>
@@ -469,57 +469,87 @@ export default function StrategyEvalPage() {
               </div>
             )}
 
-            {/* Textarea */}
+            {/* Input area — file card OR textarea */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-semibold text-slate-700">
                   {mode === 'strategy' ? 'Strategy Document or Brief' : contentType === 'data' ? 'Analytics Data / CSV Export' : 'Copy, Caption, or Script'}
                 </label>
-                <div className="flex items-center gap-2">
-                  {docFileName && (
-                    <span className="text-[10px] text-novax-muted font-medium truncate max-w-[120px]">{docFileName}</span>
-                  )}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isLoading}
-                    className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-novax font-medium border border-slate-200 rounded-lg px-2 py-1 hover:bg-slate-50 transition-colors disabled:opacity-50"
-                  >
-                    {extracting ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-                    {extracting ? 'Reading…' : 'Import'}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".txt,.csv,.xlsx,.xls,.docx,.pdf"
-                    className="hidden"
-                    onChange={e => e.target.files?.[0] && void handleImportFile(e.target.files[0])}
-                  />
-                </div>
+                {!fileData && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isLoading}
+                      className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-novax font-medium border border-slate-200 rounded-lg px-2 py-1 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                    >
+                      {preparing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                      {preparing ? 'Preparing…' : 'Upload file'}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.csv,.xlsx,.xls,.docx,.pdf"
+                      className="hidden"
+                      onChange={e => { if (e.target.files?.[0]) void handleImportFile(e.target.files[0]); e.target.value = '' }}
+                    />
+                  </div>
+                )}
               </div>
-              <textarea
-                value={text}
-                onChange={e => setText(e.target.value)}
-                rows={10}
-                placeholder={
-                  mode === 'strategy'
-                    ? 'Paste your strategy document, quarterly plan, or content strategy brief…'
-                    : contentType === 'data'
-                      ? 'Paste your CSV export, performance data, or upload a spreadsheet using Import…\n\nTip: Export from your analytics platform and paste or upload here.'
-                      : 'Paste your caption, reel script, email body, ad copy, or any social content…'}
-                className="w-full px-3.5 py-3 text-sm border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-novax-muted bg-white resize-none leading-relaxed placeholder:text-slate-300"
-              />
-              <p className="text-[10px] text-slate-400 mt-1">
-                {text.length > 0
-                  ? `${text.length} characters · ${text.split(/\s+/).filter(Boolean).length} words`
-                  : mode === 'content' && contentType === 'data'
-                    ? '.csv .xlsx .xls supported — auto-detected and switched to Analytics mode on import'
-                    : '.txt .xlsx .csv .docx .pdf supported — parsed locally, no upload'}
-              </p>
+
+              {/* File card — shown when a binary file (PDF) is ready */}
+              {fileData ? (
+                <div className="rounded-xl border-2 border-novax-border bg-novax-light p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#1B3D38' }}>
+                        <FileText className="w-5 h-5 text-white"/>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{fileData.filename}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {(fileData.size / 1024).toFixed(0)} KB · Ready for AI analysis
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={clearFile} className="text-slate-300 hover:text-slate-500 transition-colors shrink-0 mt-0.5">
+                      <XIcon className="w-4 h-4"/>
+                    </button>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                      <CheckCircle className="w-3 h-3"/> Document ready — no text extraction needed
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    The AI will read the document directly and begin analysis immediately.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={text}
+                    onChange={e => setText(e.target.value)}
+                    rows={10}
+                    placeholder={
+                      mode === 'strategy'
+                        ? 'Paste your strategy document, quarterly plan, or content strategy brief…\n\nor upload a PDF above'
+                        : contentType === 'data'
+                          ? 'Paste your CSV export or performance data…\n\nor upload a .csv / .xlsx file above'
+                          : 'Paste your caption, reel script, ad copy, or any social content…\n\nor upload a PDF above'}
+                    className="w-full px-3.5 py-3 text-sm border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-novax-muted bg-white resize-none leading-relaxed placeholder:text-slate-300"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {text.length > 0
+                      ? `${text.length} characters · ${text.split(/\s+/).filter(Boolean).length} words`
+                      : '.pdf .txt .csv .xlsx .docx supported — PDFs sent directly to AI, no extraction'}
+                  </p>
+                </>
+              )}
             </div>
 
             <button
               onClick={evaluate}
-              disabled={isLoading || !text.trim()}
+              disabled={isLoading || !canEvaluate}
               className="w-full flex items-center justify-center gap-2 py-2.5 bg-novax hover:bg-novax-hover disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
             >
               {evaluating
