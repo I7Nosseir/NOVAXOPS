@@ -21,6 +21,14 @@ const ROLES: { value: UserRole; label: string; desc: string }[] = [
 // Roles that always get full access (admin can still restrict, but default is all-on)
 const FULL_ACCESS_ROLES: UserRole[] = ['admin', 'ceo', 'creative_director']
 
+// Standard default for new invites — agency standard access profile
+const DEFAULT_PAGES: PageKey[] = [
+  'clients', 'projects', 'publishing', 'approval',
+  'assets', 'ai-image', 'creative-eval', 'docs', 'strategy-eval',
+  'assistant', 'performance', 'workload', 'library', 'reports',
+  'studio-media-buying', 'studio-copy',
+]
+
 const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all bg-white text-slate-800 placeholder:text-slate-400'
 
 interface Props { onClose: () => void }
@@ -29,7 +37,7 @@ export function InviteUserModal({ onClose }: Props) {
   const [email, setEmail]   = useState('')
   const [name, setName]     = useState('')
   const [role, setRole]     = useState<UserRole>('copywriter')
-  const [pages, setPages]   = useState<PageKey[]>([...ALL_PAGE_KEYS])
+  const [pages, setPages]   = useState<PageKey[]>([...DEFAULT_PAGES])
   const [result, setResult] = useState<InviteResult | null>(null)
   const [error,  setError]  = useState<string | null>(null)
   const [copiedField, setCopiedField] = useState<'email' | 'password' | null>(null)

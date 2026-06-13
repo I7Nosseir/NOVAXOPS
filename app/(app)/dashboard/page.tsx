@@ -14,6 +14,7 @@ import {
   CheckSquare, Clock, AlertCircle, MessageSquare,
   DollarSign, Calendar, Globe, TrendingUp, ArrowUpRight, ArrowDownRight,
   Eye, Activity, RefreshCw, ChevronRight, X, Heart, MessageCircle, Share2,
+  Send, CheckCircle, XCircle,
 } from 'lucide-react'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import {
@@ -478,6 +479,136 @@ function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
+// ── Login Blast (admin only) ───────────────────────────────────────────────────
+
+type BlastResult = { name: string; email: string; status: 'sent' | 'failed'; error?: string }
+type BlastState  = 'idle' | 'confirm' | 'sending' | 'done'
+
+function LoginBlastButton() {
+  const [state,   setState]   = useState<BlastState>('idle')
+  const [results, setResults] = useState<BlastResult[]>([])
+  const [sent,    setSent]    = useState(0)
+  const [total,   setTotal]   = useState(0)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const run = async () => {
+    setState('sending')
+    try {
+      const res  = await fetch('/api/admin/login-blast', { method: 'POST' })
+      const data = await res.json() as { sent: number; total: number; results: BlastResult[]; message?: string }
+      setSent(data.sent ?? 0)
+      setTotal(data.total ?? 0)
+      setResults(data.results ?? [])
+      setMessage(data.message ?? null)
+      setState('done')
+    } catch {
+      setState('idle')
+    }
+  }
+
+  if (state === 'idle') {
+    return (
+      <button
+        onClick={() => setState('confirm')}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors hover:opacity-90"
+        style={{ background: '#1B3D38' }}
+      >
+        <Send className="w-3 h-3"/>
+        Send Login Blast
+      </button>
+    )
+  }
+
+  if (state === 'confirm') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: '#EBF4F3' }}>
+            <Send className="w-5 h-5" style={{ color: '#1B3D38' }}/>
+          </div>
+          <h3 className="text-base font-semibold text-slate-900 mb-1">Send Login Blast</h3>
+          <p className="text-sm text-slate-500 mb-5">
+            This will email a login link to every team member who hasn&apos;t set their password yet. Links expire after 24 hours.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setState('idle')}
+              className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={run}
+              className="flex-1 flex items-center justify-center gap-2 py-2 text-white text-sm font-medium rounded-lg transition-colors"
+              style={{ background: '#1B3D38' }}
+            >
+              <Send className="w-3.5 h-3.5"/>
+              Send Now
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (state === 'sending') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: '#1B3D38' }}/>
+          <p className="text-sm font-semibold text-slate-800">Sending login emails…</p>
+          <p className="text-xs text-slate-400 mt-1">Generating secure links for each team member.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // done
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+            <CheckCircle className="w-5 h-5 text-emerald-500"/>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              {message ?? `${sent} of ${total} emails sent`}
+            </p>
+            {!message && total > 0 && (
+              <p className="text-xs text-slate-400">{total - sent} failed</p>
+            )}
+          </div>
+        </div>
+
+        {results.length > 0 && (
+          <div className="space-y-1.5 max-h-52 overflow-y-auto mb-4">
+            {results.map((r, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg">
+                {r.status === 'sent'
+                  ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0"/>
+                  : <XCircle    className="w-3.5 h-3.5 text-red-400 shrink-0"/>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-slate-800 truncate">{r.name}</p>
+                  {r.error && <p className="text-[10px] text-red-500 truncate">{r.error}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={() => { setState('idle'); setResults([]); setSent(0); setTotal(0); setMessage(null) }}
+          className="w-full py-2 text-white text-sm font-medium rounded-lg transition-colors"
+          style={{ background: '#1B3D38' }}
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { user }   = useAuth()
   const { tasks }  = useTasks()
@@ -524,8 +655,17 @@ export default function DashboardPage() {
     { label: 'Pipeline Velocity',  value: tasks.length > 0 ? '3d' : '—', icon: TrendingUp, color: 'bg-orange-50 text-orange-600', delta: 'Avg days/stage' },
   ]
 
+  const isAdmin = user?.role === 'admin'
+
   return (
     <div className="space-y-6">
+      {/* Admin quick actions */}
+      {isAdmin && (
+        <div className="flex justify-end">
+          <LoginBlastButton/>
+        </div>
+      )}
+
       {/* Stat grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 anim-stagger">
         {statCards.map(({ label, value, icon: Icon, color, delta }) => (
