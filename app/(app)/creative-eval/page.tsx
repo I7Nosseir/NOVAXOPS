@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 type FileType = 'image' | 'video' | 'pdf'
 type InputMode = 'media' | 'strategy'
@@ -226,8 +227,8 @@ export default function CreativeEvalPage() {
 
   const handleMediaFile = (f: File) => {
     if (f.type === 'application/pdf' || f.name.match(/\.pdf$/i)) {
-      if (f.size > 5 * 1024 * 1024) {
-        setEvalError('PDF is too large — maximum size is 5MB.')
+      if (f.size > 3.5 * 1024 * 1024) {
+        setEvalError('PDF is too large — maximum size is 3.5MB. Try exporting a compressed version.')
         return
       }
       setFile({ name: f.name, url: '', type: 'pdf', rawFile: f, size: f.size })
@@ -248,8 +249,8 @@ export default function CreativeEvalPage() {
       setEvalError('Only PDF files are supported for strategy evaluation.')
       return
     }
-    if (f.size > 5 * 1024 * 1024) {
-      setEvalError('PDF is too large — maximum size is 5MB. Try exporting a smaller version.')
+    if (f.size > 3.5 * 1024 * 1024) {
+      setEvalError('PDF is too large — maximum size is 3.5MB. Try exporting a compressed version.')
       return
     }
     setStratFile({ name: f.name, file: f, size: f.size })
@@ -297,6 +298,17 @@ export default function CreativeEvalPage() {
 
   const canEvaluate = inputMode === 'media' ? !!file : !!stratFile
 
+  async function uploadPdfToStorage(f: File): Promise<string> {
+    const path = `eval-tmp/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const { error } = await supabase.storage.from('assets').upload(path, f, {
+      contentType: 'application/pdf',
+      upsert: false,
+    })
+    if (error) throw new Error(`PDF upload failed: ${error.message}`)
+    const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
+    return publicUrl
+  }
+
   const evaluate = async () => {
     if (!canEvaluate) return
     setEvaluating(true); setResult(null); setStratResult(null); setEvalError(null)
@@ -316,51 +328,52 @@ export default function CreativeEvalPage() {
       let res: Response
 
       if (inputMode === 'media' && file && file.type === 'pdf' && file.rawFile) {
-        // PDF creative eval — send as binary multipart (no base64 JSON overhead)
-        const fd = new FormData()
-        fd.set('params', JSON.stringify({ ...basePayload, fileType: 'pdf' }))
-        fd.set('file', file.rawFile)
-        console.log('[eval] Sending creative PDF via multipart, size:', Math.round((file.size ?? 0) / 1024) + 'KB')
-        res = await fetch('/api/ai', { method: 'POST', body: fd })
-      } else if (inputMode === 'media' && file) {
-        const { base64, mimeType } = await toBase64(file.url, file.type as 'image' | 'video')
-        const payload = { ...basePayload, imageBase64: base64, mimeType, fileType: file.type }
+        // Upload PDF to Supabase Storage → pass public URL to route (bypasses Vercel 4.5MB limit)
+        const fileUrl = await uploadPdfToStorage(file.rawFile)
         res = await fetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...basePayload, fileUrl, fileType: 'pdf' }),
+        })
+      } else if (inputMode === 'media' && file) {
+        const { base64, mimeType } = await toBase64(file.url, file.type as 'image' | 'video')
+        res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...basePayload, imageBase64: base64, mimeType, fileType: file.type }),
         })
       } else if (inputMode === 'strategy' && stratFile) {
-        // Send PDF as binary multipart — avoids base64 JSON body overhead
-        const fd = new FormData()
-        fd.set('params', JSON.stringify(basePayload))
-        fd.set('file', stratFile.file)
-        console.log('[eval] Sending PDF via multipart, size:', Math.round(stratFile.size / 1024) + 'KB')
-        res = await fetch('/api/ai', { method: 'POST', body: fd })
+        // Upload PDF to Supabase Storage → pass public URL to route (bypasses Vercel 4.5MB limit)
+        const fileUrl = await uploadPdfToStorage(stratFile.file)
+        res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...basePayload, fileUrl, fileType: 'pdf' }),
+        })
       } else {
         return
       }
 
-      let data: { error?: string; text?: string; message?: string } = {}
-      try {
-        data = await res.json()
-      } catch {
-        console.error('[eval] Failed to parse response JSON, status:', res.status)
-        setEvalError(
-          res.status === 413
-            ? 'File is too large. For images try a smaller file; for PDFs compress to under 5MB.'
-            : `Server error (${res.status}) — please try again.`
-        )
+      // Always read body as text first — res.json() throws on plain-text 413 bodies
+      const body = await res.text()
+
+      if (!res.ok) {
+        console.error('[eval] Non-OK response:', res.status, body.slice(0, 200))
+        if (res.status === 413) {
+          setEvalError('File is too large. Compress the PDF to under 3MB or use a smaller image.')
+        } else {
+          try { setEvalError((JSON.parse(body) as { error?: string }).error ?? `Server error (${res.status}).`) }
+          catch { setEvalError(`Server error (${res.status}).`) }
+        }
         return
       }
 
-      if (!res.ok) {
-        console.error('[eval] Non-OK response:', res.status, data)
-        setEvalError(
-          res.status === 413
-            ? 'File is too large. For images try a smaller file; for PDFs compress to under 5MB.'
-            : (data.error ?? data.message ?? `Server error (${res.status}).`)
-        )
+      let data: { text?: string; error?: string }
+      try {
+        data = JSON.parse(body) as { text?: string; error?: string }
+      } catch {
+        console.error('[eval] Failed to parse success response:', body.slice(0, 200))
+        setEvalError('Unexpected response from server. Please try again.')
         return
       }
       if (data.error) { setEvalError(data.error); return }
@@ -370,8 +383,8 @@ export default function CreativeEvalPage() {
       let parsed: EvalResult | StrategyEvalResult
       try {
         parsed = JSON.parse(raw)
-      } catch (parseErr) {
-        console.error('[eval] JSON parse failed. Raw response start:', rawText.slice(0, 200))
+      } catch {
+        console.error('[eval] AI JSON parse failed. Raw start:', rawText.slice(0, 200))
         setEvalError('The AI returned an unexpected response format. Please try again.')
         return
       }
@@ -478,7 +491,7 @@ export default function CreativeEvalPage() {
                   className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-novax-border-active hover:bg-slate-50 transition-colors cursor-pointer">
                   <Upload className="w-8 h-8 text-slate-300 mx-auto mb-3"/>
                   <p className="text-sm font-medium text-slate-700">Drop creative here or browse</p>
-                  <p className="text-xs text-slate-400 mt-1">PNG, JPG, MP4, MOV, PDF · PDF max 5MB</p>
+                  <p className="text-xs text-slate-400 mt-1">PNG, JPG, MP4, MOV, PDF · PDF max 3.5MB</p>
                   <input ref={mediaInputRef} type="file" accept="image/*,video/*,.pdf" className="hidden"
                     onChange={e => e.target.files?.[0] && handleMediaFile(e.target.files[0])}/>
                 </div>
@@ -528,7 +541,7 @@ export default function CreativeEvalPage() {
                   className="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-novax-border-active hover:bg-slate-50 transition-colors cursor-pointer">
                   <FileText className="w-8 h-8 text-slate-300 mx-auto mb-3"/>
                   <p className="text-sm font-medium text-slate-700">Drop strategy PDF here or browse</p>
-                  <p className="text-xs text-slate-400 mt-1">PDF only · Max 5MB</p>
+                  <p className="text-xs text-slate-400 mt-1">PDF only · Max 3.5MB</p>
                   <input ref={stratInputRef} type="file" accept=".pdf" className="hidden"
                     onChange={e => e.target.files?.[0] && handleStratFile(e.target.files[0])}/>
                 </div>

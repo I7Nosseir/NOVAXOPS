@@ -128,6 +128,7 @@ interface AIRequest {
   media_url?: string  // public image or video URL — images passed as vision block, videos as text context
   imageBase64?: string; mimeType?: string; fileType?: 'image' | 'video' | 'text' | 'pdf'
   fileBase64?: string; fileMimeType?: string  // direct file upload (PDF etc) — bypasses text extraction
+  fileUrl?: string  // public URL — route fetches server-side to avoid Vercel body size limits
   textContent?: string
   platforms?: string[]
   evalMode?: 'strategy' | 'content'
@@ -171,6 +172,23 @@ export async function POST(req: NextRequest) {
     }
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
+  }
+
+  // If client uploaded PDF to Supabase Storage and sent us the public URL,
+  // fetch it server-side (outbound — no Vercel body size limit) and base64-encode for Gemini
+  if (body.fileUrl && body.fileType === 'pdf' && !body.fileBase64) {
+    try {
+      const r = await fetch(body.fileUrl)
+      if (!r.ok) throw new Error(`Failed to fetch PDF: ${r.status}`)
+      const ab = await r.arrayBuffer()
+      body.fileBase64 = Buffer.from(ab).toString('base64')
+      body.fileMimeType = 'application/pdf'
+      console.log(`[fileUrl] Fetched PDF, base64 size: ${Math.round(body.fileBase64.length / 1024)}KB`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      console.error('[fileUrl] PDF fetch failed:', msg)
+      return NextResponse.json({ error: `Could not retrieve uploaded PDF: ${msg}` }, { status: 500 })
+    }
   }
 
   const { agent, client, task, project } = body
