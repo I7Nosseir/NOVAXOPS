@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, XCircle, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut } from 'lucide-react'
+import { CheckCircle, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut } from 'lucide-react'
 import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, useUpdateUserPermissions, type InviteResult } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -10,6 +10,7 @@ import { useUserAssignments, useSaveClientAssignments } from '@/lib/hooks/use-cl
 import { cn, hasRole, vendorName } from '@/lib/utils'
 import { InviteUserModal } from '@/components/settings/invite-user-modal'
 import { BulkInviteModal } from '@/components/settings/bulk-invite-modal'
+import { BulkPermissionsPanel } from '@/components/settings/bulk-permissions-panel'
 import type { UserRole, User } from '@/lib/types'
 import { PAGE_DEFS, ALL_PAGE_KEYS, PAGE_GROUPS, type PageKey } from '@/lib/page-permissions'
 
@@ -754,6 +755,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview' | 'activity'>(isAdmin ? 'integrations' : 'team')
   const [showInvite, setShowInvite] = useState(false)
   const [showBulkInvite, setShowBulkInvite] = useState(false)
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+  const [showBulkPerms, setShowBulkPerms] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
   const [aiToggling, setAiToggling] = useState(false)
@@ -823,6 +826,13 @@ export default function SettingsPage() {
     <div className="max-w-4xl space-y-5">
       {showInvite && <InviteUserModal onClose={() => setShowInvite(false)} />}
       {showBulkInvite && <BulkInviteModal onClose={() => setShowBulkInvite(false)} />}
+      {showBulkPerms && (
+        <BulkPermissionsPanel
+          selectedUsers={users.filter(u => selectedUserIds.has(u.id))}
+          onClose={() => setShowBulkPerms(false)}
+          onApplied={() => { setSelectedUserIds(new Set()); setShowBulkPerms(false) }}
+        />
+      )}
       {editingUser && (
         <EditPermissionsModal
           user={editingUser}
@@ -896,10 +906,49 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+            {/* Bulk action bar */}
+            {isAdmin && selectedUserIds.size > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-novax-light border border-novax-border rounded-xl">
+                <Users className="w-4 h-4 text-novax shrink-0" />
+                <span className="text-sm font-medium text-novax flex-1">
+                  {selectedUserIds.size} member{selectedUserIds.size !== 1 ? 's' : ''} selected
+                </span>
+                <button
+                  onClick={() => setShowBulkPerms(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  Set Page Access
+                </button>
+                <button
+                  onClick={() => setSelectedUserIds(new Set())}
+                  className="p-1 text-novax-muted hover:text-novax transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
               <table className="w-full min-w-[560px]">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
+                    {isAdmin && (
+                      <th className="pl-4 pr-2 py-3 w-8">
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300 text-novax focus:ring-novax"
+                          checked={selectedUserIds.size > 0 && users.filter(u => u.id !== currentUser?.id).every(u => selectedUserIds.has(u.id))}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setSelectedUserIds(new Set(users.filter(u => u.id !== currentUser?.id).map(u => u.id)))
+                            } else {
+                              setSelectedUserIds(new Set())
+                            }
+                          }}
+                        />
+                      </th>
+                    )}
                     {['Member', 'Role', 'Department', 'Page Access', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                     ))}
@@ -914,8 +963,32 @@ export default function SettingsPage() {
                       : perms.length === 0
                         ? 'Required only'
                         : `${perms.length} of ${ALL_PAGE_KEYS.length} pages`
+                    const isSelectable = isAdmin && u.id !== currentUser?.id
+                    const isChecked = selectedUserIds.has(u.id)
                     return (
-                    <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                    <tr
+                      key={u.id}
+                      className={cn('hover:bg-slate-50 transition-colors', isChecked && 'bg-novax-light/40')}
+                    >
+                      {isAdmin && (
+                        <td className="pl-4 pr-2 py-3 w-8">
+                          {isSelectable && (
+                            <input
+                              type="checkbox"
+                              className="rounded border-slate-300 text-novax focus:ring-novax"
+                              checked={isChecked}
+                              onChange={e => {
+                                setSelectedUserIds(prev => {
+                                  const next = new Set(prev)
+                                  if (e.target.checked) next.add(u.id)
+                                  else next.delete(u.id)
+                                  return next
+                                })
+                              }}
+                            />
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
                           <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: u.color }}>

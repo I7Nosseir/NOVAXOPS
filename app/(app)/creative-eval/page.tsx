@@ -7,6 +7,7 @@ import {
   SplitSquareVertical, FileText, ImageIcon, FileSearch,
   ShieldAlert, Lightbulb, Crosshair, Users, Award, TriangleAlert,
   ChevronDown, ChevronUp, Layers,
+  Wrench, Zap, Calendar, RefreshCcw, Star, ArrowRight,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
@@ -92,22 +93,52 @@ interface StrategyStressTest {
   mitigation:      string
 }
 
+interface StrategyDimensionAnalysis {
+  finding: string
+  gap:     string
+  action:  string
+}
+
+interface StrategyActionItem {
+  action:    string
+  dimension: string
+  impact:    string
+  how:       string
+}
+
+interface StrategySurgeryItem {
+  problem:            string
+  current_state:      string
+  target_state:       string
+  rewrite_suggestion: string
+}
+
 interface StrategyEvalResult {
-  overall:                   number
-  clarity_of_pov:            number
-  audience_insight_depth:    number
+  overall:                    number
+  clarity_of_pov:             number
+  audience_insight_depth:     number
   competitive_differentiation:number
-  platform_calibration:      number
-  executional_feasibility:   number
-  measurability:             number
-  cultural_intelligence:     number
-  strategic_logic:           number
-  strategic_stress_test:     StrategyStressTest
-  critical_gaps:             string[]
-  quick_wins:                string[]
-  competitor_blind_spots:    string[]
-  verdict:                   'world_class' | 'strong' | 'solid' | 'needs_work' | 'start_over'
-  verdict_rationale:         string
+  platform_calibration:       number
+  executional_feasibility:    number
+  measurability:              number
+  cultural_intelligence:      number
+  strategic_logic:            number
+  // Rich analysis (new)
+  dimension_analysis?: Record<string, StrategyDimensionAnalysis>
+  strategic_surgery?:  StrategySurgeryItem[]
+  action_plan?: {
+    this_week:          StrategyActionItem[]
+    month_one:          StrategyActionItem[]
+    structural_rewrites:StrategyActionItem[]
+  }
+  strengths?: string[]
+  // Existing
+  strategic_stress_test: StrategyStressTest
+  critical_gaps:         string[]
+  quick_wins:            string[]
+  competitor_blind_spots:string[]
+  verdict:               'world_class' | 'strong' | 'solid' | 'needs_work' | 'start_over'
+  verdict_rationale:     string
 }
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -220,6 +251,7 @@ export default function CreativeEvalPage() {
   const [stratResult, setStratResult]   = useState<StrategyEvalResult | null>(null)
   const [evalError, setEvalError]       = useState<string | null>(null)
   const [evidenceOpen, setEvidenceOpen] = useState(false)
+  const [expandedDim, setExpandedDim] = useState<string | null>(null)
   const mediaInputRef = useRef<HTMLInputElement>(null)
   const stratInputRef = useRef<HTMLInputElement>(null)
 
@@ -930,7 +962,7 @@ export default function CreativeEvalPage() {
 
       {/* ── Strategy eval intelligence panels ── */}
       {stratResult && !evaluating && (
-        <div className="space-y-4">
+        <div className="space-y-5">
 
           {/* Verdict rationale */}
           <div className={cn('p-5 rounded-2xl border',
@@ -950,38 +982,250 @@ export default function CreativeEvalPage() {
             <p className="text-sm text-slate-700 leading-relaxed">{stratResult.verdict_rationale}</p>
           </div>
 
+          {/* Dimension deep analysis */}
+          {stratResult.dimension_analysis && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+                <Layers className="w-4 h-4 text-novax-muted"/>
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Dimension Analysis — Finding · Gap · Action</p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {STRATEGY_DIMENSIONS.map(({ key, label }) => {
+                  const a = stratResult.dimension_analysis![key]
+                  if (!a) return null
+                  const score = stratResult[key] as number
+                  const isOpen = expandedDim === key
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setExpandedDim(isOpen ? null : key)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors">
+                        <div className={cn('text-sm font-black w-9 tabular-nums shrink-0', scoreColor(score))}>{score}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-700">{label}</p>
+                          {!isOpen && <p className="text-[11px] text-slate-400 truncate mt-0.5">{a.finding}</p>}
+                        </div>
+                        <div className="h-1.5 w-20 bg-slate-100 rounded-full overflow-hidden shrink-0">
+                          <div className={cn('h-full rounded-full', scoreBg(score))} style={{ width: `${score}%` }}/>
+                        </div>
+                        {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0"/> : <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0"/>}
+                      </div>
+                      {isOpen && (
+                        <div className="px-5 pb-4 space-y-3 bg-slate-50/60" onClick={e => e.stopPropagation()}>
+                          <div>
+                            <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider mb-1">What we found</p>
+                            <p className="text-xs text-slate-700 leading-relaxed">{a.finding}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-red-500 uppercase font-semibold tracking-wider mb-1">What is missing</p>
+                            <p className="text-xs text-slate-600 leading-relaxed">{a.gap}</p>
+                          </div>
+                          <div className="p-3 bg-novax-light rounded-xl border border-novax-border">
+                            <p className="text-[10px] text-novax uppercase font-semibold tracking-wider mb-1">Action</p>
+                            <p className="text-xs text-slate-700 leading-relaxed font-medium">{a.action}</p>
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Strategic surgery */}
+          {stratResult.strategic_surgery && stratResult.strategic_surgery.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Wrench className="w-4 h-4 text-red-500"/>
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Strategic Surgery — What Cannot Be Polished, Must Be Rebuilt</p>
+              </div>
+              <div className="space-y-4">
+                {stratResult.strategic_surgery.map((s, i) => (
+                  <div key={i} className="border border-slate-100 rounded-xl overflow-hidden">
+                    <div className="px-4 py-3 bg-red-50 border-b border-red-100">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-bold text-red-600 bg-red-100 rounded px-1.5 py-0.5 shrink-0 mt-0.5">{i + 1}</span>
+                        <p className="text-xs font-semibold text-red-700">{s.problem}</p>
+                      </div>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="p-3 bg-red-50/60 rounded-lg border border-red-100">
+                          <p className="text-[10px] text-red-500 uppercase font-semibold tracking-wider mb-1.5">Current state</p>
+                          <p className="text-[11px] text-red-800 leading-relaxed italic">{s.current_state}</p>
+                        </div>
+                        <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                          <p className="text-[10px] text-emerald-600 uppercase font-semibold tracking-wider mb-1.5">Target state</p>
+                          <p className="text-[11px] text-emerald-800 leading-relaxed">{s.target_state}</p>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-novax-light rounded-lg border border-novax-border">
+                        <p className="text-[10px] text-novax uppercase font-semibold tracking-wider mb-1.5">Rewrite suggestion</p>
+                        <p className="text-xs text-slate-700 leading-relaxed">{s.rewrite_suggestion}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Priority action plan */}
+          {stratResult.action_plan && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <div className="flex items-center gap-2 mb-5">
+                <Target className="w-4 h-4 text-novax-muted"/>
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Priority Action Plan</p>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                {/* This Week */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <Zap className="w-3.5 h-3.5 text-amber-500"/>
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">This Week</p>
+                  </div>
+                  <div className="space-y-3">
+                    {stratResult.action_plan.this_week?.map((item, i) => (
+                      <div key={i} className="border border-amber-100 rounded-xl overflow-hidden">
+                        <div className="px-3 py-2.5 bg-amber-50">
+                          <p className="text-xs font-semibold text-slate-800 leading-snug">{item.action}</p>
+                          <span className="inline-block mt-1 text-[9px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                            {STRATEGY_DIMENSIONS.find(d => d.key === item.dimension)?.label ?? item.dimension}
+                          </span>
+                        </div>
+                        <div className="px-3 py-2.5 space-y-2">
+                          <div>
+                            <p className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider mb-0.5">Impact</p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{item.impact}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-novax uppercase font-semibold tracking-wider mb-0.5">How</p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{item.how}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Month One */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <Calendar className="w-3.5 h-3.5 text-sky-500"/>
+                    <p className="text-[10px] font-bold text-sky-600 uppercase tracking-wider">Month One</p>
+                  </div>
+                  <div className="space-y-3">
+                    {stratResult.action_plan.month_one?.map((item, i) => (
+                      <div key={i} className="border border-sky-100 rounded-xl overflow-hidden">
+                        <div className="px-3 py-2.5 bg-sky-50">
+                          <p className="text-xs font-semibold text-slate-800 leading-snug">{item.action}</p>
+                          <span className="inline-block mt-1 text-[9px] font-semibold text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                            {STRATEGY_DIMENSIONS.find(d => d.key === item.dimension)?.label ?? item.dimension}
+                          </span>
+                        </div>
+                        <div className="px-3 py-2.5 space-y-2">
+                          <div>
+                            <p className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider mb-0.5">Impact</p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{item.impact}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-novax uppercase font-semibold tracking-wider mb-0.5">How</p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{item.how}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Structural Rewrites */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <RefreshCcw className="w-3.5 h-3.5 text-purple-500"/>
+                    <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Structural Rewrites</p>
+                  </div>
+                  <div className="space-y-3">
+                    {stratResult.action_plan.structural_rewrites?.map((item, i) => (
+                      <div key={i} className="border border-purple-100 rounded-xl overflow-hidden">
+                        <div className="px-3 py-2.5 bg-purple-50">
+                          <p className="text-xs font-semibold text-slate-800 leading-snug">{item.action}</p>
+                          <span className="inline-block mt-1 text-[9px] font-semibold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                            {STRATEGY_DIMENSIONS.find(d => d.key === item.dimension)?.label ?? item.dimension}
+                          </span>
+                        </div>
+                        <div className="px-3 py-2.5 space-y-2">
+                          <div>
+                            <p className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider mb-0.5">Impact</p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{item.impact}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-novax uppercase font-semibold tracking-wider mb-0.5">How</p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{item.how}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* Strengths */}
+          {stratResult.strengths && stratResult.strengths.length > 0 && (
+            <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Star className="w-4 h-4 text-emerald-600"/>
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">What Is Working — Do Not Change</p>
+              </div>
+              <div className="space-y-2">
+                {stratResult.strengths.map((s, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <ArrowRight className="w-3 h-3 text-emerald-500 mt-1 shrink-0"/>
+                    <p className="text-xs text-slate-700 leading-relaxed">{s}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Stress test */}
           {stratResult.strategic_stress_test && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <ShieldAlert className="w-4 h-4 text-slate-500"/>
-                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Stress Test — Key Assumption</p>
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Stress Test — The Assumption This Strategy Will Die On</p>
               </div>
               <div className="space-y-4">
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-medium mb-1">The assumption this strategy rests on</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider mb-1">Core assumption</p>
                   <p className="text-xs text-slate-700 leading-relaxed font-medium">{stratResult.strategic_stress_test.core_assumption}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-red-500 uppercase font-medium mb-1">Failure mode if assumption is wrong</p>
+                  <p className="text-[10px] text-red-500 uppercase font-semibold tracking-wider mb-1">Failure mode if wrong</p>
                   <p className="text-xs text-slate-600 leading-relaxed">{stratResult.strategic_stress_test.failure_mode}</p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-emerald-600 uppercase font-medium mb-1">How to make it more resilient</p>
-                  <p className="text-xs text-slate-600 leading-relaxed">{stratResult.strategic_stress_test.mitigation}</p>
+                <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                  <p className="text-[10px] text-emerald-600 uppercase font-semibold tracking-wider mb-1">How to make it resilient</p>
+                  <p className="text-xs text-slate-700 leading-relaxed">{stratResult.strategic_stress_test.mitigation}</p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Gaps / Quick wins / Competitor blind spots */}
+          {/* Critical gaps / Quick wins / Blind spots */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <TriangleAlert className="w-3.5 h-3.5 text-red-500"/>
                 <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Critical Gaps</p>
               </div>
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {stratResult.critical_gaps?.map((g, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <div className="w-1 h-1 rounded-full bg-red-400 mt-1.5 shrink-0"/>
@@ -996,7 +1240,7 @@ export default function CreativeEvalPage() {
                 <Lightbulb className="w-3.5 h-3.5 text-amber-500"/>
                 <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Quick Wins</p>
               </div>
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {stratResult.quick_wins?.map((w, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <div className="w-1 h-1 rounded-full bg-amber-400 mt-1.5 shrink-0"/>
@@ -1011,7 +1255,7 @@ export default function CreativeEvalPage() {
                 <Users className="w-3.5 h-3.5 text-sky-500"/>
                 <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Competitor Blind Spots</p>
               </div>
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {stratResult.competitor_blind_spots?.map((b, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <div className="w-1 h-1 rounded-full bg-sky-400 mt-1.5 shrink-0"/>

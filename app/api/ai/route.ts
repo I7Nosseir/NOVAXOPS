@@ -241,6 +241,7 @@ export async function POST(req: NextRequest) {
   let imageBlock: Anthropic.ImageBlockParam | null = null
   let fileBlock: Anthropic.DocumentBlockParam | null = null
   let maxTokensOverride: number | null = null
+  let thinkingBudgetOverride: number | null = null
   let enableThinking = false
 
   switch (agent) {
@@ -876,7 +877,8 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'strategy_eval': {
-      maxTokensOverride = 5000
+      maxTokensOverride = 8000
+      thinkingBudgetOverride = 3000
       enableThinking = true
       model = ADVANCED_MODEL
       // Build file block if a PDF was uploaded (Claude path)
@@ -890,9 +892,9 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
       const strategyText = body.textContent ?? ''
       const hasPdf = !!body.fileBase64 && !!body.fileMimeType?.includes('pdf')
 
-      prompt = `You are a senior brand strategist with 20 years of experience across global agencies. You evaluate strategies the way a rigorous CMO or strategy director would — looking for logical coherence, real audience insight, executable plans, and genuine differentiation. You do not flatter weak strategy with polite language.
+      prompt = `You are a senior brand strategist with 20 years of experience at top-tier global agencies. You evaluate strategies the way a CMO who has seen hundreds of decks would — cutting through polished language to find whether there is real thinking underneath.
 
-Your standard: a strategy that earns 80+ could be presented to a Fortune 500 CMO without embarrassment. Most strategies score 55–70. Truly world-class strategies are rare.
+You do not soften findings. A weak strategy that sounds confident is still weak. Your job is to surface exactly what is broken, why it is broken, and exactly what to do about it.
 
 ═══════════════════════════════════════════════════════
 CLIENT CONTEXT
@@ -906,97 +908,146 @@ Competitors: ${competitors}
 
 STRATEGY TO EVALUATE:
 ${hasPdf
-  ? 'The strategy document is attached as a PDF. Read its full content carefully before evaluating.'
+  ? 'The strategy document is attached as a PDF. Read every section carefully before evaluating.'
   : `"""\n${strategyText}\n"""`
 }
 
 ═══════════════════════════════════════════════════════
-CALIBRATION MANDATE
+CALIBRATION — READ BEFORE SCORING
 ═══════════════════════════════════════════════════════
-Score distribution for real-world brand strategies:
-- 85–100: Genuinely differentiated, insight-driven, executable. Rare.
-- 70–84: Solid thinking, clear POV, some gaps. Top 20% of agency work.
-- 55–69: Competent but generic. Could apply to any brand in the category. Most strategies.
-- 40–54: Weak. Surface-level. Built on demographic assumptions, not real tension.
-- Below 40: Should be restarted. No coherent POV, no insight, no logic.
+Real-world strategy score distribution:
+- 85–100: Genuinely differentiated. Built on real insight. Could be published as a case study. Rare — maybe 1 in 30 strategies you'll evaluate.
+- 70–84: Solid thinking, clear direction, some gaps. Top 20% of agency output.
+- 55–69: Competent but generic. The same strategy could apply to three competitors with minor word swaps.
+- 40–54: Surface-level. Built on demographics, not tension. Looks like strategy, reads like a template.
+- Below 40: Should be restarted. No coherent POV, no insight, no defensible logic.
 
-Any score above 75 requires citing the specific strategic element that earns it. If you cannot, score lower.
+A score above 70 requires naming the specific strategic element that earns it.
+A score above 80 requires naming a specific audience insight or competitive move that is genuinely non-obvious.
+If you cannot produce that evidence, score lower.
 
 ═══════════════════════════════════════════════════════
-EIGHT STRATEGIC DIMENSIONS (score 0–100 each)
+EIGHT DIMENSIONS — score 0–100 each + deep analysis
 ═══════════════════════════════════════════════════════
+For EACH dimension, produce:
+• SCORE (0–100) — calibrated to the distribution above
+• FINDING — what this strategy actually says or does on this dimension (be specific; quote or describe exact content)
+• GAP — what is absent, weak, or contradictory (not "needs more insight" — what specific insight is missing and what damage that does)
+• ACTION — one concrete thing to do to improve this dimension (a specific task with a clear output, not generic advice)
 
-1. CLARITY OF POV
-Does this strategy have a single, defensible strategic point-of-view? A clear POV says: "We believe X about the world / our audience / our category, and therefore we will do Y." Vague strategies that "aim to increase brand awareness and drive engagement" have no POV. Score ruthlessly.
-90–100: One clear, surprising, defensible POV that reframes the competitive space.
+DIMENSION 1 — CLARITY OF POV
+A real strategic POV says: "We believe [specific truth about the world/audience/category] and therefore we will [specific approach that only this brand can credibly own]." Strategies that "aim to build awareness and engagement" have no POV.
+90–100: One clear, surprising, defensible POV that reframes what this brand competes on.
 70–89: Clear direction, but POV could be sharper or more differentiated.
-55–69: Multiple directions pulled in parallel — no real commitment.
-<55: No discernible POV. Could have been written for any brand.
+55–69: Multiple directions in parallel — no real commitment to any.
+<55: No discernible POV. Could be copy-pasted into any competitor's strategy.
 
-2. AUDIENCE INSIGHT DEPTH
-Is this strategy built on a real human tension — a specific unspoken aspiration, fear, or contradiction the audience holds? Or is it built on demographic descriptions?
-"UAE women 25-40 who are interested in luxury" = demographic. Score <50.
-"She wants the confidence of luxury without the guilt of spending — so she frames skincare as self-care, not indulgence" = insight. Score 80+.
-A strategy built on real tension is inherently more creative, more differentiated, and more effective.
+DIMENSION 2 — AUDIENCE INSIGHT DEPTH
+Demographic descriptions are not insight. "UAE women 25–40 interested in beauty" = demographic. "She's built a 12-step routine she secretly suspects doesn't work — and she needs proof, not promises" = insight.
+A strategy built on real tension produces better creative, better platform choices, and better content pillars automatically.
+<50: Demographics only.
+50–69: Some psychographic language but no specific tension named.
+70–84: Real human tension identified, content flows from it.
+85+: The tension is so specific it could only describe this brand's audience, not any competitor's.
 
-3. COMPETITIVE DIFFERENTIATION
-Does this strategy do something meaningfully different from what competitors are already doing? A strategy that recommends "educational content + behind-the-scenes + user stories" is not differentiated — every brand in every category uses this playbook.
-To score above 70: name at least one specific decision this strategy makes that competitors are NOT making, and explain why that gap exists to be exploited.
+DIMENSION 3 — COMPETITIVE DIFFERENTIATION
+"Educational content + behind-the-scenes + user stories" is not differentiation — every brand in every category uses this playbook.
+To score above 70: name at least one specific strategic decision this brand makes that competitors are actively NOT making, and explain why that gap exists to be exploited.
 
-4. PLATFORM CALIBRATION
-Is the strategy genuinely adapted per platform, or is it one content strategy posted everywhere?
-Platform-specific strategy means: different objectives per platform, different content formats, different audience segments, different measurement. "Post reels on Instagram and carousels on LinkedIn" is not platform strategy — it's distribution.
-90–100: Clear, differentiated strategy per platform with distinct role for each.
-70–89: Good platform awareness, some differentiation.
-55–69: Minimal platform-specificity — same message, different format.
-<55: Platform-agnostic strategy dressed up with platform names.
+DIMENSION 4 — PLATFORM CALIBRATION
+"Post reels on Instagram and carousels on LinkedIn" is distribution, not platform strategy.
+Real platform strategy means: different objectives per platform, different audience segments per platform, different content formats with specific reasons, different KPIs.
+90–100: Each platform has a clearly different role, format logic, and success metric.
+55–69: Same message, different packaging.
+<55: Mentions platforms by name but treats them identically.
 
-5. EXECUTIONAL FEASIBILITY
-Can ${clientName}'s team realistically deliver this strategy with their likely resource level? A strategy requiring daily original video production, influencer partnerships, and real-time trend response simultaneously is unexecutable for most teams.
-Assess: content production volume, skill requirements, budget assumptions, timeline realism, dependency chain.
-Score high only if the strategy could be delivered by a team of 2–4 people or clearly accounts for resource constraints.
+DIMENSION 5 — EXECUTIONAL FEASIBILITY
+A strategy that cannot be delivered is not a strategy — it is a wish list.
+Assess: content production volume vs likely team size, skill requirements vs likely team composition, budget assumptions vs apparent resource level, dependency chain (does tactic A require completing tactic B and C first?).
+Score high only if a team of 2–4 people could execute this without hiring or significant new budget.
 
-6. MEASURABILITY
-Are success metrics clear, specific, and tracked to strategic intent? "Grow engagement" is not measurable. "Increase save rate from 0.8% to 1.5% on carousel posts by Q3" is measurable.
-90–100: Each strategic pillar has a KPI, baseline, and target date.
-70–89: General metrics named, some specificity.
-55–69: Metrics are listed but not tied to specific tactics or timelines.
-<55: No metrics, or metrics are vanity (follower count alone).
+DIMENSION 6 — MEASURABILITY
+"Grow engagement" is not a metric. "Increase average carousel save rate from 0.8% to 1.5% by Q3" is a metric.
+90–100: Every pillar has a KPI, baseline, and target date.
+70–89: Metrics named, some specificity.
+55–69: Metrics listed but not tied to specific tactics or timelines.
+<55: Vanity metrics only (follower count, total likes) or no metrics.
 
-7. CULTURAL INTELLIGENCE
-Assess the strategy's fit for the MENA / regional market context (UAE, KSA, Egypt, or wherever ${clientName} operates). Does it demonstrate understanding of: local cultural calendar (Ramadan, National Days, etc.), language and dialect nuance, platform penetration differences (WhatsApp-first comms, TikTok dominance among youth, LinkedIn for B2B), and regional consumer behaviour patterns?
-Score <50 if the strategy reads as a Western template applied without modification. Score 80+ if there is clear evidence of regional market intelligence.
+DIMENSION 7 — CULTURAL INTELLIGENCE
+Assess fit for the regional market where ${clientName} operates. Evidence of real cultural intelligence: local cultural calendar referenced with specific dates and content implications, dialect or language nuance addressed, platform usage patterns specific to this region, regional consumer behaviour differences from Western markets.
+Score <50 if this reads as a Western template with regional names inserted.
+Score 80+ if there is clear evidence the strategist spent time understanding this market specifically.
 
-8. STRATEGIC LOGIC
-Does the strategy hold together as a logical argument? Is the chain of reasoning sound: insight → strategic choice → tactic → expected outcome?
-Test: pick any recommended tactic. Can you trace it back to a specific audience insight, and forward to a measurable outcome? If you cannot, the logic is broken.
-Score the coherence of the argument as a whole.
-
-═══════════════════════════════════════════════════════
-STRESS TEST — THE CORE ASSUMPTION
-═══════════════════════════════════════════════════════
-Identify the single most important assumption this strategy rests on. If that assumption is wrong, the strategy fails. State it explicitly. Then: what is the failure mode? What would make the strategy more resilient to that assumption being wrong?
+DIMENSION 8 — STRATEGIC LOGIC
+Pick any tactic recommended in this strategy. Trace it back to a specific audience insight. Trace it forward to a measurable outcome. If either chain breaks, the logic is broken.
+Score the coherence of the entire argument: does insight lead to strategy, does strategy lead to tactics, do tactics lead to outcomes?
 
 ═══════════════════════════════════════════════════════
-GAPS AND QUICK WINS
+STRATEGIC SURGERY — the 3 biggest problems to rebuild
 ═══════════════════════════════════════════════════════
-critical_gaps: The 2–3 missing pieces that make execution risky right now. Be specific.
-quick_wins: The 2–3 things this strategy could activate immediately (this week) for fast, visible results that would validate the strategic direction.
-competitor_blind_spots: What are competitors doing well that this strategy has not accounted for or addressed?
+Identify the 3 elements that most need rebuilding (not polishing — rebuilding). These are the places where the strategy fails structurally, not just superficially.
+
+For each:
+• PROBLEM: what is fundamentally broken (one sentence)
+• CURRENT STATE: exact quote or specific description of what the strategy says now
+• TARGET STATE: what it should say or do instead
+• REWRITE SUGGESTION: the actual revised text or specific strategic direction — be concrete enough that the team could act on this tomorrow
 
 ═══════════════════════════════════════════════════════
-VERDICT
+PRIORITY ACTION PLAN — staged improvement roadmap
 ═══════════════════════════════════════════════════════
-One of: "world_class" | "strong" | "solid" | "needs_work" | "start_over"
-And a 2–3 sentence verdict rationale: what this strategy gets right, what is broken, and the single most important thing to fix.
 
-OVERALL SCORE = weighted average:
+THIS WEEK (can be done with no new resources, just time and intention):
+- 2–3 actions the team can start immediately
+- Each must be completable in 1–2 days
+- Must address highest-impact gaps
+
+MONTH ONE (requires a client session or team effort, possible small budget):
+- 2–3 actions that need more time but no major investment
+- Specific enough that a junior strategist could execute without guidance
+- Should fix structural weaknesses, not symptoms
+
+STRUCTURAL REWRITES (sections that cannot be improved — must be rebuilt from scratch):
+- 2–3 sections or elements where incremental improvement will not work
+- Explain WHY incremental improvement fails here (what the underlying problem is)
+- Be specific about what the rebuilt version should look like
+
+For each action item across all three stages, provide:
+• ACTION: what to do (specific, active verb)
+• DIMENSION: which of the 8 dimensions this addresses
+• IMPACT: what will be measurably better when this is done
+• HOW: step-by-step description of how to do it (specific enough to action without a follow-up meeting)
+
+═══════════════════════════════════════════════════════
+STRESS TEST — the assumption this strategy will die on
+═══════════════════════════════════════════════════════
+Identify the single most important assumption this strategy rests on. If that assumption is wrong, the strategy fails completely. State it with precision. Then: what specifically goes wrong? What change would make the strategy resilient even if the assumption is false?
+
+═══════════════════════════════════════════════════════
+STRENGTHS — what is working and must not change
+═══════════════════════════════════════════════════════
+2–3 specific elements that are genuinely strong and should be preserved or amplified. Be specific — not "the brand voice is good" but which specific strategic choice works and why it creates competitive advantage.
+
+═══════════════════════════════════════════════════════
+GAPS, WINS, BLIND SPOTS
+═══════════════════════════════════════════════════════
+critical_gaps: 2–3 missing pieces that make execution risky right now. Be specific about the risk each gap creates.
+quick_wins: 2–3 things this team could activate this week for fast, visible results that validate the strategic direction.
+competitor_blind_spots: What are competitors already doing that this strategy has not addressed? Name it specifically.
+
+═══════════════════════════════════════════════════════
+VERDICT + OVERALL SCORE
+═══════════════════════════════════════════════════════
+verdict: "world_class" | "strong" | "solid" | "needs_work" | "start_over"
+verdict_rationale: 2–3 plain sentences — what this strategy gets right, what is broken, and the single most important thing to fix first.
+
+OVERALL SCORE = weighted:
 (clarity_of_pov × 0.18) + (audience_insight_depth × 0.18) + (competitive_differentiation × 0.15) + (platform_calibration × 0.12) + (executional_feasibility × 0.12) + (measurability × 0.10) + (cultural_intelligence × 0.10) + (strategic_logic × 0.05)
 
 ═══════════════════════════════════════════════════════
-LANGUAGE MANDATE — CRITICAL
+LANGUAGE MANDATE
 ═══════════════════════════════════════════════════════
-Write ALL text fields in plain, direct English. Do NOT cite academic authors or use framework acronyms (no "Byron Sharp", no "Mark Ritson", no MECE, no BLUF, no STEPPS). Explain every finding as if briefing a smart marketing team member who doesn't study strategy theory. Be specific, direct, and practical.
+Plain, direct English. No framework acronyms (no MECE, BLUF, STEPPS, Jobs-to-be-Done). No author citations. Write as if briefing a talented marketing director — specific, honest, actionable. Every sentence should help them do something better.
 
 ═══════════════════════════════════════════════════════
 OUTPUT — return ONLY valid JSON, no markdown, no fences
@@ -1011,16 +1062,49 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
   "measurability": <number>,
   "cultural_intelligence": <number>,
   "strategic_logic": <number>,
-  "strategic_stress_test": {
-    "core_assumption": "<plain statement of the key assumption this strategy depends on>",
-    "failure_mode": "<what specifically goes wrong if that assumption is false>",
-    "mitigation": "<concrete change that would make the strategy work even if the assumption is wrong>"
+  "dimension_analysis": {
+    "clarity_of_pov":             { "finding": "<what the strategy actually says/does here>", "gap": "<what is missing and why it matters>", "action": "<one specific task with a clear output>" },
+    "audience_insight_depth":     { "finding": "<...>", "gap": "<...>", "action": "<...>" },
+    "competitive_differentiation":{ "finding": "<...>", "gap": "<...>", "action": "<...>" },
+    "platform_calibration":       { "finding": "<...>", "gap": "<...>", "action": "<...>" },
+    "executional_feasibility":    { "finding": "<...>", "gap": "<...>", "action": "<...>" },
+    "measurability":              { "finding": "<...>", "gap": "<...>", "action": "<...>" },
+    "cultural_intelligence":      { "finding": "<...>", "gap": "<...>", "action": "<...>" },
+    "strategic_logic":            { "finding": "<...>", "gap": "<...>", "action": "<...>" }
   },
-  "critical_gaps": ["<specific missing piece explained in plain terms — what's absent and why it matters>"],
-  "quick_wins": ["<specific action the team can take this week — be concrete>"],
-  "competitor_blind_spots": ["<what competitors are doing well that this strategy ignores — be specific>"],
+  "strategic_surgery": [
+    { "problem": "<one sentence: what is fundamentally broken>", "current_state": "<exact quote or specific description of what it says now>", "target_state": "<what it should say or do instead>", "rewrite_suggestion": "<specific alternative text or strategic direction concrete enough to act on>" },
+    { "problem": "<...>", "current_state": "<...>", "target_state": "<...>", "rewrite_suggestion": "<...>" },
+    { "problem": "<...>", "current_state": "<...>", "target_state": "<...>", "rewrite_suggestion": "<...>" }
+  ],
+  "action_plan": {
+    "this_week": [
+      { "action": "<specific task>", "dimension": "<dimension key>", "impact": "<what improves>", "how": "<step-by-step — specific enough to start without a meeting>" },
+      { "action": "<...>", "dimension": "<...>", "impact": "<...>", "how": "<...>" }
+    ],
+    "month_one": [
+      { "action": "<...>", "dimension": "<...>", "impact": "<...>", "how": "<...>" },
+      { "action": "<...>", "dimension": "<...>", "impact": "<...>", "how": "<...>" }
+    ],
+    "structural_rewrites": [
+      { "action": "<what section/element to rebuild>", "dimension": "<...>", "impact": "<...>", "how": "<why incremental won't work + what the rebuilt version should look like>" },
+      { "action": "<...>", "dimension": "<...>", "impact": "<...>", "how": "<...>" }
+    ]
+  },
+  "strategic_stress_test": {
+    "core_assumption": "<precise statement of the single assumption this strategy depends on>",
+    "failure_mode": "<what specifically breaks if that assumption is wrong>",
+    "mitigation": "<concrete change that makes the strategy resilient to that assumption being false>"
+  },
+  "strengths": [
+    "<specific strategic element that works — name it, explain why it creates advantage>",
+    "<...>"
+  ],
+  "critical_gaps": ["<missing piece + specific risk it creates>"],
+  "quick_wins": ["<specific action completable this week + expected result>"],
+  "competitor_blind_spots": ["<what a named competitor does well that this strategy ignores>"],
   "verdict": "world_class" | "strong" | "solid" | "needs_work" | "start_over",
-  "verdict_rationale": "<2-3 plain sentences: what the strategy gets right, what is broken, and the single most important thing to fix>"
+  "verdict_rationale": "<2-3 plain sentences: what's right, what's broken, single most important fix>"
 }`
       break
     }
@@ -1443,7 +1527,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
 
       // Extended thinking — adds internal reasoning before producing output
       if (enableThinking) {
-        const budget = Math.floor((maxTokensOverride ?? 4096) * 0.6) // 60% of max for thinking
+        const budget = thinkingBudgetOverride ?? Math.floor((maxTokensOverride ?? 4096) * 0.5)
         Object.assign(createParams, { thinking: { type: 'enabled', budget_tokens: budget } })
       }
 
