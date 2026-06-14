@@ -8,24 +8,47 @@ import {
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
-// ── File preparation — PDF goes straight to AI as base64, no text extraction ──
+// ── Upload PDF to Supabase Storage, return public URL ──────────────────────────
+// This sidesteps Vercel's 4.5MB request body limit: the browser uploads directly
+// to Supabase, then /api/ai fetches the PDF server-side (no inbound size limit).
+async function uploadPdfToStorage(f: File): Promise<string> {
+  const path = `eval-tmp/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+  let uploadError: { message: string } | null = null
+  try {
+    const result = await supabase.storage.from('assets').upload(path, f, {
+      contentType: 'application/pdf',
+      upsert: false,
+    })
+    uploadError = result.error
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new Error(
+      msg.includes('token') || msg.includes('JSON')
+        ? 'PDF upload failed — ensure sql/036_assets_pdf_mime.sql has been run in Supabase.'
+        : `PDF upload failed: ${msg}`,
+    )
+  }
+  if (uploadError) throw new Error(`PDF upload failed: ${uploadError.message}`)
+  const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
+  return publicUrl
+}
+
+// ── File preparation — non-PDF files extracted to text ────────────────────────
 
 type FileResult =
   | { mode: 'file'; base64: string; mimeType: string; detectedType: 'copy' | 'data' }
+  | { mode: 'storage'; rawFile: File; mimeType: string; detectedType: 'copy' | 'data' }
   | { mode: 'text'; text: string; detectedType: 'copy' | 'data' }
 
 async function prepareFile(file: File): Promise<FileResult> {
   const name = file.name.toLowerCase()
 
-  // PDF → base64, sent directly to AI (Claude document block / Gemini inline_data)
+  // PDF → upload to Supabase Storage at eval time (avoids Vercel's 4.5MB body limit)
   if (name.endsWith('.pdf')) {
-    const buffer = await file.arrayBuffer()
-    const bytes = new Uint8Array(buffer)
-    let binary = ''
-    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-    return { mode: 'file', base64: btoa(binary), mimeType: 'application/pdf', detectedType: 'copy' }
+    return { mode: 'storage', rawFile: file, mimeType: 'application/pdf', detectedType: 'copy' }
   }
 
   // CSV / Excel → extract to text (AI reads tabular data as CSV text)
@@ -253,7 +276,7 @@ export default function StrategyEvalPage() {
   const [clientId, setClientId] = useState('')
   const [platform, setPlatform] = useState('instagram')
   const [text, setText] = useState('')
-  const [fileData, setFileData] = useState<{ base64: string; mimeType: string; filename: string; size: number } | null>(null)
+  const [fileData, setFileData] = useState<{ base64?: string; rawFile?: File; mimeType: string; filename: string; size: number } | null>(null)
   const [preparing, setPreparing] = useState(false)
   const [evaluating, setEvaluating] = useState(false)
   const [strategyResult, setStrategyResult] = useState<StrategyResult | null>(null)
@@ -275,7 +298,9 @@ export default function StrategyEvalPage() {
     try {
       const result = await prepareFile(f)
       if (mode === 'content') setContentType(result.detectedType)
-      if (result.mode === 'file') {
+      if (result.mode === 'storage') {
+        setFileData({ rawFile: result.rawFile, mimeType: result.mimeType, filename: f.name, size: f.size })
+      } else if (result.mode === 'file') {
         setFileData({ base64: result.base64, mimeType: result.mimeType, filename: f.name, size: f.size })
       } else {
         setText(result.text)
@@ -324,8 +349,17 @@ export default function StrategyEvalPage() {
       }
 
       let fetchInit: RequestInit
-      if (fileData) {
-        // Send file as binary FormData to bypass JSON body size limits
+      if (fileData?.rawFile && fileData.mimeType === 'application/pdf') {
+        // PDF path: upload to Supabase Storage first, then send URL to /api/ai.
+        // The route fetches it server-side — no Vercel inbound body size limit applies.
+        const fileUrl = await uploadPdfToStorage(fileData.rawFile)
+        fetchInit = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...params, fileUrl, fileType: 'pdf' }),
+        }
+      } else if (fileData?.base64) {
+        // Non-PDF binary (future formats) — send as FormData
         const bytes = atob(fileData.base64)
         const arr = new Uint8Array(bytes.length)
         for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
