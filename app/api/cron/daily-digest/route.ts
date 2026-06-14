@@ -22,6 +22,9 @@ export async function GET(req: NextRequest) {
 
   const now = new Date()
   const today = now.toISOString().split('T')[0]
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toISOString().split('T')[0]
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
   // -------------------------------------------------------------------------
@@ -63,17 +66,19 @@ export async function GET(req: NextRequest) {
       .select('pipeline_stage')
       .neq('status', 'completed'),
 
-    // 5. Posts scheduled today
+    // 5. Posts scheduled for today only (not future dates)
     db.from('scheduled_posts')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'scheduled')
-      .gte('scheduled_at', today),
+      .gte('scheduled_at', today)
+      .lt('scheduled_at', tomorrowStr),
 
-    // 6. Posts published today
+    // 6. Posts published today only
     db.from('scheduled_posts')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'published')
-      .gte('published_at', today),
+      .gte('published_at', today)
+      .lt('published_at', tomorrowStr),
 
     // 7. Pending moderation items
     db.from('moderation_items')
@@ -156,7 +161,7 @@ export async function GET(req: NextRequest) {
   // -------------------------------------------------------------------------
   // Determine CEO name and email
   // -------------------------------------------------------------------------
-  const ceoEmail = process.env.CEO_EMAIL ?? 'novaaxone@gmail.com'
+  const ceoEmail = process.env.CEO_EMAIL ?? 'mostafaatef7@gmail.com'
 
   let ceoName = 'CEO'
   const { data: ceoUser } = await db

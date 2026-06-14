@@ -764,18 +764,37 @@ export default function SettingsPage() {
   // Activity tab state
   type ActivityUser = {
     id: string; name: string; email: string; role: string; avatar_url: string | null
-    last_seen: string | null; current_page: string | null; api_calls_this_month: number
+    last_seen: string | null; current_page: string | null
+    api_calls_this_month: number
+    today_ai_calls: number; today_ai_cost_usd: number; today_ai_cached: number
+    month_ai_calls: number; month_ai_cost_usd: number
+    today_studio_sessions: number; today_docs_created: number
+    today_ai_agents: Record<string, number>
   }
-  const [activityUsers, setActivityUsers] = useState<ActivityUser[]>([])
-  const [activityLoading, setActivityLoading] = useState(false)
+  type ActivityTotals = {
+    today_ai_calls: number; today_ai_cost_usd: number
+    month_ai_calls: number; month_ai_cost_usd: number
+    online_now: number
+  }
+  type AgentBreakdownItem = { agent: string; count: number }
+  const [activityUsers, setActivityUsers]         = useState<ActivityUser[]>([])
+  const [activityTotals, setActivityTotals]       = useState<ActivityTotals | null>(null)
+  const [agentBreakdown, setAgentBreakdown]       = useState<AgentBreakdownItem[]>([])
+  const [activityLoading, setActivityLoading]     = useState(false)
 
   const fetchActivity = useCallback(async () => {
     if (!canManageKillSwitch) return
     setActivityLoading(true)
     try {
       const res  = await fetch('/api/user/activity')
-      const data = await res.json() as { users?: ActivityUser[] }
+      const data = await res.json() as {
+        users?: ActivityUser[]
+        totals?: ActivityTotals
+        agent_breakdown?: AgentBreakdownItem[]
+      }
       setActivityUsers(data.users ?? [])
+      setActivityTotals(data.totals ?? null)
+      setAgentBreakdown(data.agent_breakdown ?? [])
     } catch { /* non-critical */ }
     finally { setActivityLoading(false) }
   }, [canManageKillSwitch])
@@ -1358,31 +1377,52 @@ export default function SettingsPage() {
             </button>
           </div>
 
+          {/* Agency-wide totals */}
+          {activityTotals && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Online Now',       value: String(activityTotals.online_now),                           sub: 'active in last 5 min' },
+                { label: 'AI Calls Today',   value: String(activityTotals.today_ai_calls),                       sub: `$${activityTotals.today_ai_cost_usd.toFixed(4)} cost` },
+                { label: 'AI Calls (Month)', value: String(activityTotals.month_ai_calls),                       sub: `$${activityTotals.month_ai_cost_usd.toFixed(2)} cost` },
+                { label: 'Month AI Cost',    value: `$${activityTotals.month_ai_cost_usd.toFixed(2)}`,           sub: `${activityTotals.month_ai_calls} total calls` },
+              ].map(card => (
+                <div key={card.label} className="bg-white border border-slate-200 rounded-xl px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{card.label}</p>
+                  <p className="text-xl font-bold text-slate-900 mt-0.5">{card.value}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {activityLoading && activityUsers.length === 0 ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-5 h-5 animate-spin text-slate-400"/>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left">
                     <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">User</th>
                     <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                     <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Current Page</th>
                     <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Last Seen</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">AI Calls</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Today Calls</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Today Cost</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Month Calls</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Month Cost</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {activityUsers.map(u => {
-                    const now       = Date.now()
+                    const nowMs     = Date.now()
                     const lastMs    = u.last_seen ? new Date(u.last_seen).getTime() : null
-                    const diffMin   = lastMs ? (now - lastMs) / 60_000 : null
+                    const diffMin   = lastMs ? (nowMs - lastMs) / 60_000 : null
                     const status    = diffMin === null ? 'offline' : diffMin < 5 ? 'online' : diffMin < 30 ? 'idle' : 'offline'
                     const lastLabel = lastMs
-                      ? diffMin! < 1   ? 'Just now'
-                      : diffMin! < 60  ? `${Math.round(diffMin!)}m ago`
+                      ? diffMin! < 1    ? 'Just now'
+                      : diffMin! < 60   ? `${Math.round(diffMin!)}m ago`
                       : diffMin! < 1440 ? `${Math.round(diffMin! / 60)}h ago`
                       : new Date(lastMs).toLocaleDateString()
                       : 'Never'
@@ -1417,17 +1457,29 @@ export default function SettingsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 hidden sm:table-cell">
-                          <span className="text-xs text-slate-500 font-mono truncate max-w-[180px] block">{page}</span>
+                          <span className="text-xs text-slate-500 font-mono truncate max-w-[160px] block">{page}</span>
                         </td>
                         <td className="px-4 py-3 hidden md:table-cell">
                           <span className="text-xs text-slate-500">{lastLabel}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className={cn(
-                            'text-xs font-semibold',
-                            u.api_calls_this_month > 0 ? 'text-novax-muted' : 'text-slate-400',
-                          )}>
-                            {u.api_calls_this_month}
+                          <span className={cn('text-xs font-semibold tabular-nums', u.today_ai_calls > 0 ? 'text-novax-muted' : 'text-slate-300')}>
+                            {u.today_ai_calls}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={cn('text-xs font-semibold tabular-nums', u.today_ai_cost_usd > 0 ? 'text-amber-600' : 'text-slate-300')}>
+                            {u.today_ai_cost_usd > 0 ? `$${u.today_ai_cost_usd.toFixed(4)}` : '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={cn('text-xs font-semibold tabular-nums', u.month_ai_calls > 0 ? 'text-novax-muted' : 'text-slate-300')}>
+                            {u.month_ai_calls}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={cn('text-xs font-semibold tabular-nums', u.month_ai_cost_usd > 0 ? 'text-amber-600' : 'text-slate-300')}>
+                            {u.month_ai_cost_usd > 0 ? `$${u.month_ai_cost_usd.toFixed(4)}` : '—'}
                           </span>
                         </td>
                       </tr>
@@ -1435,16 +1487,32 @@ export default function SettingsPage() {
                   })}
                   {activityUsers.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
+                      <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
                         No user data yet — run `031_user_activity.sql` migration in Supabase.
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
+
+              {/* Agent breakdown footer */}
+              {agentBreakdown.length > 0 && (
+                <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Top AI Agents Today</p>
+                  <div className="flex flex-wrap gap-2">
+                    {agentBreakdown.slice(0, 8).map(({ agent, count }) => (
+                      <span key={agent} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded-full text-[10px] font-medium text-slate-600">
+                        <span className="font-mono text-novax-muted">{count}×</span>
+                        {agent.replace(/_/g, ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center gap-1.5 text-[11px] text-slate-400">
                 <MonitorDot className="w-3 h-3"/>
-                Auto-refreshes every 30 seconds · Online = active in last 5 min · Idle = last 30 min · AI calls counted from the start of this calendar month
+                Auto-refreshes every 30 seconds · Online = active in last 5 min · Idle = last 30 min · Costs pulled from api_usage table
               </div>
             </div>
           )}
