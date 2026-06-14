@@ -108,11 +108,15 @@ export function Sidebar() {
   }
 
   // Returns true if the user is allowed to see an optional page.
-  // Admins always see everything. null permissions = all pages visible.
+  // Admin/CEO see everything. Studio items require explicit permission for all other roles.
   const canSee = (permKey?: string) => {
     if (!permKey) return true
-    if (isAdmin) return true
+    if (isAdmin || isCeoOrAdmin) return true
     const perms = user?.page_permissions
+    // Studio requires explicit grant regardless of null-default rule
+    if (permKey.startsWith('studio')) {
+      return perms != null && perms.includes(permKey)
+    }
     if (perms == null) return true
     return perms.includes(permKey)
   }

@@ -300,11 +300,24 @@ export default function CreativeEvalPage() {
 
   async function uploadPdfToStorage(f: File): Promise<string> {
     const path = `eval-tmp/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-    const { error } = await supabase.storage.from('assets').upload(path, f, {
-      contentType: 'application/pdf',
-      upsert: false,
-    })
-    if (error) throw new Error(`PDF upload failed: ${error.message}`)
+    let uploadError: { message: string } | null = null
+    try {
+      const result = await supabase.storage.from('assets').upload(path, f, {
+        contentType: 'application/pdf',
+        upsert: false,
+      })
+      uploadError = result.error
+    } catch (err) {
+      // Supabase SDK can throw a raw JSON.parse error if storage returns a non-JSON
+      // response (e.g. MIME type not allowed, or payload too large).
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(
+        msg.includes('token') || msg.includes('JSON')
+          ? 'PDF upload failed — run sql/036_assets_pdf_mime.sql in Supabase to enable PDF uploads.'
+          : `PDF upload failed: ${msg}`,
+      )
+    }
+    if (uploadError) throw new Error(`PDF upload failed: ${uploadError.message}`)
     const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
     return publicUrl
   }

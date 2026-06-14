@@ -263,6 +263,11 @@ export default function StrategyEvalPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleImportFile = async (f: File) => {
+    // PDFs sent as binary FormData — Vercel's 4.5MB request limit applies
+    if (f.name.toLowerCase().endsWith('.pdf') && f.size > 3.5 * 1024 * 1024) {
+      setEvalError('PDF is too large — maximum 3.5MB. Export a compressed version and try again.')
+      return
+    }
     setPreparing(true)
     setEvalError(null)
     setFileData(null)
@@ -338,7 +343,17 @@ export default function StrategyEvalPage() {
       }
 
       const res = await fetch('/api/ai', fetchInit)
-      const data = await res.json() as { text?: string; error?: string }
+      let data: { text?: string; error?: string }
+      try {
+        data = await res.json() as { text?: string; error?: string }
+      } catch {
+        if (res.status === 413) {
+          setEvalError('File is too large — the server rejected it. Use a PDF under 3.5MB.')
+        } else {
+          setEvalError(`Server error (${res.status}). Please try again.`)
+        }
+        return
+      }
       if (!res.ok || data.error) { setEvalError(data.error ?? 'Evaluation failed.'); return }
       const raw = (data.text ?? '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
       const parsed = JSON.parse(raw)

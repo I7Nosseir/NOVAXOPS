@@ -97,7 +97,7 @@ export async function GET(_req: NextRequest) {
       { data: docsToday },
     ] = await Promise.all([
       db.from('users')
-        .select('id, name, email, role, avatar_url')
+        .select('id, name, email, role')
         .order('name'),
 
       db.from('user_activity')
@@ -179,12 +179,13 @@ export async function GET(_req: NextRequest) {
       const act = activityMap.get(u.id)
       const todayAI = todayStatsMap.get(u.id)
       const monthAI = monthStatsMap.get(u.id)
+      const monthCalls = monthAI?.calls ?? 0
       return {
         id:            u.id,
         name:          u.name,
         email:         u.email,
         role:          u.role,
-        avatar_url:    u.avatar_url ?? null,
+        avatar_url:    null,
         last_seen:     act?.last_seen ?? null,
         current_page:  act?.current_page ?? null,
         today_ai_calls:      todayAI?.calls ?? 0,
@@ -193,8 +194,9 @@ export async function GET(_req: NextRequest) {
         today_ai_cached:     todayAI?.cached ?? 0,
         today_studio_sessions: studioTodayMap.get(u.id) ?? 0,
         today_docs_created:  docsTodayMap.get(u.id) ?? 0,
-        month_ai_calls:      monthAI?.calls ?? 0,
+        month_ai_calls:      monthCalls,
         month_ai_cost_usd:   Math.round((monthAI?.cost ?? 0) * 10000) / 10000,
+        api_calls_this_month: monthCalls,
       }
     })
 
