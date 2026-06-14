@@ -36,7 +36,8 @@ export async function PATCH(
 
     const allowed = [
       'tasks_worked', 'blockers', 'blockers_notes',
-      'highlights', 'energy_score', 'ai_feedback_notes', 'free_notes',
+      'highlights', 'energy_score', 'efficiency_score', 'content_quality_score',
+      'pulse_signals', 'ai_feedback_notes', 'free_notes',
     ]
     const patch: Record<string, unknown> = {}
     for (const key of allowed) {

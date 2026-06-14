@@ -11,6 +11,7 @@ import {
 import { useClients } from '@/lib/hooks/use-clients'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import { AILoadingOverlay } from '@/components/shared/ai-loading-overlay'
 
 type FileType = 'image' | 'video' | 'pdf'
 type InputMode = 'media' | 'strategy'
@@ -325,6 +326,10 @@ export default function CreativeEvalPage() {
   const evaluate = async () => {
     if (!canEvaluate) return
     setEvaluating(true); setResult(null); setStratResult(null); setEvalError(null)
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 120_000) // 2-minute hard stop
+
     try {
       const selectedClient = clients.find(c => c.id === clientId)
       const isStrategy = inputMode === 'strategy'
@@ -341,12 +346,12 @@ export default function CreativeEvalPage() {
       let res: Response
 
       if (inputMode === 'media' && file && file.type === 'pdf' && file.rawFile) {
-        // Upload PDF to Supabase Storage → pass public URL to route (bypasses Vercel 4.5MB limit)
         const fileUrl = await uploadPdfToStorage(file.rawFile)
         res = await fetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...basePayload, fileUrl, fileType: 'pdf' }),
+          signal: controller.signal,
         })
       } else if (inputMode === 'media' && file) {
         const { base64, mimeType } = await toBase64(file.url, file.type as 'image' | 'video')
@@ -354,14 +359,15 @@ export default function CreativeEvalPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...basePayload, imageBase64: base64, mimeType, fileType: file.type }),
+          signal: controller.signal,
         })
       } else if (inputMode === 'strategy' && stratFile) {
-        // Upload PDF to Supabase Storage → pass public URL to route (bypasses Vercel 4.5MB limit)
         const fileUrl = await uploadPdfToStorage(stratFile.file)
         res = await fetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...basePayload, fileUrl, fileType: 'pdf' }),
+          signal: controller.signal,
         })
       } else {
         return
@@ -404,9 +410,15 @@ export default function CreativeEvalPage() {
       if (isStrategy) setStratResult(parsed as StrategyEvalResult)
       else setResult(parsed as EvalResult)
     } catch (err) {
-      console.error('[eval] Unexpected error:', err)
-      setEvalError(err instanceof Error ? err.message : 'Evaluation failed.')
+      const isAbort = err instanceof Error && (err.name === 'AbortError' || err.message.includes('aborted'))
+      if (isAbort) {
+        setEvalError('Evaluation timed out after 2 minutes. The file may be too large or the AI service is under load — try again.')
+      } else {
+        console.error('[eval] Unexpected error:', err)
+        setEvalError(err instanceof Error ? err.message : 'Evaluation failed.')
+      }
     } finally {
+      clearTimeout(timeoutId)
       setEvaluating(false)
     }
   }
@@ -415,26 +427,15 @@ export default function CreativeEvalPage() {
 
   return (
     <>
-    {/* Full-screen loading overlay — covers sidebar, header, everything */}
     {evaluating && (
-      <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-white dark:bg-slate-950">
-        <div className="text-center space-y-6">
-          <div className="relative w-20 h-20 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-novax-light"/>
-            <div className="absolute inset-0 rounded-full border-4 border-t-novax animate-spin"/>
-          </div>
-          <div>
-            <p className="text-lg font-semibold text-slate-900 dark:text-white">
-              {inputMode === 'strategy' ? 'Evaluating strategy…' : 'Evaluating creative…'}
-            </p>
-            <p className="text-sm text-slate-500 mt-1">
-              {inputMode === 'strategy'
-                ? 'Direction · audience understanding · differentiation · stress test'
-                : 'Scroll stop · emotional pull · brand fit · rewrite suggestions'}
-            </p>
-          </div>
-        </div>
-      </div>
+      <AILoadingOverlay
+        messages={inputMode === 'strategy'
+          ? ['Evaluating strategic direction…', 'Checking audience insight depth…', 'Testing competitive differentiation…', 'Running stress test…', 'Building verdict…']
+          : ['Analysing scroll stop power…', 'Measuring emotional resonance…', 'Checking brand coherence…', 'Stress-testing the hook…', 'Building rewrite suggestions…']}
+        sub={inputMode === 'strategy'
+          ? 'Direction · audience depth · differentiation · stress test'
+          : 'Scroll stop · emotional pull · brand fit · rewrite suggestions'}
+      />
     )}
 
     <div className="space-y-6 max-w-5xl">
@@ -607,20 +608,6 @@ export default function CreativeEvalPage() {
               <div className="text-center">
                 <p className="text-sm font-medium text-red-700 mb-1">Evaluation failed</p>
                 <p className="text-xs text-red-600">{evalError}</p>
-              </div>
-            </div>
-          )}
-
-          {evaluating && (
-            <div className="h-full flex items-center justify-center p-8 bg-novax-light rounded-2xl border border-novax-border">
-              <div className="text-center">
-                <Loader2 className="w-8 h-8 text-novax animate-spin mx-auto mb-3"/>
-                <p className="text-sm font-medium text-novax-muted">Running analysis…</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {inputMode === 'strategy'
-                    ? 'POV clarity · audience insight · differentiation…'
-                    : 'Attention architecture · credibility gap · stress test…'}
-                </p>
               </div>
             </div>
           )}

@@ -411,6 +411,9 @@ export interface WorkDiary {
   blockers_notes: string | null
   highlights: string | null
   energy_score: number | null
+  efficiency_score: number | null
+  content_quality_score: number | null
+  pulse_signals: string[]
   ai_feedback_notes: DiaryAiFeedback[]
   free_notes: string | null
   created_at: string

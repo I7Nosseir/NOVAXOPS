@@ -81,15 +81,18 @@ export async function POST(req: NextRequest) {
       .from('work_diaries')
       .upsert(
         {
-          user_id:           targetUserId,
+          user_id:               targetUserId,
           date,
-          tasks_worked:      fields.tasks_worked      ?? [],
-          blockers:          fields.blockers           ?? [],
-          blockers_notes:    fields.blockers_notes     ?? null,
-          highlights:        fields.highlights         ?? null,
-          energy_score:      fields.energy_score       ?? null,
-          ai_feedback_notes: fields.ai_feedback_notes  ?? [],
-          free_notes:        fields.free_notes         ?? null,
+          tasks_worked:          fields.tasks_worked           ?? [],
+          blockers:              fields.blockers                ?? [],
+          blockers_notes:        fields.blockers_notes          ?? null,
+          highlights:            fields.highlights              ?? null,
+          energy_score:          fields.energy_score            ?? null,
+          efficiency_score:      fields.efficiency_score        ?? null,
+          content_quality_score: fields.content_quality_score   ?? null,
+          pulse_signals:         fields.pulse_signals           ?? [],
+          ai_feedback_notes:     fields.ai_feedback_notes       ?? [],
+          free_notes:            fields.free_notes              ?? null,
         },
         { onConflict: 'user_id,date' }
       )

@@ -9,6 +9,7 @@ import { useUpdateClient } from '@/lib/hooks/use-clients'
 import { useUserAssignments, useSaveClientAssignments } from '@/lib/hooks/use-client-assignments'
 import { cn, hasRole, vendorName } from '@/lib/utils'
 import { InviteUserModal } from '@/components/settings/invite-user-modal'
+import { BulkInviteModal } from '@/components/settings/bulk-invite-modal'
 import type { UserRole, User } from '@/lib/types'
 import { PAGE_DEFS, ALL_PAGE_KEYS, PAGE_GROUPS, type PageKey } from '@/lib/page-permissions'
 
@@ -752,6 +753,7 @@ export default function SettingsPage() {
   const canManageKillSwitch = currentUser?.role === 'admin' || currentUser?.role === 'ceo'
   const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview' | 'activity'>(isAdmin ? 'integrations' : 'team')
   const [showInvite, setShowInvite] = useState(false)
+  const [showBulkInvite, setShowBulkInvite] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
   const [aiToggling, setAiToggling] = useState(false)
@@ -820,6 +822,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl space-y-5">
       {showInvite && <InviteUserModal onClose={() => setShowInvite(false)} />}
+      {showBulkInvite && <BulkInviteModal onClose={() => setShowBulkInvite(false)} />}
       {editingUser && (
         <EditPermissionsModal
           user={editingUser}
@@ -883,9 +886,14 @@ export default function SettingsPage() {
                 <p className="text-sm text-slate-500">{users.length} active member{users.length !== 1 ? 's' : ''} · Role-based access control</p>
               </div>
               {isAdmin && (
-                <button onClick={() => setShowInvite(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
-                  <Plus className="w-3.5 h-3.5" />Invite Member
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowBulkInvite(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition-colors">
+                    <Plus className="w-3.5 h-3.5" />Bulk Invite
+                  </button>
+                  <button onClick={() => setShowInvite(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors">
+                    <Plus className="w-3.5 h-3.5" />Invite Member
+                  </button>
+                </div>
               )}
             </div>
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden overflow-x-auto">

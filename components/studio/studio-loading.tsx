@@ -1,5 +1,6 @@
 'use client'
 
+import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -71,8 +72,10 @@ export function StudioLoading({
         ? Math.round((completedCount / steps.length) * 100)
         : 0
 
-  return (
-    <div className="relative min-h-[70vh] flex flex-col items-center justify-start pt-10 pb-16 px-6 overflow-hidden">
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-start pt-10 pb-16 px-6 overflow-y-auto overflow-x-hidden" style={{ background: 'rgba(4,11,10,0.96)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
 
       {/* ── Keyframes ─────────────────────────────────────────────────────────── */}
       <style>{`
@@ -330,6 +333,7 @@ export function StudioLoading({
           <span className="text-xs text-slate-400 tabular-nums">{elapsedSeconds}s</span>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }

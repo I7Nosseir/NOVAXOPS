@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export const maxDuration = 60
+export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 import Anthropic from '@anthropic-ai/sdk'
 import { createHash } from 'crypto'
@@ -178,7 +178,10 @@ export async function POST(req: NextRequest) {
   // fetch it server-side (outbound — no Vercel body size limit) and base64-encode for Gemini
   if (body.fileUrl && body.fileType === 'pdf' && !body.fileBase64) {
     try {
-      const r = await fetch(body.fileUrl)
+      const pdfAbort = new AbortController()
+      const pdfTimeout = setTimeout(() => pdfAbort.abort(), 30_000)
+      const r = await fetch(body.fileUrl, { signal: pdfAbort.signal })
+      clearTimeout(pdfTimeout)
       if (!r.ok) throw new Error(`Failed to fetch PDF: ${r.status}`)
       const ab = await r.arrayBuffer()
       body.fileBase64 = Buffer.from(ab).toString('base64')
@@ -186,8 +189,12 @@ export async function POST(req: NextRequest) {
       console.log(`[fileUrl] Fetched PDF, base64 size: ${Math.round(body.fileBase64.length / 1024)}KB`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
+      const isTimeout = msg.includes('aborted') || msg.includes('abort')
       console.error('[fileUrl] PDF fetch failed:', msg)
-      return NextResponse.json({ error: `Could not retrieve uploaded PDF: ${msg}` }, { status: 500 })
+      return NextResponse.json(
+        { error: isTimeout ? 'PDF download timed out (30s). Check Supabase Storage access.' : `Could not retrieve uploaded PDF: ${msg}` },
+        { status: 500 },
+      )
     }
   }
 
@@ -869,7 +876,7 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'strategy_eval': {
-      maxTokensOverride = 16000
+      maxTokensOverride = 5000
       enableThinking = true
       model = ADVANCED_MODEL
       // Build file block if a PDF was uploaded (Claude path)

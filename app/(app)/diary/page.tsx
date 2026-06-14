@@ -6,6 +6,7 @@ import {
   BookOpen, Plus, Trash2, ChevronLeft, ChevronRight,
   Clock, Zap, AlertTriangle, Trophy, Bot, FileText,
   Save, User, ChevronDown, Check, X, Loader2, Calendar,
+  TrendingUp, Star, Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -74,19 +75,83 @@ const ENERGY_COLORS: Record<number, string> = {
   5: '#5BB4AE',
 }
 
+const EFFICIENCY_LABELS: Record<number, string> = {
+  1: 'Very slow',
+  2: 'Slow',
+  3: 'Average',
+  4: 'Efficient',
+  5: 'Peak efficiency',
+}
+
+const QUALITY_LABELS: Record<number, string> = {
+  1: 'Poor',
+  2: 'Below average',
+  3: 'OK',
+  4: 'Good',
+  5: 'Excellent',
+}
+
+const SCORE_COLORS: Record<number, string> = {
+  1: '#ef4444',
+  2: '#f97316',
+  3: '#eab308',
+  4: '#22c55e',
+  5: '#5BB4AE',
+}
+
+const PULSE_RISK_SIGNALS: string[] = [
+  'overloaded',
+  'unclear_direction',
+  'undervalued',
+  'no_growth',
+  'team_friction',
+  'skill_mismatch',
+  'poor_tools',
+  'burnout_risk',
+]
+
+const PULSE_POSITIVE_SIGNALS: string[] = [
+  'in_the_zone',
+  'proud_of_output',
+  'great_teamwork',
+  'learned_something',
+  'made_impact',
+  'excited',
+]
+
+const PULSE_LABEL: Record<string, string> = {
+  overloaded:       'Overloaded',
+  unclear_direction:'Unclear direction',
+  undervalued:      'Undervalued',
+  no_growth:        'No growth',
+  team_friction:    'Team friction',
+  skill_mismatch:   'Skill mismatch',
+  poor_tools:       'Poor tools',
+  burnout_risk:     'Burnout risk',
+  in_the_zone:      'In the zone',
+  proud_of_output:  'Proud of output',
+  great_teamwork:   'Great teamwork',
+  learned_something:'Learned something',
+  made_impact:      'Made an impact',
+  excited:          'Excited',
+}
+
 function todayStr() {
   return format(new Date(), 'yyyy-MM-dd')
 }
 
 function emptyForm() {
   return {
-    tasks_worked:      [] as DiaryTask[],
-    blockers:          [] as string[],
-    blockers_notes:    '',
-    highlights:        '',
-    energy_score:      null as number | null,
-    ai_feedback_notes: [] as DiaryAiFeedback[],
-    free_notes:        '',
+    tasks_worked:          [] as DiaryTask[],
+    blockers:              [] as string[],
+    blockers_notes:        '',
+    highlights:            '',
+    energy_score:          null as number | null,
+    efficiency_score:      null as number | null,
+    content_quality_score: null as number | null,
+    pulse_signals:         [] as string[],
+    ai_feedback_notes:     [] as DiaryAiFeedback[],
+    free_notes:            '',
   }
 }
 
@@ -198,18 +263,24 @@ function EntryList({
                 <p className={cn('text-[11px] truncate mt-0.5', active ? 'text-white/70' : 'text-muted-foreground')}>
                   {entry.tasks_worked.length} task{entry.tasks_worked.length !== 1 ? 's' : ''}
                   {entry.energy_score ? ` · ${ENERGY_LABELS[entry.energy_score]}` : ''}
-                  {entry.ai_feedback_notes.length > 0 ? ` · ${entry.ai_feedback_notes.length} AI note${entry.ai_feedback_notes.length !== 1 ? 's' : ''}` : ''}
+                  {(entry.pulse_signals ?? []).some(s => PULSE_RISK_SIGNALS.includes(s)) ? ' · risk' : ''}
                 </p>
               )}
             </div>
 
-            {/* Energy dot */}
-            {entry?.energy_score && (
-              <div
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ background: ENERGY_COLORS[entry.energy_score] }}
-              />
-            )}
+            {/* Score dots */}
+            <div className="flex items-center gap-1 shrink-0">
+              {entry?.energy_score && (
+                <div
+                  className="w-2 h-2 rounded-full"
+                  title={`Energy: ${ENERGY_LABELS[entry.energy_score]}`}
+                  style={{ background: ENERGY_COLORS[entry.energy_score] }}
+                />
+              )}
+              {(entry?.pulse_signals ?? []).some(s => PULSE_RISK_SIGNALS.includes(s)) && (
+                <div className="w-2 h-2 rounded-full bg-amber-500" title="Has risk signals" />
+              )}
+            </div>
           </button>
         )
       })}
@@ -287,13 +358,16 @@ export default function DiaryPage() {
     if (entry) {
       setCurrentId(entry.id)
       setForm({
-        tasks_worked:      entry.tasks_worked      ?? [],
-        blockers:          entry.blockers           ?? [],
-        blockers_notes:    entry.blockers_notes     ?? '',
-        highlights:        entry.highlights         ?? '',
-        energy_score:      entry.energy_score       ?? null,
-        ai_feedback_notes: entry.ai_feedback_notes  ?? [],
-        free_notes:        entry.free_notes         ?? '',
+        tasks_worked:          entry.tasks_worked           ?? [],
+        blockers:              entry.blockers                ?? [],
+        blockers_notes:        entry.blockers_notes          ?? '',
+        highlights:            entry.highlights              ?? '',
+        energy_score:          entry.energy_score            ?? null,
+        efficiency_score:      entry.efficiency_score        ?? null,
+        content_quality_score: entry.content_quality_score   ?? null,
+        pulse_signals:         entry.pulse_signals           ?? [],
+        ai_feedback_notes:     entry.ai_feedback_notes       ?? [],
+        free_notes:            entry.free_notes              ?? '',
       })
     } else {
       setCurrentId(null)
@@ -341,6 +415,14 @@ export default function DiaryPage() {
     patch('blockers', next)
   }
 
+  // Pulse signals
+  function togglePulseSignal(signal: string) {
+    const next = form.pulse_signals.includes(signal)
+      ? form.pulse_signals.filter(s => s !== signal)
+      : [...form.pulse_signals, signal]
+    patch('pulse_signals', next)
+  }
+
   // AI feedback rows
   function addAiFeedback() {
     patch('ai_feedback_notes', [
@@ -371,15 +453,18 @@ export default function DiaryPage() {
     setSaving(true)
     try {
       const body = {
-        date:              selectedDate,
-        userId:            effectiveUserId !== user.id ? effectiveUserId : undefined,
-        tasks_worked:      form.tasks_worked,
-        blockers:          form.blockers,
-        blockers_notes:    form.blockers_notes || null,
-        highlights:        form.highlights     || null,
-        energy_score:      form.energy_score,
-        ai_feedback_notes: form.ai_feedback_notes,
-        free_notes:        form.free_notes     || null,
+        date:                  selectedDate,
+        userId:                effectiveUserId !== user.id ? effectiveUserId : undefined,
+        tasks_worked:          form.tasks_worked,
+        blockers:              form.blockers,
+        blockers_notes:        form.blockers_notes        || null,
+        highlights:            form.highlights            || null,
+        energy_score:          form.energy_score,
+        efficiency_score:      form.efficiency_score,
+        content_quality_score: form.content_quality_score,
+        pulse_signals:         form.pulse_signals,
+        ai_feedback_notes:     form.ai_feedback_notes,
+        free_notes:            form.free_notes            || null,
       }
 
       if (currentId) {
@@ -593,35 +678,106 @@ export default function DiaryPage() {
               </button>
             </div>
 
-            {/* ── Energy level */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-muted-foreground w-24 shrink-0">Energy level</span>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => patch('energy_score', form.energy_score === n ? null : n)}
-                    title={ENERGY_LABELS[n]}
-                    className={cn(
-                      'w-8 h-8 rounded-lg text-xs font-bold border transition-all',
-                      form.energy_score === n
-                        ? 'text-white border-transparent'
-                        : 'border-border text-muted-foreground hover:border-novax-border',
-                    )}
-                    style={form.energy_score === n ? { background: ENERGY_COLORS[n] } : {}}
-                  >
-                    {n}
-                  </button>
-                ))}
-                {form.energy_score && (
-                  <span
-                    className="text-xs font-medium self-center ml-1"
-                    style={{ color: ENERGY_COLORS[form.energy_score] }}
-                  >
-                    {ENERGY_LABELS[form.energy_score]}
-                  </span>
-                )}
+            {/* ── Score rows */}
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3.5">
+              {/* Energy */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 w-36 shrink-0">
+                  <Zap className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Energy</span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => patch('energy_score', form.energy_score === n ? null : n)}
+                      title={ENERGY_LABELS[n]}
+                      className={cn(
+                        'w-8 h-8 rounded-lg text-xs font-bold border transition-all',
+                        form.energy_score === n
+                          ? 'text-white border-transparent'
+                          : 'border-border text-muted-foreground hover:border-novax-border',
+                      )}
+                      style={form.energy_score === n ? { background: ENERGY_COLORS[n] } : {}}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  {form.energy_score && (
+                    <span className="text-xs font-medium self-center ml-1" style={{ color: ENERGY_COLORS[form.energy_score] }}>
+                      {ENERGY_LABELS[form.energy_score]}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t border-border" />
+
+              {/* Efficiency */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 w-36 shrink-0">
+                  <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Efficiency</span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => patch('efficiency_score', form.efficiency_score === n ? null : n)}
+                      title={EFFICIENCY_LABELS[n]}
+                      className={cn(
+                        'w-8 h-8 rounded-lg text-xs font-bold border transition-all',
+                        form.efficiency_score === n
+                          ? 'text-white border-transparent'
+                          : 'border-border text-muted-foreground hover:border-novax-border',
+                      )}
+                      style={form.efficiency_score === n ? { background: SCORE_COLORS[n] } : {}}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  {form.efficiency_score && (
+                    <span className="text-xs font-medium self-center ml-1" style={{ color: SCORE_COLORS[form.efficiency_score] }}>
+                      {EFFICIENCY_LABELS[form.efficiency_score]}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t border-border" />
+
+              {/* Content quality */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 w-36 shrink-0">
+                  <Star className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Content quality</span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => patch('content_quality_score', form.content_quality_score === n ? null : n)}
+                      title={QUALITY_LABELS[n]}
+                      className={cn(
+                        'w-8 h-8 rounded-lg text-xs font-bold border transition-all',
+                        form.content_quality_score === n
+                          ? 'text-white border-transparent'
+                          : 'border-border text-muted-foreground hover:border-novax-border',
+                      )}
+                      style={form.content_quality_score === n ? { background: SCORE_COLORS[n] } : {}}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  {form.content_quality_score && (
+                    <span className="text-xs font-medium self-center ml-1" style={{ color: SCORE_COLORS[form.content_quality_score] }}>
+                      {QUALITY_LABELS[form.content_quality_score]}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -730,7 +886,70 @@ export default function DiaryPage() {
               />
             </SectionCard>
 
-            {/* ── Section 4: AI Output Feedback */}
+            {/* ── Section 4: Team Pulse */}
+            <SectionCard icon={Activity} title="Team Pulse">
+              <p className="text-xs text-muted-foreground mb-4">
+                How are you feeling today as part of the team? Select all that apply — this helps identify patterns before they become problems.
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-amber-500 dark:text-amber-400 mb-2">
+                    Risk signals
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {PULSE_RISK_SIGNALS.map(signal => {
+                      const selected = form.pulse_signals.includes(signal)
+                      return (
+                        <button
+                          key={signal}
+                          type="button"
+                          onClick={() => togglePulseSignal(signal)}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                            selected
+                              ? 'bg-amber-500/15 text-amber-600 border-amber-400/50 dark:text-amber-400'
+                              : 'bg-muted/50 text-muted-foreground border-border hover:border-amber-400/40 hover:text-foreground',
+                          )}
+                        >
+                          {selected && <Check className="w-3 h-3" />}
+                          {PULSE_LABEL[signal]}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-novax-accent mb-2">
+                    Positive signals
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {PULSE_POSITIVE_SIGNALS.map(signal => {
+                      const selected = form.pulse_signals.includes(signal)
+                      return (
+                        <button
+                          key={signal}
+                          type="button"
+                          onClick={() => togglePulseSignal(signal)}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                            selected
+                              ? 'bg-novax text-white border-novax'
+                              : 'bg-muted/50 text-muted-foreground border-border hover:border-novax-border hover:text-foreground',
+                          )}
+                        >
+                          {selected && <Check className="w-3 h-3" />}
+                          {PULSE_LABEL[signal]}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* ── Section 5: AI Output Feedback */}
             <SectionCard icon={Bot} title="AI Output Feedback" accent>
               <p className="text-xs text-muted-foreground mb-4">
                 Note any time the AI output was not what you needed — language, tone, length, format, or anything else.
@@ -824,7 +1043,7 @@ export default function DiaryPage() {
               </button>
             </SectionCard>
 
-            {/* ── Section 5: Free Notes */}
+            {/* ── Section 6: Free Notes */}
             <SectionCard icon={FileText} title="Free Notes">
               <textarea
                 rows={5}
