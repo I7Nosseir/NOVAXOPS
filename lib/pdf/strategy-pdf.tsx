@@ -371,7 +371,7 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
           {camp && (
             <View style={{ flex: 1, backgroundColor: C.white, borderRadius: 8, padding: 20, borderLeftWidth: 4, borderLeftColor: C.gold }}>
               <SectionLabel text="Campaign Line" color={C.g400} />
-              <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', color: C.gold, fontStyle: 'italic', lineHeight: 1.5 }}>
+              <Text style={{ fontSize: 14, fontFamily: 'Helvetica-BoldOblique', color: C.gold, lineHeight: 1.5 }}>
                 {`"${camp}"`}
               </Text>
             </View>
@@ -685,7 +685,7 @@ function MonthlyTacticPage({ tactic, monthIndex, clientName, accentColor, pageNu
         {tactic.theme_line && (
           <View style={{ backgroundColor: monthColor + '15', borderRadius: 8, padding: 16, marginBottom: 18, borderLeftWidth: 4, borderLeftColor: monthColor }}>
             <SectionLabel text="Month Theme Line" color={monthColor} />
-            <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', color: monthColor, fontStyle: 'italic' }}>
+            <Text style={{ fontSize: 14, fontFamily: 'Helvetica-BoldOblique', color: monthColor }}>
               {`"${s(tactic.theme_line)}"`}
             </Text>
           </View>
