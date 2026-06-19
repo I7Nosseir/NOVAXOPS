@@ -22,7 +22,10 @@ export async function getCallerProfile(): Promise<CallerProfile | null> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
-    const { data: profile } = await supabase
+    // Use service-role client so RLS on users table never blocks profile lookup
+    const { createAdminClient } = await import('@/lib/supabase')
+    const admin = createAdminClient()
+    const { data: profile } = await admin
       .from('users')
       .select('id, role')
       .eq('auth_id', user.id)

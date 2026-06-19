@@ -97,14 +97,26 @@ export function useCreateClient() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: CreateClientInput): Promise<Client> => {
-      const res = await fetch('/api/clients/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      })
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 20000)
+      let res: Response
+      try {
+        res = await fetch('/api/clients/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+          signal: controller.signal,
+        })
+      } catch (fetchErr) {
+        throw new Error(fetchErr instanceof Error && fetchErr.name === 'AbortError'
+          ? 'Request timed out — check your connection'
+          : String(fetchErr))
+      } finally {
+        clearTimeout(timer)
+      }
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Failed to create client' })) as { error?: string }
-        throw new Error(err.error ?? 'Failed to create client')
+        const err = await res.json().catch(() => ({ error: `Server error ${res.status}` })) as { error?: string }
+        throw new Error(err.error ?? `Server error ${res.status}`)
       }
       const { client } = await res.json() as { client: Record<string, unknown> }
       const mapped = mapClient(client)

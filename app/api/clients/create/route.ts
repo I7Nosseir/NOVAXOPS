@@ -27,8 +27,14 @@ interface CreateClientBody {
 }
 
 export async function POST(req: NextRequest) {
+  console.log('[clients/create] request received')
+
   const caller = await getCallerProfile()
-  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!caller) {
+    console.error('[clients/create] getCallerProfile returned null — unauthorized')
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  console.log('[clients/create] caller:', caller.id, caller.role)
 
   const allowed = ['admin', 'ceo', 'creative_director', 'account_manager']
   if (!allowed.includes(caller.role)) {
@@ -49,12 +55,15 @@ export async function POST(req: NextRequest) {
   const db = createAdminClient()
 
   // Resolve user's organization_id (multi-tenant isolation)
-  const { data: userRow } = await db
+  console.log('[clients/create] resolving org_id for user', caller.id)
+  const { data: userRow, error: userErr } = await db
     .from('users')
     .select('organization_id')
     .eq('id', caller.id)
     .single()
+  if (userErr) console.warn('[clients/create] org lookup warning:', userErr.message)
   const org_id = (userRow as { organization_id: string | null } | null)?.organization_id ?? null
+  console.log('[clients/create] org_id:', org_id)
 
   const initials = body.name.trim()
     .split(' ')
