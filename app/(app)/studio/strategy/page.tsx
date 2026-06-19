@@ -7,6 +7,7 @@ import {
   Brain, ArrowLeft,
   AlertTriangle, RefreshCw,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { exportStrategyPdf } from '@/lib/strategy-export'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
@@ -309,7 +310,7 @@ export default function StrategyPage() {
             ]}
             tips={[
               { label: 'Best brief', tip: 'Include a specific growth goal (e.g. "get 500 saves/week on Instagram") and one cultural moment or season you\'re building around.' },
-              { label: 'Export', tip: 'Use the PPTX export to share the strategy with the client directly from the output screen.' },
+              { label: 'Export', tip: 'Use the Export PDF button to download a professionally formatted PDF of the full strategy — ready to share with the client.' },
             ]}
           />
           {(sessions.length > 0 || sessionsLoading) && (
@@ -478,8 +479,11 @@ export default function StrategyPage() {
                 platforms,
                 bossBrief,
               )
+              toast.success('Strategy PDF downloaded')
             } catch (e) {
+              const msg = e instanceof Error ? e.message : 'PDF export failed'
               console.error('[strategy-pdf] export failed', e)
+              toast.error(`PDF export failed: ${msg}`)
             } finally {
               setPdfExporting(false)
             }

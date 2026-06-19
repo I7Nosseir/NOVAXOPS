@@ -32,8 +32,14 @@ export async function exportStrategyPdf(
   })
 
   if (!res.ok) {
-    const text = await res.text().catch(() => 'PDF export failed')
-    throw new Error(text)
+    let msg = 'PDF export failed'
+    try {
+      const body = await res.json() as { error?: string }
+      if (body.error) msg = body.error
+    } catch {
+      msg = await res.text().catch(() => 'PDF export failed')
+    }
+    throw new Error(msg)
   }
 
   const blob = await res.blob()
