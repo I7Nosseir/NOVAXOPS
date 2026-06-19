@@ -51,6 +51,8 @@ const ROLE_LABELS: Record<UserRole, string> = {
   strategist:        'Strategist',
   copywriter:        'Copywriter',
   designer:          'Designer',
+  video_editor:      'Video Editor',
+  web_developer:     'Web Developer',
   social_manager:    'Social Manager',
 }
 

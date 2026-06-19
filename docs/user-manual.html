@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NOVAX Ops — Platform User Manual</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Arial', 'Helvetica Neue', sans-serif;
+    font-size: 10pt;
+    color: #111;
+    background: #fff;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 0;
+    background: #fff;
+    overflow: hidden;
+    position: relative;
+  }
+
+  @media print {
+    .page { page-break-after: always; margin: 0; }
+    @page { size: A4 portrait; margin: 0; }
+    .no-print { display: none; }
+  }
+  @media screen {
+    body { background: #ccc; }
+    .page { margin: 20px auto; box-shadow: 0 4px 24px rgba(0,0,0,0.2); }
+  }
+
+  :root {
+    --teal:      #1B3D38;
+    --teal-mid:  #2A6B62;
+    --teal-acc:  #5BB4AE;
+    --teal-lt:   #EBF4F3;
+    --teal-bd:   #9DCCC8;
+    --red:       #C0392B;
+    --red-bg:    #FFF5F5;
+    --red-bd:    #FECACA;
+    --green:     #1D6A3A;
+    --green-bg:  #E8F5EE;
+    --green-bd:  #6EE7B7;
+    --amber:     #92400E;
+    --amber-bg:  #FEF3C7;
+    --amber-bd:  #FDE68A;
+    --purple:    #5B21B6;
+    --purple-bg: #EDE9FE;
+    --blue:      #1E40AF;
+    --blue-bg:   #EFF6FF;
+    --coming:    #D97706;
+    --coming-bg: #FFFBEB;
+    --grey:      #F3F4F6;
+    --border:    #D1D5DB;
+    --soft:      #6B7280;
+    --dark:      #0C1610;
+  }
+
+  .inner { padding: 1.2cm 1.8cm; }
+
+  /* ── Page header bar ─────────────────────────── */
+  .page-title-bar {
+    background: var(--teal);
+    color: #fff;
+    padding: 11px 1.8cm;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .page-title-bar h2  { font-size: 12pt; font-weight: 800; color: #fff; }
+  .page-title-bar .sub { font-size: 8pt; color: rgba(255,255,255,0.55); margin-top: 2px; }
+  .page-title-bar .page-num { font-size: 8pt; color: rgba(255,255,255,0.4); padding-bottom: 2px; }
+
+  /* ── Page footer ─────────────────────────── */
+  .page-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 1.8cm;
+    font-size: 7.5pt;
+    color: var(--soft);
+  }
+  .page-footer strong { color: var(--teal); font-weight: 800; }
+
+  /* ── Typography ─────────────────────────── */
+  p { line-height: 1.6; }
+  h3 { font-size: 10.5pt; font-weight: 700; margin-bottom: 6px; }
+  h4 { font-size: 9.5pt; font-weight: 700; color: var(--teal); margin-bottom: 5px; }
+
+  ul, ol { padding-left: 16px; }
+  li { margin-bottom: 3px; font-size: 9pt; line-height: 1.55; color: #333; }
+  li::marker { color: var(--teal-acc); }
+
+  .section-label {
+    font-size: 7.5pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--teal);
+    margin-bottom: 6px;
+  }
+
+  /* ── Cover ─────────────────────────── */
+  .cover {
+    background: var(--teal);
+    min-height: 297mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2.2cm 2.0cm 1.6cm;
+  }
+  .cover-logo { font-size: 10pt; font-weight: 900; letter-spacing: 3px; color: rgba(255,255,255,0.35); }
+  .cover-main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .cover-eye  { font-size: 8pt; letter-spacing: 2.5px; text-transform: uppercase; color: var(--teal-acc); margin-bottom: 14px; font-weight: 700; }
+  .cover h1   { font-size: 32pt; font-weight: 900; color: #fff; line-height: 1.1; }
+  .cover h1 span { color: var(--teal-acc); }
+  .cover-div  { width: 44px; height: 3px; background: var(--teal-acc); margin: 18px 0; }
+  .cover-tag  { font-size: 10.5pt; font-weight: 300; color: rgba(255,255,255,0.65); line-height: 1.65; max-width: 380px; }
+  .cover-meta {
+    margin-top: 32px;
+    display: flex;
+    gap: 28px;
+  }
+  .cover-meta-item .cm-label { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(91,180,174,0.6); }
+  .cover-meta-item .cm-val   { font-size: 10pt; color: rgba(255,255,255,0.75); margin-top: 3px; }
+  .cover-footer { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; }
+  .cover-footer-l { font-size: 8pt; color: rgba(255,255,255,0.3); }
+  .cover-footer-r { font-size: 8pt; font-weight: 700; color: rgba(255,255,255,0.4); }
+
+  /* ── TOC ─────────────────────────── */
+  .toc-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  .toc-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  .toc-table tr:last-child td { border-bottom: none; }
+  .toc-num   { color: var(--teal-acc); font-weight: 800; font-size: 9pt; width: 34px; }
+  .toc-title { font-weight: 700; color: #111; }
+  .toc-sub   { font-size: 8pt; color: var(--soft); margin-top: 1px; }
+  .toc-pg    { color: var(--soft); text-align: right; font-size: 8.5pt; width: 36px; }
+  .toc-cs    { font-size: 7pt; font-weight: 700; color: var(--coming); background: var(--coming-bg); border-radius: 3px; padding: 2px 6px; display: inline-block; vertical-align: middle; margin-left: 7px; }
+  .toc-cols  { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+
+  /* ── Section divider page ─────────────────────────── */
+  .section-div-page {
+    background: var(--dark);
+    min-height: 297mm;
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .section-div-strip {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 6px;
+    background: var(--teal-acc);
+  }
+  .section-div-num {
+    position: absolute;
+    right: 30px;
+    bottom: 20px;
+    font-size: 180pt;
+    font-weight: 900;
+    color: rgba(91,180,174,0.04);
+    line-height: 1;
+    pointer-events: none;
+  }
+  .section-div-content { padding-left: 70px; padding-right: 80px; }
+  .section-div-eyebrow { font-size: 10pt; font-weight: 800; letter-spacing: 2.5px; color: var(--teal-acc); margin-bottom: 14px; text-transform: uppercase; }
+  .section-div-title   { font-size: 38pt; font-weight: 900; color: #fff; line-height: 1.1; }
+  .section-div-sub     { font-size: 11pt; color: rgba(155,184,180,0.85); margin-top: 18px; line-height: 1.65; max-width: 420px; }
+
+  /* ── Tip / note boxes ─────────────────────────── */
+  .tip {
+    background: var(--teal-lt);
+    border-left: 3px solid var(--teal-acc);
+    border-radius: 0 5px 5px 0;
+    padding: 9px 13px;
+    font-size: 9pt;
+    color: var(--teal);
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+  .tip strong { font-weight: 800; color: var(--teal-mid); }
+
+  .example {
+    background: var(--grey);
+    border-radius: 5px;
+    padding: 10px 13px;
+    margin-top: 10px;
+    font-size: 9pt;
+    color: #444;
+    line-height: 1.6;
+    border: 1px solid var(--border);
+  }
+  .example .ex-label { font-size: 7.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: var(--teal-mid); margin-bottom: 5px; }
+
+  .warn {
+    background: var(--amber-bg);
+    border-left: 3px solid var(--coming);
+    border-radius: 0 5px 5px 0;
+    padding: 9px 13px;
+    font-size: 9pt;
+    color: var(--amber);
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+  .warn strong { color: #78350F; }
+
+  /* ── Two-column layout ─────────────────────────── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  /* ── Cards / panels ─────────────────────────── */
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 9pt;
+    color: #333;
+    line-height: 1.55;
+  }
+  .card h4 { margin-bottom: 7px; }
+
+  .card-teal { background: var(--teal-lt); border-color: var(--teal-bd); }
+  .card-dark { background: var(--teal); color: rgba(255,255,255,0.8); }
+  .card-dark h4, .card-dark .section-label { color: var(--teal-acc); }
+  .card-dark li { color: rgba(255,255,255,0.75); }
+  .card-dark li::marker { color: rgba(91,180,174,0.6); }
+  .card-dark p  { color: rgba(255,255,255,0.75); }
+  .card-grey  { background: var(--grey); }
+  .card-red   { background: var(--red-bg); border-color: var(--red-bd); }
+  .card-red h4 { color: var(--red); }
+  .card-amber { background: var(--amber-bg); border-color: var(--amber-bd); }
+  .card-coming { background: var(--coming-bg); border-color: var(--amber-bd); }
+
+  /* ── Step list ─────────────────────────── */
+  .steps { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  .steps li { display: flex; gap: 10px; align-items: flex-start; }
+  .step-num  {
+    background: var(--teal);
+    color: var(--teal-acc);
+    font-size: 8pt;
+    font-weight: 900;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-text { font-size: 9pt; color: #333; line-height: 1.55; flex: 1; }
+
+  /* ── Badge ─────────────────────────── */
+  .badge {
+    display: inline-block;
+    font-size: 7pt;
+    font-weight: 800;
+    border-radius: 3px;
+    padding: 2px 7px;
+    vertical-align: middle;
+  }
+  .badge-admin   { background: #FEE2E2; color: var(--red); }
+  .badge-ceo     { background: var(--purple-bg); color: var(--purple); }
+  .badge-coming  { background: var(--coming-bg); color: var(--coming); border: 1px solid var(--amber-bd); }
+  .badge-acc     { background: var(--teal-lt); color: var(--teal); }
+
+  /* ── Table ─────────────────────────── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  .data-table th { background: var(--teal); color: #fff; padding: 7px 10px; text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; }
+  .data-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:nth-child(even) td { background: var(--grey); }
+  .data-table .td-name { font-weight: 700; color: var(--teal); }
+  .data-table .td-note { font-style: italic; color: var(--soft); font-size: 8.5pt; }
+
+  /* ── Stage pill ─────────────────────────── */
+  .stage-pill {
+    display: inline-block;
+    border-radius: 10px;
+    padding: 2px 9px;
+    font-size: 7.5pt;
+    font-weight: 700;
+  }
+
+  /* ── Section separator line ─────────────────────────── */
+  hr.sep { border: none; border-top: 1.5px solid var(--border); margin: 14px 0; }
+
+  /* ── Studio coming-soon page ─────────────────────────── */
+  .studio-page {
+    background: var(--dark);
+    min-height: 297mm;
+    position: relative;
+    overflow: hidden;
+  }
+  .studio-inner { padding: 1.4cm 1.8cm; }
+  .studio-tool  {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(91,180,174,0.1);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .studio-tool-name { font-size: 10pt; font-weight: 700; color: #fff; width: 145px; flex-shrink: 0; }
+  .studio-tool-path { font-size: 7.5pt; color: rgba(91,180,174,0.5); margin-top: 2px; }
+  .studio-tool-desc { font-size: 8.5pt; color: rgba(155,184,180,0.9); line-height: 1.55; flex: 1; }
+  .studio-tool-cs   { flex-shrink: 0; }
+
+  /* ── Quick-ref tips back page ─────────────────────────── */
+  .back-page {
+    background: var(--dark);
+    min-height: 297mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2.0cm 2.0cm 1.4cm;
+    position: relative;
+    overflow: hidden;
+  }
+  .back-page-strip { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--teal-acc); }
+  .tips-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .tips-section-title { font-size: 7.5pt; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--teal-acc); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(91,180,174,0.2); }
+  .tips-list { list-style: none; padding: 0; }
+  .tips-list li {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 8.5pt;
+    color: rgba(155,184,180,0.85);
+    line-height: 1.5;
+    padding-left: 10px;
+    position: relative;
+  }
+  .tips-list li::before { content: '›'; position: absolute; left: 0; color: var(--teal-acc); font-weight: 700; }
+
+  .print-btn {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: var(--teal);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 18px;
+    font-size: 10pt;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 999;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .print-btn:hover { background: var(--teal-mid); }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">Print / Save PDF</button>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 1 — COVER
+══════════════════════════════════════ -->
+<div class="page">
+<div class="cover">
+
+  <div class="cover-logo">NOVAX</div>
+
+  <div class="cover-main">
+    <p class="cover-eye">Internal Document · Confidential</p>
+    <h1>Platform<br><span>User Manual</span></h1>
+    <div class="cover-div"></div>
+    <p class="cover-tag">Everything your team needs to operate NOVAX Ops efficiently — from first login to advanced daily workflows.</p>
+
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <div class="cm-label">Version</div>
+        <div class="cm-val">1.0</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cm-label">Audience</div>
+        <div class="cm-val">All Team Members</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cm-label">Issued</div>
+        <div class="cm-val">June 2026</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div class="cover-footer-l">Confidential — Internal Use Only</div>
+    <div class="cover-footer-r">NOVAX Ops &nbsp;·&nbsp; 2026</div>
+  </div>
+
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 2 — TABLE OF CONTENTS
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>Contents</h2>
+    <p class="sub">NOVAX Ops Platform User Manual — 20 pages</p>
+  </div>
+  <span class="page-num">p.2</span>
+</div>
+<div class="inner">
+
+  <div class="toc-cols">
+    <table class="toc-table">
+      <tr>
+        <td class="toc-num">01</td>
+        <td><div class="toc-title">Getting Started</div><div class="toc-sub">Login, navigation, roles</div></td>
+        <td class="toc-pg">4</td>
+      </tr>
+      <tr>
+        <td class="toc-num">02</td>
+        <td><div class="toc-title">Dashboard</div><div class="toc-sub">KPIs, activity, publishing widget</div></td>
+        <td class="toc-pg">5</td>
+      </tr>
+      <tr>
+        <td class="toc-num">03</td>
+        <td><div class="toc-title">Pipeline</div><div class="toc-sub">10-stage Kanban, drag & drop, AI agents</div></td>
+        <td class="toc-pg">6</td>
+      </tr>
+      <tr>
+        <td class="toc-num">04</td>
+        <td><div class="toc-title">My Tasks</div><div class="toc-sub">Personal task list, creating tasks</div></td>
+        <td class="toc-pg">7</td>
+      </tr>
+      <tr>
+        <td class="toc-num">05</td>
+        <td><div class="toc-title">Clients</div><div class="toc-sub">Client cards, detail panel, crisis mode</div></td>
+        <td class="toc-pg">8</td>
+      </tr>
+      <tr>
+        <td class="toc-num">06</td>
+        <td><div class="toc-title">Projects</div><div class="toc-sub">Campaigns, progress tracking</div></td>
+        <td class="toc-pg">9</td>
+      </tr>
+      <tr>
+        <td class="toc-num">07</td>
+        <td><div class="toc-title">Publishing</div><div class="toc-sub">Schedule, compose, calendar</div></td>
+        <td class="toc-pg">10</td>
+      </tr>
+      <tr>
+        <td class="toc-num">08</td>
+        <td><div class="toc-title">Approval</div><div class="toc-sub">Approval workflow, client portal</div></td>
+        <td class="toc-pg">11</td>
+      </tr>
+      <tr>
+        <td class="toc-num">09</td>
+        <td><div class="toc-title">Moderation</div><div class="toc-sub">Comment queue, AI-drafted replies</div></td>
+        <td class="toc-pg">12</td>
+      </tr>
+    </table>
+
+    <table class="toc-table">
+      <tr>
+        <td class="toc-num">10</td>
+        <td><div class="toc-title">Assets</div><div class="toc-sub">File library, Google Drive import</div></td>
+        <td class="toc-pg">13</td>
+      </tr>
+      <tr>
+        <td class="toc-num">11</td>
+        <td><div class="toc-title">Creative Eval</div><div class="toc-sub">AI scoring for creative assets</div></td>
+        <td class="toc-pg">14</td>
+      </tr>
+      <tr>
+        <td class="toc-num">12</td>
+        <td><div class="toc-title">Workload</div><div class="toc-sub">Team capacity & load balancing</div></td>
+        <td class="toc-pg">14</td>
+      </tr>
+      <tr>
+        <td class="toc-num">13</td>
+        <td><div class="toc-title">Content Library</div><div class="toc-sub">Published posts as reusable templates</div></td>
+        <td class="toc-pg">15</td>
+      </tr>
+      <tr>
+        <td class="toc-num">14</td>
+        <td><div class="toc-title">Reports</div><div class="toc-sub">KPI charts, AI analysis, PDF & PPTX export</div></td>
+        <td class="toc-pg">15</td>
+      </tr>
+      <tr>
+        <td class="toc-num">15</td>
+        <td><div class="toc-title">Settings</div><div class="toc-sub">Team, permissions, integrations</div></td>
+        <td class="toc-pg">16</td>
+      </tr>
+      <tr>
+        <td class="toc-num">16</td>
+        <td><div class="toc-title">CEO Hub</div><div class="toc-sub">Strategy, crisis override, second opinion</div></td>
+        <td class="toc-pg">17</td>
+      </tr>
+      <tr>
+        <td class="toc-num">17</td>
+        <td><div class="toc-title">AI Assistant</div><div class="toc-sub">Context-aware chat for the full team</div></td>
+        <td class="toc-pg">17</td>
+      </tr>
+      <tr>
+        <td class="toc-num">18</td>
+        <td><div class="toc-title">Documents</div><div class="toc-sub">Rich-text docs, templates, sharing</div></td>
+        <td class="toc-pg">18</td>
+      </tr>
+      <tr>
+        <td class="toc-num">19</td>
+        <td>
+          <div class="toc-title">Studio Tools <span class="toc-cs">Coming Soon</span></div>
+          <div class="toc-sub">Advanced AI creation tools — not yet accessible</div>
+        </td>
+        <td class="toc-pg">19</td>
+      </tr>
+    </table>
+  </div>
+
+  <hr class="sep" style="margin-top:16px;">
+
+  <div class="card card-dark" style="margin-top:14px;">
+    <p class="section-label">Quick Reference — Essentials</p>
+    <div class="two-col" style="gap:16px; margin-top:6px;">
+      <ul>
+        <li>Global search (top-right header) finds any task or client instantly.</li>
+        <li>Click any Pipeline card to open the full Task Detail panel.</li>
+        <li>Badge counts in the sidebar update automatically every 60 seconds.</li>
+        <li>AI agent responses are cached — same task + same context = instant result.</li>
+      </ul>
+      <ul>
+        <li>Esc key closes any open panel or modal.</li>
+        <li>Dark / light mode toggle is in the top header.</li>
+        <li>All documents auto-save as you type.</li>
+        <li>The floating "My Tasks" button is available from every page.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>2 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 3 — GETTING STARTED
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>01 — Getting Started</h2>
+    <p class="sub">First login, navigating the app, and understanding your role.</p>
+  </div>
+  <span class="page-num">p.3</span>
+</div>
+<div class="inner">
+
+  <div class="two-col" style="margin-bottom:14px;">
+    <div>
+      <div class="section-label">Logging In</div>
+      <ol class="steps">
+        <li><span class="step-num">1</span><span class="step-text">Go to the NOVAX Ops URL your admin shared and enter your email and password. First-time users receive an invite email from the system.</span></li>
+        <li><span class="step-num">2</span><span class="step-text">On your first login you will be prompted to set your display name, phone number, and choose a secure password. Complete this before doing anything else.</span></li>
+        <li><span class="step-num">3</span><span class="step-text">Once setup is complete you land on the Dashboard — your home base for the day.</span></li>
+      </ol>
+    </div>
+    <div>
+      <div class="section-label">Navigation Layout</div>
+      <div class="card card-teal" style="margin-bottom:8px;">
+        <h4>Left Sidebar</h4>
+        <ul>
+          <li>NOVAX logo at the top — click to return to Dashboard from anywhere.</li>
+          <li>All page links with live badge counts (approvals, moderation).</li>
+          <li>Badges update every 60 seconds without a page refresh.</li>
+          <li>Collapses automatically on small screens.</li>
+        </ul>
+      </div>
+      <div class="card card-grey">
+        <h4>Top Header</h4>
+        <ul>
+          <li><strong>Search bar</strong> — find any task, client, or project by name.</li>
+          <li><strong>+ New Task</strong> — create a task from any page.</li>
+          <li><strong>Notifications bell</strong> — all recent activity across the platform.</li>
+          <li><strong>Theme toggle</strong> — switch between dark and light mode.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <div class="section-label" style="margin-bottom:8px;">User Roles — What Each Role Can Access</div>
+  <table class="data-table">
+    <thead>
+      <tr><th>Role</th><th>Access Level</th><th>Typical responsibilities on NOVAX Ops</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="td-name">Admin</td><td>Full access including Integrations config, User management</td><td>Platform administration, onboarding team members, configuring API tokens.</td></tr>
+      <tr><td class="td-name">CEO</td><td>Full content + CEO Hub access. No Integrations config tab.</td><td>Cross-client strategy, crisis decisions, performance reviews.</td></tr>
+      <tr><td class="td-name">Creative Director</td><td>Full task, client, studio access</td><td>Managing the creative team, reviewing work, quality control.</td></tr>
+      <tr><td class="td-name">Account Manager</td><td>Clients, Approvals, Publishing, Reports</td><td>Client communication, approval coordination, performance reporting.</td></tr>
+      <tr><td class="td-name">Strategist</td><td>Strategy tasks, Projects, Clients</td><td>Creating briefs, developing content strategy, running AI strategy tools.</td></tr>
+      <tr><td class="td-name">Copywriter</td><td>Pipeline, My Tasks, Publishing, AI Agents</td><td>Writing captions, running the AI copy agent, versioning copy.</td></tr>
+      <tr><td class="td-name">Designer</td><td>Pipeline, My Tasks, Assets</td><td>Uploading finished assets, managing the asset library.</td></tr>
+      <tr><td class="td-name">Social Manager</td><td>Publishing, Moderation</td><td>Scheduling posts, replying to comments, managing the moderation queue.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="tip" style="margin-top:10px;">
+    <strong>Page Permissions:</strong> Your admin can restrict which pages you see. If a page is missing from your sidebar, contact your admin to update your permissions in Settings → Permissions.
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>3 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 4 — DASHBOARD
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>02 — Dashboard</h2>
+    <p class="sub">Your live command centre — real-time KPIs, team activity, and publishing overview.</p>
+  </div>
+  <span class="page-num">p.4</span>
+</div>
+<div class="inner">
+
+  <div class="section-label" style="margin-bottom:8px;">What You See on the Dashboard</div>
+  <table class="data-table" style="margin-bottom:14px;">
+    <thead>
+      <tr><th>Element</th><th>What It Shows</th><th>Who Sees It</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="td-name">KPI Summary Row</td>
+        <td>Live counts: Active Tasks, Pending Approvals, Pending Moderation, Posts Published This Week.</td>
+        <td>All roles</td>
+      </tr>
+      <tr>
+        <td class="td-name">Weekly Activity Chart</td>
+        <td>Bar chart showing tasks created, updated, and completed each day this week. Identifies if the team is on pace.</td>
+        <td>All roles</td>
+      </tr>
+      <tr>
+        <td class="td-name">Publishing Platform Widget</td>
+        <td>A live embed of the scheduling platform showing upcoming scheduled posts for all clients.</td>
+        <td>All roles</td>
+      </tr>
+      <tr>
+        <td class="td-name">Recent Activity Feed</td>
+        <td>The last 20 logged actions across the platform — task updates, approvals, invites, stage changes.</td>
+        <td>All roles</td>
+      </tr>
+      <tr>
+        <td class="td-name">AI Cost Overview</td>
+        <td>Total AI spend per user for the current month, ranked by usage.</td>
+        <td class="td-note">Admin, CEO, Creative Director only</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="two-col">
+    <div>
+      <div class="section-label">Daily Workflow — Start Here</div>
+      <ol class="steps">
+        <li><span class="step-num">1</span><span class="step-text">Open the Dashboard and check the KPI summary row. If the Approvals or Moderation badges are high, handle those first.</span></li>
+        <li><span class="step-num">2</span><span class="step-text">Scan the weekly activity chart. Is today's bar in line with earlier days? If Monday is already falling behind, flag it in the team standup.</span></li>
+        <li><span class="step-num">3</span><span class="step-text">Check the publishing widget to confirm today's posts are scheduled and have no failed status.</span></li>
+        <li><span class="step-num">4</span><span class="step-text">Navigate to My Tasks to start your personal work queue.</span></li>
+      </ol>
+    </div>
+    <div>
+      <div class="example">
+        <div class="ex-label">Example — Monday Morning</div>
+        Dashboard shows: 3 Pending Approvals (amber badge), 7 Pending Moderation (red badge), 12 posts scheduled this week. Activity chart shows Monday is at 0 tasks — normal for early morning. The social manager handles moderation first, the account manager checks and acts on the 3 approvals, everyone else goes to My Tasks and starts the day's work.
+      </div>
+      <div class="tip" style="margin-top:10px;">
+        <strong>Auto-refresh:</strong> Badge counts refresh automatically every 60 seconds. If a colleague just completed an approval, it will disappear from your badge without a manual reload.
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>4 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 5 — PIPELINE
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>03 — Pipeline</h2>
+    <p class="sub">The 10-stage Kanban that drives every piece of content from brief to reporting.</p>
+  </div>
+  <span class="page-num">p.5</span>
+</div>
+<div class="inner">
+
+  <div class="section-label" style="margin-bottom:6px;">The 10 Pipeline Stages</div>
+  <table class="data-table" style="margin-bottom:12px;">
+    <thead>
+      <tr><th style="width:26px;">#</th><th style="width:110px;">Stage</th><th>Purpose</th><th style="width:170px;">Who typically moves tasks here</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td class="td-name">Strategy</td><td>Initial brief, strategic direction, and campaign goals are defined.</td><td>Strategist, Account Manager</td></tr>
+      <tr><td>2</td><td class="td-name">Ideas</td><td>Concept brainstorming and topic exploration before production begins.</td><td>Copywriter, Strategist</td></tr>
+      <tr><td>3</td><td class="td-name">Calendar</td><td>Content calendar mapping — when and on which platform each piece will publish.</td><td>Social Manager, Account Manager</td></tr>
+      <tr><td>4</td><td class="td-name">Copy</td><td>Caption and script writing. AI copy agent runs here.</td><td>Copywriter</td></tr>
+      <tr><td>5</td><td class="td-name">Design</td><td>Visual asset creation — images, carousels, and video production.</td><td>Designer, Video Editor</td></tr>
+      <tr><td>6</td><td class="td-name">Review</td><td>Internal quality review before anything goes to the client.</td><td>Creative Director, Account Manager</td></tr>
+      <tr><td>7</td><td class="td-name">Approval</td><td>Client sign-off. Task links to the Approval workflow.</td><td>Account Manager</td></tr>
+      <tr><td>8</td><td class="td-name">Scheduled</td><td>Post queued in the scheduling platform and confirmed.</td><td>Social Manager</td></tr>
+      <tr><td>9</td><td class="td-name">Published</td><td>Post is live on social channels.</td><td>Auto / Social Manager</td></tr>
+      <tr><td>10</td><td class="td-name">Reporting</td><td>Performance data reviewed. Task closed.</td><td>Account Manager, Strategist</td></tr>
+    </tbody>
+  </table>
+
+  <div class="two-col">
+    <div>
+      <div class="section-label">Core Pipeline Actions</div>
+      <ul>
+        <li><strong>Drag a card</strong> to a different column to move it through the pipeline.</li>
+        <li><strong>Click a card</strong> to open the full Task Detail panel on the right.</li>
+        <li><strong>Filter chips</strong> at the top filter by client, assignee, priority, or stage.</li>
+        <li><strong>Advanced Filter</strong> panel lets you combine multiple conditions.</li>
+        <li>Task cards show: priority badge, client colour strip, due date, assignee avatar.</li>
+        <li>Overdue tasks show a red due date — action these immediately.</li>
+      </ul>
+
+      <div class="tip" style="margin-top:10px;">
+        <strong>Filters persist.</strong> When you set a filter (e.g. "Client X only"), it stays active until you clear it. Remember to clear filters when switching to a different task or client.
+      </div>
+    </div>
+    <div>
+      <div class="section-label">Task Detail Panel — What's Inside</div>
+      <div class="card card-teal">
+        <p style="font-size:9pt;color:#333;line-height:1.6;margin-bottom:8px;">Opens when you click any task card. Contains:</p>
+        <ul>
+          <li>Full title, description, priority, due date, and assignee.</li>
+          <li>Subtask checklist and task comments thread.</li>
+          <li>5 AI Agent buttons (see below).</li>
+          <li>Copy versioning — AI outputs are saved and labelled per run.</li>
+        </ul>
+
+        <div style="margin-top:10px;">
+          <div class="section-label" style="margin-bottom:5px;">The 5 AI Agents</div>
+          <table style="width:100%;font-size:8.5pt;border-collapse:collapse;">
+            <tr style="background:rgba(27,61,56,0.07);">
+              <td style="padding:5px 8px;font-weight:700;color:var(--teal);border-bottom:1px solid var(--teal-bd);">Analyze Task</td>
+              <td style="padding:5px 8px;border-bottom:1px solid var(--teal-bd);color:#333;">Breaks down the brief, flags missing info, suggests an approach.</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 8px;font-weight:700;color:var(--teal);border-bottom:1px solid var(--teal-bd);">Write Copy</td>
+              <td style="padding:5px 8px;border-bottom:1px solid var(--teal-bd);color:#333;">Generates 3 caption variants: Aspirational, Benefit-led, Conversational.</td>
+            </tr>
+            <tr style="background:rgba(27,61,56,0.07);">
+              <td style="padding:5px 8px;font-weight:700;color:var(--teal);border-bottom:1px solid var(--teal-bd);">Research</td>
+              <td style="padding:5px 8px;border-bottom:1px solid var(--teal-bd);color:#333;">Market context, competitor gaps, trending angles relevant to the task.</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 8px;font-weight:700;color:var(--teal);border-bottom:1px solid var(--teal-bd);">Find Assets</td>
+              <td style="padding:5px 8px;border-bottom:1px solid var(--teal-bd);color:#333;">Extracts keywords to query the asset library for relevant files.</td>
+            </tr>
+            <tr style="background:rgba(27,61,56,0.07);">
+              <td style="padding:5px 8px;font-weight:700;color:var(--teal);">Generate Caption</td>
+              <td style="padding:5px 8px;color:#333;">Image-aware caption using the uploaded media as visual context.</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>5 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 6 — MY TASKS + CLIENTS
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>04 — My Tasks &nbsp;·&nbsp; 05 — Clients</h2>
+    <p class="sub">Your personal work queue and how to manage all client brands in one place.</p>
+  </div>
+  <span class="page-num">p.6</span>
+</div>
+<div class="inner">
+
+  <!-- MY TASKS -->
+  <div class="two-col" style="margin-bottom:6px;">
+    <div>
+      <div class="section-label">My Tasks — What You See</div>
+      <ul>
+        <li>Only tasks assigned directly to your account across all clients.</li>
+        <li>Sorted by due date — overdue tasks appear first in red.</li>
+        <li>Search bar filters by task title keyword.</li>
+        <li>Priority badges visible on each row: Critical / High / Medium / Low.</li>
+        <li>Click any row to open the Task Detail panel.</li>
+      </ul>
+      <div class="tip" style="margin-top:8px;">The floating <strong>My Tasks button</strong> in the top header is available on every page. Use it to check your queue without leaving your current page.</div>
+    </div>
+    <div>
+      <div class="section-label">Creating a New Task</div>
+      <ol class="steps">
+        <li><span class="step-num">1</span><span class="step-text">Click "+ New Task" in the top header (available from any page).</span></li>
+        <li><span class="step-num">2</span><span class="step-text">Fill in: title, client, pipeline stage, priority, assignee, and due date.</span></li>
+        <li><span class="step-num">3</span><span class="step-text">Add a detailed description — this is what the AI agents read to generate relevant output.</span></li>
+        <li><span class="step-num">4</span><span class="step-text">Click Save. The task appears immediately in the Pipeline.</span></li>
+      </ol>
+      <div class="example" style="margin-top:8px;">
+        <div class="ex-label">Tip</div>
+        A vague description like "write caption" produces generic AI output. A description like "Write 3 Ramadan caption variants for [Client X], targeting women 25–40, in a warm and conversational tone" produces work-ready output on the first try.
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <!-- CLIENTS -->
+  <div class="section-label" style="margin-bottom:8px;">05 — Clients</div>
+  <div class="two-col">
+    <div>
+      <div class="section-label" style="font-size:7pt;">Client Cards</div>
+      <ul>
+        <li>Each client appears as a card with their brand colour.</li>
+        <li>Shows open task count and current stage distribution.</li>
+        <li>Red "CRISIS" badge appears if crisis mode is active.</li>
+        <li>Click any card to open the Client Detail modal.</li>
+      </ul>
+
+      <div style="margin-top:10px;">
+        <div class="section-label" style="font-size:7pt;">Client Detail Modal — 3 Tabs</div>
+        <table class="data-table">
+          <tr>
+            <td style="font-weight:700;color:var(--teal);width:90px;">Overview</td>
+            <td style="font-size:9pt;">Brand identity, social platforms, tone of voice, audience, design brief.</td>
+          </tr>
+          <tr>
+            <td style="font-weight:700;color:var(--teal);">Intelligence</td>
+            <td style="font-size:9pt;">Context bank (wins, objections, signals), AI feedback taste profile, competitor tracking.</td>
+          </tr>
+          <tr>
+            <td style="font-weight:700;color:var(--teal);">Tasks</td>
+            <td style="font-size:9pt;">All open tasks for this client, grouped by stage. Click any task to open it.</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="card card-red" style="margin-bottom:10px;">
+        <h4>Crisis Mode</h4>
+        <ul>
+          <li>Activated per client by Admin or CEO only.</li>
+          <li>Adds a visible red "CRISIS" banner on the client card and all their tasks.</li>
+          <li>Signals the team to pause normal scheduling and await instructions.</li>
+          <li>Deactivate from the same toggle in the client detail modal once resolved.</li>
+        </ul>
+      </div>
+      <div class="section-label" style="font-size:7pt;">Adding a New Client — 9-Step Wizard</div>
+      <p style="font-size:9pt;color:#444;line-height:1.55;margin-bottom:5px;">Click "New Client" to launch the onboarding wizard:</p>
+      <ol style="font-size:9pt;color:#333;padding-left:16px;line-height:1.7;">
+        <li>Identity → Social Platforms → Competitors</li>
+        <li>Brand Guidelines → Tone of Voice → Audience</li>
+        <li>Strategy Goals → Resources → Confirmation</li>
+      </ol>
+      <p style="font-size:8.5pt;color:var(--soft);margin-top:5px;line-height:1.5;">The wizard runs an automatic SWOT analysis via AI after completion. A full client brief is ready before the first task is created.</p>
+      <div class="tip" style="margin-top:8px;"><strong>Context Bank:</strong> Fill the Intelligence tab as you learn things — wins, objections, signals. This data is injected into every AI call for that client, making outputs progressively smarter.</div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>6 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 7 — PROJECTS + PUBLISHING
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>06 — Projects &nbsp;·&nbsp; 07 — Publishing</h2>
+    <p class="sub">Campaign grouping and scheduling content across all clients and platforms.</p>
+  </div>
+  <span class="page-num">p.7</span>
+</div>
+<div class="inner">
+
+  <!-- PROJECTS -->
+  <div class="two-col" style="margin-bottom:6px;">
+    <div>
+      <div class="section-label">Projects — Campaigns & Initiatives</div>
+      <p style="font-size:9pt;color:#444;margin-bottom:8px;line-height:1.55;">Projects group related tasks under one campaign. Use them for any initiative with 5+ tasks.</p>
+      <ul>
+        <li>Project card shows progress bar (% of tasks completed).</li>
+        <li>Task count breakdown by stage visible at a glance.</li>
+        <li>Filter the Pipeline by project to see only that campaign's tasks.</li>
+        <li>Archive completed projects — the data is valuable for future reporting.</li>
+      </ul>
+      <div class="example" style="margin-top:8px;">
+        <div class="ex-label">Example Setup</div>
+        "Ramadan Campaign 2026 — Client X": 1 strategy task, 6 copy tasks, 6 design tasks, 1 approval task, 6 scheduled tasks. Progress bar shows 8/20 complete (40%). Everyone on the team knows exactly where the campaign stands without a separate update.
+      </div>
+    </div>
+    <div>
+      <div class="section-label">When to Create a Project vs a Task</div>
+      <table class="data-table">
+        <thead><tr><th>Scenario</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td>Single post or caption</td><td>Task only</td></tr>
+          <tr><td>Monthly content calendar (all clients)</td><td>Task only</td></tr>
+          <tr><td>Full campaign: brief + copy + design + approval + scheduling</td><td>Project + Tasks</td></tr>
+          <tr><td>Product launch across multiple platforms</td><td>Project + Tasks</td></tr>
+          <tr><td>Quarterly strategy document</td><td>Task only (or Document)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <!-- PUBLISHING -->
+  <div class="section-label" style="margin-bottom:8px;">07 — Publishing</div>
+  <div class="two-col">
+    <div>
+      <div class="section-label" style="font-size:7pt;">Two Views</div>
+      <div class="card card-teal" style="margin-bottom:8px;">
+        <h4>Grid View</h4>
+        <p style="font-size:9pt;color:#333;line-height:1.55;">All scheduled posts as cards. Filter by client and date range. See status per post: Scheduled / Published / Failed. Click any card to view its caption and media.</p>
+      </div>
+      <div class="card card-grey">
+        <h4>Calendar View</h4>
+        <p style="font-size:9pt;color:#333;line-height:1.55;">Month or week calendar with posts plotted by scheduled publish time. Shows content frequency per client. Use this to spot gaps and over-crowded days before the week begins.</p>
+      </div>
+      <div class="tip" style="margin-top:8px;"><strong>Generate Calendar:</strong> Click this button to have AI suggest a full posting schedule for a client — topic ideas per day based on their strategy and content pillars.</div>
+    </div>
+    <div>
+      <div class="section-label" style="font-size:7pt;">Composing a Post</div>
+      <ol class="steps">
+        <li><span class="step-num">1</span><span class="step-text">Click "Compose" and select the client and target platform(s).</span></li>
+        <li><span class="step-num">2</span><span class="step-text">Choose language: English, Arabic, or Both. "Both" generates two separate caption versions.</span></li>
+        <li><span class="step-num">3</span><span class="step-text">Write the caption manually, or click "Generate" to have AI draft one using the client's brand voice and context bank.</span></li>
+        <li><span class="step-num">4</span><span class="step-text">Upload media (image or video), or link from the Asset Library.</span></li>
+        <li><span class="step-num">5</span><span class="step-text">Set the publish date and time, then click "Schedule" to send to the scheduling platform.</span></li>
+      </ol>
+      <div class="warn" style="margin-top:8px;">
+        <strong>Failed posts</strong> show a red status badge. The root cause is always in the scheduling platform — check there for error details (usually a media format issue or expired token).
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>7 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 8 — APPROVAL
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>08 — Approval</h2>
+    <p class="sub">Send content for client review via a secure shareable link — no login required for clients.</p>
+  </div>
+  <span class="page-num">p.8</span>
+</div>
+<div class="inner">
+
+  <div class="two-col" style="margin-bottom:12px;">
+    <div>
+      <div class="section-label">Creating an Approval Request</div>
+      <ol class="steps">
+        <li><span class="step-num">1</span><span class="step-text">Go to Approval and click "New Request".</span></li>
+        <li><span class="step-num">2</span><span class="step-text">Select the client and choose which posts to include in this batch.</span></li>
+        <li><span class="step-num">3</span><span class="step-text">The system generates a unique approval link and token for this batch.</span></li>
+        <li><span class="step-num">4</span><span class="step-text">Copy the link and send it to the client via email or WhatsApp.</span></li>
+        <li><span class="step-num">5</span><span class="step-text">The client opens the link — no account, no password, no app to install.</span></li>
+        <li><span class="step-num">6</span><span class="step-text">You receive a notification as soon as the client submits their review.</span></li>
+      </ol>
+
+      <div class="section-label" style="margin-top:12px;font-size:7pt;">Internal Approval View</div>
+      <ul>
+        <li>Lists all pending requests across all clients in one view.</li>
+        <li>Shows which posts are waiting, approved, or have requested changes.</li>
+        <li>Filter by client to focus on one brand at a time.</li>
+        <li>Add internal notes on any request — only the team can see these.</li>
+        <li>Multiple approval requests can be open simultaneously per client.</li>
+      </ul>
+    </div>
+
+    <div>
+      <div class="section-label">What the Client Sees (Client Portal)</div>
+      <div class="card card-teal">
+        <p style="font-size:9pt;color:#333;line-height:1.55;margin-bottom:10px;">The client opens a branded approval page showing each post with its media, caption, and scheduled publish date. For each post they can:</p>
+        <table style="width:100%;font-size:8.5pt;border-collapse:collapse;">
+          <tr style="background:rgba(27,61,56,0.08);">
+            <td style="padding:6px 8px;font-weight:700;color:var(--green);border-bottom:1px solid var(--teal-bd);">Approve</td>
+            <td style="padding:6px 8px;color:#333;border-bottom:1px solid var(--teal-bd);">Marks the post as approved and ready to publish.</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;font-weight:700;color:var(--coming);border-bottom:1px solid var(--teal-bd);">Request Changes</td>
+            <td style="padding:6px 8px;color:#333;border-bottom:1px solid var(--teal-bd);">Flags the post and lets the client add a note explaining what to change.</td>
+          </tr>
+          <tr style="background:rgba(27,61,56,0.08);">
+            <td style="padding:6px 8px;font-weight:700;color:var(--blue);">Add Note</td>
+            <td style="padding:6px 8px;color:#333;">Client can leave a general comment on any post without changing its approval status.</td>
+          </tr>
+        </table>
+        <p style="font-size:8.5pt;color:var(--soft);margin-top:8px;line-height:1.5;">After reviewing all posts, the client clicks Submit. You receive a notification immediately. Posts with "Request Changes" move back to the Review stage in the Pipeline.</p>
+      </div>
+
+      <div class="tip" style="margin-top:10px;">
+        <strong>Send approval links 48 hours before the scheduled publish time.</strong> This gives the client time to review and allows you to complete revisions before the post goes live.
+      </div>
+    </div>
+  </div>
+
+  <div class="example">
+    <div class="ex-label">Real-world workflow</div>
+    Account Manager batches this week's 6 posts for Client X into one approval request. Sends the link on Sunday. Client reviews on Monday morning, approves 5 posts, requests changes on 1. Account Manager sees the notification, opens the request, reads the client's note, updates the task in the Pipeline, hands it back to the copywriter. Revised post is approved on Tuesday and goes live Wednesday as planned.
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>8 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 9 — MODERATION + ASSETS
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>09 — Moderation &nbsp;·&nbsp; 10 — Assets</h2>
+    <p class="sub">Comment queue with AI-drafted replies, and the centralised file library.</p>
+  </div>
+  <span class="page-num">p.9</span>
+</div>
+<div class="inner">
+
+  <!-- MODERATION -->
+  <div class="two-col" style="margin-bottom:6px;">
+    <div>
+      <div class="section-label">The Comment Queue</div>
+      <ul>
+        <li>Aggregates comments and DMs received via the messaging platform.</li>
+        <li>Sorted by time received — oldest unanswered items first.</li>
+        <li>Filter by client or by status: Pending / Replied / Ignored / Escalated.</li>
+        <li>Each item shows: commenter name, platform icon, full message text.</li>
+      </ul>
+
+      <div style="margin-top:10px;">
+        <div class="section-label" style="font-size:7pt;">Actions Available Per Item</div>
+        <table class="data-table">
+          <tr>
+            <td style="font-weight:700;color:var(--teal-mid);width:130px;">Generate Reply</td>
+            <td style="font-size:9pt;">AI drafts a reply in the client's tone of voice. You edit it before sending.</td>
+          </tr>
+          <tr>
+            <td style="font-weight:700;color:var(--green);">Send Reply</td>
+            <td style="font-size:9pt;">Sends your reply to the messaging platform and marks the item as replied.</td>
+          </tr>
+          <tr>
+            <td style="font-weight:700;color:var(--coming);">Escalate</td>
+            <td style="font-size:9pt;">Flags the item for a senior team member to handle.</td>
+          </tr>
+          <tr>
+            <td style="font-weight:700;color:var(--soft);">Ignore</td>
+            <td style="font-size:9pt;">Archives the item without replying (e.g. spam, irrelevant).</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="tip" style="margin-top:8px;"><strong>Always read the AI draft before sending.</strong> Check for factual accuracy and brand tone. The AI reads the client's context bank, so the more you fill that in, the better the drafts get over time.</div>
+
+      <div class="warn" style="margin-top:8px;">
+        <strong>Platform limitation:</strong> Instagram public comment replies are not supported via the messaging platform API — only DMs. Facebook public comments do work. Google Reviews are not supported.
+      </div>
+    </div>
+
+    <!-- ASSETS -->
+    <div>
+      <div class="section-label">10 — Assets</div>
+      <p style="font-size:9pt;color:#444;margin-bottom:8px;line-height:1.55;">Centralised file library for all client creative assets — images, videos, PDFs, and documents.</p>
+
+      <div class="card card-teal" style="margin-bottom:8px;">
+        <h4>Direct Upload</h4>
+        <ul>
+          <li>Drag and drop files onto the upload zone, or click to browse.</li>
+          <li>Supports: images (JPG, PNG, WEBP, GIF), video (MP4, MOV), PDF, documents.</li>
+          <li>Up to 500 MB per file.</li>
+          <li>Tag each asset to a client for easy search later.</li>
+        </ul>
+      </div>
+
+      <div class="card card-grey">
+        <h4>Google Drive Import</h4>
+        <ol class="steps">
+          <li><span class="step-num">1</span><span class="step-text">Click "Import from Drive" — on first use, authorise Google Drive access.</span></li>
+          <li><span class="step-num">2</span><span class="step-text">Browse your Drive folders and select files to import.</span></li>
+          <li><span class="step-num">3</span><span class="step-text">Files are copied into the asset library — no ongoing sync is needed.</span></li>
+        </ol>
+      </div>
+
+      <div class="example" style="margin-top:8px;">
+        <div class="ex-label">Naming Convention Tip</div>
+        Name files descriptively before uploading: <em>ClientX_Ramadan_Reel_v3.mp4</em> rather than <em>final_FINAL_2.mp4</em>. This makes search and linking to tasks significantly faster. The asset library has no folder structure — file names are your only navigation tool.
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>9 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 10 — CREATIVE EVAL + WORKLOAD
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>11 — Creative Eval &nbsp;·&nbsp; 12 — Workload</h2>
+    <p class="sub">AI scoring for creative assets before they reach the client, and team capacity management.</p>
+  </div>
+  <span class="page-num">p.10</span>
+</div>
+<div class="inner">
+
+  <div class="two-col" style="margin-bottom:6px;">
+    <div>
+      <div class="section-label">Creative Eval — AI Scoring</div>
+      <p style="font-size:9pt;color:#444;line-height:1.55;margin-bottom:8px;">Upload a creative asset — image or video — and receive a scored evaluation across 4 dimensions within 30 seconds.</p>
+
+      <ol class="steps">
+        <li><span class="step-num">1</span><span class="step-text">Upload an image or video onto the upload zone.</span></li>
+        <li><span class="step-num">2</span><span class="step-text">Select the client. Optionally add a note about the creative goal (e.g. "awareness reel for Ramadan").</span></li>
+        <li><span class="step-num">3</span><span class="step-text">Click "Evaluate". The AI analyses the asset in context and returns scores.</span></li>
+      </ol>
+
+      <div style="margin-top:10px;">
+        <div class="section-label" style="font-size:7pt;">What Gets Scored (0–100 per dimension)</div>
+        <table class="data-table">
+          <tr><td style="font-weight:700;color:var(--teal);">Brand Fit</td><td style="font-size:9pt;">Does it match the client's visual identity, colour palette, and tone?</td></tr>
+          <tr><td style="font-weight:700;color:var(--teal);">Hook Strength</td><td style="font-size:9pt;">Will it stop the scroll in the first 3 seconds?</td></tr>
+          <tr><td style="font-weight:700;color:var(--teal);">Visual Quality</td><td style="font-size:9pt;">Technical quality, composition, lighting, and clarity.</td></tr>
+          <tr><td style="font-weight:700;color:var(--teal);">CTA & Engagement</td><td style="font-size:9pt;">Does it drive a clear action or invite interaction?</td></tr>
+        </table>
+      </div>
+
+      <div class="tip" style="margin-top:8px;">
+        Use Creative Eval <strong>before</strong> sending work to the client. If any score is below 65, revise the asset internally first — a rejected approval wastes 2–3 days of the production timeline.
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">12 — Workload</div>
+      <p style="font-size:9pt;color:#444;line-height:1.55;margin-bottom:8px;">A visual overview of how many tasks each team member is carrying right now versus their capacity.</p>
+
+      <div class="card card-teal" style="margin-bottom:8px;">
+        <h4>What You See</h4>
+        <ul>
+          <li>One row per team member with avatar, name, and role.</li>
+          <li>Progress bar: current task load vs capacity threshold.</li>
+          <li>Green = healthy &nbsp;·&nbsp; Amber = near capacity &nbsp;·&nbsp; Red = overloaded.</li>
+          <li>Expand any row to see that person's assigned tasks with priority badges.</li>
+          <li>Click any task from Workload to open its Task Detail panel.</li>
+        </ul>
+      </div>
+
+      <div class="section-label" style="font-size:7pt;">How to Use It Effectively</div>
+      <ul>
+        <li>Check this page <strong>before assigning a new task</strong> to avoid overloading a teammate.</li>
+        <li>If someone is overloaded, reassign one of their lower-priority tasks to a teammate with capacity.</li>
+        <li>Use it in weekly team meetings to balance the week's workload before it begins.</li>
+        <li>Creative Directors and Admins see all team members. Other roles see only their own row.</li>
+      </ul>
+
+      <div class="example" style="margin-top:8px;">
+        <div class="ex-label">Monday standup tip</div>
+        Open Workload on the shared screen during standup. If any bar is red, the Creative Director can immediately reassign tasks — before the bottleneck delays a client deliverable.
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>10 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 11 — LIBRARY + REPORTS
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>13 — Content Library &nbsp;·&nbsp; 14 — Reports</h2>
+    <p class="sub">Reuse your best content as templates, and generate branded performance reports in one click.</p>
+  </div>
+  <span class="page-num">p.11</span>
+</div>
+<div class="inner">
+
+  <div class="two-col" style="margin-bottom:6px;">
+    <div>
+      <div class="section-label">13 — Content Library</div>
+      <p style="font-size:9pt;color:#444;line-height:1.55;margin-bottom:8px;">A searchable archive of all published posts. Use any post as a starting template for new content.</p>
+      <ul>
+        <li>All published posts are automatically added here after going live.</li>
+        <li>Filter by client, platform, or content format type.</li>
+        <li>Click any post to view its original caption, media, and performance metrics (reach, engagement).</li>
+        <li>"Use as Template" copies the structure into a new Compose draft — caption pre-filled, ready to edit.</li>
+        <li>Useful for recurring content formats (weekly tips, monthly recaps, seasonal posts).</li>
+      </ul>
+
+      <div class="example" style="margin-top:8px;">
+        <div class="ex-label">Use Case</div>
+        A post from 3 months ago for Client X got 4× the normal engagement. Find it in the Library, click "Use as Template", update the caption for a new campaign angle, attach new visuals from the Asset Library, and schedule — saving 25 minutes of writing and formatting.
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">14 — Reports</div>
+      <p style="font-size:9pt;color:#444;line-height:1.55;margin-bottom:8px;">Generate KPI performance reports with AI narrative analysis, exportable to PDF or PowerPoint.</p>
+
+      <div class="section-label" style="font-size:7pt;">Report Types</div>
+      <table class="data-table" style="margin-bottom:10px;">
+        <tr><td style="font-weight:700;color:var(--teal);width:130px;">Monthly</td><td style="font-size:9pt;">Standard monthly KPI summary — reach, impressions, engagement rate, posts.</td></tr>
+        <tr><td style="font-weight:700;color:var(--teal);">Platform Deep Dive</td><td style="font-size:9pt;">One platform analysed in depth with post-level breakdown.</td></tr>
+        <tr><td style="font-weight:700;color:var(--teal);">Quarterly</td><td style="font-size:9pt;">3-month overview with month-on-month trend data and commentary.</td></tr>
+        <tr><td style="font-weight:700;color:var(--teal);">Executive Summary</td><td style="font-size:9pt;">One-page high-level summary for senior stakeholders or client CEOs.</td></tr>
+        <tr><td style="font-weight:700;color:var(--teal);">AI Report</td><td style="font-size:9pt;">Fully AI-narrated analysis — reads the data and writes the interpretation for you.</td></tr>
+      </table>
+
+      <div class="two-col" style="gap:8px;margin-bottom:8px;">
+        <div class="card" style="border-left:3px solid var(--red);">
+          <h4 style="color:var(--red);">PDF Export</h4>
+          <p style="font-size:8.5pt;color:#444;line-height:1.5;">Branded NOVAX PDF with KPI cards, platform comparison table, trend chart, and AI narrative. Ready to send to clients.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--blue);">
+          <h4 style="color:var(--blue);">PPTX Export</h4>
+          <p style="font-size:8.5pt;color:#444;line-height:1.5;">PowerPoint deck with data tables and charts, ready for client presentation or internal review meetings.</p>
+        </div>
+      </div>
+
+      <div class="tip">Click <strong>"Generate AI Analysis"</strong> before exporting. It adds a written performance narrative automatically — this replaces 20–30 minutes of manual commentary writing per report.</div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>11 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 12 — SETTINGS
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>15 — Settings</h2>
+    <p class="sub">Team management, page permissions, and integration configuration. Primarily admin-controlled.</p>
+  </div>
+  <span class="page-num">p.12</span>
+</div>
+<div class="inner">
+
+  <div class="section-label" style="margin-bottom:8px;">Settings Tabs Overview</div>
+  <table class="data-table" style="margin-bottom:14px;">
+    <thead>
+      <tr><th>Tab</th><th>Who Can Access</th><th>What You Can Do Here</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="td-name">Team</td>
+        <td><span class="badge badge-admin">Admin only</span></td>
+        <td>View all team members, invite new ones, cancel pending invites, change roles, deactivate accounts.</td>
+      </tr>
+      <tr>
+        <td class="td-name">Permissions</td>
+        <td><span class="badge badge-admin">Admin only</span></td>
+        <td>Set which pages each team member can access. Use Bulk Permissions panel for multiple users at once.</td>
+      </tr>
+      <tr>
+        <td class="td-name">Integrations</td>
+        <td><span class="badge badge-admin">Admin only</span></td>
+        <td>Configure API tokens for the Scheduling Platform, Messaging Platform, Google Drive, AI, and Email. Vendor names are only visible to Admin and CEO.</td>
+      </tr>
+      <tr>
+        <td class="td-name">Activity</td>
+        <td><span class="badge badge-ceo">Admin / CEO / CD</span></td>
+        <td>AI cost per user for the current month, audit log of all platform actions, and usage statistics over time.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="two-col">
+    <div>
+      <div class="section-label">Inviting a New Team Member</div>
+      <ol class="steps">
+        <li><span class="step-num">1</span><span class="step-text">Go to Settings → Team and click "Invite User".</span></li>
+        <li><span class="step-num">2</span><span class="step-text">Enter the person's full name and email address, and select their role from the dropdown.</span></li>
+        <li><span class="step-num">3</span><span class="step-text">Optionally configure which pages they can access using the permission grid in the invite modal.</span></li>
+        <li><span class="step-num">4</span><span class="step-text">Click "Send Invite". They will receive an email with a setup link — valid for 7 days.</span></li>
+        <li><span class="step-num">5</span><span class="step-text">Their account shows as "Pending" until they complete onboarding. You can cancel a pending invite at any time.</span></li>
+      </ol>
+
+      <div style="margin-top:12px;">
+        <div class="section-label">Bulk Invite</div>
+        <p style="font-size:9pt;color:#444;line-height:1.55;">Use <strong>Bulk Invite</strong> to onboard multiple team members at once. Fill in up to 10 rows with name, email, and role. The system sends individual invite emails and shows a per-person result — including which emails were already registered in the system.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Page Permissions</div>
+      <p style="font-size:9pt;color:#444;line-height:1.55;margin-bottom:8px;">Control which pages each user can access from the sidebar. This lets you customise each role's workspace.</p>
+      <table class="data-table" style="margin-bottom:8px;">
+        <tr>
+          <td style="font-weight:700;color:var(--teal);">NULL (default)</td>
+          <td style="font-size:9pt;">User sees all pages they are allowed by their role.</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--teal);">Empty array</td>
+          <td style="font-size:9pt;">User sees only the required pages (Dashboard, Pipeline, My Tasks).</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700;color:var(--teal);">Custom array</td>
+          <td style="font-size:9pt;">Exactly the pages listed are visible. Everything else is hidden.</td>
+        </tr>
+      </table>
+      <p style="font-size:8.5pt;color:var(--soft);line-height:1.5;">Use the <strong>Bulk Permissions panel</strong> to apply Standard, Full, or Required-only presets to multiple users simultaneously — useful when onboarding a department at once.</p>
+
+      <div class="tip" style="margin-top:10px;">
+        <strong>Activity tab:</strong> If AI costs are unusually high, check which user is generating them. The rate limit is 10 AI requests per user per minute — accidental repeated runs can accumulate cost quickly.
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>12 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 13 — CEO HUB + AI ASSISTANT
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>16 — CEO Hub &nbsp;·&nbsp; 17 — AI Assistant</h2>
+    <p class="sub">Executive strategy tools and a context-aware AI chat for the full team.</p>
+  </div>
+  <span class="page-num">p.13</span>
+</div>
+<div class="inner">
+
+  <!-- CEO HUB -->
+  <div class="section-label" style="margin-bottom:4px;">16 — CEO Hub <span class="badge badge-admin" style="margin-left:6px;">Admin + CEO only</span></div>
+  <p style="font-size:9pt;color:#444;line-height:1.55;margin-bottom:10px;">Executive tools for cross-client strategy analysis, crisis management, and getting a second opinion on creative and strategic decisions.</p>
+
+  <div class="three-col" style="margin-bottom:14px;">
+    <div class="card">
+      <h4>Strategy Analysis</h4>
+      <p style="font-size:9pt;color:#333;line-height:1.55;">Input your current client portfolio state — active campaigns, performance data, and upcoming challenges — and receive a prioritised focus list with strategic reasoning across all clients.</p>
+    </div>
+    <div class="card card-red">
+      <h4>Crisis Override</h4>
+      <p style="font-size:9pt;color:#333;line-height:1.55;">Activate or deactivate crisis mode across one or multiple clients simultaneously. Includes an AI-drafted crisis communication brief tailored to the specific situation.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--coming);">
+      <h4>Second Opinion</h4>
+      <p style="font-size:9pt;color:#333;line-height:1.55;">Paste any brief, campaign plan, or caption to get an unbiased AI critique and concrete improvement suggestions — useful before major client presentations or strategy sign-offs.</p>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <!-- AI ASSISTANT -->
+  <div class="section-label" style="margin-bottom:4px;">17 — AI Assistant</div>
+  <p style="font-size:9pt;color:#444;line-height:1.55;margin-bottom:10px;">A context-aware chat assistant that reads your clients, tasks, and brand rules. Accessible by all team members.</p>
+
+  <div class="two-col">
+    <div>
+      <div class="section-label" style="font-size:7pt;">How It Works</div>
+      <ul>
+        <li>Open from the sidebar under "AI Assistant".</li>
+        <li><strong>Select a client</strong> to scope the conversation to that brand. Without a client selected, the AI gives generic answers.</li>
+        <li>Optionally <strong>link to a task</strong> for task-specific help.</li>
+        <li>The AI reads: client brand identity, tone of voice, context bank, recent AI feedback, and current user role.</li>
+        <li>Conversation history is remembered within the current session.</li>
+        <li>Start a new chat at any time to clear context and begin fresh.</li>
+      </ul>
+
+      <div class="tip" style="margin-top:10px;"><strong>Always select the client first.</strong> The difference in output quality between a scoped and unscoped session is significant — scoped sessions produce brand-accurate, immediately usable output.</div>
+    </div>
+
+    <div>
+      <div class="section-label" style="font-size:7pt;">What to Ask the AI Assistant</div>
+      <div class="example" style="margin-bottom:8px;">
+        <div class="ex-label">For copywriters</div>
+        "Draft 3 hook options for a Ramadan reel for [Client]." &nbsp;·&nbsp; "Rewrite this caption in a more conversational tone: [paste text]." &nbsp;·&nbsp; "Give me 5 caption angles for a product launch targeting women 25–35 in the Gulf."
+      </div>
+      <div class="example" style="margin-bottom:8px;">
+        <div class="ex-label">For account managers</div>
+        "What are the key brand rules I should follow for [Client]?" &nbsp;·&nbsp; "Summarise the main competitor gaps we have in this space." &nbsp;·&nbsp; "What are this client's stated goals and what should we be prioritising?"
+      </div>
+      <div class="example">
+        <div class="ex-label">For strategists</div>
+        "Suggest 5 content pillar topics for a Q3 Ramadan campaign for [Client]." &nbsp;·&nbsp; "What's a strong cultural tension we could use for a campaign in this market?" &nbsp;·&nbsp; "Give me 3 creative campaign concepts based on this brief: [paste]."
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>13 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 14 — DOCUMENTS
+══════════════════════════════════════ -->
+<div class="page">
+<div class="page-title-bar">
+  <div>
+    <h2>18 — Documents</h2>
+    <p class="sub">Rich-text documents for briefs, scripts, and notes — with external sharing and template support.</p>
+  </div>
+  <span class="page-num">p.14</span>
+</div>
+<div class="inner">
+
+  <div class="two-col" style="margin-bottom:12px;">
+    <div>
+      <div class="section-label">Creating a Document</div>
+      <ol class="steps">
+        <li><span class="step-num">1</span><span class="step-text">Go to Documents from the sidebar and click "New Document".</span></li>
+        <li><span class="step-num">2</span><span class="step-text">Name the document and optionally link it to a client.</span></li>
+        <li><span class="step-num">3</span><span class="step-text">Write using the rich-text editor — supports headings, bold, italic, bullet lists, numbered lists, tables, and code blocks.</span></li>
+        <li><span class="step-num">4</span><span class="step-text">Documents auto-save as you type. There is no Save button — every change is saved immediately.</span></li>
+      </ol>
+
+      <div style="margin-top:12px;">
+        <div class="section-label">Sharing a Document</div>
+        <ol class="steps">
+          <li><span class="step-num">1</span><span class="step-text">Click the Share button in the document header.</span></li>
+          <li><span class="step-num">2</span><span class="step-text">Toggle "Public Sharing" on — this generates a unique shareable link.</span></li>
+          <li><span class="step-num">3</span><span class="step-text">Anyone with the link can read the document — no login required.</span></li>
+          <li><span class="step-num">4</span><span class="step-text">Revoke access at any time by toggling sharing off. The link stops working immediately.</span></li>
+        </ol>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Document Types</div>
+      <table class="data-table" style="margin-bottom:10px;">
+        <thead><tr><th>Type</th><th>Best used for</th></tr></thead>
+        <tbody>
+          <tr><td class="td-name">Brief</td><td>Campaign briefs, creative briefs, strategy briefs.</td></tr>
+          <tr><td class="td-name">Script</td><td>Reel scripts, video production scripts, talking head outlines.</td></tr>
+          <tr><td class="td-name">Strategy Note</td><td>Strategy summaries, quarterly direction documents.</td></tr>
+          <tr><td class="td-name">SOP</td><td>Team processes, onboarding procedures, content guidelines.</td></tr>
+          <tr><td class="td-name">Meeting Notes</td><td>Client meetings, internal reviews, ideation sessions.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="tip" style="margin-bottom:10px;"><strong>From Studio to Document:</strong> Studio tools (Content Studio, Hook Lab, Strategy) can save their AI outputs directly to a Document — no copy-pasting. Use this to preserve generated strategies or scripts in an editable, shareable format.</div>
+
+      <div class="example">
+        <div class="ex-label">Practical Workflow</div>
+        Account Manager creates a "Q3 Campaign Brief" document for a client, fills it in using a template, then shares the link with the client and the Creative Director. All stakeholders can read the same brief in real time — no PDF emailing, no version confusion, no "which file is the latest?" questions.
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <div class="card card-teal">
+    <div class="section-label">Document Best Practices</div>
+    <div class="two-col">
+      <ul>
+        <li>Link documents to the relevant client so they are easy to find later from the Client detail modal.</li>
+        <li>Use the document type field — it filters the document list so you can quickly find all briefs or all scripts.</li>
+        <li>For confidential strategy documents, keep sharing toggled off until you are ready to share.</li>
+      </ul>
+      <ul>
+        <li>Use headings (H1, H2, H3) to structure longer documents — this makes them readable on the shared link view.</li>
+        <li>Bold key terms and action items so skimmers can extract the essentials without reading everything.</li>
+        <li>The document URL in your browser can be bookmarked — it opens directly to that document.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+<div class="page-footer"><span><strong>NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span><span>14 / 20</span></div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 15 — STUDIO COMING SOON (dark)
+══════════════════════════════════════ -->
+<div class="page">
+<div class="studio-page">
+  <div style="background: rgba(91,180,174,0.9); height:5px; position:absolute; top:0; left:0; right:0;"></div>
+
+  <div class="studio-inner">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;padding-top:8px;">
+      <h2 style="font-size:20pt;font-weight:900;color:#fff;letter-spacing:-0.3px;">19 — Studio Tools</h2>
+      <div style="background:rgba(217,119,6,0.2);border:1px solid rgba(217,119,6,0.4);border-radius:4px;padding:4px 12px;font-size:8pt;font-weight:800;color:#F59E0B;letter-spacing:0.8px;">NOT YET ACCESSIBLE</div>
+    </div>
+    <p style="font-size:10pt;color:rgba(155,184,180,0.85);line-height:1.65;margin-bottom:20px;max-width:620px;">
+      The Studio is NOVAX Ops' advanced AI creation suite. These tools are being finalised and will be rolled out in the next platform update. They are not accessible from the sidebar yet — this page is a preview of what is coming.
+    </p>
+
+    <div class="studio-tool">
+      <div><div class="studio-tool-name">Content Studio</div><div class="studio-tool-path">/studio/content</div></div>
+      <div class="studio-tool-desc">Generate full reel scripts, carousel slide copy, and static image briefs for 1–3 content pieces at once. Each piece gets a unique hook, AI script output, and a Boss Brief summary for the creative team.</div>
+      <div class="studio-tool-cs"><span class="badge badge-coming">Soon</span></div>
+    </div>
+
+    <div class="studio-tool">
+      <div><div class="studio-tool-name">Hook Lab</div><div class="studio-tool-path">/studio/hooks</div></div>
+      <div class="studio-tool-desc">Generates 20 divergent hook angles for any topic, scores them using the 3C framework (Curiosity, Conflict, Consequence), then applies SCAMPER enhancement to converge on the top 3 strongest hooks ready to use.</div>
+      <div class="studio-tool-cs"><span class="badge badge-coming">Soon</span></div>
+    </div>
+
+    <div class="studio-tool">
+      <div><div class="studio-tool-name">Strategy Command</div><div class="studio-tool-path">/studio/strategy</div></div>
+      <div class="studio-tool-desc">Full quarterly social media strategy in the Esplanade format — 17 phases covering positioning, campaign line, content pillars, platform roles, monthly roadmap, narrative arc, and format playbook. Exports to PPTX automatically.</div>
+      <div class="studio-tool-cs"><span class="badge badge-coming">Soon</span></div>
+    </div>
+
+    <div class="studio-tool">
+      <div><div class="studio-tool-name">Campaign Igniter</div><div class="studio-tool-path">/studio/campaign</div></div>
+      <div class="studio-tool-desc">Starts from cultural tensions and constraint inversion to generate 5 breakthrough campaign concepts, each with a full execution brief, creative direction, platform strategy, and go-to-market angle.</div>
+      <div class="studio-tool-cs"><span class="badge badge-coming">Soon</span></div>
+    </div>
+
+    <div class="studio-tool">
+      <div><div class="studio-tool-name">Inspiration Board</div><div class="studio-tool-path">/studio/inspiration</div></div>
+      <div class="studio-tool-desc">Live trend scraping from YouTube, TikTok, and Reddit via Apify. Browse what is trending by industry and platform. Save trend cards to per-client inspiration boards to inform upcoming content planning sessions.</div>
+      <div class="studio-tool-cs"><span class="badge badge-coming">Soon</span></div>
+    </div>
+
+    <div class="studio-tool">
+      <div><div class="studio-tool-name">Post-Mortem</div><div class="studio-tool-path">/studio/postmortem</div></div>
+      <div class="studio-tool-desc">Diagnose why a piece of content underperformed. The AI analyses hook strength, format choice, publish timing, caption quality, and audience fit to identify the root cause and suggest what to do differently next time.</div>
+      <div class="studio-tool-cs"><span class="badge badge-coming">Soon</span></div>
+    </div>
+
+    <div class="studio-tool">
+      <div><div class="studio-tool-name">Visual Content Engine</div><div class="studio-tool-path">/studio/visual</div></div>
+      <div class="studio-tool-desc">Select a visual approach (cinematic, product, lifestyle, etc.) and a visual anchor (location, object, person), then receive detailed scene-by-scene shot prompts — ready to brief video editors or submit to AI video generation.</div>
+      <div class="studio-tool-cs"><span class="badge badge-coming">Soon</span></div>
+    </div>
+
+    <div class="studio-tool">
+      <div><div class="studio-tool-name">Peak Format Generator</div><div class="studio-tool-path">/studio/formats</div></div>
+      <div class="studio-tool-desc">Enter your client's niche and receive 5 viral content format blueprints — each with a 2–4 type hook stack, 3-law validation framework, episode structure, and payoff architecture for maximum shareability.</div>
+      <div class="studio-tool-cs"><span class="badge badge-coming">Soon</span></div>
+    </div>
+
+    <div style="background:rgba(27,61,56,0.6);border:1px solid rgba(91,180,174,0.15);border-radius:6px;padding:14px 18px;margin-top:14px;">
+      <div style="font-size:7.5pt;font-weight:800;color:var(--teal-acc);letter-spacing:1.5px;margin-bottom:6px;text-transform:uppercase;">When Studio Access Is Granted</div>
+      <p style="font-size:9pt;color:rgba(155,184,180,0.85);line-height:1.6;">A dedicated Studio section will appear in your sidebar. Each tool runs independently and saves its session history. AI outputs from any Studio tool can be saved directly to tasks, documents, or the client context bank with one click.</p>
+    </div>
+  </div>
+
+  <div style="position:absolute;bottom:0;left:0;right:0;border-top:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;align-items:center;padding:8px 1.8cm;font-size:7.5pt;color:rgba(155,184,180,0.5);">
+    <span><strong style="color:rgba(91,180,174,0.7);font-size:8pt;">NOVAX Ops</strong> — Platform User Manual &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</span>
+    <span>15 / 20</span>
+  </div>
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     PAGE 16 — QUICK REFERENCE (dark)
+══════════════════════════════════════ -->
+<div class="page">
+<div class="back-page">
+  <div class="back-page-strip"></div>
+
+  <div>
+    <p style="font-size:8pt;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--teal-acc);margin-bottom:14px;">Quick Reference</p>
+    <h2 style="font-size:26pt;font-weight:900;color:#fff;line-height:1.1;margin-bottom:28px;">Tips for Maximum<br>Efficiency</h2>
+
+    <div class="tips-grid">
+      <div>
+        <div class="tips-section-title">Daily Habits — Start Strong</div>
+        <ul class="tips-list">
+          <li>Check Dashboard first every morning — KPI badges before anything else.</li>
+          <li>Open My Tasks to see your personal queue sorted by priority and due date.</li>
+          <li>Check Moderation for any overnight comments before the working day begins.</li>
+          <li>Review the Publishing calendar to confirm today's posts are scheduled and have no failures.</li>
+          <li>Run Creative Eval on any asset before it leaves for client approval.</li>
+          <li>End the day by dragging completed tasks to the next pipeline stage — keeps the board accurate for the team.</li>
+        </ul>
+
+        <div class="tips-section-title" style="margin-top:18px;">AI Agent Tips</div>
+        <ul class="tips-list">
+          <li>Fill in a detailed task description before running any AI agent — context is everything.</li>
+          <li>Run "Analyze Task" first to validate the brief before running "Write Copy".</li>
+          <li>Use thumbs up / down on AI outputs — this improves future outputs for that client over time.</li>
+          <li>AI responses are cached — same task + same context = instant result at zero extra cost.</li>
+          <li>Rate limit is 10 requests per user per minute — space out bulk AI runs across tasks.</li>
+          <li>Always select the client before using the AI Assistant — unscoped sessions give generic results.</li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="tips-section-title">Workflow Shortcuts</div>
+        <ul class="tips-list">
+          <li>Esc key closes any open panel, modal, or slide-over from any page.</li>
+          <li>Click the NOVAX logo in the sidebar to return to Dashboard from anywhere in the app.</li>
+          <li>Filter chips on the Pipeline stay active — clear them when switching client context.</li>
+          <li>The floating My Tasks button (top header) is available on every page — check your queue without navigating away.</li>
+          <li>Documents auto-save — there is no Save button. Every keystroke is saved immediately.</li>
+          <li>Approval links can be resent at any time — just copy and share the same link from the Approval page.</li>
+        </ul>
+
+        <div class="tips-section-title" style="margin-top:18px;">Team Collaboration</div>
+        <ul class="tips-list">
+          <li>Use task comments for all task-specific discussion — keeps context in one place and logged.</li>
+          <li>Check Workload before assigning new tasks — avoid overloading a teammate who is already at capacity.</li>
+          <li>Fill the Context Bank (Client → Intelligence) as you learn things — every win, objection, and signal makes future AI outputs smarter.</li>
+          <li>Send approval links 48+ hours before publish time to allow for revision cycles.</li>
+          <li>Use the Content Library to find and reuse high-performing posts as templates instead of starting from scratch.</li>
+          <li>Share Documents with external collaborators (freelancers, clients) using the public sharing link — no login required.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:14px;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <p style="font-size:9pt;font-weight:900;letter-spacing:3px;color:var(--teal-acc);margin-bottom:4px;">NOVAX</p>
+      <p style="font-size:8pt;color:rgba(91,180,174,0.4);">Platform User Manual &nbsp;·&nbsp; Version 1.0 &nbsp;·&nbsp; June 2026</p>
+    </div>
+    <p style="font-size:8pt;color:rgba(255,255,255,0.2);">Confidential — Internal Use Only</p>
+  </div>
+</div>
+</div>
+
+
+</body>
+</html>

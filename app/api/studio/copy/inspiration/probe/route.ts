@@ -352,9 +352,9 @@ export async function POST(req: NextRequest) {
 
   let rawPins: Awaited<ReturnType<typeof fetchPinterestPinsCustom>> = []
   try {
-    rawPins = await fetchPinterestPinsCustom(queryInputs, 56, 42)
+    rawPins = await fetchPinterestPinsCustom(queryInputs, 56)
   } catch (err) {
-    console.error('[probe] Apify scrape failed:', err)
+    console.error('[probe] Pinterest scrape failed:', err)
   }
 
   // Filter: must have image URL + some meaningful text

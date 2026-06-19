@@ -69,6 +69,12 @@ export function useUpdateClient() {
   })
 }
 
+export interface SocialProfile {
+  platform: string
+  handle: string
+  url: string
+}
+
 export interface CreateClientInput {
   name: string
   industry: string
@@ -82,6 +88,7 @@ export interface CreateClientInput {
   key_messages: string[]
   platforms: string[]
   competitors?: { handle: string; platform: string }[]
+  social_profiles?: SocialProfile[]
   metricool_blog_id?: string
   posts_per_week?: number
 }
@@ -90,67 +97,29 @@ export function useCreateClient() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: CreateClientInput): Promise<Client> => {
-      const initials = input.name
-        .split(' ')
-        .map(w => w[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
+      const res = await fetch('/api/clients/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to create client' })) as { error?: string }
+        throw new Error(err.error ?? 'Failed to create client')
+      }
+      const { client } = await res.json() as { client: Record<string, unknown> }
+      const mapped = mapClient(client)
 
-      const toneDesc = [
-        input.tone_formal > 60 ? 'formal' : input.tone_formal < 40 ? 'casual' : 'balanced',
-        input.tone_energy > 60 ? 'playful' : input.tone_energy < 40 ? 'serious' : 'measured',
-      ].join(', ')
-
-      const competitorHandles = (input.competitors ?? []).map(c => `${c.handle} (${c.platform})`)
-
-      const { data, error } = await supabase
-        .from('clients')
-        .insert({
-          name: input.name,
-          initials,
-          color: input.primary_color,
-          status: 'active',
-          metricool_blog_id: input.metricool_blog_id || null,
-          brand_identity_json: {
-            primary_color: input.primary_color,
-            secondary_color: '#FFFFFF',
-            tone_of_voice: `${toneDesc.charAt(0).toUpperCase() + toneDesc.slice(1)}. ${input.audience}`,
-            target_audience: input.audience,
-            key_messages: input.key_messages.filter(Boolean),
-            industry: input.industry,
-            language: input.language,
-            dialect: input.dialect ?? 'msa',
-            website: input.website ?? '',
-            platforms: input.platforms,
-            posts_per_week: input.posts_per_week ?? 4,
-          },
-          competitor_context_json: competitorHandles,
-          reference_links: [],
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-      const client = mapClient(data as Record<string, unknown>)
-
-      // Seed competitor_snapshots for each competitor added during onboarding
-      if (input.competitors && input.competitors.length > 0) {
-        await supabase.from('competitor_snapshots').insert(
-          input.competitors.map(c => ({
-            client_id: client.id,
-            competitor_handle: c.handle,
-            platform: c.platform,
-            followers: 0,
-            avg_er: 0,
-            posting_frequency: 0,
-            top_content_types: {},
-            captured_at: new Date().toISOString(),
-          }))
-        )
+      // Fire-and-forget: scrape own social profiles in background
+      const profilesToScrape = (input.social_profiles ?? []).filter(p => p.handle)
+      if (profilesToScrape.length > 0) {
+        void fetch(`/api/clients/${mapped.id}/scrape-profiles`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profiles: profilesToScrape }),
+        }).catch(() => {})
       }
 
-      return client
+      return mapped
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchInstagramProfile } from '@/lib/data-providers/instagram'
 
-const HAS_DB    = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
-const APIFY_KEY = process.env.APIFY_API_KEY ?? ''
-const YT_KEY    = process.env.YOUTUBE_API_KEY ?? ''
+const HAS_DB = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+const YT_KEY = process.env.YOUTUBE_API_KEY ?? ''
 
 interface ScrapedMetrics {
   followers: number
@@ -11,123 +11,69 @@ interface ScrapedMetrics {
   top_content_types: Record<string, number>
 }
 
-// ── Instagram ──────────────────────────────────────────────────────────────────
+// ── Instagram ─────────────────────────────────────────────────────────────────
+// Direct Instagram Mobile API via fetchInstagramProfile() — no Apify needed.
 async function scrapeInstagram(handle: string): Promise<ScrapedMetrics> {
-  const username = handle.replace('@', '')
-  const url = `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${APIFY_KEY}&timeout=60&memory=256`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usernames: [username], resultsType: 'details', resultsLimit: 1 }),
-  })
-  if (!res.ok) throw new Error(`Apify Instagram HTTP ${res.status}`)
-
-  const items = await res.json() as Array<{
-    followersCount?: number
-    latestPosts?: Array<{
-      likesCount?: number
-      commentsCount?: number
-      timestamp?: string
-      type?: string
-    }>
-  }>
-
-  const item = items[0]
-  if (!item) throw new Error('No Instagram data returned')
-
-  const followers = item.followersCount ?? 0
-  const posts = item.latestPosts ?? []
-
-  // ER = avg (likes + comments) / followers × 100 across last N posts
-  let avg_er = 0
-  if (followers > 0 && posts.length > 0) {
-    const totalEng = posts.reduce((sum, p) => sum + (p.likesCount ?? 0) + (p.commentsCount ?? 0), 0)
-    avg_er = parseFloat(((totalEng / posts.length / followers) * 100).toFixed(2))
+  const profile = await fetchInstagramProfile(handle)
+  if (!profile) throw new Error(`Instagram profile not found for @${handle}`)
+  return {
+    followers:         profile.followers,
+    avg_er:            profile.avgEngagementRate,
+    posting_frequency: profile.postingFreqPerWeek,
+    top_content_types: profile.topContentTypes,
   }
-
-  // Posting frequency — posts per week from timestamps in the last 30 days
-  let posting_frequency = 0
-  const now = Date.now()
-  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000
-  const recentPosts = posts.filter(p => p.timestamp && new Date(p.timestamp).getTime() > thirtyDaysAgo)
-  if (recentPosts.length > 0) {
-    posting_frequency = parseFloat((recentPosts.length / 4.3).toFixed(1)) // 4.3 weeks per month
-  }
-
-  // Content type breakdown
-  const top_content_types: Record<string, number> = {}
-  for (const p of posts) {
-    const t = (p.type ?? 'post').toLowerCase()
-    top_content_types[t] = (top_content_types[t] ?? 0) + 1
-  }
-
-  return { followers, avg_er, posting_frequency, top_content_types }
 }
 
-// ── TikTok ─────────────────────────────────────────────────────────────────────
+// ── TikTok ────────────────────────────────────────────────────────────────────
+// TikTok's public web API — same endpoint their web app uses. No auth required.
 async function scrapeTikTok(handle: string): Promise<ScrapedMetrics> {
-  const username = handle.replace('@', '')
-  const url = `https://api.apify.com/v2/acts/clockworks~tiktok-profile-scraper/run-sync-get-dataset-items?token=${APIFY_KEY}&timeout=60&memory=256`
+  const username = handle.replace('@', '').trim()
+  const url = `https://www.tiktok.com/api/user/detail/?aid=1988&app_name=tiktok_web&device_platform=web_pc&uniqueId=${encodeURIComponent(username)}&cookie_enabled=1&screen_width=1920&screen_height=1080&os=windows`
+
   const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profiles: [username], profilesPerPage: 1 }),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Referer': 'https://www.tiktok.com/',
+      'Accept': 'application/json, text/plain, */*',
+    },
+    signal: AbortSignal.timeout(10_000),
   })
-  if (!res.ok) throw new Error(`Apify TikTok HTTP ${res.status}`)
 
-  const items = await res.json() as Array<{
-    stats?: {
-      followerCount?: number
-      heartCount?: number
-      videoCount?: number
+  if (!res.ok) throw new Error(`TikTok API HTTP ${res.status}`)
+
+  const data = await res.json() as {
+    userInfo?: {
+      stats?: {
+        followerCount?: number
+        heartCount?: number
+        videoCount?: number
+      }
     }
-    videos?: Array<{
-      diggCount?: number
-      commentCount?: number
-      shareCount?: number
-      playCount?: number
-      createTime?: number
-    }>
-  }>
-
-  const item = items[0]
-  if (!item) throw new Error('No TikTok data returned')
-
-  const followers = item.stats?.followerCount ?? 0
-  const videos = item.videos ?? []
-
-  // ER for TikTok = avg (likes + comments + shares) / followers × 100
-  let avg_er = 0
-  if (followers > 0 && videos.length > 0) {
-    const totalEng = videos.reduce((sum, v) =>
-      sum + (v.diggCount ?? 0) + (v.commentCount ?? 0) + (v.shareCount ?? 0), 0
-    )
-    avg_er = parseFloat(((totalEng / videos.length / followers) * 100).toFixed(2))
   }
 
-  // Posting frequency — videos per week from last 30 days
-  let posting_frequency = 0
-  const now = Date.now()
-  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000
-  const recentVids = videos.filter(v => v.createTime && v.createTime * 1000 > thirtyDaysAgo)
-  if (recentVids.length > 0) {
-    posting_frequency = parseFloat((recentVids.length / 4.3).toFixed(1))
-  }
+  const stats     = data.userInfo?.stats
+  const followers = stats?.followerCount ?? 0
+  const videos    = stats?.videoCount    ?? 0
+  const hearts    = stats?.heartCount    ?? 0
+
+  const avgHearts = videos > 0 && hearts > 0 ? Math.round(hearts / videos) : 0
+  const avg_er    = followers > 0 && avgHearts > 0
+    ? parseFloat(((avgHearts / followers) * 100).toFixed(2))
+    : 0
 
   return {
     followers,
     avg_er,
-    posting_frequency,
-    top_content_types: { video: videos.length },
+    posting_frequency: 0,
+    top_content_types: { video: videos },
   }
 }
 
-// ── YouTube ────────────────────────────────────────────────────────────────────
+// ── YouTube ───────────────────────────────────────────────────────────────────
+// YouTube Data API v3 — free, 10,000 units/day.
 async function scrapeYouTube(handle: string): Promise<ScrapedMetrics> {
-  // handle may be a @username, channel name, or channel ID
   const query = handle.replace('@', '')
 
-  // Search for channel by handle/name
   const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(query)}&maxResults=1&key=${YT_KEY}`
   const searchRes = await fetch(searchUrl)
   if (!searchRes.ok) throw new Error(`YouTube search HTTP ${searchRes.status}`)
@@ -135,20 +81,13 @@ async function scrapeYouTube(handle: string): Promise<ScrapedMetrics> {
   const channelId = searchData.items?.[0]?.id?.channelId
   if (!channelId) throw new Error('YouTube channel not found')
 
-  // Get channel statistics
   const statsUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics,contentDetails&id=${channelId}&key=${YT_KEY}`
   const statsRes = await fetch(statsUrl)
   if (!statsRes.ok) throw new Error(`YouTube stats HTTP ${statsRes.status}`)
   const statsData = await statsRes.json() as {
     items?: Array<{
-      statistics?: {
-        subscriberCount?: string
-        viewCount?: string
-        videoCount?: string
-      }
-      contentDetails?: {
-        relatedPlaylists?: { uploads?: string }
-      }
+      statistics?: { subscriberCount?: string }
+      contentDetails?: { relatedPlaylists?: { uploads?: string } }
     }>
   }
 
@@ -156,11 +95,10 @@ async function scrapeYouTube(handle: string): Promise<ScrapedMetrics> {
   const followers = parseInt(channel?.statistics?.subscriberCount ?? '0', 10)
   const uploadsPlaylist = channel?.contentDetails?.relatedPlaylists?.uploads
 
-  // Get recent videos to calculate avg views (proxy for ER on YouTube)
   let avg_er = 0
   let posting_frequency = 0
 
-  if (uploadsPlaylist) {
+  if (uploadsPlaylist && followers > 0) {
     const videosUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylist}&maxResults=20&key=${YT_KEY}`
     const videosRes = await fetch(videosUrl)
     if (videosRes.ok) {
@@ -169,55 +107,40 @@ async function scrapeYouTube(handle: string): Promise<ScrapedMetrics> {
       }
       const recentItems = videosData.items ?? []
 
-      // Posting frequency from publish dates
-      const now = Date.now()
-      const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000
-      const recentVids = recentItems.filter(v => {
+      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+      const recent = recentItems.filter(v => {
         const pub = v.contentDetails?.videoPublishedAt
         return pub && new Date(pub).getTime() > thirtyDaysAgo
       })
-      if (recentVids.length > 0) {
-        posting_frequency = parseFloat((recentVids.length / 4.3).toFixed(1))
-      }
+      if (recent.length > 0) posting_frequency = parseFloat((recent.length / 4.3).toFixed(1))
 
-      // Get video stats for ER approximation (views / subscribers × 100)
       const videoIds = recentItems.slice(0, 10).map(v => v.contentDetails?.videoId).filter(Boolean).join(',')
-      if (videoIds && followers > 0) {
-        const vidStatsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${YT_KEY}`
-        const vidStatsRes = await fetch(vidStatsUrl)
+      if (videoIds) {
+        const vidStatsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${YT_KEY}`)
         if (vidStatsRes.ok) {
-          const vidStats = await vidStatsRes.json() as {
-            items?: Array<{ statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } }>
-          }
-          const vidItems = vidStats.items ?? []
-          if (vidItems.length > 0) {
-            const totalViews = vidItems.reduce((sum, v) => sum + parseInt(v.statistics?.viewCount ?? '0', 10), 0)
-            avg_er = parseFloat(((totalViews / vidItems.length / followers) * 100).toFixed(2))
+          const vs = await vidStatsRes.json() as { items?: Array<{ statistics?: { viewCount?: string } }> }
+          const items = vs.items ?? []
+          if (items.length > 0) {
+            const totalViews = items.reduce((sum, v) => sum + parseInt(v.statistics?.viewCount ?? '0', 10), 0)
+            avg_er = parseFloat(((totalViews / items.length / followers) * 100).toFixed(2))
           }
         }
       }
     }
   }
 
-  return {
-    followers,
-    avg_er,
-    posting_frequency,
-    top_content_types: { video: 100 },
-  }
+  return { followers, avg_er, posting_frequency, top_content_types: { video: 100 } }
 }
 
 /**
  * POST /api/competitors/scrape
  * Body: { client_id, handle, platform }
  *
- * Platforms supported:
- *   instagram — Apify (followers + ER from latestPosts + posting freq)
- *   tiktok    — Apify (followers + ER from videos + posting freq)
- *   youtube   — YouTube Data API (subscribers + view-based ER + posting freq)
+ * Platforms:
+ *   instagram — Direct Instagram Mobile API (no Apify, no key needed beyond optional session cookie)
+ *   tiktok    — Direct TikTok web API (no API key required)
+ *   youtube   — YouTube Data API v3 (YOUTUBE_API_KEY)
  *   facebook, linkedin, twitter — saves zeros (no unauthenticated API available)
- *
- * Always saves to competitor_snapshots even if scraping fails (graceful fallback).
  */
 export async function POST(req: NextRequest) {
   let body: { client_id?: string; handle?: string; platform?: string }
@@ -244,17 +167,16 @@ export async function POST(req: NextRequest) {
   const p = platform.toLowerCase()
 
   try {
-    if (p === 'instagram' && APIFY_KEY) {
+    if (p === 'instagram') {
       metrics = await scrapeInstagram(handle)
       scraped = true
-    } else if (p === 'tiktok' && APIFY_KEY) {
+    } else if (p === 'tiktok') {
       metrics = await scrapeTikTok(handle)
       scraped = true
     } else if (p === 'youtube' && YT_KEY) {
       metrics = await scrapeYouTube(handle)
       scraped = true
     }
-    // facebook, linkedin, twitter: no unauthenticated API — leaves metrics at 0
   } catch (err) {
     scrapeError = err instanceof Error ? err.message : 'Scrape failed'
     console.error(`[competitors/scrape] ${p} error for ${handle}:`, scrapeError)

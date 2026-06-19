@@ -12,6 +12,8 @@ const DEPT_BY_ROLE: Record<UserRole, string> = {
   creative_director:'creative',
   copywriter:       'creative',
   designer:         'creative',
+  video_editor:     'creative',
+  web_developer:    'creative',
   account_manager:  'accounts',
   strategist:       'strategy',
   social_manager:   'social',
@@ -107,7 +109,7 @@ export async function POST(req: Request) {
     .eq('auth_id', authUser.id)
     .single()
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 
   // Await email so we can report success/failure to the UI
   const emailResult = await sendTeamInvite({

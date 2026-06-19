@@ -15,6 +15,8 @@ const ROLES: { value: UserRole; label: string; desc: string }[] = [
   { value: 'strategist',       label: 'Strategist',       desc: 'Strategy tasks and project management' },
   { value: 'copywriter',       label: 'Copywriter',       desc: 'Assigned copy tasks, AI agent access' },
   { value: 'designer',         label: 'Designer',         desc: 'Assigned design tasks, asset library' },
+  { value: 'video_editor',     label: 'Video Editor',     desc: 'Video production, asset library, studio access' },
+  { value: 'web_developer',    label: 'Web Developer',    desc: 'Development tasks, docs, and technical assets' },
   { value: 'social_manager',   label: 'Social Manager',   desc: 'Publishing, scheduling, and moderation' },
 ]
 
@@ -25,7 +27,7 @@ const FULL_ACCESS_ROLES: UserRole[] = ['admin', 'ceo', 'creative_director']
 const DEFAULT_PAGES: PageKey[] = [
   'clients', 'projects', 'publishing', 'approval',
   'assets', 'ai-image', 'creative-eval', 'docs', 'strategy-eval',
-  'assistant', 'performance', 'workload', 'library', 'reports',
+  'assistant', 'workload', 'library', 'reports',
   'studio-media-buying', 'studio-copy',
 ]
 

@@ -562,6 +562,8 @@ function buildSystemPrompt(
     creative_director: 'Creative Director',
     copywriter:       'Copywriter',
     designer:         'Designer',
+    video_editor:     'Video Editor',
+    web_developer:    'Web Developer',
     social_manager:   'Social Media Manager',
     account_manager:  'Account Manager',
     strategist:       'Strategist',

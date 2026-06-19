@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '20mb',
     },
   },
+  // @react-pdf/renderer uses canvas + Node.js internals — must run as external module
+  serverExternalPackages: ['@react-pdf/renderer', 'canvas'],
   transpilePackages: ['react-markdown', 'remark-gfm'],
   // Skip ESLint and type errors during builds — run separately
   eslint: {

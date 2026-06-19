@@ -103,6 +103,77 @@ const TOOLS_BY_ROLE: Record<string, ToolDef[]> = {
     },
   ],
 
+  video_editor: [
+    {
+      id: 'video_script_breakdown',
+      label: 'Video Script Breakdown',
+      description: 'Break a script into shot-by-shot production notes: visuals, pacing, transitions, and on-screen text.',
+      inputType: 'textarea',
+      inputLabel: 'Script or brief',
+      inputPlaceholder: 'Paste the video script or describe the video concept...',
+    },
+    {
+      id: 'reel_hook_optimizer',
+      label: 'Reel Hook Optimizer',
+      description: 'Rewrite the first 3 seconds of a Reel script to maximise scroll-stop rate with 3 hook variants.',
+      inputType: 'textarea',
+      inputLabel: 'Current opening',
+      inputPlaceholder: 'Paste the current first few seconds of your Reel script...',
+    },
+    {
+      id: 'caption_to_b_roll',
+      label: 'B-Roll Shot List',
+      description: 'Generate a detailed B-roll shot list from a post caption or script — locations, angles, and props.',
+      inputType: 'textarea',
+      inputLabel: 'Caption or script',
+      inputPlaceholder: 'Paste the caption or script to generate a B-roll list for...',
+    },
+    {
+      id: 'video_brief_summarizer',
+      label: 'Video Brief Summarizer',
+      description: 'Compress a client video brief into 5 clear production directives: tone, pacing, format, CTA, and references.',
+      inputType: 'textarea',
+      inputLabel: 'Client brief',
+      inputPlaceholder: 'Paste the full video brief...',
+      needsClient: true,
+    },
+  ],
+
+  web_developer: [
+    {
+      id: 'tech_spec_writer',
+      label: 'Tech Spec Writer',
+      description: 'Turn a feature request into a concise technical specification: scope, edge cases, and acceptance criteria.',
+      inputType: 'textarea',
+      inputLabel: 'Feature request',
+      inputPlaceholder: 'Describe the feature or requirement...',
+    },
+    {
+      id: 'bug_report_formatter',
+      label: 'Bug Report Formatter',
+      description: 'Structure a raw bug description into a clean report: steps to reproduce, expected vs actual, severity.',
+      inputType: 'textarea',
+      inputLabel: 'Bug description',
+      inputPlaceholder: 'Describe the bug in plain terms...',
+    },
+    {
+      id: 'api_docs_draft',
+      label: 'API Docs Draft',
+      description: 'Generate clean API endpoint documentation from a route description: method, params, request body, and response.',
+      inputType: 'textarea',
+      inputLabel: 'Route description',
+      inputPlaceholder: 'Describe the API route, its purpose, and what it accepts/returns...',
+    },
+    {
+      id: 'code_review_checklist',
+      label: 'Code Review Checklist',
+      description: 'Generate a targeted code review checklist based on the language and type of change.',
+      inputType: 'textarea',
+      inputLabel: 'Change description',
+      inputPlaceholder: 'e.g. "React component refactor adding TanStack Query v5, TypeScript strict mode"',
+    },
+  ],
+
   social_manager: [
     {
       id: 'posting_time_optimizer',
@@ -269,6 +340,8 @@ function getRoleLabel(role: UserRole): string {
     creative_director: 'Creative Director',
     copywriter: 'Copywriter',
     designer: 'Designer',
+    video_editor: 'Video Editor',
+    web_developer: 'Web Developer',
     social_manager: 'Social Manager',
     account_manager: 'Account Manager',
     strategist: 'Strategist',

@@ -1,13 +1,17 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Send, CheckCircle, AlertCircle, SkipForward, Loader2 } from 'lucide-react'
+import { useState, useRef } from 'react'
+import * as XLSX from 'xlsx'
+import { X, Send, CheckCircle, AlertCircle, SkipForward, Loader2, Upload, FileSpreadsheet, Download } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/types'
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: 'copywriter',        label: 'Copywriter' },
   { value: 'designer',          label: 'Designer' },
+  { value: 'video_editor',      label: 'Video Editor' },
+  { value: 'web_developer',     label: 'Web Developer' },
   { value: 'social_manager',    label: 'Social Manager' },
   { value: 'account_manager',   label: 'Account Manager' },
   { value: 'strategist',        label: 'Strategist' },
@@ -51,6 +55,42 @@ export function BulkInviteModal({ onClose }: Props) {
   const [members, setMembers] = useState<Member[]>(DEFAULT_MEMBERS)
   const [sending, setSending] = useState(false)
   const [results, setResults] = useState<ItemResult[] | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const VALID_ROLES = new Set(ROLES.map(r => r.value))
+
+  async function handleXLSX(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    try {
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' })
+
+      const parsed: Member[] = []
+      for (const row of rows) {
+        const name  = String(row['Name']  ?? row['name']  ?? '').trim()
+        const email = String(row['Email'] ?? row['email'] ?? '').trim()
+        const role  = String(row['Role']  ?? row['role']  ?? 'copywriter').trim().toLowerCase().replace(/\s+/g, '_') as UserRole
+        if (name && email) {
+          parsed.push({ name, email, role: VALID_ROLES.has(role) ? role : 'copywriter' })
+        }
+      }
+
+      if (!parsed.length) {
+        toast.error('No valid rows found. Columns must be: Name, Email, Role')
+        return
+      }
+
+      setMembers(parsed)
+      toast.success(`Loaded ${parsed.length} member${parsed.length !== 1 ? 's' : ''} from Excel`)
+    } catch {
+      toast.error('Could not parse the Excel file — ensure it is a valid .xlsx file')
+    }
+  }
 
   const updateMember = (i: number, field: keyof Member, value: string) => {
     setMembers(prev => prev.map((m, idx) => idx === i ? { ...m, [field]: value } : m))
@@ -226,20 +266,50 @@ export function BulkInviteModal({ onClose }: Props) {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 shrink-0 flex gap-3">
-              <button onClick={onClose} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                Cancel
-              </button>
-              <button
-                onClick={send}
-                disabled={sending || members.filter(m => m.name && m.email).length === 0}
-                className="flex-1 flex items-center justify-center gap-2 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                {sending
-                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</>
-                  : <><Send className="w-3.5 h-3.5" /> Send {members.filter(m => m.name && m.email).length} Invites</>
-                }
-              </button>
+            <div className="px-6 py-4 border-t border-slate-100 shrink-0 space-y-3">
+              {/* Excel actions */}
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleXLSX}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-novax-muted hover:text-novax transition-colors"
+                >
+                  <Upload className="w-3 h-3" />
+                  Upload Excel
+                </button>
+                <a
+                  href="/api/auth/invite/template"
+                  download="invite-template.xlsx"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors"
+                >
+                  <Download className="w-3 h-3" />
+                  Download template
+                </a>
+                <span className="text-[10px] text-slate-400 ml-auto">Columns: Name, Email, Role</span>
+              </div>
+
+              {/* Send / Cancel */}
+              <div className="flex gap-3">
+                <button onClick={onClose} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={send}
+                  disabled={sending || members.filter(m => m.name && m.email).length === 0}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  {sending
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</>
+                    : <><Send className="w-3.5 h-3.5" /> Send {members.filter(m => m.name && m.email).length} Invites</>
+                  }
+                </button>
+              </div>
             </div>
           </>
         )}

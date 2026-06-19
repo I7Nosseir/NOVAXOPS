@@ -6,7 +6,7 @@
 import React from 'react'
 import {
   Document, Page, Text, View, Svg,
-  Path, Rect, Circle, G,
+  Path, Rect, Circle,
 } from '@react-pdf/renderer'
 import type {
   StrategyDocument,

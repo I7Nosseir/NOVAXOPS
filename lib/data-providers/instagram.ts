@@ -1,8 +1,18 @@
 // ============================================================
-// Instagram Data Provider — Apify Instagram Hashtag Scraper
-// Actor: apify/instagram-hashtag-scraper (MIT, open source)
-// Docs: https://apify.com/apify/instagram-hashtag-scraper
-// No OAuth. One API key. Free tier included.
+// Instagram Data Provider — Direct Instagram Mobile API
+//
+// Uses Instagram's own internal mobile API endpoints.
+// This is identical to what Apify actors do under the hood.
+//
+// Requirements:
+//   INSTAGRAM_SESSION_ID — cookie from one test/bot IG account
+//   (Log in on the web → DevTools → Application → Cookies → sessionid)
+//   Session IDs are stable for months unless you explicitly log out.
+//
+// Fallback: if sessionid not set, tries the public (unauthenticated)
+//   endpoint — works on some content but may be rate-limited on Vercel IPs.
+//
+// Rate limits: ~200 requests/hour per session. More than enough.
 // ============================================================
 
 import { ARABIC_REGIONS } from '@/lib/studio/query-generator'
@@ -42,7 +52,6 @@ const EN_HASHTAGS: Record<string, string[]> = {
   photography:      ['photography', 'photographer', 'photooftheday', 'portrait', 'photoshoot'],
 }
 
-// Arabic hashtags for MENA — no spaces in hashtags, underscores or run-together
 const AR_HASHTAGS: Record<string, Record<string, string[]>> = {
   EG: {
     beauty:        ['جمال', 'مكياج', 'سكن_كير', 'تجميل_مصر', 'عناية_بشرة'],
@@ -91,20 +100,16 @@ const AR_HASHTAGS: Record<string, Record<string, string[]>> = {
 async function resolveHashtags(niche: string, region: string): Promise<string[]> {
   const key = niche.toLowerCase().trim()
 
-  // Country-specific Arabic hashtags
   if (ARABIC_REGIONS.has(region)) {
     const byCountry = AR_HASHTAGS[region]?.[key]
     if (byCountry?.length) return byCountry.slice(0, 4)
-    // Fallback: try generic Arabic for any country
     const anyArabic = Object.values(AR_HASHTAGS).find(m => m[key])?.[key]
     if (anyArabic?.length) return anyArabic.slice(0, 4)
   }
 
-  // English hashtags
   const english = EN_HASHTAGS[key]
   if (english?.length) return english.slice(0, 4)
 
-  // Custom niche: generate hashtags via AI
   try {
     const { geminiJson } = await import('@/lib/gemini')
     const isArabic = ARABIC_REGIONS.has(region)
@@ -115,46 +120,65 @@ Return ONLY a JSON array of 5 strings. No # symbols, no spaces (use underscores)
     if (Array.isArray(tags) && tags.length > 0) {
       return tags.map(t => t.replace(/^#/, '').replace(/\s+/g, '_')).slice(0, 4)
     }
-  } catch { /* fallback below */ }
+  } catch { /* fall through */ }
 
-  // Ultimate fallback: use niche words as hashtags
   return [key.replace(/\s+/g, ''), key.replace(/\s+/g, '_')]
 }
 
-// ── Apify response shape ──────────────────────────────────────
+// ── Instagram Mobile API headers ──────────────────────────────
 
-interface ApifyInstagramPost {
-  id:              string
-  shortCode:       string
-  type:            'Image' | 'Video' | 'Sidecar'
-  caption?:        string
-  hashtags?:       string[]
-  url:             string
-  displayUrl?:     string
-  images?:         string[]
-  videoUrl?:       string
-  videoViewCount?: number
-  videoPlayCount?: number
-  likesCount?:     number
-  commentsCount?:  number
-  timestamp?:      string
-  ownerUsername?:  string
-  ownerFullName?:  string
-  isSponsored?:    boolean
-  productType?:    string   // 'clips' = Reel
-  locationName?:  string
+function igHeaders(): Record<string, string> {
+  const sessionId = process.env.INSTAGRAM_SESSION_ID ?? ''
+  const headers: Record<string, string> = {
+    'User-Agent': 'Instagram 269.0.0.18.75 Android (26/8.0.0; 480dpi; 1080x1920; OnePlus; ONEPLUS A3010; OnePlus3T; qcom; en_US; 314665256)',
+    'x-ig-app-id': '936619743392459',
+    'x-ig-capabilities': '3brTBw==',
+    'Accept-Language': 'en-US',
+    'Accept': '*/*',
+  }
+  if (sessionId) {
+    headers['Cookie'] = `sessionid=${sessionId}; ds_user_id=0`
+  }
+  return headers
+}
+
+// ── Instagram API response shapes ────────────────────────────
+
+interface IGMedia {
+  pk: string
+  code: string              // shortCode
+  media_type: 1 | 2 | 8    // 1=photo, 2=video/reel, 8=carousel
+  product_type?: string     // 'clips' = Reel
+  caption?: { text: string }
+  image_versions2?: { candidates: Array<{ url: string }> }
+  video_duration?: number
+  play_count?: number
+  view_count?: number
+  like_count?: number
+  comment_count?: number
+  taken_at?: number
+  user?: { username: string; full_name: string }
+}
+
+interface IGHashtagResponse {
+  sections?: Array<{
+    layout_content?: {
+      medias?: Array<{ media: IGMedia }>
+      fill_items?: Array<{ media: IGMedia }>
+    }
+  }>
 }
 
 // ── Indian content filter ─────────────────────────────────────
 
-const INDIAN_SIGNALS = ['hindi', 'bollywood', 'india', 'indian', 'desi', 'telugu', 'tamil', 'kannada', 'bharat']
+const INDIAN_SIGNALS = ['hindi', 'bollywood', 'india', 'indian', 'desi', 'telugu', 'tamil', 'kannada']
 
-function isIndianPost(p: ApifyInstagramPost): boolean {
-  const hay = `${p.caption ?? ''} ${p.ownerUsername ?? ''} ${p.ownerFullName ?? ''}`.toLowerCase()
+function isIndianPost(caption: string, author: string): boolean {
+  const hay = `${caption} ${author}`.toLowerCase()
   return INDIAN_SIGNALS.some(s => hay.includes(s))
 }
 
-// ── Main fetcher ──────────────────────────────────────────────
+// ── Public interface ──────────────────────────────────────────
 
 export interface InstagramPost {
   id:            string
@@ -175,111 +199,177 @@ export async function fetchInstagramPosts(
   niche:  string,
   region: string,
 ): Promise<InstagramPost[]> {
-  const key = process.env.APIFY_API_KEY
-  if (!key) return []
-
   const hashtags = await resolveHashtags(niche, region)
   if (!hashtags.length) return []
 
-  // ── Async-with-wait strategy ──────────────────────────────────
-  // run-sync-get-dataset-items always times out for Instagram because
-  // the scraper needs 30-90s to load Instagram's JS app.
-  //
-  // Instead: launch the run async, wait 14s (in parallel with other
-  // platform fetchers), then fetch whatever has been scraped so far.
-  // With 8192MB memory the actor starts in ~3s and collects 10-20
-  // posts in the first 10s — enough for a useful result set.
-  // ──────────────────────────────────────────────────────────────
+  const results: InstagramPost[] = []
 
-  try {
-    // Step 1 — Start the Apify run asynchronously (don't block)
-    const startRes = await fetch(
-      `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/runs?token=${key}&memory=8192`,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hashtags:      hashtags.slice(0, 3), // 3 hashtags = broader results
-          resultsLimit:  30,
-          resultsType:   'posts',
-          addParentData: false,
-        }),
-        signal: AbortSignal.timeout(8_000), // just starting the run, should be fast
+  for (const tag of hashtags.slice(0, 2)) {
+    try {
+      const url = `https://i.instagram.com/api/v1/tags/${encodeURIComponent(tag)}/sections/?count=18&tab=recent&include_reel=true`
+      const res = await fetch(url, {
+        headers: igHeaders(),
+        signal: AbortSignal.timeout(10_000),
+      })
+
+      if (!res.ok) {
+        console.error(`[instagram] hashtag "${tag}" returned HTTP ${res.status}`)
+        continue
       }
-    )
 
-    if (!startRes.ok) {
-      console.error(`[instagram] Apify start returned ${startRes.status} for niche "${niche}"`)
-      return []
-    }
+      const data = await res.json() as IGHashtagResponse
 
-    const startData = await startRes.json() as { data?: { id?: string; defaultDatasetId?: string } }
-    const runId     = startData?.data?.id
-    if (!runId) {
-      console.error('[instagram] No runId in Apify response')
-      return []
-    }
+      const medias: IGMedia[] = []
+      for (const section of data.sections ?? []) {
+        const content = section.layout_content
+        for (const item of content?.medias ?? []) medias.push(item.media)
+        for (const item of content?.fill_items ?? []) medias.push(item.media)
+      }
 
-    // Step 2 — Wait 14s for the actor to collect initial results
-    // This runs in parallel with YouTube/TikTok/Pinterest fetches
-    // so it doesn't add much to total response time
-    await new Promise<void>(resolve => setTimeout(resolve, 14_000))
+      for (const m of medias) {
+        if (!m.code) continue
+        const caption = m.caption?.text ?? ''
+        const author  = m.user?.username ?? ''
+        if (isIndianPost(caption, author)) continue
 
-    // Step 3 — Fetch whatever has been scraped so far (partial is fine)
-    const dataRes = await fetch(
-      `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${key}&limit=40&desc=false`,
-      { signal: AbortSignal.timeout(6_000) }
-    )
-
-    if (!dataRes.ok) {
-      console.error(`[instagram] Dataset fetch returned ${dataRes.status}`)
-      return []
-    }
-
-    const raw = await dataRes.json() as ApifyInstagramPost[] | { items?: ApifyInstagramPost[] }
-    // Apify dataset endpoint returns either a plain array or { items: [...] }
-    const items: ApifyInstagramPost[] = Array.isArray(raw) ? raw : (raw as { items?: ApifyInstagramPost[] }).items ?? []
-
-    if (!items.length) {
-      console.warn(`[instagram] 0 items scraped in 14s for niche "${niche}" — run ${runId} may still be running`)
-      return []
-    }
-
-    return items
-      .filter(p => p.shortCode && !p.isSponsored && !isIndianPost(p))
-      .map(p => {
-        const viewCount = p.videoPlayCount ?? p.videoViewCount ?? p.likesCount ?? 0
         const type: InstagramPost['type'] =
-          p.productType === 'clips' ? 'reel' :
-          p.type === 'Video'        ? 'video' : 'image'
+          m.product_type === 'clips' ? 'reel' :
+          m.media_type === 2         ? 'video' : 'image'
 
-        return {
-          id:           p.id ?? p.shortCode,
-          shortCode:    p.shortCode,
+        const viewCount = m.play_count ?? m.view_count ?? m.like_count ?? 0
+
+        results.push({
+          id:           m.pk ?? m.code,
+          shortCode:    m.code,
           type,
-          caption:      (p.caption ?? '').slice(0, 150).replace(/\n+/g, ' '),
-          thumbnailUrl: p.displayUrl ?? p.images?.[0] ?? '',
-          url:          `https://www.instagram.com/p/${p.shortCode}/`,
-          likeCount:    p.likesCount ?? 0,
-          commentCount: p.commentsCount ?? 0,
+          caption:      caption.slice(0, 150).replace(/\n+/g, ' '),
+          thumbnailUrl: m.image_versions2?.candidates?.[0]?.url ?? '',
+          url:          `https://www.instagram.com/p/${m.code}/`,
+          likeCount:    m.like_count ?? 0,
+          commentCount: m.comment_count ?? 0,
           viewCount,
-          author:       p.ownerFullName ?? p.ownerUsername ?? '',
-          authorHandle: p.ownerUsername ?? '',
-          timestamp:    p.timestamp ?? '',
-        }
-      })
-      // Sort: Reels first, then by engagement rate
-      .sort((a, b) => {
-        if (a.type === 'reel' && b.type !== 'reel') return -1
-        if (b.type === 'reel' && a.type !== 'reel') return 1
-        const erA = a.viewCount > 0 ? (a.likeCount + a.commentCount) / a.viewCount : 0
-        const erB = b.viewCount > 0 ? (b.likeCount + b.commentCount) / b.viewCount : 0
-        return erB - erA || b.likeCount - a.likeCount
-      })
-      .slice(0, 25)
+          author:       m.user?.full_name ?? author,
+          authorHandle: author,
+          timestamp:    m.taken_at ? new Date(m.taken_at * 1000).toISOString() : '',
+        })
+      }
+    } catch (err) {
+      console.error(`[instagram] fetch error for hashtag "${tag}":`, err)
+    }
+  }
 
+  return results
+    .sort((a, b) => {
+      if (a.type === 'reel' && b.type !== 'reel') return -1
+      if (b.type === 'reel' && a.type !== 'reel') return 1
+      const erA = a.viewCount > 0 ? (a.likeCount + a.commentCount) / a.viewCount : 0
+      const erB = b.viewCount > 0 ? (b.likeCount + b.commentCount) / b.viewCount : 0
+      return erB - erA || b.likeCount - a.likeCount
+    })
+    .slice(0, 25)
+}
+
+// ── Profile scraper (used by competitor tracking) ─────────────
+
+export interface InstagramProfile {
+  username:          string
+  fullName:          string
+  followers:         number
+  following:         number
+  postCount:         number
+  avgLikes:          number
+  avgComments:       number
+  avgViews:          number
+  avgEngagementRate: number
+  postingFreqPerWeek: number
+  topContentTypes:   Record<string, number>
+}
+
+interface IGProfileResponse {
+  data?: {
+    user?: {
+      edge_followed_by?: { count: number }
+      edge_follow?:      { count: number }
+      edge_owner_to_timeline_media?: {
+        count?: number
+        edges?: Array<{
+          node: {
+            __typename:       string
+            is_video:         boolean
+            shortcode:        string
+            taken_at_timestamp: number
+            edge_liked_by?:   { count: number }
+            edge_media_to_comment?: { count: number }
+            video_view_count?: number
+            product_type?:    string
+          }
+        }>
+      }
+    }
+  }
+}
+
+export async function fetchInstagramProfile(handle: string): Promise<InstagramProfile | null> {
+  const username = handle.replace('@', '').trim()
+  try {
+    const url = `https://i.instagram.com/api/v1/users/web_profile_info/?username=${username}`
+    const res = await fetch(url, {
+      headers: igHeaders(),
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!res.ok) {
+      console.error(`[instagram-profile] HTTP ${res.status} for @${username}`)
+      return null
+    }
+
+    const data = await res.json() as IGProfileResponse
+    const user = data.data?.user
+    if (!user) return null
+
+    const followers = user.edge_followed_by?.count ?? 0
+    const postCount = user.edge_owner_to_timeline_media?.count ?? 0
+    const edges     = user.edge_owner_to_timeline_media?.edges ?? []
+
+    let totalLikes = 0, totalComments = 0, totalViews = 0
+    const contentTypes: Record<string, number> = {}
+    let recentCount = 0
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+
+    for (const { node } of edges) {
+      totalLikes    += node.edge_liked_by?.count ?? 0
+      totalComments += node.edge_media_to_comment?.count ?? 0
+      totalViews    += node.video_view_count ?? 0
+
+      const type = node.product_type === 'clips' ? 'reel' : node.is_video ? 'video' : 'image'
+      contentTypes[type] = (contentTypes[type] ?? 0) + 1
+
+      if (node.taken_at_timestamp * 1000 > thirtyDaysAgo) recentCount++
+    }
+
+    const n = edges.length || 1
+    const avgLikes    = Math.round(totalLikes / n)
+    const avgComments = Math.round(totalComments / n)
+    const avgViews    = Math.round(totalViews / n)
+    const avgEr       = followers > 0
+      ? parseFloat(((totalLikes + totalComments) / n / followers * 100).toFixed(2))
+      : 0
+    const freqPerWeek = parseFloat((recentCount / 4.3).toFixed(1))
+
+    return {
+      username,
+      fullName:           '',
+      followers,
+      following:          user.edge_follow?.count ?? 0,
+      postCount,
+      avgLikes,
+      avgComments,
+      avgViews,
+      avgEngagementRate:  avgEr,
+      postingFreqPerWeek: freqPerWeek,
+      topContentTypes:    contentTypes,
+    }
   } catch (err) {
-    console.error('[instagram] fetch failed:', err)
-    return []
+    console.error(`[instagram-profile] error for @${username}:`, err)
+    return null
   }
 }

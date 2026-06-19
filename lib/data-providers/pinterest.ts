@@ -199,91 +199,101 @@ async function fetchViaPinterestAPI(
 }
 
 // ─────────────────────────────────────────────────────────────
-// FALLBACK — Apify pinterest-scraper
+// FALLBACK — Pinterest internal web search API
+// Uses the same undocumented endpoint Pinterest's own website calls.
+// No authentication or API key required. Returns public pin data.
 // ─────────────────────────────────────────────────────────────
 
-interface ApifyPinterestItem {
+interface PinterestWebPin {
   id?:          string
   title?:       string
-  alt?:         string
   description?: string
   link?:        string
-  url?:         string
-  imageUrl?:    string
-  image?:       { src?: string } | string
-  saveCount?:   number
-  saves?:       number
-  repins?:      number
-  likeCount?:   number
-  likes?:       number
-  author?:      { name?: string; fullName?: string; username?: string; url?: string }
-  authorName?:   string
-  authorUsername?:string
-  createdAt?:   string
-  hashtags?:    string[]
+  dominant_color?: string
+  images?: {
+    orig?: { url?: string; width?: number; height?: number }
+    '564x'?: { url?: string }
+  }
+  save_count?:  number
+  pinner?: { full_name?: string; username?: string }
+  created_at?: string
 }
 
-async function fetchViaApify(
-  startUrls: { url: string }[],
+async function fetchViaPinterestWeb(
+  queries: string[],
   maxItems: number,
-  timeoutSecs = 25,
 ): Promise<PinterestPin[]> {
-  const key = process.env.APIFY_API_KEY
-  if (!key) return []
+  const pins: PinterestPin[] = []
+  const seen = new Set<string>()
 
-  try {
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/apify~pinterest-scraper/run-sync-get-dataset-items?token=${key}&timeout=${timeoutSecs}&memory=512`,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ startUrls, maxItems }),
-        signal:  AbortSignal.timeout((timeoutSecs + 10) * 1_000),
-      },
-    )
-    if (!res.ok) {
-      console.error(`[pinterest-apify] ${res.status}`)
-      return []
-    }
-    const items = await res.json() as ApifyPinterestItem[]
-    if (!Array.isArray(items)) return []
-
-    const seen = new Set<string>()
-    return items
-      .filter(p => {
-        const id = p.id ?? p.link ?? p.url ?? ''
-        if (!id || seen.has(id)) return false
-        seen.add(id)
-        return true
+  for (const query of queries.slice(0, 3)) {
+    try {
+      // Pinterest's internal resource endpoint — same one their search page uses
+      const searchData = JSON.stringify({
+        options: {
+          query,
+          scope: 'pins',
+          bookmarks: [],
+          page_size: 25,
+          no_fetch_context_on_resource: false,
+        },
+        context: {},
       })
-      .map(p => {
-        const imageUrl =
-          p.imageUrl ??
-          (typeof p.image === 'string' ? p.image : p.image?.src) ??
-          ''
-        const pinUrl =
-          p.link ?? p.url ??
-          (p.id ? `https://www.pinterest.com/pin/${p.id}/` : '')
-        const saveCount   = p.saveCount ?? p.saves ?? p.repins ?? 0
-        const authorName  = p.authorName ?? p.author?.fullName ?? p.author?.name ?? p.author?.username ?? ''
-        const authorHandle = p.authorUsername ?? p.author?.username ?? ''
-        return {
-          id:           p.id ?? pinUrl,
-          title:        p.title ?? p.alt ?? (p.description?.slice(0, 80)) ?? 'Pinterest pin',
+      const url = `https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=${encodeURIComponent(`/search/pins/?q=${query}`)}&data=${encodeURIComponent(searchData)}&_=1`
+
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/javascript, */*, q=0.01',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`,
+        },
+        signal: AbortSignal.timeout(8_000),
+      })
+
+      if (!res.ok) {
+        console.warn(`[pinterest-web] HTTP ${res.status} for query "${query}"`)
+        continue
+      }
+
+      const json = await res.json() as {
+        resource_response?: {
+          data?: { results?: PinterestWebPin[] }
+        }
+      }
+
+      const results = json.resource_response?.data?.results ?? []
+
+      for (const p of results) {
+        if (pins.length >= maxItems) break
+        const id = p.id ?? p.link ?? ''
+        if (!id || seen.has(id)) continue
+        seen.add(id)
+
+        const imageUrl = p.images?.orig?.url ?? p.images?.['564x']?.url ?? ''
+        const pinUrl   = p.link ?? (p.id ? `https://www.pinterest.com/pin/${p.id}/` : '')
+        if (!pinUrl) continue
+
+        pins.push({
+          id:           id,
+          title:        p.title ?? (p.description?.slice(0, 80)) ?? 'Pinterest pin',
           description:  p.description ?? '',
           url:          pinUrl,
           imageUrl,
-          saveCount,
-          authorName,
-          authorHandle,
-          createdAt:    p.createdAt ?? '',
-        }
-      })
-      .filter(p => p.url.length > 0)
-  } catch (err) {
-    console.error('[pinterest-apify] fetch failed:', err)
-    return []
+          saveCount:    p.save_count ?? 0,
+          authorName:   p.pinner?.full_name ?? p.pinner?.username ?? '',
+          authorHandle: p.pinner?.username ?? '',
+          createdAt:    p.created_at ?? '',
+        })
+      }
+
+      if (pins.length >= maxItems) break
+    } catch (err) {
+      console.error(`[pinterest-web] error for query "${query}":`, err)
+    }
   }
+
+  return pins
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -311,12 +321,9 @@ export async function fetchPinterestPins(
     }
   }
 
-  // Apify fallback
-  const startUrls = queries.map(q => ({
-    url: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(q)}&rs=typed`,
-  }))
-  const pins = await fetchViaApify(startUrls, 15, 25)
-  return pins.sort((a, b) => b.saveCount - a.saveCount).slice(0, 12)
+  // Web fallback — Pinterest's own internal search API, no key required
+  const pins = await fetchViaPinterestWeb(queries, 15)
+  return pins.sort((a: PinterestPin, b: PinterestPin) => b.saveCount - a.saveCount).slice(0, 12)
 }
 
 // ── Custom query fetcher (used by Copy Inspiration Engine) ────
@@ -332,9 +339,8 @@ export interface PinterestPinWithMeta extends PinterestPin {
 }
 
 export async function fetchPinterestPinsCustom(
-  queries:        PinterestQueryInput[],
-  maxItems:       number,
-  timeoutSeconds = 40,
+  queries:  PinterestQueryInput[],
+  maxItems: number,
 ): Promise<PinterestPinWithMeta[]> {
   if (queries.length === 0) return []
 
@@ -356,17 +362,7 @@ export async function fetchPinterestPinsCustom(
     }
   }
 
-  // Apify fallback
-  if (!process.env.APIFY_API_KEY) return []
-
-  const startUrls = queries.map(q => ({
-    url: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(q.query)}&rs=typed`,
-  }))
-  const raw = await fetchViaApify(startUrls, maxItems, timeoutSeconds)
-
-  return raw.map(pin => ({
-    ...pin,
-    queryUsed:  '',
-    queryAngle: '',
-  }))
+  // Web fallback — Pinterest's own internal search API, no key required
+  const raw = await fetchViaPinterestWeb(queries.map(q => q.query), maxItems)
+  return raw.map((pin: PinterestPin) => ({ ...pin, queryUsed: '', queryAngle: '' }))
 }

@@ -78,7 +78,7 @@ export async function POST(
 
   // Get inviter name for the email
   const body = await req.json().catch(() => ({})) as { inviterName?: string }
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 
   const emailResult = await sendTeamInvite({
     toEmail: email,

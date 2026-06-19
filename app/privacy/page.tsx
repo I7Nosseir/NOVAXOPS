@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 const EFFECTIVE_DATE = 'June 12, 2026'
 const CONTACT_EMAIL  = 'novaaxone@gmail.com'
-const SITE_URL       = 'https://perfumeexhibition.com'
+const SITE_URL       = 'https://www.novaxops.com'
 
 // ── Section heading ──────────────────────────────────────────
 

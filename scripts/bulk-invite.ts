@@ -34,9 +34,9 @@ loadEnv()
 
 const SUPABASE_URL          = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SERVICE_ROLE_KEY      = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const APP_URL               = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+const APP_URL               = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 const RESEND_API_KEY        = process.env.RESEND_API_KEY
-const RESEND_FROM           = process.env.RESEND_FROM_ADDRESS ?? 'NOVAX Ops <noreply@perfumeexhibition.com>'
+const RESEND_FROM           = process.env.RESEND_FROM_ADDRESS ?? 'NOVAX Ops <noreply@novaxops.com>'
 
 // Default page permissions — matches agency standard access profile (from invite modal)
 const DEFAULT_PAGE_PERMISSIONS = [
@@ -49,7 +49,7 @@ const DEFAULT_PAGE_PERMISSIONS = [
 // ─── People to invite ─────────────────────────────────────────────────────────
 // Adjust `role` per person if needed. Default: copywriter.
 
-type UserRole = 'admin' | 'ceo' | 'creative_director' | 'account_manager' | 'strategist' | 'copywriter' | 'designer' | 'social_manager'
+type UserRole = 'admin' | 'ceo' | 'creative_director' | 'account_manager' | 'strategist' | 'copywriter' | 'designer' | 'video_editor' | 'web_developer' | 'social_manager'
 
 const PEOPLE: { name: string; email: string; role: UserRole }[] = [
   { name: 'Mahmoud Ahmed',         email: 'mahmouddmooo19@gmail.com',    role: 'copywriter' },
@@ -68,7 +68,7 @@ const PEOPLE: { name: string; email: string; role: UserRole }[] = [
 
 const DEPT: Record<UserRole, string> = {
   admin: 'strategy', ceo: 'strategy', creative_director: 'creative',
-  copywriter: 'creative', designer: 'creative',
+  copywriter: 'creative', designer: 'creative', video_editor: 'creative', web_developer: 'creative',
   account_manager: 'accounts', strategist: 'strategy', social_manager: 'social',
 }
 

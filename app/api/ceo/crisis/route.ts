@@ -23,7 +23,7 @@ async function callAI(prompt: string): Promise<string> {
     const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const msg = await ai.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2500,
+      max_tokens: 8000,
       messages: [{ role: 'user', content: prompt }],
     })
     return msg.content[0].type === 'text' ? msg.content[0].text : ''
@@ -37,7 +37,10 @@ async function callGemini(prompt: string): Promise<string> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 8000 },
+    }),
   })
   if (!res.ok) {
     const err = await res.text().catch(() => res.status.toString())

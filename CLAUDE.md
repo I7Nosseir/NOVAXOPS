@@ -4,7 +4,7 @@
 
 A unified operations platform for a social media/creative agency called **NOVAX**. Replaces ClickUp. Centralises the full content pipeline (Strategy → Publishing → Reporting) with AI assistance at every stage, client management, social publishing via Metricool, comment moderation via Respond.io, and asset management.
 
-The system is **fully owned and self-hosted** by the agency. There is no white-labelling concern — this is an internal tool. Live at **https://perfumeexhibition.com** (Vercel).
+The system is being transformed into a **multi-tenant SaaS** platform. Live at **https://www.novaxops.com** (Vercel). NOVAX is the first and default tenant (org slug: `novax`). New agencies sign up and get isolated workspaces with white-label support.
 
 ## Owner / Developer
 
@@ -119,6 +119,7 @@ Keys are set in `.env.local` and Vercel. `lib/supabase.ts` has browser + admin c
 020_ceo_context.sql             CEO context + cross-client briefing tables
 021_client_context_bank.sql     Per-client context bank (wins, voice, objections, signals)
 022_ai_feedback.sql             ai_feedback table (per-client, per-agent taste profiles)
+037_diary_pulse.sql             Adds efficiency_score, content_quality_score, pulse_signals to work_diaries
 ```
 
 **Key tables:**
@@ -180,8 +181,7 @@ agency-ops/
 │       ├── workload/page.tsx           Per-member load bars + task lists
 │       ├── library/page.tsx            Published posts as reusable templates
 │       ├── reports/page.tsx            KPI charts + Claude narrative + PPTX/PDF export
-│       ├── settings/page.tsx           Integrations (admin) + Team + Permissions
-│       ├── performance/page.tsx        Post analytics, competitor tracking, AI intelligence
+│       ├── settings/page.tsx           Integrations (admin) + Team + Permissions + Bulk invite/permissions
 │       ├── ceo/page.tsx                CEO Hub: strategy, crisis override, second opinion
 │       ├── ai-image/page.tsx           AI Image Creation (UI shell — FAL/Ideogram pending)
 │       ├── assistant/page.tsx          AI Chat Assistant — context-aware, client/task scoped
@@ -239,7 +239,9 @@ agency-ops/
 │   │   ├── doc-share-dialog.tsx        Share dialog
 │   │   └── sheet-editor.tsx            Spreadsheet-like editor
 │   ├── settings/
-│   │   └── invite-user-modal.tsx       Invite modal (role grid + email + page permissions)
+│   │   ├── invite-user-modal.tsx       Invite modal (role grid + email + page permissions)
+│   │   ├── bulk-invite-modal.tsx       Pre-populated bulk invite (10 rows, per-item result)
+│   │   └── bulk-permissions-panel.tsx  Multi-user page access panel (Standard/Full/Required presets)
 │   ├── tools/
 │   │   └── role-tools-panel.tsx        Role-specific tool shortcuts
 │   └── ui/
@@ -279,7 +281,7 @@ agency-ops/
 │       ├── use-notifications.ts        Real notifications from audit_log (refetch 60s)
 │       ├── use-task-comments.ts        Comment threads per task
 │       └── use-dashboard.ts            Weekly activity + AI cost + Metricool overview
-├── sql/                                30 migration files (001–022, see Database section)
+├── sql/                                Migration files (001–037, see Database section)
 ├── middleware.ts                       Supabase session refresh + auth redirect
 └── next.config.ts                      Turbopack root + image domains
 ```
@@ -309,6 +311,8 @@ type UserRole =
   | 'strategist'          // Can create/manage strategy-stage tasks and projects
   | 'copywriter'          // Assigned copy tasks, uses AI agents
   | 'designer'            // Assigned design tasks
+  | 'video_editor'        // Video production, asset library, studio access (dept: creative)
+  | 'web_developer'       // Development tasks, docs, technical assets (dept: creative)
   | 'social_manager'      // Publishing + moderation access
 ```
 
@@ -376,6 +380,8 @@ Each stage has a fixed color scheme in `lib/utils.ts` → `STAGE_CONFIG`. Always
 - `/api/clients/[id]/context-bank` — Read/write client context bank entries
 - `/api/assistant/chat` — Context-aware AI chat assistant (scoped to client or task)
 - `/api/ceo/strategy`, `/api/ceo/second-opinion`, `/api/ceo/crisis` — CEO Hub AI calls
+- `/api/auth/invite/bulk` — POST bulk invite: `{members: [{name, email, role}]}`, handles duplicates, returns per-item status
+- `/api/users/bulk-permissions` — POST set page access for multiple users at once: `{user_ids, page_permissions}`
 
 **Output rules:**
 - No hashtags or emojis in any AI output by default
@@ -446,8 +452,7 @@ Each stage has a fixed color scheme in `lib/utils.ts` → `STAGE_CONFIG`. Always
 - [x] **Workload** — per-member load bars, overloaded/healthy badges, task list preview
 - [x] **Content Library** — published posts as reusable templates, filter, save
 - [x] **Reports** — KPI charts, Claude narrative, Metricool data, PPTX + PDF export
-- [x] **Settings** — integrations config (admin), team + invite, page permissions per user
-- [x] **Performance** — post analytics, competitor tracking, AI pattern intelligence, best posting times
+- [x] **Settings** — integrations config (admin), team + bulk-invite, bulk page-permissions panel, activity tab (AI cost per user)
 - [x] **CEO Hub** — strategy analysis, crisis override, second opinion (Claude)
 - [x] **AI Assistant** (`/assistant`) — context-aware chat, scoped to client or task
 - [x] **Documents** — Tiptap rich text editor, templates, public sharing via token
@@ -536,6 +541,8 @@ catch { } // silent swallow
 
 **User creation:** Never create users via raw SQL — always use Supabase Dashboard UI. Raw SQL breaks GoTrue password hashing → 500 on login.
 
+**Pipeline bypass-role pattern:** `useMyAssignedClientIds()` returns `null` for bypass roles (admin/ceo/creative_director). When `null` and no URL client filter, pass `clientIds: undefined` to `useTasks()` — NOT `[]`. An empty array means "no assigned clients → return nothing." See `pipeline/page.tsx` → `taskFilters` variable.
+
 **brief-confirm route:** Has two modes. Default mode returns `BriefConfirmation` (requires `platforms`, `goal`, `audience`). `mode: 'boss_brief'` returns `{ boss_brief: BossBrief }` — only requires `brief`. Both content and strategy pages use boss_brief mode.
 
 **ContentDocument multi-piece:** `doc.pieces?: ContentPiece[]` holds multiple generated pieces. Each `ContentPiece` has `type` (reel/carousel/static), `hook`, `script_sections` (reel), `slides` (carousel), `visual_direction`/`text_overlay` (static). Backward-compat: root-level fields (`hook`, `script_sections`, etc.) always mirror the first piece.
@@ -571,7 +578,7 @@ TRENDSMCP_API_KEY=...
 
 # App
 NEXT_PUBLIC_APP_URL=https://perfumeexhibition.com
-CEO_EMAIL=novaaxone@gmail.com
+CEO_EMAIL=mostafaatef7@gmail.com
 CRON_SECRET=novax-cron-2026
 
 # Not configured (stubs only)

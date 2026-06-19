@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
 
   // Fire-and-forget approval email if client_email was supplied
   if (client_email) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
     sendApprovalRequest({
       clientEmail: client_email,
       clientName: client_name ?? client_email,

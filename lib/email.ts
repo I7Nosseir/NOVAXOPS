@@ -96,7 +96,7 @@ export interface TaskAssignedParams {
 
 export async function sendTaskAssigned(params: TaskAssignedParams): Promise<SendResult> {
   const { taskTitle, taskId, assigneeName, assigneeEmail, clientName, dueDate, priority } = params
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 
   const rows: Array<[string, string]> = [
     ['Client', clientName],
@@ -195,7 +195,7 @@ export interface ApprovalDecisionParams {
 
 export async function sendApprovalDecision(params: ApprovalDecisionParams): Promise<SendResult> {
   const { teamEmail, clientName, requestTitle, decisionSummary, postResults } = params
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 
   const slbl = (s: string) => s === 'approved' ? 'Approved' : s === 'changes_requested' ? 'Changes Requested' : 'Pending'
   const sclr = (s: string) => s === 'approved' ? '#15803D' : s === 'changes_requested' ? '#DC2626' : '#D97706'
@@ -320,7 +320,7 @@ export interface MentionNotificationParams {
 
 export async function sendMentionNotification(params: MentionNotificationParams): Promise<SendResult> {
   const { mentionedEmail, mentionedName, mentionerName, taskTitle, taskId, clientName, commentPreview } = params
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 
   const blockquote = `<blockquote style="margin:12px 0;padding:10px 14px;border-left:3px solid #5BB4AE;background:#EBF4F3;border-radius:0 6px 6px 0;font-size:13px;color:#475569;font-style:italic;">${commentPreview}</blockquote>`
 
@@ -367,7 +367,7 @@ export interface TaskReminderParams {
 
 export async function sendTaskReminder(params: TaskReminderParams): Promise<SendResult> {
   const { userEmail, userName, taskTitle, taskId, clientName, dueDate, priority, hoursUntilDue } = params
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 
   const urgencyBadge = hoursUntilDue <= 24
     ? `<span style="display:inline-block;background:#FEF2F2;color:#DC2626;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:12px;">Due in ${hoursUntilDue} hours</span>`
@@ -444,7 +444,7 @@ function kpiMini(value: number | string, label: string): string {
 
 export async function sendDailyDigest(params: DailyDigestParams): Promise<SendResult> {
   const { ceoEmail, ceoName, stats } = params
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 
   // KPI row
   const kpiRow = `<div style="display:flex;gap:10px;margin:16px 0;">

@@ -28,7 +28,7 @@ async function callAI(prompt: string): Promise<string> {
     const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const msg = await ai.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2500,
+      max_tokens: 8000,
       messages: [{ role: 'user', content: prompt }],
     })
     return msg.content[0].type === 'text' ? msg.content[0].text : ''
@@ -42,7 +42,10 @@ async function callGemini(prompt: string): Promise<string> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 8000 },
+    }),
   })
   if (!res.ok) {
     const err = await res.text().catch(() => res.status.toString())
@@ -67,6 +70,15 @@ interface MonthlyUpdate {
   notes: string
 }
 
+interface OwnProfileMetrics {
+  handle: string
+  followers: number
+  avg_er: number
+  posting_frequency: number
+  top_content_types: Record<string, number>
+  scraped_at?: string
+}
+
 interface StrategyRequest {
   tool: 'market_position' | 'campaign_concepts' | 'content_audit' | 'quarterly_narrative'
   client_id?: string
@@ -78,6 +90,7 @@ interface StrategyRequest {
       target_audience?: string
       key_messages?: string[]
       industry?: string
+      own_profile_metrics?: Record<string, OwnProfileMetrics>
     }
     competitor_context?: string[]
     performance_intel?: {
@@ -171,6 +184,19 @@ export async function POST(req: NextRequest) {
   const competitors = client_data?.competitor_context?.join(', ') ?? 'not specified'
   const perf = client_data?.performance_intel
 
+  // Build own social presence block from scraped profile metrics
+  const ownMetrics = client_data?.brand_identity?.own_profile_metrics
+  const ownPresenceBlock = ownMetrics && Object.keys(ownMetrics).length > 0
+    ? 'Own Social Presence (live data):\n' + Object.entries(ownMetrics)
+        .map(([platform, m]) => {
+          const parts = [`${m.followers.toLocaleString()} followers`]
+          if (m.avg_er > 0) parts.push(`${m.avg_er}% avg ER`)
+          if (m.posting_frequency > 0) parts.push(`${m.posting_frequency} posts/week`)
+          return `- ${platform.charAt(0).toUpperCase() + platform.slice(1)} (${m.handle}): ${parts.join(' | ')}`
+        })
+        .join('\n')
+    : ''
+
   const contextBlock = buildContextBlock(
     quarterly_strategy, monthly_update,
     context_year, context_quarter, context_month,
@@ -197,6 +223,7 @@ Strengths: ${perf?.strengths?.join('; ') ?? 'not assessed'}
 Weaknesses: ${perf?.weaknesses?.join('; ') ?? 'not assessed'}
 Opportunities: ${perf?.opportunities?.join('; ') ?? 'not assessed'}
 Threats: ${perf?.threats?.join('; ') ?? 'not assessed'}
+${ownPresenceBlock ? '\n' + ownPresenceBlock : ''}
 ${contextBlock ? '\n' + contextBlock : ''}
 
 Deliver a rigorous market position analysis structured as follows:
@@ -307,6 +334,7 @@ Period Under Review: ${period ?? 'last quarter'}
 Viral Patterns Observed: ${perf?.viral_patterns?.join('; ') ?? 'not assessed'}
 Failure Patterns Observed: ${perf?.failure_patterns?.join('; ') ?? 'not assessed'}
 Engagement Trend: ${perf?.engagement_trend ?? 'not assessed'}
+${ownPresenceBlock ? '\n' + ownPresenceBlock : ''}
 ${contextBlock ? '\n' + contextBlock : ''}
 
 Deliver a rigorous content strategy audit structured as follows:

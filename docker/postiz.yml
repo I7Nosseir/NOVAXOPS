@@ -1,0 +1,61 @@
+services:
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz
+    restart: always
+    environment:
+      DATABASE_URL: "postgresql://postiz:postizpass@postiz-db:5432/postiz"
+      REDIS_URL: "redis://postiz-redis:6379"
+      JWT_SECRET: "novax-postiz-jwt-super-secret-2026"
+      FRONTEND_URL: "${POSTIZ_FRONTEND_URL}"
+      NEXT_PUBLIC_BACKEND_URL: "${POSTIZ_API_URL}"
+      BACKEND_INTERNAL_URL: "http://postiz:3000"
+      IS_GENERAL: "true"
+      NX_ADD_PLUGINS: "false"
+      STORAGE_PROVIDER: "local"
+      UPLOAD_DIRECTORY: "/uploads"
+    volumes:
+      - postiz-uploads:/uploads
+      - postiz-config:/config
+    ports:
+      - "4200:4200"
+      - "3000:3000"
+    depends_on:
+      postiz-db:
+        condition: service_healthy
+      postiz-redis:
+        condition: service_healthy
+
+  postiz-db:
+    image: postgres:17-alpine
+    container_name: postiz-db
+    restart: always
+    environment:
+      POSTGRES_USER: postiz
+      POSTGRES_PASSWORD: postizpass
+      POSTGRES_DB: postiz
+    volumes:
+      - postiz-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postiz -d postiz
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  postiz-redis:
+    image: redis:7.2-alpine
+    container_name: postiz-redis
+    restart: always
+    volumes:
+      - postiz-redis-data:/data
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  postiz-db-data:
+  postiz-redis-data:
+  postiz-uploads:
+  postiz-config:

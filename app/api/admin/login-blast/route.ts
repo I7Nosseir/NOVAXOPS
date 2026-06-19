@@ -3,9 +3,9 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-const APP_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+const APP_URL      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
 const RESEND_KEY   = process.env.RESEND_API_KEY
-const RESEND_FROM  = process.env.RESEND_FROM_ADDRESS ?? 'NOVAX Ops <noreply@perfumeexhibition.com>'
+const RESEND_FROM  = process.env.RESEND_FROM_ADDRESS ?? 'NOVAX Ops <noreply@novaxops.com>'
 
 async function getSessionRole() {
   const cookieStore = await cookies()

@@ -13,7 +13,6 @@ export const PAGE_DEFS = [
   { key: 'creative-eval',           label: 'Creative Eval',          group: 'Creative' },
   { key: 'docs',                    label: 'Documents',              group: 'Creative' },
   { key: 'assistant',               label: 'AI Assistant',           group: 'Intelligence' },
-  { key: 'performance',             label: 'Performance',            group: 'Intelligence' },
   { key: 'workload',                label: 'Workload',               group: 'Intelligence' },
   { key: 'library',                 label: 'Content Library',        group: 'Intelligence' },
   { key: 'reports',                 label: 'Reports',                group: 'Intelligence' },

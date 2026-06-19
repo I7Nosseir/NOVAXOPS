@@ -69,7 +69,14 @@ function PipelineContent() {
     return { ...rawFilters, clientIds: intersection }
   }, [rawFilters, assignedClientIds])
 
-  const { tasks } = useTasks(filters)
+  // Bypass roles (admin/ceo/creative_director) with no URL client filter should
+  // see ALL tasks. Pass clientIds: undefined so useTasks doesn't treat [] as
+  // "user has no assigned clients → return nothing."
+  const taskFilters = assignedClientIds === null && filters.clientIds.length === 0
+    ? { ...filters, clientIds: undefined }
+    : filters
+
+  const { tasks } = useTasks(taskFilters)
   const active = hasActiveFilters(rawFilters)
 
   useRealtime('tasks', ['tasks'])

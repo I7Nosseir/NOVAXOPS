@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { X, ChevronRight, ChevronLeft, Check, Loader2, Building2, Mic2, ImagePlus, Trash2, Plus } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Check, Loader2, Building2, Mic2, ImagePlus, Trash2, Plus, Link } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCreateClient } from '@/lib/hooks/use-clients'
-import type { CreateClientInput } from '@/lib/hooks/use-clients'
+import type { CreateClientInput, SocialProfile } from '@/lib/hooks/use-clients'
 import type { Client } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 
@@ -41,6 +41,7 @@ interface FormState {
   language: 'en' | 'ar' | 'both'
   website: string
   platforms: string[]
+  social_links: Record<string, string>  // platform → URL or handle
   // Step 2
   tone_formal: number
   tone_energy: number
@@ -55,9 +56,28 @@ interface FormState {
 const INIT: FormState = {
   name: '', industry: '', primary_color: '#1B3D38', language: 'en', website: '',
   platforms: ['instagram', 'facebook'],
+  social_links: {},
   tone_formal: 50, tone_energy: 50, dialect: 'msa',
   audience: '', key_messages: ['', '', ''],
   competitors: [], _compHandle: '', _compPlatform: 'Instagram',
+}
+
+/** Extract @handle from a full profile URL or raw handle string */
+function urlToHandle(raw: string): string {
+  const s = raw.trim()
+  if (!s) return ''
+  if (!s.includes('/') && !s.includes('.')) {
+    return s.startsWith('@') ? s : `@${s}`
+  }
+  try {
+    const url = new URL(s.startsWith('http') ? s : `https://${s}`)
+    const parts = url.pathname.split('/').filter(Boolean)
+    if (parts.length > 0) {
+      const h = parts[0].replace('@', '')
+      return h ? `@${h}` : ''
+    }
+  } catch { }
+  return s.startsWith('@') ? s : `@${s}`
 }
 
 const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light transition-all bg-white text-slate-800 placeholder:text-slate-400'
@@ -132,6 +152,15 @@ export function NewClientWizard({ onClose, onSave }: {
 
   async function handleCreate() {
     setError(null)
+
+    // Build social_profiles from links entered, filtering out empty ones
+    const social_profiles: SocialProfile[] = Object.entries(form.social_links)
+      .map(([platform, raw]) => {
+        const handle = urlToHandle(raw)
+        return { platform, handle, url: raw }
+      })
+      .filter(p => p.handle)
+
     const input: CreateClientInput = {
       name: form.name.trim(),
       industry: form.industry,
@@ -145,6 +174,7 @@ export function NewClientWizard({ onClose, onSave }: {
       key_messages: form.key_messages.filter(Boolean),
       platforms: form.platforms,
       competitors: form.competitors,
+      social_profiles,
     }
     try {
       const client = await createClient.mutateAsync(input)
@@ -309,6 +339,34 @@ export function NewClientWizard({ onClose, onSave }: {
                   ))}
                 </div>
               </div>
+
+              {/* Social Profile Links */}
+              {form.platforms.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Link className="w-3.5 h-3.5 text-novax-muted" />
+                    <label className="text-xs font-semibold text-slate-600">
+                      Profile Links <span className="text-slate-400 font-normal">(optional — we&apos;ll analyse reach &amp; engagement)</span>
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    {form.platforms.map(platformId => {
+                      const label = PLATFORMS.find(p => p.id === platformId)?.label ?? platformId
+                      return (
+                        <div key={platformId} className="flex items-center gap-2">
+                          <span className="w-20 text-xs text-slate-500 font-medium shrink-0">{label}</span>
+                          <input
+                            value={form.social_links[platformId] ?? ''}
+                            onChange={e => set('social_links', { ...form.social_links, [platformId]: e.target.value })}
+                            placeholder={`https://${platformId}.com/yourbrand`}
+                            className={`${inputCls} flex-1`}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

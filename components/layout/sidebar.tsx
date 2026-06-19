@@ -70,7 +70,6 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Intelligence',
     items: [
       { href: '/assistant',   icon: Sparkles,   label: 'AI Assistant',    permKey: 'assistant' },
-      { href: '/performance', icon: TrendingUp, label: 'Performance',     permKey: 'performance' },
       { href: '/workload',    icon: Users,      label: 'Workload',        permKey: 'workload' },
       { href: '/library',     icon: BookMarked, label: 'Content Library', permKey: 'library' },
       { href: '/reports',     icon: BarChart2,  label: 'Reports',         permKey: 'reports' },
@@ -79,6 +78,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Account',
     items: [
+      { href: '/profile',  icon: Users,    label: 'My Profile' },
       { href: '/settings', icon: Settings, label: 'Settings' },
     ],
   },

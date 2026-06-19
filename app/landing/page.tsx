@@ -189,7 +189,7 @@ function Hero() {
               <div className="mockup-dot" style={{ background: '#D4A84B' }} />
               <div className="mockup-dot" style={{ background: '#4BB86A' }} />
               <span style={{ marginLeft: 8, fontSize: 11, color: '#4E6D6A', letterSpacing: '0.02em' }}>
-                perfumeexhibition.com — NOVAX Ops
+                novaxops.com — NOVAX Ops
               </span>
             </div>
             <DashboardMockup />

@@ -12,12 +12,59 @@ export type PipelineStage =
 
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'
 export type TaskStatus = 'active' | 'blocked' | 'completed'
-export type UserRole = 'admin' | 'ceo' | 'creative_director' | 'copywriter' | 'designer' | 'social_manager' | 'account_manager' | 'strategist'
+export type UserRole = 'admin' | 'ceo' | 'creative_director' | 'copywriter' | 'designer' | 'social_manager' | 'account_manager' | 'strategist' | 'video_editor' | 'web_developer'
 export type Department = 'creative' | 'strategy' | 'accounts' | 'social'
 export type SocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'twitter' | 'youtube' | 'pinterest'
 export type InstagramPostType = 'POST' | 'REEL' | 'STORY'
 export type FacebookPostType  = 'POST' | 'REEL' | 'STORY'
 export type AgentType = 'task_analyzer' | 'copywriter' | 'researcher' | 'asset_finder' | 'presentation_builder'
+
+// ── Organization types (multi-tenant SaaS) ───────────────────────────────────
+
+export type OrgPlan = 'trial' | 'starter' | 'growth' | 'scale' | 'agency' | 'white_label'
+export type OrgStatus = 'active' | 'suspended' | 'cancelled'
+
+export interface OrgBranding {
+  app_name: string              // e.g. "NOVAX Ops" or "Acme Agency Hub"
+  logo_url: string | null
+  primary_color: string         // hex
+  favicon_url: string | null
+  custom_domain: string | null  // e.g. "ops.acme.com"
+  email_footer: string
+  hide_powered_by: boolean
+}
+
+export interface Organization {
+  id: string
+  name: string
+  slug: string                  // used for subdomain: slug.novaxops.com
+  plan: OrgPlan
+  status: OrgStatus
+  branding: OrgBranding | null
+  credits_monthly: number
+  credits_used: number
+  credits_reset_at: string
+  max_users: number
+  max_clients: number
+  trial_ends_at: string | null
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  postiz_workspace_id: string | null
+  chatwoot_account_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+// Default branding values used when org has no custom branding set
+export const DEFAULT_ORG_BRANDING: OrgBranding = {
+  app_name: 'NOVAX Ops',
+  logo_url: null,
+  primary_color: '#1B3D38',
+  favicon_url: null,
+  custom_domain: null,
+  email_footer: 'Powered by NOVAX Ops',
+  hide_powered_by: false,
+}
 
 export interface User {
   id: string
@@ -31,6 +78,11 @@ export interface User {
   needs_onboarding?: boolean
   /** Optional page keys this user can access. null = all pages. Set by admin. */
   page_permissions?: string[] | null
+  organization_id?: string
+  is_super_admin?: boolean
+  daily_credit_cap?: number | null
+  credits_used_today?: number
+  avatar_url?: string | null
 }
 
 export interface BrandIdentity {

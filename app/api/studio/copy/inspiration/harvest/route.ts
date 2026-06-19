@@ -170,13 +170,13 @@ Return ONLY a JSON array — no markdown:
       const client = new Anthropic({ apiKey: anthropicKey })
       const msg = await client.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2500,
+        max_tokens: 4000,
         messages: [{ role: 'user', content: prompt }],
       })
       raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
     } else if (geminiKey) {
       const { geminiGenerate } = await import('@/lib/gemini')
-      raw = await geminiGenerate(prompt, undefined, { temperature: 0.2, maxOutputTokens: 2500 })
+      raw = await geminiGenerate(prompt, undefined, { temperature: 0.2, maxOutputTokens: 4000 })
     }
   } catch (err) {
     console.error('[harvest] scoring batch failed:', err)
@@ -296,9 +296,9 @@ export async function POST(req: NextRequest) {
 
   let rawPins: Awaited<ReturnType<typeof fetchPinterestPinsCustom>> = []
   try {
-    rawPins = await fetchPinterestPinsCustom(queryInputs, 100, 45)
+    rawPins = await fetchPinterestPinsCustom(queryInputs, 100)
   } catch (err) {
-    console.error('[harvest] Apify scrape failed:', err)
+    console.error('[harvest] Pinterest scrape failed:', err)
   }
 
   // Filter usable pins

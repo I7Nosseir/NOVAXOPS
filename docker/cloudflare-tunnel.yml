@@ -1,0 +1,18 @@
+# NOTE: start.ps1 uses the simpler --token approach (token from Cloudflare dashboard).
+# This file is the credentials-file alternative — only needed if you run cloudflared manually.
+# Routes are configured in Cloudflare Zero Trust dashboard, not here.
+
+tunnel: novax-tunnel
+credentials-file: C:\Users\2023\.cloudflared\novax-tunnel.json
+
+ingress:
+  # Postiz frontend
+  - hostname: postiz.novaxops.com
+    service: http://localhost:4200
+
+  # Postiz backend API
+  - hostname: postiz-api.novaxops.com
+    service: http://localhost:3000
+
+  # Catch-all (required)
+  - service: http_status:404

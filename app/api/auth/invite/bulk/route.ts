@@ -12,6 +12,8 @@ const DEPT_BY_ROLE: Record<UserRole, string> = {
   creative_director: 'creative',
   copywriter:        'creative',
   designer:          'creative',
+  video_editor:      'creative',
+  web_developer:     'creative',
   account_manager:   'accounts',
   strategist:        'strategy',
   social_manager:    'social',
@@ -67,7 +69,7 @@ export async function POST(req: Request) {
   }
 
   const inviterName = (profile?.name as string | undefined) ?? 'The NOVAX Team'
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perfumeexhibition.com'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
   const results: BulkInviteItemResult[] = []
 
   for (const member of members) {
