@@ -38,7 +38,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // On the dedicated /assistant page the full-page ChatPanel is already rendered.
   // Showing the floating panel at the same time creates two simultaneous ChatPanel
   // instances with conflicting React state, which triggers error #310.
+  // On /studio/* pages the StudioChatbot FAB owns the bottom-right corner instead.
   const isAssistantPage = pathname === '/assistant'
+  const isStudioPage    = pathname?.startsWith('/studio')
 
   return (
     <ThemeProvider>
@@ -61,9 +63,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <MyTasksFloat />
             <RoleToolsPanel />
 
-            {/* Primary AI Assistant FAB — hidden on the full-page /assistant route */}
+            {/* Primary AI Assistant FAB — hidden on /assistant and /studio/* routes */}
             {/* bottom-[5.5rem] on mobile lifts it above the 64px MobileNav + 24px gap */}
-            {!isAssistantPage && (
+            {!isAssistantPage && !isStudioPage && (
               <>
                 <div className="fixed bottom-[5.5rem] lg:bottom-6 right-6 z-50">
                   <AssistantFab onClick={() => setChatOpen(v => !v)} isOpen={chatOpen} />

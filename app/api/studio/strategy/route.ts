@@ -12,11 +12,13 @@ import Anthropic from '@anthropic-ai/sdk'
 import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
 import type { StrategyDocument } from '@/lib/studio-types'
 import { aiGuard } from '@/lib/ai-guard'
+import { trackAiUsage } from '@/lib/track-usage'
 
 export const maxDuration = 300
 
 interface StrategyRequest {
   client_id?: string
+  user_id?: string
   client_name: string
   industry?: string
   brand_voice?: string
@@ -479,6 +481,7 @@ export async function POST(req: NextRequest) {
       messages:   [{ role: 'user', content: generationPrompt }],
     })
     pass1Raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
+    void trackAiUsage({ service: 'claude', endpoint: 'studio/strategy/pass1', user_id: body.user_id, tokens_in: msg.usage.input_tokens, tokens_out: msg.usage.output_tokens, model: 'claude-opus-4-7' })
   } catch (err) {
     return NextResponse.json({ error: `Pass 1 failed: ${err instanceof Error ? err.message : err}` }, { status: 502 })
   }
@@ -505,6 +508,7 @@ export async function POST(req: NextRequest) {
       messages:   [{ role: 'user', content: reflectionPrompt }],
     })
     const pass2Raw = msg2.content[0].type === 'text' ? msg2.content[0].text : ''
+    void trackAiUsage({ service: 'claude', endpoint: 'studio/strategy/pass2', user_id: body.user_id, tokens_in: msg2.usage.input_tokens, tokens_out: msg2.usage.output_tokens, model: 'claude-sonnet-4-6' })
     const pass2JSON = extractJSON(pass2Raw)
     if (pass2JSON) {
       const pass2Doc = JSON.parse(pass2JSON) as StrategyDocument

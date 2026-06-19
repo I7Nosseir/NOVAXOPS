@@ -9,6 +9,7 @@ import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
 import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
 import { aiGuard } from '@/lib/ai-guard'
+import { trackAiUsage } from '@/lib/track-usage'
 
 const MODEL_STANDARD = 'claude-sonnet-4-6'
 const MODEL_CEO      = 'claude-opus-4-7'
@@ -865,6 +866,18 @@ export async function POST(req: NextRequest) {
         }
         ctrl.enqueue(encoder.encode('data: [DONE]\n\n'))
         ctrl.close()
+
+        // Fire-and-forget usage tracking after stream is fully consumed
+        void claudeStream.finalMessage().then(msg => {
+          void trackAiUsage({
+            service:    'claude',
+            endpoint:   'assistant/chat',
+            user_id:    user_id || undefined,
+            tokens_in:  msg.usage.input_tokens,
+            tokens_out: msg.usage.output_tokens,
+            model,
+          })
+        }).catch(() => {})
       } catch (err) {
         console.error('[assistant/chat] Claude error:', err)
         ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'AI stream error. Please try again.' })}\n\n`))

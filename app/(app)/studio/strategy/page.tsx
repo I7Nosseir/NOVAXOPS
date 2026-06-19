@@ -192,6 +192,7 @@ export default function StrategyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           client_id:        clientId || null,
+          user_id:          user?.id,
           client_name:      selectedClient?.name ?? 'Client',
           industry,
           brand_voice:      selectedClient?.brand_identity?.tone_of_voice,

@@ -351,11 +351,13 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
   const camp = s(doc.campaign_line)
   const qrole = s(doc.quarter_role)
   const obstacle = s(doc.obstacle)
+  const hasIntelligence = !!(doc.north_star || doc.audience_insight || doc.competitive_gap || doc.creative_tension)
+  const hasExtraSections = !!(doc.executive_summary || hasIntelligence || obstacle)
 
   return (
     <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="01 — Strategic Foundation" accentColor={accentColor} />
-      <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 72 }}>
+      <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 72 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 24 }}>Strategic Foundation</Text>
 
         {/* Positioning statement — hero block */}
@@ -366,8 +368,8 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
           </View>
         )}
 
-        {/* Campaign line + Quarter role — 2 columns */}
-        <View style={{ flexDirection: 'row', gap: 16, marginBottom: 20 }}>
+        {/* Campaign line + Quarter role — 2 columns, grows to fill when no extra sections below */}
+        <View style={{ flexDirection: 'row', gap: 16, ...(hasExtraSections ? { marginBottom: 20 } : { flex: 1 }) }}>
           {camp && (
             <View style={{ flex: 1, backgroundColor: C.white, borderRadius: 8, padding: 20, borderLeftWidth: 4, borderLeftColor: C.gold }}>
               <SectionLabel text="Campaign Line" color={C.g400} />
@@ -452,15 +454,18 @@ function BrandIdentityPage({ doc, clientName, accentColor, pageNum, totalPages }
   const qrole     = s(doc.quarter_role)
   const tenants   = a(doc.tenant_integration)
 
+  const hasTenants = tenants.length > 0
+  const hasExtra   = !!(campTheme || hasTenants || (qrole && !doc.positioning_statement))
+
   return (
     <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="02 — Brand Identity" accentColor={accentColor} />
-      <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
+      <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 24 }}>Brand Identity & Direction</Text>
 
-        {/* Identity shift */}
+        {/* Identity shift — grows to fill when it's the only section */}
         {shift && (
-          <View style={{ backgroundColor: C.dark, borderRadius: 8, padding: 24, marginBottom: 20 }}>
+          <View style={{ backgroundColor: C.dark, borderRadius: 8, padding: 24, marginBottom: 20, ...(hasExtra ? {} : { flex: 1 }) }}>
             <SectionLabel text="Identity Shift This Quarter" color={C.accent + '88'} />
             <Text style={{ fontSize: 13, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.65 }}>{shift}</Text>
           </View>
@@ -468,15 +473,15 @@ function BrandIdentityPage({ doc, clientName, accentColor, pageNum, totalPages }
 
         {/* Campaign theme */}
         {campTheme && (
-          <View style={{ backgroundColor: C.white, borderRadius: 8, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: C.gold + '55' }}>
+          <View style={{ backgroundColor: C.white, borderRadius: 8, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: C.gold + '55', ...(hasTenants ? {} : { flex: 1 }) }}>
             <SectionLabel text="Campaign Theme" color={C.g400} />
             <Text style={{ fontSize: 12, fontFamily: 'Helvetica-Oblique', color: C.gold, lineHeight: 1.6 }}>{campTheme}</Text>
           </View>
         )}
 
         {/* Tenant integration */}
-        {tenants.length > 0 && (
-          <View style={{ backgroundColor: C.white, borderRadius: 8, padding: 20, marginBottom: 16 }}>
+        {hasTenants && (
+          <View style={{ flex: 1, backgroundColor: C.white, borderRadius: 8, padding: 20, marginBottom: 16 }}>
             <SectionLabel text="Partner / Tenant Integration Rules" color={C.g400} />
             <BulletList items={tenants} dotColor={accentColor} />
           </View>
@@ -484,7 +489,7 @@ function BrandIdentityPage({ doc, clientName, accentColor, pageNum, totalPages }
 
         {/* Quarter role summary if not already shown */}
         {qrole && !doc.positioning_statement && (
-          <View style={{ backgroundColor: C.white, borderRadius: 8, padding: 20, borderLeftWidth: 4, borderLeftColor: accentColor }}>
+          <View style={{ flex: 1, backgroundColor: C.white, borderRadius: 8, padding: 20, borderLeftWidth: 4, borderLeftColor: accentColor }}>
             <SectionLabel text="Quarter Strategic Role" color={C.g400} />
             <Text style={{ fontSize: 10.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.7 }}>{qrole}</Text>
           </View>
@@ -510,7 +515,7 @@ function ContentPillarsPage({ pillars, pageIndex, clientName, accentColor, pageN
   return (
     <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="03 — Content Pillars" accentColor={accentColor} />
-      <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
+      <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         {pageIndex === 0 && (
           <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 6 }}>Content Pillars</Text>
         )}
@@ -519,12 +524,13 @@ function ContentPillarsPage({ pillars, pageIndex, clientName, accentColor, pageN
             Each pillar serves a distinct audience need and stage of the customer journey.
           </Text>
         )}
-        <View style={{ gap: 16 }}>
+        {/* flex: 1 so cards stretch to fill the page regardless of count (2 or 3) */}
+        <View style={{ gap: 16, flex: 1 }}>
           {pillars.map((pillar, i) => {
             const globalIdx = pageIndex * 3 + i
             const pillarColor = PILLAR_ACCENTS[globalIdx % PILLAR_ACCENTS.length]
             return (
-              <View key={i} style={{ backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border }}>
+              <View key={i} style={{ flex: 1, backgroundColor: C.white, borderRadius: 10, borderWidth: 1, borderColor: C.border }}>
                 {/* Header bar */}
                 <View style={{ backgroundColor: pillarColor + '18', borderBottomWidth: 1, borderBottomColor: pillarColor + '40', paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <View style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: pillarColor, alignItems: 'center', justifyContent: 'center' }}>
@@ -537,8 +543,8 @@ function ContentPillarsPage({ pillars, pageIndex, clientName, accentColor, pageN
                     </Text>
                   )}
                 </View>
-                {/* Body */}
-                <View style={{ paddingHorizontal: 20, paddingVertical: 14 }}>
+                {/* Body — flex: 1 so background fills the card height */}
+                <View style={{ flex: 1, paddingHorizontal: 20, paddingVertical: 14 }}>
                   <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.65, marginBottom: 10 }}>{s(pillar.description)}</Text>
                   {/* Example topics if present */}
                   {((pillar as StrategyContentPillar & { example_topics?: string[] }).example_topics?.length ?? 0) > 0 && (
@@ -575,14 +581,14 @@ function PlatformStrategyPage({ roles, clientName, accentColor, pageNum, totalPa
   return (
     <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="04 — Platform Strategy" accentColor={accentColor} />
-      <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
+      <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 6 }}>Platform Roles</Text>
         <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.g500, marginBottom: 24 }}>
           Each platform has a distinct strategic role — audience stage, content format, and conversion objective.
         </Text>
-        <View style={{ gap: 14 }}>
+        <View style={{ gap: 14, flex: 1 }}>
           {roles.map((role, i) => (
-            <View key={i} style={{ backgroundColor: C.white, borderRadius: 10, padding: 18, flexDirection: 'row', gap: 16, borderWidth: 1, borderColor: C.border, alignItems: 'flex-start' }}>
+            <View key={i} style={{ flex: 1, backgroundColor: C.white, borderRadius: 10, padding: 18, flexDirection: 'row', gap: 16, borderWidth: 1, borderColor: C.border, alignItems: 'flex-start' }}>
               {/* Platform logo */}
               <View style={{ paddingTop: 2 }}>
                 <PlatformLogo platform={s(role.platform)} size={32} />
@@ -617,18 +623,20 @@ function MonthlyRoadmapIntroPage({ tactics, clientName, accentColor, pageNum, to
   pageNum: number
   totalPages: number
 }) {
+  const MONTH_COLORS = [accentColor, C.gold, '#7C3AED']
+
   return (
     <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="05 — Monthly Roadmap" accentColor={accentColor} />
-      <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
+      <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 6 }}>Monthly Execution Roadmap</Text>
         <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.g500, marginBottom: 28 }}>
           Each month has a distinct strategic role, persona direction, and set of focus areas.
         </Text>
         {/* Compact overview table */}
-        <View style={{ gap: 0, borderWidth: 1, borderColor: C.border, borderRadius: 8 }}>
+        <View style={{ gap: 0, borderWidth: 1, borderColor: C.border, borderRadius: 8, marginBottom: 32 }}>
           {/* Header row */}
-          <View style={{ flexDirection: 'row', backgroundColor: accentColor, paddingHorizontal: 16, paddingVertical: 10 }}>
+          <View style={{ flexDirection: 'row', backgroundColor: accentColor, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
             <Text style={{ flex: 0.6, fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.white, letterSpacing: 1 }}>MONTH</Text>
             <Text style={{ flex: 1, fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.white, letterSpacing: 1 }}>ROLE</Text>
             <Text style={{ flex: 1.5, fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.white, letterSpacing: 1 }}>THEME LINE</Text>
@@ -645,6 +653,38 @@ function MonthlyRoadmapIntroPage({ tactics, clientName, accentColor, pageNum, to
             </View>
           ))}
         </View>
+
+        {/* Month-by-month deep dive preview — fills remaining page space */}
+        {tactics.length > 0 && (
+          <View style={{ flex: 1, gap: 12 }}>
+            <SectionLabel text="Month-by-Month Strategic Intent" color={C.g400} />
+            <View style={{ flex: 1, gap: 12 }}>
+              {tactics.map((t, i) => {
+                const mc = MONTH_COLORS[i % MONTH_COLORS.length]
+                const desc = s((t as StrategyMonthTactic & { description?: string }).description)
+                const anchor = s((t as StrategyMonthTactic & { cultural_anchor?: string }).cultural_anchor)
+                return (
+                  <View key={i} style={{ flex: 1, backgroundColor: C.white, borderRadius: 8, padding: 16, borderLeftWidth: 4, borderLeftColor: mc }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <View style={{ width: 24, height: 24, borderRadius: 5, backgroundColor: mc, alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: C.white }}>{i + 1}</Text>
+                      </View>
+                      <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: C.g900 }}>{s(t.month)}</Text>
+                      <Text style={{ fontSize: 8, fontFamily: 'Helvetica', color: mc }}>{s(t.role)}</Text>
+                    </View>
+                    {desc && <Text style={{ fontSize: 9, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.6, marginBottom: anchor ? 6 : 0 }}>{desc}</Text>}
+                    {anchor && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: mc }} />
+                        <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: mc }}>{anchor}</Text>
+                      </View>
+                    )}
+                  </View>
+                )
+              })}
+            </View>
+          </View>
+        )}
       </View>
       <PageFooter clientName={clientName} pageNum={pageNum} total={totalPages} accentColor={accentColor} />
     </Page>
