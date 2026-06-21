@@ -78,22 +78,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session)
-      if (session?.user) setRealUser(await fetchProfile(session.user))
-      setLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_, session) => {
+    // Primary: resolve session once on mount. finally() guarantees loading clears
+    // even if the network call or profile fetch throws.
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
         setSession(session)
         if (session?.user) {
-          setRealUser(await fetchProfile(session.user))
+          try {
+            setRealUser(await fetchProfile(session.user))
+          } catch {
+            // Profile fetch failed — user stays null, middleware redirects to /login
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('[auth] getSession failed:', err)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+
+    // Secondary: react to subsequent auth changes only.
+    // INITIAL_SESSION is already handled above — skipping it avoids a double
+    // profile fetch race that can leave the app in an inconsistent state.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'INITIAL_SESSION') return
+
+        setSession(session)
+        if (session?.user) {
+          try {
+            setRealUser(await fetchProfile(session.user))
+          } catch {
+            setRealUser(null)
+          }
         } else {
           setRealUser(null)
           setPreviewRoleState(null)
         }
-        setLoading(false)
       }
     )
 

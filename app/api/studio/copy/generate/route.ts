@@ -767,7 +767,7 @@ async function persistSession(opts: {
     .from('copy_sessions')
     .insert({
       client_id:      opts.client_id ?? null,
-      session_type:   isCarousel ? 'single' : 'single',
+      session_type:   isCarousel ? 'carousel' : 'single',
       language:       opts.language,
       dialect:        opts.dialect,
       platform:       opts.platform,
