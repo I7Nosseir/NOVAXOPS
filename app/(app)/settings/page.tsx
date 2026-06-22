@@ -761,7 +761,7 @@ export default function SettingsPage() {
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
   const [aiToggling, setAiToggling] = useState(false)
   const [blastSending, setBlastSending] = useState(false)
-  const [blastResult, setBlastResult] = useState<{ sent: number; total: number } | null>(null)
+  const [blastResult, setBlastResult] = useState<{ sent: number; total: number; errors: { email: string; error?: string }[] } | null>(null)
 
   // Activity tab state
   type ActivityUser = {
@@ -1072,8 +1072,9 @@ export default function SettingsPage() {
                         setBlastResult(null)
                         try {
                           const res = await fetch('/api/auth/resend-invites', { method: 'POST' })
-                          const data = await res.json() as { sent?: number; total?: number }
-                          setBlastResult({ sent: data.sent ?? 0, total: data.total ?? 0 })
+                          const data = await res.json() as { sent?: number; total?: number; results?: { email: string; status: string; error?: string }[] }
+                          const errors = (data.results ?? []).filter(r => r.status !== 'sent').map(r => ({ email: r.email, error: r.error }))
+                          setBlastResult({ sent: data.sent ?? 0, total: data.total ?? 0, errors })
                           refetchInvitations()
                         } catch { /* non-critical */ }
                         finally { setBlastSending(false) }
@@ -1097,12 +1098,21 @@ export default function SettingsPage() {
               </div>
 
               {blastResult && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  Sent {blastResult.sent} of {blastResult.total} invite emails to novaxops.com
-                  <button onClick={() => setBlastResult(null)} className="ml-auto text-green-400 hover:text-green-600">
-                    <XCircle className="w-3.5 h-3.5" />
-                  </button>
+                <div className={cn('rounded-lg border p-3 text-sm', blastResult.sent === blastResult.total ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-800')}>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>Sent {blastResult.sent} of {blastResult.total} invite emails to novaxops.com</span>
+                    <button onClick={() => setBlastResult(null)} className="ml-auto opacity-50 hover:opacity-100">
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {blastResult.errors.length > 0 && (
+                    <div className="mt-2 space-y-1 pl-6">
+                      {blastResult.errors.map(e => (
+                        <p key={e.email} className="text-xs text-red-600">{e.email}{e.error ? ` — ${e.error}` : ''}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

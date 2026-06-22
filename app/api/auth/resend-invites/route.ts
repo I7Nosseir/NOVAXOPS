@@ -82,7 +82,8 @@ export async function POST(req: Request) {
     })
 
     if (pwErr) {
-      results.push({ email, name, status: 'error', error: pwErr.message })
+      console.error('[resend-invites] password reset failed', email, authId, pwErr.message)
+      results.push({ email, name, status: 'error', error: `pw: ${pwErr.message}` })
       continue
     }
 
@@ -107,7 +108,8 @@ export async function POST(req: Request) {
     if (emailResult.ok) {
       results.push({ email, name, status: 'sent' })
     } else {
-      results.push({ email, name, status: 'no_email', error: emailResult.error })
+      console.error('[resend-invites] email failed', email, emailResult.error)
+      results.push({ email, name, status: 'no_email', error: `email: ${emailResult.error}` })
     }
   }
 
