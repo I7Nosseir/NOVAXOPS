@@ -741,6 +741,97 @@ function GoogleDriveCard() {
   )
 }
 
+function ChangePasswordCard() {
+  const [newPassword, setNewPassword]         = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showNew, setShowNew]                 = useState(false)
+  const [showConfirm, setShowConfirm]         = useState(false)
+  const [saving, setSaving]                   = useState(false)
+  const [result, setResult]                   = useState<{ ok: boolean; msg: string } | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setResult(null)
+    if (newPassword.length < 8) { setResult({ ok: false, msg: 'Password must be at least 8 characters.' }); return }
+    if (newPassword !== confirmPassword) { setResult({ ok: false, msg: 'Passwords do not match.' }); return }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) { setResult({ ok: false, msg: data.error ?? 'Something went wrong.' }) }
+      else { setResult({ ok: true, msg: 'Password updated successfully.' }); setNewPassword(''); setConfirmPassword('') }
+    } catch {
+      setResult({ ok: false, msg: 'Something went wrong.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <h4 className="text-sm font-semibold text-slate-900 mb-4">Change Password</h4>
+      <form onSubmit={handleSubmit} className="space-y-3 max-w-sm">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">New Password</label>
+          <div className="relative">
+            <input
+              type={showNew ? 'text' : 'password'}
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              placeholder="Min. 8 characters"
+              required
+              className="w-full px-3 py-2 pr-9 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-novax-border-active focus:border-transparent"
+            />
+            <button type="button" onClick={() => setShowNew(v => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              {showNew ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Confirm Password</label>
+          <div className="relative">
+            <input
+              type={showConfirm ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              placeholder="Repeat new password"
+              required
+              className="w-full px-3 py-2 pr-9 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-novax-border-active focus:border-transparent"
+            />
+            <button type="button" onClick={() => setShowConfirm(v => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              {showConfirm ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+            </button>
+          </div>
+        </div>
+
+        {result && (
+          <p className={cn('text-xs px-3 py-2 rounded-lg border', result.ok
+            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+            : 'text-red-600 bg-red-50 border-red-200')}>
+            {result.msg}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-novax hover:bg-novax-hover rounded-lg transition-colors disabled:opacity-50"
+        >
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin"/>}
+          {saving ? 'Updating…' : 'Update Password'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const { user: currentUser } = useAuth()
   const { users } = useUsers()
@@ -1264,6 +1355,10 @@ export default function SettingsPage() {
       {activeTab === 'security' && (
         <div className="space-y-4">
           <h3 className="font-semibold text-slate-900">Security & Permissions</h3>
+
+          {/* Change Password */}
+          <ChangePasswordCard />
+
           <div className="space-y-3">
             {[
               { label: 'Row-Level Security', status: 'Active',    desc: 'Data access enforced per user role on all tables', ok: true },
