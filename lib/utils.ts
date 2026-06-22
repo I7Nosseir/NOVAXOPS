@@ -6,6 +6,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+const LEGACY_ORIGINS = ['https://perfumeexhibition.com', 'http://perfumeexhibition.com']
+
+/** Strip any legacy domain prefix from a stored URL, returning a root-relative path. */
+export function normalizeMediaUrl(url: string | null | undefined): string {
+  if (!url) return ''
+  for (const origin of LEGACY_ORIGINS) {
+    if (url.startsWith(origin)) return url.slice(origin.length)
+  }
+  return url
+}
+
 export const PIPELINE_STAGES: PipelineStage[] = [
   'strategy', 'ideas', 'calendar', 'copy', 'design',
   'review', 'approval', 'scheduled', 'published', 'reporting',

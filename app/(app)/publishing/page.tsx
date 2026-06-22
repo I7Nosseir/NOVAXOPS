@@ -11,7 +11,7 @@ import type { SchedulePostInput } from '@/lib/hooks/use-posts'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
 import { useRealtime } from '@/lib/hooks/use-realtime'
-import { PLATFORM_CONFIG, formatDateTime, formatDate, formatNumber, cn, vendorName } from '@/lib/utils'
+import { PLATFORM_CONFIG, formatDateTime, formatDate, formatNumber, cn, vendorName, normalizeMediaUrl } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import type { ScheduledPost, SocialPlatform } from '@/lib/types'
 import { PlatformIcon } from '@/components/ui/platform-icon'
@@ -133,7 +133,7 @@ function PreviewDialog({ post, onClose }: { post: ScheduledPost; onClose: () => 
   const { clients } = useClients()
   const client = clients.find(c => c.id === post.client_id)
   const status = STATUS_CONFIG[post.status]
-  const slides = post.media_urls ?? (post.media_url ? [post.media_url] : [])
+  const slides = (post.media_urls ?? (post.media_url ? [post.media_url] : [])).map(normalizeMediaUrl)
   const isCarousel = slides.length > 1
   const [slideIndex, setSlideIndex] = useState(0)
   const currentSlide = slides[slideIndex] ?? ''
@@ -390,7 +390,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
       {post.media_url && (
         <div className="relative mb-3 rounded-lg overflow-hidden bg-slate-100 aspect-video">
           <img
-            src={post.media_url}
+            src={normalizeMediaUrl(post.media_url)}
             alt=""
             className="w-full h-full object-cover"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
