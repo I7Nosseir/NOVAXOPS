@@ -56,10 +56,12 @@ export async function POST(req: Request) {
     sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY),
   )
 
-  const { data: profile } = await db.from('users').select('role, name').eq('auth_id', authUser.id).single()
+  const { data: profile } = await db.from('users').select('role, name, organization_id').eq('auth_id', authUser.id).single()
   if (profile?.role !== 'admin') {
     return NextResponse.json({ error: 'Only admins can invite team members' }, { status: 403 })
   }
+
+  const orgId: string | null = (profile as { organization_id?: string } | null)?.organization_id ?? null
 
   const body = await req.json() as { members: BulkInviteMember[] }
   const { members } = body
@@ -85,7 +87,7 @@ export async function POST(req: Request) {
       email,
       password: tempPassword,
       email_confirm: true,
-      user_metadata: { name, role, department: DEPT_BY_ROLE[role] ?? 'creative', needs_onboarding: true },
+      user_metadata: { name, role, department: DEPT_BY_ROLE[role] ?? 'creative', needs_onboarding: true, organization_id: orgId },
     })
 
     if (createErr) {
@@ -102,10 +104,13 @@ export async function POST(req: Request) {
       const initials = name.trim().split(' ').slice(0, 2).map((s: string) => s[0].toUpperCase()).join('')
       const colors = ['#1B3D38', '#2A6B62', '#5BB4AE', '#7B5EA7', '#C45C2A', '#2563EB']
       const color = colors[Math.floor(Math.random() * colors.length)]
-      await db.from('users').upsert(
-        { auth_id: newAuthUser.user.id, email, name: name.trim(), role, department: DEPT_BY_ROLE[role] ?? 'creative', initials, color, needs_onboarding: true, page_permissions: null },
-        { onConflict: 'auth_id', ignoreDuplicates: false },
-      )
+      const newUserRow: Record<string, unknown> = {
+        auth_id: newAuthUser.user.id, email, name: name.trim(), role,
+        department: DEPT_BY_ROLE[role] ?? 'creative', initials, color,
+        needs_onboarding: true, page_permissions: null,
+      }
+      if (orgId) newUserRow.organization_id = orgId
+      await db.from('users').upsert(newUserRow, { onConflict: 'auth_id', ignoreDuplicates: false })
     }
 
     const emailResult = await sendTeamInvite({ toEmail: email, toName: name, role, inviterName, appUrl, tempPassword })

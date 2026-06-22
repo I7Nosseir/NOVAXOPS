@@ -60,23 +60,42 @@ export async function POST(req: Request) {
   const colors = ['#1B3D38', '#2A6B62', '#5BB4AE', '#7B5EA7', '#C45C2A', '#2563EB']
   const color = colors[Math.floor(Math.random() * colors.length)]
 
+  // Resolve organization_id: metadata (set during invite) → existing row → novax slug fallback
+  let orgId = (meta.organization_id as string | undefined) ?? null
+  if (!orgId) {
+    const { data: existingRow } = await admin
+      .from('users')
+      .select('organization_id')
+      .eq('auth_id', user.id)
+      .single()
+    orgId = (existingRow as { organization_id?: string } | null)?.organization_id ?? null
+  }
+  if (!orgId) {
+    const { data: novaxOrg } = await admin
+      .from('organizations')
+      .select('id')
+      .eq('slug', 'novax')
+      .single()
+    orgId = (novaxOrg as { id?: string } | null)?.id ?? null
+  }
+
+  const userRow: Record<string, unknown> = {
+    auth_id: user.id,
+    email: user.email ?? '',
+    name: name.trim(),
+    phone_number: phone?.trim() || null,
+    role,
+    department,
+    initials,
+    color,
+    needs_onboarding: false,
+    page_permissions: pagePerms,
+  }
+  if (orgId) userRow.organization_id = orgId
+
   const { error: upsertErr } = await admin
     .from('users')
-    .upsert(
-      {
-        auth_id: user.id,
-        email: user.email ?? '',
-        name: name.trim(),
-        phone_number: phone?.trim() || null,
-        role,
-        department,
-        initials,
-        color,
-        needs_onboarding: false,
-        page_permissions: pagePerms,
-      },
-      { onConflict: 'auth_id', ignoreDuplicates: false },
-    )
+    .upsert(userRow, { onConflict: 'auth_id', ignoreDuplicates: false })
 
   if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 })
 

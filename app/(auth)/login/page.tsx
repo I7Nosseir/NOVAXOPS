@@ -20,14 +20,16 @@ export default function LoginPage() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
   const [mounted, setMounted]   = useState(false)
+  const [showIntro, setShowIntro] = useState(false)
+  const [introDone, setIntroDone] = useState(true)
 
-  useEffect(() => { setMounted(true) }, [])
-
-  const [showIntro] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return !sessionStorage.getItem('novax_intro_shown')
-  })
-  const [introDone, setIntroDone] = useState(!showIntro)
+  useEffect(() => {
+    setMounted(true)
+    if (!sessionStorage.getItem('novax_intro_shown')) {
+      setShowIntro(true)
+      setIntroDone(false)
+    }
+  }, [])
 
   const handleIntroComplete = useCallback(() => {
     sessionStorage.setItem('novax_intro_shown', '1')

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut } from 'lucide-react'
+import { CheckCircle, CheckCircle2, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut, Send } from 'lucide-react'
 import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, useUpdateUserPermissions, type InviteResult } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -760,6 +760,8 @@ export default function SettingsPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
   const [aiToggling, setAiToggling] = useState(false)
+  const [blastSending, setBlastSending] = useState(false)
+  const [blastResult, setBlastResult] = useState<{ sent: number; total: number } | null>(null)
 
   // Activity tab state
   type ActivityUser = {
@@ -1062,15 +1064,47 @@ export default function SettingsPage() {
                   </h3>
                   <p className="text-sm text-slate-500">Accounts that have not yet completed first login</p>
                 </div>
-                <button
-                  onClick={() => refetchInvitations()}
-                  disabled={invLoading}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-                >
-                  <RefreshCw className={cn('w-3 h-3', invLoading && 'animate-spin')} />
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  {invitations.length > 0 && (
+                    <button
+                      onClick={async () => {
+                        setBlastSending(true)
+                        setBlastResult(null)
+                        try {
+                          const res = await fetch('/api/auth/resend-invites', { method: 'POST' })
+                          const data = await res.json() as { sent?: number; total?: number }
+                          setBlastResult({ sent: data.sent ?? 0, total: data.total ?? 0 })
+                          refetchInvitations()
+                        } catch { /* non-critical */ }
+                        finally { setBlastSending(false) }
+                      }}
+                      disabled={blastSending}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white bg-novax hover:bg-novax-hover rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Send className={cn('w-3 h-3', blastSending && 'animate-pulse')} />
+                      {blastSending ? 'Sending…' : 'Email All'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => refetchInvitations()}
+                    disabled={invLoading}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <RefreshCw className={cn('w-3 h-3', invLoading && 'animate-spin')} />
+                    Refresh
+                  </button>
+                </div>
               </div>
+
+              {blastResult && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  Sent {blastResult.sent} of {blastResult.total} invite emails to novaxops.com
+                  <button onClick={() => setBlastResult(null)} className="ml-auto text-green-400 hover:text-green-600">
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Resend fallback credentials panel */}
               {resendResult && !resendResult.emailSent && resendResult.fallbackCredentials && (

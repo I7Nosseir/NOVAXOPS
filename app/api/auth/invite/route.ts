@@ -44,13 +44,15 @@ export async function POST(req: Request) {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('role')
+    .select('role, organization_id')
     .eq('auth_id', authUser.id)
     .single()
 
   if (profile?.role !== 'admin') {
     return NextResponse.json({ error: 'Only admins can invite team members' }, { status: 403 })
   }
+
+  const orgId: string | null = (profile as { organization_id?: string } | null)?.organization_id ?? null
 
   const body = await req.json() as { email: string; name: string; role: UserRole; page_permissions?: string[] | null }
   const { email, name, role, page_permissions = null } = body
@@ -76,6 +78,7 @@ export async function POST(req: Request) {
       department: DEPT_BY_ROLE[role] ?? 'creative',
       needs_onboarding: true,
       page_permissions,
+      organization_id: orgId,
     },
   })
 
@@ -86,20 +89,19 @@ export async function POST(req: Request) {
     const initials = name.trim().split(' ').slice(0, 2).map((s: string) => s[0].toUpperCase()).join('')
     const colors = ['#1B3D38', '#2A6B62', '#5BB4AE', '#7B5EA7', '#C45C2A', '#2563EB']
     const color = colors[Math.floor(Math.random() * colors.length)]
-    await adminClient.from('users').upsert(
-      {
-        auth_id: newAuthUser.user.id,
-        email,
-        name: name.trim(),
-        role,
-        department: DEPT_BY_ROLE[role] ?? 'creative',
-        initials,
-        color,
-        needs_onboarding: true,
-        page_permissions: page_permissions ?? null,
-      },
-      { onConflict: 'auth_id', ignoreDuplicates: false },
-    )
+    const newUserRow: Record<string, unknown> = {
+      auth_id: newAuthUser.user.id,
+      email,
+      name: name.trim(),
+      role,
+      department: DEPT_BY_ROLE[role] ?? 'creative',
+      initials,
+      color,
+      needs_onboarding: true,
+      page_permissions: page_permissions ?? null,
+    }
+    if (orgId) newUserRow.organization_id = orgId
+    await adminClient.from('users').upsert(newUserRow, { onConflict: 'auth_id', ignoreDuplicates: false })
   }
 
   // Look up inviter's display name for the email
