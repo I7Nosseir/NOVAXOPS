@@ -206,17 +206,26 @@ Return ONLY valid JSON matching this EXACT structure (no markdown, no prose outs
     }
 
     const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const finishReason = json.candidates?.[0]?.finishReason
     if (!raw) return NextResponse.json({ error: 'Empty response from model' }, { status: 502 })
 
-    // Strip any markdown fences just in case
-    const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    // Extract the first { ... } block — handles markdown fences and trailing prose
+    const jsonStart = raw.indexOf('{')
+    const jsonEnd   = raw.lastIndexOf('}')
+    const clean     = jsonStart !== -1 && jsonEnd > jsonStart
+      ? raw.slice(jsonStart, jsonEnd + 1)
+      : raw.replace(/^```(?:json)?\s*/im, '').replace(/\s*```\s*$/m, '').trim()
 
     let output: IdeationOutput
     try {
       output = JSON.parse(clean) as IdeationOutput
     } catch {
-      console.error('[ai-image/ideate] JSON parse failed. Raw:', clean.slice(0, 500))
-      return NextResponse.json({ error: 'Model returned malformed JSON. Try again.' }, { status: 502 })
+      console.error('[ai-image/ideate] JSON parse failed. finishReason:', finishReason, 'Raw:', raw.slice(0, 500))
+      return NextResponse.json({
+        error: finishReason === 'MAX_TOKENS'
+          ? 'Response was too long and was cut off. Try a shorter brief.'
+          : 'Model returned malformed JSON. Try again.',
+      }, { status: 502 })
     }
 
     return NextResponse.json({ output })

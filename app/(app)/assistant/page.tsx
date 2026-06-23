@@ -4,25 +4,34 @@ import { useState, useEffect, useCallback } from 'react'
 import { ChatPanel } from '@/components/assistant/chat-panel'
 import { ChatSidebar } from '@/components/assistant/chat-sidebar'
 import { useAssistantChats } from '@/lib/hooks/use-assistant-chats'
+import { useAuth } from '@/lib/auth-context'
 import type { AssistantChat } from '@/lib/hooks/use-assistant-chats'
 
 type ChatMessage = AssistantChat['messages'][number]
 
 export default function AssistantPage() {
+  const { loading: authLoading, user } = useAuth()
   const { chats, isLoading, createChat, updateChat, deleteChat } = useAssistantChats()
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
 
-  // Once chats load, select the most recent or prompt creation
+  // Once chats load, select the most recent or create one
   useEffect(() => {
-    if (isLoading || activeChatId) return
+    // Wait for auth and query to settle, and don't act when we already have a chat selected
+    if (authLoading || !user || isLoading || activeChatId) return
     if (chats.length > 0) {
       setActiveChatId(chats[0].id)
     } else {
-      // No chats — create one immediately
-      createChat.mutateAsync({}).then(c => setActiveChatId(c.id)).catch(() => {})
+      setCreateError(null)
+      createChat.mutateAsync({})
+        .then(c => setActiveChatId(c.id))
+        .catch(err => {
+          console.error('[assistant] createChat failed:', err)
+          setCreateError(err instanceof Error ? err.message : 'Failed to create chat')
+        })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, chats.length])
+  }, [authLoading, user?.id, isLoading, chats.length])
 
   const activeChat = chats.find(c => c.id === activeChatId) ?? null
 
@@ -87,7 +96,14 @@ export default function AssistantPage() {
           />
         ) : (
           <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-slate-400">Loading…</p>
+            {createError ? (
+              <div className="text-center space-y-2">
+                <p className="text-sm text-red-400">{createError}</p>
+                <p className="text-xs text-slate-500">Make sure migration 026_assistant_chats.sql has been run in Supabase.</p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">Loading…</p>
+            )}
           </div>
         )}
       </div>
