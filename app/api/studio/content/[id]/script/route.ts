@@ -443,14 +443,44 @@ export async function POST(
   }
 
   const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-  const match = stripped.match(/\{[\s\S]*\}/)
-  if (!match) {
+
+  // Extract all top-level JSON objects (thinking phase may contain smaller {} fragments)
+  // then take the largest, which is always the real output object.
+  function extractLargestJsonObject(text: string): string | null {
+    const candidates: string[] = []
+    let i = 0
+    while (i < text.length) {
+      if (text[i] === '{') {
+        let depth = 0
+        let inStr = false
+        let esc = false
+        let j = i
+        while (j < text.length) {
+          const ch = text[j]
+          if (esc)              { esc = false; j++; continue }
+          if (ch === '\\' && inStr) { esc = true;  j++; continue }
+          if (ch === '"')       { inStr = !inStr; j++; continue }
+          if (!inStr) {
+            if (ch === '{') depth++
+            else if (ch === '}') { depth--; if (depth === 0) { candidates.push(text.slice(i, j + 1)); i = j + 1; break } }
+          }
+          j++
+        }
+        if (depth !== 0) break
+      } else { i++ }
+    }
+    if (!candidates.length) return null
+    return candidates.reduce((best, cur) => cur.length > best.length ? cur : best)
+  }
+
+  const jsonStr = extractLargestJsonObject(stripped)
+  if (!jsonStr) {
     return NextResponse.json({ error: 'Failed to parse script from AI', raw }, { status: 502 })
   }
 
   let script: unknown
   try {
-    script = JSON.parse(match[0])
+    script = JSON.parse(jsonStr)
   } catch {
     return NextResponse.json({ error: 'Invalid JSON from AI', raw }, { status: 502 })
   }
