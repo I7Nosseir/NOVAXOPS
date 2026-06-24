@@ -162,26 +162,32 @@ function DocumentHeader({
                 onExportPdf()
                 return
               }
-              // Other tools: use the print window approach
+              // Other tools: open a clean popup with just the studio output
               const el = document.getElementById('printable-studio')
               if (!el) { onExportPdf(); return }
-              const win = window.open('', '_blank', 'width=900,height=700')
+              const win = window.open('', '_blank', 'width=960,height=760')
               if (!win) { onExportPdf(); return }
               const styles = Array.from(
                 document.querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel="stylesheet"], style')
               ).map(s => s.outerHTML).join('\n')
               win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
-  body{margin:0;padding:0;background:#fff;font-family:system-ui,sans-serif}
-  button,[data-print-hide]{display:none!important}
-  @page{size:A4 portrait;margin:12mm 16mm}
-  @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
+  body{margin:0;padding:24px 32px;background:#fff;font-family:system-ui,sans-serif;font-size:13px;color:#0f172a}
+  button,[data-no-print],[data-print-hide]{display:none!important}
+  /* Strip overflow clipping so content isn't cut at page boundaries */
+  *{overflow:visible!important;max-height:none!important;box-sizing:border-box}
+  /* Enforce text wrapping — nothing should bleed off the A4 edge */
+  p,span,li,td,th,h1,h2,h3,h4,h5,h6,div{overflow-wrap:break-word!important;word-break:break-word!important;white-space:normal!important}
+  img{max-width:100%}
+  @page{size:A4 portrait;margin:14mm 16mm}
+  @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    .rounded-2xl,.rounded-xl,.rounded-lg{page-break-inside:avoid}}
 </style>
 ${styles}
 </head><body>${el.outerHTML}</body></html>`)
               win.document.close()
               win.focus()
-              setTimeout(() => { win.print(); win.close() }, 600)
+              setTimeout(() => { win.print(); win.close() }, 800)
             }}
             className="flex items-center gap-1 text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors disabled:opacity-50"
           >

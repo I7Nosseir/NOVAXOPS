@@ -625,13 +625,35 @@ export default function MediaBuyingPage() {
           {/* Export */}
           <div className="flex items-center gap-3 pb-4">
             <button
-              onClick={() => window.print()}
+              onClick={() => {
+                const el = document.getElementById('mb-result')
+                if (!el) return
+                const win = window.open('', '_blank', 'width=960,height=760')
+                if (!win) return
+                const styles = Array.from(
+                  document.querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel="stylesheet"], style')
+                ).map(s => s.outerHTML).join('\n')
+                win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body{margin:0;padding:24px 32px;background:#fff;font-family:system-ui,sans-serif;font-size:13px;color:#0f172a}
+  button,[data-no-print]{display:none!important}
+  *{overflow:visible!important;max-height:none!important;overflow-wrap:break-word!important;word-break:break-word!important;white-space:normal!important;box-sizing:border-box}
+  img{max-width:100%}
+  @page{size:A4 portrait;margin:14mm 16mm}
+  @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    .rounded-2xl,.rounded-xl,.rounded-lg{page-break-inside:avoid}}
+</style>
+${styles}
+</head><body>${el.outerHTML}</body></html>`)
+                win.document.close()
+                win.focus()
+                setTimeout(() => { win.print(); win.close() }, 800)
+              }}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
             >
               <Download className="w-4 h-4"/>
-              Print / Save as PDF
+              Export PDF
             </button>
-            <p className="text-xs text-slate-400">Opens browser print dialog — choose &quot;Save as PDF&quot;</p>
           </div>
         </div>
       )}

@@ -457,6 +457,53 @@ html.dark .header-glass {
   box-shadow: 0 1px 0 rgba(0,0,0,0.5), 0 4px 24px rgba(0,0,0,0.2);
 }
 
+/* ─── Print / PDF export ─────────────────────────────────────────────────────
+   Hides the app chrome so window.print() calls produce a clean page.
+   The sidebar (aside), header, and fixed floating elements are removed.
+   The main content area is reset to full-width, zero margin/padding.
+   Text wrapping is enforced so nothing is clipped in print output.
+────────────────────────────────────────────────────────────────────────────── */
+@media print {
+  @page { size: A4 portrait; margin: 14mm 16mm; }
+
+  /* Force colour rendering for charts and branded backgrounds */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app chrome */
+  aside,
+  header,
+  nav,
+  [data-no-print] { display: none !important; }
+
+  /* Reset main content: remove sidebar offset, remove top-bar padding */
+  main {
+    margin-left: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Fix overflow clipping so multi-page content flows through page breaks */
+  * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Ensure text wraps and long words don't bleed off-page */
+  p, span, li, td, th, h1, h2, h3, h4, h5, h6, div {
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+  }
+
+  /* Sensible page-break rules for card-based layouts */
+  .rounded-2xl,
+  .rounded-xl,
+  .rounded-lg { page-break-inside: avoid; }
+}
+
 /* Teal gradient bottom line — dark mode only */
 html.dark .header-glass::after {
   content: '';
