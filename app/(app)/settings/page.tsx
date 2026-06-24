@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, CheckCircle2, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut, Send } from 'lucide-react'
+import { CheckCircle, CheckCircle2, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut, Send, Network } from 'lucide-react'
+import { OrganizationsTab } from '@/components/settings/organizations-tab'
 import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, useUpdateUserPermissions, type InviteResult } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -840,10 +841,11 @@ export default function SettingsPage() {
   const resendInvitation  = useResendInvitation()
   const [resendResult, setResendResult] = useState<(InviteResult & { forId: string }) | null>(null)
   const [copiedResend, setCopiedResend] = useState<'email' | 'password' | null>(null)
-  const isAdmin = currentUser?.role === 'admin'
+  const isAdmin      = currentUser?.role === 'admin'
+  const isSuperAdmin = currentUser?.is_super_admin === true
   const canSeeVendorNames = hasRole(currentUser, ['admin', 'ceo'])
   const canManageKillSwitch = currentUser?.role === 'admin' || currentUser?.role === 'ceo'
-  const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview' | 'activity'>(isAdmin ? 'integrations' : 'team')
+  const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview' | 'activity' | 'organizations'>(isAdmin ? 'integrations' : 'team')
   const [showInvite, setShowInvite] = useState(false)
   const [showBulkInvite, setShowBulkInvite] = useState(false)
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
@@ -926,12 +928,13 @@ export default function SettingsPage() {
   }
 
   const tabs = [
-    ...(isAdmin ? [{ id: 'integrations' as const, label: 'Integrations', icon: Zap }] : []),
-    { id: 'team' as const, label: 'Team', icon: Users },
-    { id: 'notifications' as const, label: 'Notifications', icon: Bell },
-    { id: 'security' as const, label: 'Security', icon: Shield },
-    ...(canManageKillSwitch ? [{ id: 'activity' as const, label: 'Activity', icon: Activity }] : []),
-    ...(isAdmin ? [{ id: 'preview' as const, label: 'Role Preview', icon: Eye }] : []),
+    ...(isAdmin      ? [{ id: 'integrations' as const,  label: 'Integrations',   icon: Zap      }] : []),
+    { id: 'team'          as const, label: 'Team',          icon: Users   },
+    { id: 'notifications' as const, label: 'Notifications', icon: Bell    },
+    { id: 'security'      as const, label: 'Security',      icon: Shield  },
+    ...(canManageKillSwitch ? [{ id: 'activity'  as const, label: 'Activity',     icon: Activity }] : []),
+    ...(isAdmin      ? [{ id: 'preview'       as const,  label: 'Role Preview',  icon: Eye      }] : []),
+    ...(isSuperAdmin ? [{ id: 'organizations' as const,  label: 'Organizations', icon: Network  }] : []),
   ]
 
   return (
@@ -1659,6 +1662,16 @@ export default function SettingsPage() {
       )}
 
       {activeTab === 'preview' && <RolePreviewTab />}
+
+      {activeTab === 'organizations' && isSuperAdmin && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <div className="flex items-center gap-2 mb-5">
+            <Network className="w-4 h-4 text-novax-muted" />
+            <h3 className="text-sm font-bold text-slate-900">Organizations</h3>
+          </div>
+          <OrganizationsTab />
+        </div>
+      )}
     </div>
   )
 }

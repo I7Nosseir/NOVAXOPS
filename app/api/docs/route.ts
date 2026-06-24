@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { randomBytes } from 'crypto'
 
 function shareToken() {
@@ -11,6 +13,28 @@ function adminSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('Supabase env vars not configured (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)')
   return createClient(url, key)
+}
+
+async function resolveOrgId(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies()
+    const sessionClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+    )
+    const { data: { user } } = await sessionClient.auth.getUser()
+    if (!user) return null
+    const db = adminSupabase()
+    const { data } = await db
+      .from('users')
+      .select('organization_id')
+      .eq('auth_id', user.id)
+      .single()
+    return (data as { organization_id: string | null } | null)?.organization_id ?? null
+  } catch {
+    return null
+  }
 }
 
 function dbError(msg: string, detail?: string): NextResponse {
@@ -47,6 +71,8 @@ export async function POST(req: NextRequest) {
     }
 
     const db = adminSupabase()
+    const organization_id = await resolveOrgId()
+    const orgField = organization_id ? { organization_id } : {}
 
     // Create from template — copy title + content, reset template flags
     if (body.from_template_id) {
@@ -66,6 +92,7 @@ export async function POST(req: NextRequest) {
           client_id: body.client_id ?? null,
           is_template: false,
           share_token: shareToken(),
+          ...orgField,
         })
         .select()
         .single()
@@ -76,7 +103,7 @@ export async function POST(req: NextRequest) {
     const { title = 'Untitled Document', client_id, content = {}, is_template = false, template_category, doc_type = 'doc' } = body
     const { data, error } = await db
       .from('documents')
-      .insert({ title, client_id: client_id ?? null, content, is_template, template_category: template_category ?? null, doc_type, share_token: shareToken() })
+      .insert({ title, client_id: client_id ?? null, content, is_template, template_category: template_category ?? null, doc_type, share_token: shareToken(), ...orgField })
       .select()
       .single()
 

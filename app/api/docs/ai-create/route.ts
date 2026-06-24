@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { markdownToTiptap, markdownTableToSheet, isMarkdownTable } from '@/lib/markdown-to-tiptap'
 import { randomBytes } from 'crypto'
 
@@ -8,6 +10,28 @@ function adminSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
+}
+
+async function resolveOrgId(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies()
+    const sessionClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+    )
+    const { data: { user } } = await sessionClient.auth.getUser()
+    if (!user) return null
+    const db = adminSupabase()
+    const { data } = await db
+      .from('users')
+      .select('organization_id')
+      .eq('auth_id', user.id)
+      .single()
+    return (data as { organization_id: string | null } | null)?.organization_id ?? null
+  } catch {
+    return null
+  }
 }
 
 // POST /api/docs/ai-create
@@ -28,16 +52,19 @@ export async function POST(req: NextRequest) {
   const docContent = isTable ? markdownTableToSheet(rawContent) : markdownToTiptap(rawContent)
   const share_token = randomBytes(24).toString('hex')
 
+  const organization_id = await resolveOrgId()
+
   const db = adminSupabase()
   const { data, error } = await db
     .from('documents')
     .insert({
       title,
-      content:     docContent,
-      client_id:   body.client_id ?? null,
-      is_template: false,
+      content:         docContent,
+      client_id:       body.client_id ?? null,
+      is_template:     false,
       doc_type,
       share_token,
+      ...(organization_id ? { organization_id } : {}),
     })
     .select('id, title, created_at')
     .single()

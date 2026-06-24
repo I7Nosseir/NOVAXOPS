@@ -682,7 +682,7 @@ async function callGeminiFallback(system: string, messages: ChatMessage[]): Prom
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: combined }] }],
-      generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
     }),
   })
   if (!res.ok) throw new Error(`Gemini ${res.status}`)
@@ -854,7 +854,7 @@ export async function POST(req: NextRequest) {
       try {
         const claudeStream = anthropic.messages.stream({
           model,
-          max_tokens: 2048,
+          max_tokens: 32000,
           system:     systemPrompt,
           messages:   claudeMessages,
         })
