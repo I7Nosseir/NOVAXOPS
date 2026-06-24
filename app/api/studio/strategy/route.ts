@@ -133,6 +133,14 @@ Before writing, verify your strategy avoids:
 • The word "empower", "inspire", "connect", "enable" in the positioning statement
 • Content pillars that would work for any brand in this industry
 
+STEP 8 — VIRAL CONTENT ARCHITECTURE
+Before writing, answer internally:
+• CURIOSITY: What is the one thing this brand can REVEAL this quarter that the audience has been waiting to hear but no brand has said? The entire strategy should build toward this revelation. What is Month 3's "prize" for the audience who followed since Month 1?
+• CONTROVERSY: Which content pillar will generate the most productive disagreement in comments? Every great strategy needs at least ONE pillar that says something the audience will actively debate — not controversy for shock, but a genuine perspective that divides smart people.
+• DISCUSSION: For each platform role, what specific format makes the audience want to share THEIR OWN VERSION or story? "I do this too" comments. "Send this to someone who..." moments. The content that makes people tag others.
+• REPEATABLE FORMATS: For each monthly tactic, what is the ONE FORMAT that could run weekly for the entire quarter? Not individual post ideas — a structural template that becomes the brand's signature. Job Ladder principle: same structure, different subjects, every week, until the audience recognizes the format as the brand.
+• NARRATIVE ARC AS CURIOSITY ENGINE: Month 1 should open a question or tension. Month 2 should deepen it without resolving. Month 3 should deliver the payoff — the revelation or transformation the audience has been building toward. The audience should feel the strategy is building toward something real.
+
 ═══════════════════════════════════════════════════════
 END OF THINKING PHASE — Now produce the strategy document.
 ═══════════════════════════════════════════════════════
@@ -160,10 +168,13 @@ CAMPAIGN LINE: 3–7 words. Poetic compression. Could anchor a full quarter of c
 
 CONTENT PILLARS: Each pillar names a specific life territory or cultural tension — not a topic category. 5 pillars, each mutually exclusive. Each must pass the test: "Would a competitor see this and think 'we should have claimed this'?"
 Weak: "Lifestyle", "Inspiration", "Tips." Strong: "The moments between milestones — the Tuesday morning no one posts about."
+VIRAL PILLAR REQUIREMENT: At least one pillar must be deliberately controversy-generating — a consistent brand perspective that the audience actively debates. The controversy must be about ideas or values, not about the brand. Include in the pillar description: the specific controversial angle and the two sides it generates.
 
 PLATFORM ROLES: Each platform gets a different behavioral role — what content ONLY exists on that platform, and why. Named as a specific behavior: "Where the brand gets uncomfortable" / "Where the brand earns trust" — not "awareness" / "engagement."
+DISCUSSION FORMAT REQUIREMENT: Each platform role must name ONE repeatable format — a structural template that runs weekly. "The format is the brand." Example: not "Reels about behind-the-scenes" but "Weekly Reel: One industry rule we broke — and what happened." The format must naturally generate comment participation (a question people want to answer about themselves).
 
 MONTHLY TACTICS: Each month must be anchored to a specific cultural/emotional shift. Format: [Role Name] × [Specific Cultural or Emotional Trigger] — not a generic theme, a named tension.
+CURIOSITY ARC REQUIREMENT: Month 1 opens a question or tension (something the audience has been privately thinking but no brand has said). Month 2 deepens it (goes further, adds proof, challenges the audience more). Month 3 delivers the payoff (the revelation, transformation, or resolution that makes the first two months make sense retrospectively).
 
 STRATEGY ARC: 3-phase arc with narrative momentum. Month 1 plants the seed. Month 2 deepens the investment. Month 3 delivers the payoff. Something is at stake. The audience should feel the brand building toward something real.
 

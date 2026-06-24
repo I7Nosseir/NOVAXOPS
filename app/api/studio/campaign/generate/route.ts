@@ -443,10 +443,11 @@ FIELD-BY-FIELD REQUIREMENTS:
    Steps must be sequential and assignable to a specific team role.
 
 8. content_ladder
-   3-item array. Shows how the content ESCALATES over 3 weeks.
-   Format: "Week [N]: [Exact content format] — [Specific hook type] — [Expected audience response]"
-   Example: "Week 1: Single Reel (no brand name, just the tension stated plainly) — curiosity hook — comments ask 'is this us?'"
-   The escalation should make the audience feel like they're watching something build toward a revelation.
+   3-item array. Shows how the content ESCALATES over 3 weeks using the CURIOSITY ARC principle:
+   Week 1: Open the loop — state the tension or question plainly, no resolution, no brand. Makes the audience say "is this about me?"
+   Week 2: Deepen it — go further, add proof, name the villain or the uncomfortable truth. The audience is more invested. Comments start.
+   Week 3: Deliver the prize — the payoff. The revelation, result, or transformation the audience was building toward. The brand is now associated with the resolution.
+   Format: "Week [N]: [Exact content format] — [Specific hook/curiosity mechanism] — [Expected audience response and what they DO next]"
 
 9. seed_strategy
    One paragraph. Answer: Who are the FIRST 20 people to receive this content (before any public launch)?
@@ -457,6 +458,7 @@ FIELD-BY-FIELD REQUIREMENTS:
     Describe the EXACT moment when a neutral observer feels compelled to share this.
     Write it as a scene: "When [specific person] sees [specific thing happen], they immediately [specific action] because [specific psychological reason]."
     This is not the same as the participation mechanic — this is the involuntary response of someone who didn't even participate.
+    CONTROVERSY REQUIREMENT: The virality trigger must include a controversy dimension — the specific claim or position in the campaign that divides opinion. Half the audience will passionately agree. Half will want to challenge it. Both camps share it. Name the two sides explicitly.
 
 11. participation_mechanic
     One sentence. The specific action the audience takes that makes them part of the campaign.
@@ -465,6 +467,9 @@ FIELD-BY-FIELD REQUIREMENTS:
 12. shareable_moment
     Describe one specific image, video frame, or piece of text that this campaign will DEFINITELY produce — something visual enough to screenshot and share.
     Be specific about what it looks like. Not "authentic UGC" — describe the actual frame.
+
+12b. repeatable_format
+     One sentence: the structural content template this campaign generates that can run weekly beyond the initial campaign. Job Ladder principle: same structure, different subjects, every week. What is the ongoing format that becomes the brand's signature? Name it: "[Format Name] — [structure that runs forever]."
 
 13. scoring
     Use the pipeline scores from above exactly as-is.
@@ -513,7 +518,8 @@ No markdown fences. No trailing commas. No comments inside the JSON.
     "timeline": "...",
     "risk": "...",
     "mitigation": "...",
-    "anti_example": "..."
+    "anti_example": "...",
+    "repeatable_format": "..."
   }
 ]`
 

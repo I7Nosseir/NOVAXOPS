@@ -98,6 +98,26 @@ Answer internally — then make sure none of these appear in your output:
 • Weak CTA: "Follow for more" / "Check out the link" / "What do you think?"
 • Over-explanation: explaining what you're about to say before saying it
 
+STEP 7 — CURIOSITY LOOP ARCHITECTURE (most important)
+Answer internally:
+• What is the SINGLE OPEN QUESTION the hook plants in the viewer's mind? Write the exact question as the viewer would think it.
+• Is the answer to that question DELAYED until the PAYOFF section? If it is resolved in the TENSION section, the viewer leaves before the CTA. Move it later.
+• What does the viewer think they're getting when they start watching — and is the actual payoff BETTER than what they expected? The best content delivers more than it promises.
+• Name the exact line in the script where the curiosity loop CLOSES. That line is the most important line in the entire script. Is it specific enough? A specific number, method, result, or revelation — not a platitude.
+
+STEP 8 — CONTROVERSY + DISCUSSION ENGINEERING
+Answer internally:
+• Does the TENSION section say something that would divide the audience? Not shock — a genuine position that a smart person could defend from the other side. If everyone in the comments would agree, the content is not controversial enough.
+• What specific QUESTION does this content make the viewer want to answer about themselves, their situation, or their opinion? This is what drives comments.
+• Does the CTA give the viewer a REASON to share with a specific person? ("Send this to someone who...") The best CTAs activate an existing conversation the viewer is already having.
+
+STEP 9 — REPEATABLE FORMAT ARCHITECTURE
+Answer internally:
+• What is the STRUCTURAL TEMPLATE of this content? Describe it in one sentence as a format that could run weekly with a different subject.
+  Example: "A person reveals one thing they did early in their career that they know is wrong now — and what they'd do instead."
+• Give this format a one-line name (e.g., "The Honest Confession", "The Industry Secret", "The Before/After Decision").
+• Is this format repeatable? Could you produce 12 pieces with this same structure in this client's niche?
+
 STEP 6 — RHYTHM AND PACING
 Platform pacing rule: ${platformPace}
 Brand voice: ${d.brand_voice ?? 'not specified'}
@@ -138,6 +158,13 @@ ${d.audience_psychology ? `AUDIENCE PSYCHOLOGY:
 - Core fears: ${JSON.stringify(d.audience_psychology.core_fears)}
 - Emotional triggers: ${JSON.stringify(d.audience_psychology.emotional_triggers)}` : ''}
 
+─── VIRAL CONTENT LAWS (mandatory — all five must be satisfied) ─────────────────
+LAW 1 — CURIOSITY FIRST: The HOOK must plant a specific open question that is answered ONLY in the PAYOFF. The viewer must feel that stopping means missing something they specifically want to know. Not "interesting topic" — "specific promised revelation."
+LAW 2 — CONTROVERSY DESIGN: The TENSION section must say something that divides the audience. 50% will agree, 50% will push back. Controversy about ideas, not the brand. Productive disagreement drives comments and shares.
+LAW 3 — DISCUSSION ENGINEERING: The CTA must ask for the viewer's OWN EXPERIENCE or OPINION on something they disagree about. Not "what do you think?" — a specific question about a choice, memory, or belief. "What did you do differently?" gets 10x more comments than "Thoughts?"
+LAW 4 — PRIZE ARCHITECTURE: The PAYOFF must deliver something SPECIFIC — a number, method, result, or revelation the viewer could not have known without watching. Weak: "So stay consistent." Strong: "The exact phrase that doubled their close rate."
+LAW 5 — REPEATABLE FORMAT: This content must have a structural template that could run weekly with a different subject. The format is the brand. Build it so 12 more pieces could follow.
+
 ─── RETENTION SCIENCE ────────────────────────────────
 The first 1.5 seconds is a referendum. The viewer votes "keep watching" or "scroll" before they consciously decide. The hook must force a "keep watching" vote before the brain engages.
 
@@ -153,10 +180,10 @@ One Peak retention framework — six sections, each with one job:
 
 1. HOOK — The selected hook verbatim as the opening line. Do NOT paraphrase. Do NOT soften. Do NOT add context. The hook is the hook.
 2. CONTEXT — Establish WHO this is for and WHY it matters RIGHT NOW. 2-3 sentences maximum. No setup fluff. End with an implicit question.
-3. TENSION — Deepen the problem, desire, or fear opened in the hook. 3-5 lines. Build pressure. Say the thing no one else is saying. Do NOT resolve.
+3. TENSION — Deepen the problem, desire, or fear opened in the hook. 3-5 lines. Say the thing no one else in this space is saying out loud. Create productive controversy — a specific position that reasonable people would argue about in the comments. Do NOT resolve the open loop from the hook.
 4. VALUE — Deliver the core insight. First sentence = the answer. Then expand. 4-8 lines depending on complexity. Do not bury the payoff.
-5. PAYOFF — The emotional resolution. The transformation is confirmed. The viewer feels something has changed. 2-3 lines. This must match the emotional promise of the hook exactly.
-6. CTA — One action. Native to ${d.platform}. Frictionless. Must feel like the viewer's own thought, not a command.
+5. PAYOFF — Close the curiosity loop opened in the hook. Deliver the SPECIFIC revelation, number, method, or result the viewer was promised. This must be CONCRETE — not "remember to be consistent" but "the exact 3-word change that made the difference." This is the prize for watching to the end.
+6. CTA — One action. Native to ${d.platform}. Must ask for the viewer's OWN EXPERIENCE or OPINION on something specific — not "follow for more." Frame it as: "What was your version of this?" or "Send this to someone who [specific situation]." The best CTAs activate a conversation the viewer is already having with someone in their life.
 
 ─── LINE-LEVEL RULES ─────────────────────────────────
 ${d.platform === 'TikTok' || d.platform === 'Instagram' ? `
@@ -232,7 +259,10 @@ Return ONLY valid JSON — no markdown, no explanation:
   "caption_preview": "First 150 chars — must continue the hook's energy, not summarize the video",
   "retention_arc": "One paragraph: the emotional journey second by second — what the viewer feels at each stage",
   "strongest_line": "The single line in this script most likely to be quoted or remembered — and why",
-  "drop_risk_moment": "The exact moment this script is most likely to lose the viewer, and the one thing that prevents it"
+  "drop_risk_moment": "The exact moment this script is most likely to lose the viewer, and the one thing that prevents it",
+  "open_loop_promise": "The exact question opened in the hook that is only answered in the payoff — written as the viewer would think it",
+  "controversy_angle": "The specific claim in the TENSION section that will divide opinion in the comments — and why it generates two defensible sides",
+  "repeatable_format": "One-line format name and template: [format name] — [structure that could run weekly with a different subject]"
 }
 
 Rules: no hashtags, no emojis in any field. Return ONLY valid JSON.`
@@ -252,6 +282,13 @@ AUDIENCE: ${d.audience}
 ${d.brand_voice ? `BRAND VOICE: ${d.brand_voice}` : ''}
 ${d.key_messages?.length ? `KEY MESSAGES: ${d.key_messages.join(' | ')}` : ''}
 ${d.client_name ? `CLIENT: ${d.client_name}` : ''}
+
+─── VIRAL CONTENT LAWS (mandatory — all five must be satisfied) ─────────────────
+LAW 1 — CURIOSITY FIRST: Slide 1 must promise a specific revelation that is only delivered on the final slide. Every intermediate slide deepens the question without answering it. The viewer must feel that stopping means missing something they specifically want.
+LAW 2 — CONTROVERSY DESIGN: At least one slide must make a specific claim that divides the audience. The best carousels have a "controversial slide" that generates disagreement in comments — both camps share it to defend their position.
+LAW 3 — DISCUSSION ENGINEERING: The last slide's CTA must ask for the viewer's OWN EXPERIENCE or SPECIFIC OPINION — not "what do you think?" A question about a choice they've made or a belief they hold generates 10x more comments.
+LAW 4 — PRIZE ARCHITECTURE: The final slide must deliver something the viewer could not have known without reading to the end: a specific number, method, revelation, or reframe. This is the prize for completing the carousel.
+LAW 5 — REPEATABLE FORMAT: This carousel must have a structural template (e.g., "Myth/Truth/Proof/CTA" or "Problem/Cause/Fix/Result") that could run weekly with different subjects. Note the format name in your output.
 
 ─── SWIPE PHYSICS ────────────────────────────────────
 A carousel lives or dies on swipe momentum. Here is the exact mechanics of how it works:
@@ -310,7 +347,10 @@ Return ONLY valid JSON — no markdown, no explanation:
   "key_broll_list": ["Design asset or photography needed 1", "asset 2", "asset 3"],
   "deck_tension_arc": "One paragraph: describe the emotional state of the reader at the end of each slide — what they feel, what question they're carrying, how it builds",
   "best_slide": "Slide number that is the strongest in this deck, and the exact reason why",
-  "weakest_risk": "Slide number most likely to cause drop-off, what specifically causes the drop, and the one fix"
+  "weakest_risk": "Slide number most likely to cause drop-off, what specifically causes the drop, and the one fix",
+  "open_loop_promise": "The exact revelation promised in slide 1 and delivered in the final slide — written as the viewer would think the question",
+  "controversy_angle": "The specific slide and claim that will divide the audience in comments — and why it generates two defensible sides",
+  "repeatable_format": "One-line format name and structural template: [format name] — [slide-by-slide structure that could repeat weekly]"
 }
 
 Rules: no hashtags, no emojis`
@@ -329,6 +369,13 @@ GOAL: ${d.goal}
 AUDIENCE: ${d.audience}
 ${d.brand_voice ? `BRAND VOICE: ${d.brand_voice}` : ''}
 ${d.client_name ? `CLIENT: ${d.client_name}` : ''}
+
+─── VIRAL CONTENT LAWS (mandatory) ─────────────────────────────────────────────
+LAW 1 — CURIOSITY: The text overlay must create a question the viewer cannot answer without reading the caption. One look is not enough — there must be something unresolved that pulls them to read more.
+LAW 2 — CONTROVERSY: The post must take a specific position that generates productive disagreement. If everyone would agree immediately, it's an observation, not content. The best static posts say something that 50% nod at and 50% want to challenge.
+LAW 3 — DISCUSSION: The caption must end with a question that makes the viewer want to share their OWN answer publicly — a specific question about a choice, belief, or experience they've had.
+LAW 4 — PRIZE: The caption must deliver one SPECIFIC insight, number, or reframe the viewer could not have known from the image alone. This is what earns the save.
+LAW 5 — REPEATABLE FORMAT: This post must have a structural template (image type + text overlay pattern + caption structure) that could run weekly. Note the format name.
 
 ─── VISUAL INTELLIGENCE ──────────────────────────────
 A great static post is three simultaneous communications:
@@ -365,7 +412,9 @@ Return ONLY valid JSON — no markdown, no explanation:
   "key_broll_list": ["Photography element, prop, or design asset needed 1", "element 2", "element 3"],
   "focal_point": "One sentence: exactly where the viewer's eye lands first, and the specific emotional response that creates",
   "three_second_read": "What a viewer reading this post for exactly 3 seconds would see, understand, and feel — in that order",
-  "visual_emotion": "The single emotion the image alone (without text) must communicate — one word, then a one-sentence explanation of how the composition achieves it"
+  "visual_emotion": "The single emotion the image alone (without text) must communicate — one word, then a one-sentence explanation of how the composition achieves it",
+  "controversy_angle": "The specific claim in the text overlay or caption that divides opinion — and the two defensible sides",
+  "repeatable_format": "One-line format name and template: [format name] — [image + text + caption structure that could repeat weekly]"
 }
 
 Rules: no hashtags, no emojis`

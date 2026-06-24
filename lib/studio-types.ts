@@ -114,6 +114,7 @@ export interface CampaignConcept {
   seed_strategy?: string
   virality_trigger?: string
   anti_example?: string
+  repeatable_format?: string
 }
 
 // ─── Content Studio ───────────────────────────────────────────

@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import React from 'react'
 import {
-  Document, Page, View, Text, StyleSheet, renderToBuffer,
+  Document, Page, View, Text, StyleSheet, renderToBuffer, Font,
 } from '@react-pdf/renderer'
 import type { ContentDocument, ContentPiece, BossBrief } from '@/lib/studio-types'
+
+// ── Arabic font — registered once at module level ─────────────────────────────
+Font.register({
+  family: 'Cairo',
+  fonts: [
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/cairo/files/cairo-arabic-400-normal.woff', fontWeight: 400 },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/cairo/files/cairo-arabic-700-normal.woff', fontWeight: 700 },
+  ],
+})
+
+// Detect Arabic script (U+0600–U+06FF + extended blocks + presentation forms)
+const hasAr = (txt?: string | null): boolean =>
+  /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(txt ?? '')
+
+// Arabic style override — always returns same shape (no union), spread into base styles
+// Undefined values are silently dropped when spread, giving consistent compile-time type
+const arTx = (txt?: string | null) => {
+  const ar = hasAr(txt)
+  return { fontFamily: ar ? 'Cairo' : undefined, direction: ar ? 'rtl' as const : undefined, textAlign: ar ? 'right' as const : undefined }
+}
+const arBd = (txt?: string | null) => {
+  const ar = hasAr(txt)
+  return { fontFamily: ar ? 'Cairo' : undefined, fontWeight: ar ? 700 as const : undefined, direction: ar ? 'rtl' as const : undefined, textAlign: ar ? 'right' as const : undefined }
+}
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -106,12 +130,12 @@ function CoverPage({ clientName, clientColor, inputs, hook, date }: {
       ),
       inputs.brief ? ce(View, null,
         ce(Text, { style: S.secLabel }, 'BRIEF'),
-        ce(Text, { style: { ...S.body, marginBottom: 16 } }, inputs.brief),
+        ce(Text, { style: { ...S.body, marginBottom: 16, ...arTx(inputs.brief) } }, inputs.brief),
       ) : null,
       hook ? ce(View, null,
         ce(View, { style: S.divider }),
         ce(Text, { style: S.secLabel }, 'SELECTED HOOK'),
-        ce(Text, { style: S.h2 }, hook),
+        ce(Text, { style: { ...S.h2, ...arBd(hook) } }, hook),
       ) : null,
     ),
   )
@@ -156,10 +180,10 @@ function PiecePage({ piece, idx, total, clientName, clientColor }: {
     // Hook
     hook ? ce(View, null,
       ce(Text, { style: S.secLabel }, 'HOOK'),
-      ce(Text, { style: { ...S.h2, marginBottom: 6 } }, hook.text),
+      ce(Text, { style: { ...S.h2, marginBottom: 6, ...arBd(hook.text) } }, hook.text),
       ce(View, { style: { flexDirection: 'row', gap: 8, marginBottom: 14 } },
         ce(Text, { style: S.small }, `Type: ${hook.type}`),
-        hook.why_selected ? ce(Text, { style: S.small }, ` · ${hook.why_selected}`) : null,
+        hook.why_selected ? ce(Text, { style: { ...S.small, ...arTx(hook.why_selected) } }, ` · ${hook.why_selected}`) : null,
       ),
     ) : null,
 
@@ -174,7 +198,7 @@ function PiecePage({ piece, idx, total, clientName, clientColor }: {
             ce(Text, { style: S.secName }, sec.section),
             ce(Text, { style: S.secDur }, sec.duration_estimate),
           ),
-          ...sec.lines.map((line, j) => ce(Text, { key: String(j), style: S.secLine }, line)),
+          ...sec.lines.map((line, j) => ce(Text, { key: String(j), style: { ...S.secLine, ...arTx(line) } }, line)),
           sec.visual_note ? ce(Text, { style: S.vizNote }, `[Visual: ${sec.visual_note}]`) : null,
         ),
       ),
@@ -187,8 +211,8 @@ function PiecePage({ piece, idx, total, clientName, clientColor }: {
       ...pAny.slides.map((slide, i) =>
         ce(View, { key: String(i), style: S.slideCard },
           ce(Text, { style: S.slideNum }, `SLIDE ${i + 1}`),
-          ce(Text, { style: S.slideTitle }, slide.title),
-          ce(Text, { style: S.slideBody }, slide.body),
+          ce(Text, { style: { ...S.slideTitle, ...arBd(slide.title) } }, slide.title),
+          ce(Text, { style: { ...S.slideBody, ...arTx(slide.body) } }, slide.body),
           slide.visual_note ? ce(Text, { style: S.vizNote }, `[Visual: ${slide.visual_note}]`) : null,
         ),
       ),
@@ -197,14 +221,14 @@ function PiecePage({ piece, idx, total, clientName, clientColor }: {
     // Static: visual direction
     piece.type === 'static' && pAny.visual_direction ? ce(View, null,
       ce(Text, { style: { ...S.secLabel, marginBottom: 8 } }, 'VISUAL DIRECTION'),
-      ce(View, { style: S.secRow }, ce(Text, { style: S.secLine }, pAny.visual_direction)),
+      ce(View, { style: S.secRow }, ce(Text, { style: { ...S.secLine, ...arTx(pAny.visual_direction) } }, pAny.visual_direction)),
     ) : null,
 
     // TOV + B-roll
     (pAny.text_overlay || (piece.key_broll_list && piece.key_broll_list.length > 0)) ? ce(View, { style: { ...S.twoCol, marginTop: 10 } },
       pAny.text_overlay ? ce(View, { style: { ...S.infoBox, ...S.col } },
         ce(Text, { style: S.infoLbl }, 'TEXT ON VISUAL (TOV)'),
-        ce(Text, { style: S.infoTx }, pAny.text_overlay),
+        ce(Text, { style: { ...S.infoTx, ...arTx(pAny.text_overlay) } }, pAny.text_overlay),
       ) : null,
       piece.key_broll_list && piece.key_broll_list.length > 0 ? ce(View, { style: { ...S.infoBox, ...S.col } },
         ce(Text, { style: S.infoLbl }, 'B-ROLL / ASSETS'),
@@ -215,7 +239,7 @@ function PiecePage({ piece, idx, total, clientName, clientColor }: {
     // Caption
     piece.caption_preview ? ce(View, { style: { ...S.captionBox, marginTop: 10 } },
       ce(Text, { style: S.captionLbl }, 'CAPTION PREVIEW'),
-      ce(Text, { style: S.captionTx }, piece.caption_preview),
+      ce(Text, { style: { ...S.captionTx, ...arTx(piece.caption_preview) } }, piece.caption_preview),
     ) : null,
 
     // Brand compliance

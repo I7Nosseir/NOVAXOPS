@@ -75,7 +75,7 @@ HOOK TYPES — generate at least 2 of each type:
 3C SCORING — score each dimension 0-10 with precision:
 - Clarity (0-10): Does it land with zero cognitive friction? 10 = any 7-year-old understands the setup. 5 = requires two reads.
 - Context (0-10): Does it signal the exact audience in the first phrase? 10 = the target audience feels personally called out. 5 = vaguely relevant.
-- Curiosity (0-10): Does it create an irresistible pull? 10 = stopping is not a choice. 5 = mildly interesting.
+- Curiosity (0-10): THIS IS THE MOST IMPORTANT DIMENSION. Does it open a loop so specific the viewer cannot close it without watching to the end? 10 = stopping is physically uncomfortable. 5 = mildly interesting. Score this last and score it ruthlessly — most hooks that feel good score 6 here, not 8.
 
 CALIBRATION EXAMPLES (so you don't cluster scores around 7):
 - Score 30 (S tier): "The doctor told me I had 6 months. I responded with a spreadsheet." — Curiosity + Shock + Story all in one. Perfect clarity. Universal identity signal. Irresistible gap.
@@ -85,16 +85,25 @@ CALIBRATION EXAMPLES (so you don't cluster scores around 7):
 
 VIRALITY TIERS: S = 27–30 total, A = 21–26, B = 15–20, C = below 15
 
+VIRAL CONTENT LAWS — every hook must satisfy all four:
+1. OPEN LOOP: The hook must create a question that closes ONLY by watching/reading to the end. Not "I have advice" — "I found out why [specific thing], and the answer surprised me." The viewer must feel that stopping means missing something specific they want.
+2. CONTROVERSY POTENTIAL: Score each hook mentally: does it say something that 50% will agree with and 50% will push back on? The best hooks divide opinion on ideas, not on the brand. Controversy drives comments, and comments drive reach.
+3. DISCUSSION TRIGGER: The hook should naturally lead the viewer to want to share their own version, opinion, or story. People share what makes them feel seen or what lets them show who they are.
+4. PRIZE PROMISE (for content that runs long): If this hook introduces a video or carousel, it must implicitly or explicitly promise something the viewer GETS by reaching the end — a specific number, method, result, or revelation they couldn't have known otherwise.
+
 FORMAT RECOMMENDATIONS:
 - vocal: Best delivered as a spoken opener (designed for video — one breath, natural pause after)
 - text_block: Best as on-screen text overlay (7 words max, high contrast)
 - caption: Best as written post opening (works when read silently)
 - all_three: Strong enough to cross all formats without losing power
 
+REPEATABLE FORMAT SIGNAL — for each hook, assess: could this hook be executed as a series?
+Job Ladder principle: same structure, different subjects, new piece every week. Formats that can run forever become brand identity. Note this in format_note when applicable.
+
 FOR EACH HOOK, ALSO WRITE:
 - headline: A 4–8 word content title this hook introduces — NOT the hook itself. This names the content piece.
-- body: 2–3 sentences of body copy that deliver on the hook's promise, deepen the tension, and set up the CTA. No filler. Every word earns its place.
-- cta: One specific, native call-to-action sentence for ${platform}. Matches the content goal (${goal}). Low friction.
+- body: 2–3 sentences of body copy that deliver on the hook's promise, deepen the tension, and set up the CTA. No filler. Every word earns its place. End with one sentence that is a genuine point of view — something people either strongly agree or strongly disagree with.
+- cta: One specific, native call-to-action sentence for ${platform}. Matches the content goal (${goal}). Must ask for the viewer's OWN OPINION or EXPERIENCE — not just "follow for more." Example: "What was your version of this?" beats "What do you think?"
 
 Rules:
 - No hashtags, no emojis anywhere in any field
@@ -102,6 +111,7 @@ Rules:
 - Vary sentence structure — some 4-word punches, some 12-word setups
 - No two hooks can use the same structural template
 - If a hook feels like something you've read before, it's not good enough
+- Curiosity score of 8+ requires the hook to promise something specific, not just be interesting
 
 Return ONLY a valid JSON array of exactly 20 hooks — no markdown, no explanation, no wrapper:
 [

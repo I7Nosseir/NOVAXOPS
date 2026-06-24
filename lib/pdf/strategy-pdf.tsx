@@ -6,8 +6,27 @@
 import React from 'react'
 import {
   Document, Page, Text, View, Svg,
-  Path, Rect, Circle,
+  Path, Rect, Circle, Font,
 } from '@react-pdf/renderer'
+
+// Arabic font — registered once at module level (singleton)
+Font.register({
+  family: 'Cairo',
+  fonts: [
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/cairo/files/cairo-arabic-400-normal.woff', fontWeight: 400 },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/cairo/files/cairo-arabic-700-normal.woff', fontWeight: 700 },
+  ],
+})
+
+// Detect Arabic script in a string
+const hasAr = (txt: string): boolean =>
+  /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(txt)
+
+// Return inline style override for Arabic text (merge as second element in style array)
+const arSt = (txt: string, bold = false) =>
+  hasAr(txt)
+    ? { fontFamily: 'Cairo', fontWeight: bold ? 700 : 400, direction: 'rtl' as const, textAlign: 'right' as const }
+    : {}
 import type {
   StrategyDocument,
   StrategyContentPillar,
@@ -364,7 +383,7 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
         {pos && (
           <View style={{ backgroundColor: accentColor, borderRadius: 8, padding: 24, marginBottom: 22 }}>
             <SectionLabel text="Positioning Statement" color="rgba(255,255,255,0.6)" />
-            <Text style={{ fontSize: 13, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.65 }}>{pos}</Text>
+            <Text style={[{ fontSize: 13, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.65 }, arSt(pos, true)]}>{pos}</Text>
           </View>
         )}
 
@@ -373,7 +392,7 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
           {camp && (
             <View style={{ flex: 1, backgroundColor: C.white, borderRadius: 8, padding: 20, borderLeftWidth: 4, borderLeftColor: C.gold }}>
               <SectionLabel text="Campaign Line" color={C.g400} />
-              <Text style={{ fontSize: 14, fontFamily: 'Helvetica-BoldOblique', color: C.gold, lineHeight: 1.5 }}>
+              <Text style={[{ fontSize: 14, fontFamily: 'Helvetica-BoldOblique', color: C.gold, lineHeight: 1.5 }, arSt(camp, true)]}>
                 {`"${camp}"`}
               </Text>
             </View>
@@ -381,7 +400,7 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
           {qrole && (
             <View style={{ flex: 1, backgroundColor: C.white, borderRadius: 8, padding: 20, borderLeftWidth: 4, borderLeftColor: accentColor }}>
               <SectionLabel text="Quarter Role" color={C.g400} />
-              <Text style={{ fontSize: 10.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.65 }}>{qrole}</Text>
+              <Text style={[{ fontSize: 10.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.65 }, arSt(qrole)]}>{qrole}</Text>
             </View>
           )}
         </View>
@@ -390,7 +409,7 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
         {doc.executive_summary && (
           <View style={{ backgroundColor: C.white, borderRadius: 8, padding: 20, marginBottom: 16 }}>
             <SectionLabel text="Executive Summary" color={C.g400} />
-            <Text style={{ fontSize: 10.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.7 }}>{s(doc.executive_summary)}</Text>
+            <Text style={[{ fontSize: 10.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.7 }, arSt(s(doc.executive_summary))]}>{s(doc.executive_summary)}</Text>
           </View>
         )}
 
@@ -402,13 +421,13 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
               {doc.north_star && (
                 <View style={{ flex: 1, minWidth: 200, backgroundColor: C.dark, borderRadius: 8, padding: 14 }}>
                   <Text style={{ fontSize: 6.5, fontFamily: 'Helvetica-Bold', letterSpacing: 1.5, color: C.accent + 'BB', marginBottom: 5 }}>NORTH STAR</Text>
-                  <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.white, lineHeight: 1.55 }}>{s(doc.north_star)}</Text>
+                  <Text style={[{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.white, lineHeight: 1.55 }, arSt(s(doc.north_star))]}>{s(doc.north_star)}</Text>
                 </View>
               )}
               {doc.audience_insight && (
                 <View style={{ flex: 1, minWidth: 200, backgroundColor: accentColor, borderRadius: 8, padding: 14 }}>
                   <Text style={{ fontSize: 6.5, fontFamily: 'Helvetica-Bold', letterSpacing: 1.5, color: 'rgba(255,255,255,0.65)', marginBottom: 5 }}>AUDIENCE INSIGHT</Text>
-                  <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.55 }}>{s(doc.audience_insight)}</Text>
+                  <Text style={[{ fontSize: 9.5, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.55 }, arSt(s(doc.audience_insight), true)]}>{s(doc.audience_insight)}</Text>
                 </View>
               )}
             </View>
@@ -467,7 +486,7 @@ function BrandIdentityPage({ doc, clientName, accentColor, pageNum, totalPages }
         {shift && (
           <View style={{ backgroundColor: C.dark, borderRadius: 8, padding: 24, marginBottom: 20, ...(hasExtra ? {} : { flex: 1 }) }}>
             <SectionLabel text="Identity Shift This Quarter" color={C.accent + '88'} />
-            <Text style={{ fontSize: 13, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.65 }}>{shift}</Text>
+            <Text style={[{ fontSize: 13, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.65 }, arSt(shift, true)]}>{shift}</Text>
           </View>
         )}
 
@@ -536,7 +555,7 @@ function ContentPillarsPage({ pillars, pageIndex, clientName, accentColor, pageN
                   <View style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: pillarColor, alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: C.white }}>{String(globalIdx + 1).padStart(2, '0')}</Text>
                   </View>
-                  <Text style={{ fontSize: 13, fontFamily: 'Helvetica-Bold', color: C.g900, flex: 1 }}>{s(pillar.name)}</Text>
+                  <Text style={[{ fontSize: 13, fontFamily: 'Helvetica-Bold', color: C.g900, flex: 1 }, arSt(s(pillar.name), true)]}>{s(pillar.name)}</Text>
                   {(pillar as StrategyContentPillar & { posting_frequency?: string }).posting_frequency && (
                     <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica', color: pillarColor, backgroundColor: pillarColor + '22', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                       {(pillar as StrategyContentPillar & { posting_frequency?: string }).posting_frequency}
@@ -545,7 +564,7 @@ function ContentPillarsPage({ pillars, pageIndex, clientName, accentColor, pageN
                 </View>
                 {/* Body — flex: 1 so background fills the card height */}
                 <View style={{ flex: 1, paddingHorizontal: 20, paddingVertical: 14 }}>
-                  <Text style={{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.65, marginBottom: 10 }}>{s(pillar.description)}</Text>
+                  <Text style={[{ fontSize: 9.5, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.65, marginBottom: 10 }, arSt(s(pillar.description))]}>{s(pillar.description)}</Text>
                   {/* Example topics if present */}
                   {((pillar as StrategyContentPillar & { example_topics?: string[] }).example_topics?.length ?? 0) > 0 && (
                     <>
@@ -725,7 +744,7 @@ function MonthlyTacticPage({ tactic, monthIndex, clientName, accentColor, pageNu
         {tactic.theme_line && (
           <View style={{ backgroundColor: monthColor + '15', borderRadius: 8, padding: 16, marginBottom: 18, borderLeftWidth: 4, borderLeftColor: monthColor }}>
             <SectionLabel text="Month Theme Line" color={monthColor} />
-            <Text style={{ fontSize: 14, fontFamily: 'Helvetica-BoldOblique', color: monthColor }}>
+            <Text style={[{ fontSize: 14, fontFamily: 'Helvetica-BoldOblique', color: monthColor }, arSt(s(tactic.theme_line), true)]}>
               {`"${s(tactic.theme_line)}"`}
             </Text>
           </View>
@@ -733,7 +752,7 @@ function MonthlyTacticPage({ tactic, monthIndex, clientName, accentColor, pageNu
 
         {/* Description */}
         {tactic.description && (
-          <Text style={{ fontSize: 10, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.7, marginBottom: 20 }}>
+          <Text style={[{ fontSize: 10, fontFamily: 'Helvetica', color: C.g700, lineHeight: 1.7, marginBottom: 20 }, arSt(s(tactic.description))]}>
             {s(tactic.description)}
           </Text>
         )}
