@@ -57,11 +57,13 @@ export async function POST(req: NextRequest) {
   // ── Fetch client context ─────────────────────────────────────────────────
   const { data: clientRow } = await supabase
     .from('clients')
-    .select('name, brand_identity_json')
+    .select('name, brand_identity_json, organization_id')
     .eq('id', client_id)
     .single()
 
   if (!clientRow) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+
+  const organization_id = (clientRow as { organization_id?: string | null }).organization_id ?? null
 
   // ── Fetch tracked competitors ────────────────────────────────────────────
   const { data: snapshots } = await supabase
@@ -254,6 +256,7 @@ Return ONLY valid JSON — no markdown, no explanation:
     if (analysis.landscape && analysis.landscape.length > 0) {
       const rows = analysis.landscape.map(comp => ({
         client_id,
+        organization_id,
         competitor_handle: comp.handle,
         platform:          comp.platform.toLowerCase(),
         followers:         comp.followers         ?? 0,

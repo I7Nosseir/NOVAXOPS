@@ -160,6 +160,13 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const { data: clientRow } = await supabase
+    .from('clients')
+    .select('organization_id')
+    .eq('id', client_id)
+    .single()
+  const organization_id = (clientRow as { organization_id?: string | null } | null)?.organization_id ?? null
+
   let metrics: ScrapedMetrics = { followers: 0, avg_er: 0, posting_frequency: 0, top_content_types: {} }
   let scraped = false
   let scrapeError: string | null = null
@@ -186,6 +193,7 @@ export async function POST(req: NextRequest) {
     .from('competitor_snapshots')
     .upsert({
       client_id,
+      organization_id,
       competitor_handle: handle,
       platform: p,
       followers: metrics.followers,

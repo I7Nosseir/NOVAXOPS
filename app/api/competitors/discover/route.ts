@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
 
   const { data: clientRow } = await supabase
     .from('clients')
-    .select('name, brand_identity_json')
+    .select('name, brand_identity_json, organization_id')
     .eq('id', client_id)
     .single()
 
@@ -229,8 +229,11 @@ Return ONLY valid JSON — no markdown, no explanation, no code fences:
     .eq('client_id', client_id)
     .is('notes', null)
 
+  const organization_id = (clientRow as { organization_id?: string | null } | null)?.organization_id ?? null
+
   const toRow = (s: CompetitorSuggestion, scope: 'local' | 'global') => ({
     client_id,
+    organization_id,
     competitor_handle:  s.handle.startsWith('@') ? s.handle : `@${s.handle}`,
     platform:           s.platform.toLowerCase(),
     scope,

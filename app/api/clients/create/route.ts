@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
         await db.from('competitor_snapshots').insert(
           body.competitors!.map(c => ({
             client_id: data.id,
+            organization_id: data.organization_id,
             competitor_handle: c.handle,
             platform: c.platform.toLowerCase(),
             followers: 0,
