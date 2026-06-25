@@ -62,6 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [realUser, setRealUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  // True while a session exists but the DB profile hasn't resolved yet.
+  // Prevents a flash of null-user content between getSession() and fetchProfile().
+  const [profileLoading, setProfileLoading] = useState(false)
   const [previewRole, setPreviewRoleState] = useState<UserRole | null>(null)
 
   useEffect(() => {
@@ -80,17 +83,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // Primary: resolve session once on mount. finally() guarantees loading clears
-    // even if the network call or profile fetch throws.
-    supabase.auth.getSession()
-      .then(async ({ data: { session } }) => {
+    // Primary: resolve session once on mount.
+    // getSession() is raced against a 7-second timeout — if the Supabase token-refresh
+    // network call hangs (slow DNS, ISP issue, connection pool), the timeout resolves
+    // with null so loading is never stuck forever.
+    // Profile fetch is fire-and-forget for the same reason: a slow DB query on users
+    // table must not block the loading gate.
+    const sessionPromise = Promise.race([
+      supabase.auth.getSession(),
+      new Promise<{ data: { session: null } }>((resolve) =>
+        setTimeout(() => resolve({ data: { session: null } }), 7000)
+      ),
+    ])
+
+    sessionPromise
+      .then(({ data: { session } }) => {
         setSession(session)
         if (session?.user) {
-          try {
-            setRealUser(await fetchProfile(session.user))
-          } catch {
-            // Profile fetch failed — user stays null, middleware redirects to /login
-          }
+          setProfileLoading(true)
+          fetchProfile(session.user)
+            .then((profile) => setRealUser(profile))
+            .catch(() => setRealUser(null))
+            .finally(() => setProfileLoading(false))
         }
       })
       .catch((err) => {
@@ -158,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       realUser,
       session,
-      loading,
+      loading: loading || profileLoading,
       needsOnboarding,
       signIn,
       signOut,
