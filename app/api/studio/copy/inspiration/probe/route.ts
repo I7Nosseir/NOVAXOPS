@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // POST /api/studio/copy/inspiration/probe
 //
 // Phase 1 of the Pinterest Inspiration Engine:
@@ -7,7 +7,7 @@
 //   3. AI clusters the pins into 4 distinct creative style groups
 //   4. Returns session_id + 4 clusters with 3 representative pins each
 //
-// This route runs synchronously — client waits for the full response.
+// This route runs synchronously â€” client waits for the full response.
 // Expect ~30-45 seconds. export const maxDuration = 60.
 // ============================================================
 
@@ -19,7 +19,7 @@ import { aiGuard } from '@/lib/ai-guard'
 
 export const maxDuration = 60
 
-// ── Types shared with the client ──────────────────────────────
+// â”€â”€ Types shared with the client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface SamplePin {
   id: string          // DB UUID (pinterest_pins.id)
@@ -43,7 +43,7 @@ export interface ProbeResponse {
   probeCount: number
 }
 
-// ── Supabase admin ─────────────────────────────────────────────
+// â”€â”€ Supabase admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function db() {
   return createClient(
@@ -52,7 +52,7 @@ function db() {
   )
 }
 
-// ── AI helpers ─────────────────────────────────────────────────
+// â”€â”€ AI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface QueryPlanItem {
   angle: string
@@ -81,20 +81,20 @@ AUDIENCE: ${clientAudience || 'general consumer'}
 BRIEF: ${briefText}
 ${arabicNote}
 
-Generate exactly 8 Pinterest search queries — one per creative angle listed below.
+Generate exactly 8 Pinterest search queries â€” one per creative angle listed below.
 Each query must be genuinely different so the 8 together surface a true range of styles.
 
 Angles (return one query per angle in this exact order):
-1. "direct" — the product/service category itself (what it IS)
-2. "lifestyle" — the aspirational world of the target audience
-3. "emotion" — the feeling or transformation the product creates
-4. "aesthetic" — the visual mood/style that fits this brand
-5. "caption_first" — text-heavy pins, quote posts, caption-forward content (people who write long descriptions)
-6. "narrative" — pins with a story arc in the description (beginning, tension, resolution)
-7. "community" — social proof, peer endorsement, UGC-style content
-8. "conceptual" — metaphorical or abstract interpretation of the brand's core idea
+1. "direct" â€” the product/service category itself (what it IS)
+2. "lifestyle" â€” the aspirational world of the target audience
+3. "emotion" â€” the feeling or transformation the product creates
+4. "aesthetic" â€” the visual mood/style that fits this brand
+5. "caption_first" â€” text-heavy pins, quote posts, caption-forward content (people who write long descriptions)
+6. "narrative" â€” pins with a story arc in the description (beginning, tension, resolution)
+7. "community" â€” social proof, peer endorsement, UGC-style content
+8. "conceptual" â€” metaphorical or abstract interpretation of the brand's core idea
 
-Return ONLY this JSON — no markdown, no explanation:
+Return ONLY this JSON â€” no markdown, no explanation:
 {
   "queries": [
     { "angle": "direct", "query": "..." },
@@ -133,7 +133,7 @@ Return ONLY this JSON — no markdown, no explanation:
   }
 }
 
-// ── Cluster shape returned by AI ──────────────────────────────
+// â”€â”€ Cluster shape returned by AI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ClusterPlan {
   clusters: {
@@ -167,14 +167,14 @@ ${pinList}
 
 Group these ${pinCount} pins into exactly ${clusterCount} distinct creative direction clusters (${clusterIds}).
 Each cluster must represent a meaningfully different creative style a copywriter could draw from.
-Do NOT create clusters based on topic — cluster by creative approach and structural style.
+Do NOT create clusters based on topic â€” cluster by creative approach and structural style.
 
 Rules:
 - Every pin index (0 through ${pinCount - 1}) must appear in exactly one cluster's all_indices
 - representative_indices: pick the 3 pins that BEST show this cluster's style (must be from all_indices)
 - Labels must be 3-4 words: e.g. "Dark Honest Testimonial", "Aspirational Lifestyle Story", "Minimal Premium Reveal"
 
-Return ONLY this JSON — no markdown:
+Return ONLY this JSON â€” no markdown:
 {
   "clusters": [
     {
@@ -211,7 +211,7 @@ Return ONLY this JSON — no markdown:
   }
 }
 
-// ── Fallback clusterer (no AI — round-robin by index) ─────────
+// â”€â”€ Fallback clusterer (no AI â€” round-robin by index) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fallbackCluster(pinCount: number, clusterCount: number): ClusterPlan {
   const ids = ['A', 'B', 'C', 'D'].slice(0, clusterCount) as ('A' | 'B' | 'C' | 'D')[]
@@ -230,10 +230,10 @@ function fallbackCluster(pinCount: number, clusterCount: number): ClusterPlan {
   }
 }
 
-// ── Route handler ─────────────────────────────────────────────
+// â”€â”€ Route handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function POST(req: NextRequest) {
-  const guard = await aiGuard()
+  const guard = await aiGuard(req)
   if (guard) return guard
 
   let body: {
@@ -256,7 +256,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'brief_text is required' }, { status: 400 })
   }
   if (!process.env.APIFY_API_KEY && !process.env.PINTEREST_ACCESS_TOKEN) {
-    return NextResponse.json({ error: 'Pinterest is not configured — set PINTEREST_ACCESS_TOKEN or APIFY_API_KEY' }, { status: 503 })
+    return NextResponse.json({ error: 'Pinterest is not configured â€” set PINTEREST_ACCESS_TOKEN or APIFY_API_KEY' }, { status: 503 })
   }
 
   const supabase = db()
@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No AI key configured' }, { status: 503 })
   }
 
-  // ── 1. Load client context for query generation ──────────────
+  // â”€â”€ 1. Load client context for query generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let clientCategory = ''
   let clientAudience = ''
   if (client_id) {
@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 2. Create session record ──────────────────────────────────
+  // â”€â”€ 2. Create session record â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: sessionRow, error: sessionErr } = await supabase
     .from('pinterest_scrape_sessions')
     .insert({
@@ -306,7 +306,7 @@ export async function POST(req: NextRequest) {
 
   const sessionId = sessionRow.id as string
 
-  // ── 3. AI: generate 8 search queries ─────────────────────────
+  // â”€â”€ 3. AI: generate 8 search queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let queryPlan: QueryPlanItem[] = []
   try {
     queryPlan = await generateSearchQueries(
@@ -344,7 +344,7 @@ export async function POST(req: NextRequest) {
     .update({ probe_queries: queryPlan })
     .eq('id', sessionId)
 
-  // ── 4. Apify: scrape Pinterest (sync, ~40s timeout) ───────────
+  // â”€â”€ 4. Apify: scrape Pinterest (sync, ~40s timeout) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const queryInputs: PinterestQueryInput[] = queryPlan.map(q => ({
     query: q.query,
     angle: q.angle,
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // ── 5. Save pins to DB ────────────────────────────────────────
+  // â”€â”€ 5. Save pins to DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const pinInserts = usablePins.map(p => ({
     session_id:      sessionId,
     client_id:       client_id ?? null,
@@ -409,10 +409,10 @@ export async function POST(req: NextRequest) {
     .update({ probe_raw_count: insertedPins.length })
     .eq('id', sessionId)
 
-  // ── 6. AI: cluster pins into creative style groups ────────────
+  // â”€â”€ 6. AI: cluster pins into creative style groups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const clusterCount = insertedPins.length >= 20 ? 4 : insertedPins.length >= 10 ? 3 : 2
 
-  // Build compact pin list for the AI prompt (text only — no images)
+  // Build compact pin list for the AI prompt (text only â€” no images)
   const pinListForAI = insertedPins
     .map((p, i) => {
       const desc = (p.description as string | null)?.slice(0, 120).replace(/\n/g, ' ') ?? ''
@@ -441,7 +441,7 @@ export async function POST(req: NextRequest) {
     clusterPlan = fallbackCluster(insertedPins.length, clusterCount)
   }
 
-  // ── 7. Apply cluster assignments & build response ─────────────
+  // â”€â”€ 7. Apply cluster assignments & build response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   type InsertedPin = {
     id: string
     pin_external_id: string | null
@@ -488,7 +488,7 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // ── 8. Update session: awaiting feedback ──────────────────────
+  // â”€â”€ 8. Update session: awaiting feedback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   await supabase
     .from('pinterest_scrape_sessions')
     .update({

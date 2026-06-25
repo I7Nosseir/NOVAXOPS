@@ -877,8 +877,8 @@ OUTPUT — return ONLY valid JSON, no markdown, no fences
 
     // ─────────────────────────────────────────────────────────────────────────
     case 'strategy_eval': {
-      maxTokensOverride = 8000
-      thinkingBudgetOverride = 3000
+      maxTokensOverride = 16000
+      thinkingBudgetOverride = 6000
       enableThinking = true
       model = ADVANCED_MODEL
       // Build file block if a PDF was uploaded (Claude path)
@@ -1499,7 +1499,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
     try {
       const block = await buildClientIntelligenceBlock(client.id, agent, db)
       if (block) prompt = prompt + block
-    } catch { /* non-critical — don't block generation */ }
+    } catch (err) { console.error('[ai] client intelligence fetch failed:', err) }
   }
 
   try {
@@ -1556,7 +1556,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
     // Persist to Supabase (fire-and-forget — don't block response)
     if (db) {
       if (canCache && task?.id) {
-        void db.from('ai_responses').upsert({
+        void Promise.resolve(db.from('ai_responses').upsert({
           task_id: task.id,
           agent_type: agent,
           prompt_hash: hash,
@@ -1564,10 +1564,10 @@ Return ONLY a valid JSON object, no markdown, no code fences:
           cost_usd,
           model_used: usedModel,
           is_cached: false,
-        }, { onConflict: 'task_id,agent_type,prompt_hash' })
+        }, { onConflict: 'task_id,agent_type,prompt_hash' })).catch(err => console.error('[ai] cache write failed:', err))
       }
 
-      void db.from('api_usage').insert({
+      void Promise.resolve(db.from('api_usage').insert({
         service: useAnthropic ? 'claude' : 'gemini',
         endpoint: agent,
         task_id: task?.id ?? null,
@@ -1575,7 +1575,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
         tokens_out: tokensOut,
         cost_usd,
         was_cached: false,
-      })
+      })).catch(err => console.error('[ai] usage tracking failed:', err))
     }
 
     return NextResponse.json({ text, model: usedModel, cost_usd, cached: false })

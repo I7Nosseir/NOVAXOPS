@@ -95,7 +95,7 @@ const GEMINI_OUTPUT_COST_PER_M = 0.30
 
 // ─── Gemini caller ────────────────────────────────────────────────────────────
 
-async function callGemini(prompt: string): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
+async function callGemini(prompt: string, maxOutputTokens = 6000): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY not configured')
 
@@ -103,7 +103,10 @@ async function callGemini(prompt: string): Promise<{ text: string; inputTokens: 
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens },
+    }),
   })
 
   if (!res.ok) {

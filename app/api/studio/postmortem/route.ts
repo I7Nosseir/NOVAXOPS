@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // POST /api/studio/postmortem
 // 4 parallel Gemini analyses + 1 Gemini verdict.
 // Returns PostMortemDiagnosis.
@@ -25,7 +25,7 @@ function adminSupabase() {
   )
 }
 
-// ─── Request types ────────────────────────────────────────────
+// â”€â”€â”€ Request types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface PostMortemBody {
   session_id?:      string
@@ -54,7 +54,7 @@ interface PostMortemBody {
   }
 }
 
-// ─── AI analysis helpers ──────────────────────────────────────
+// â”€â”€â”€ AI analysis helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function analyzeHook(
   data: PostMortemBody['session_data'],
@@ -64,13 +64,13 @@ async function analyzeHook(
   const erDelta = perf.vs_client_avg
   const underperformanceDepth = erDelta < -30 ? 'severe underperformance' : erDelta < -15 ? 'moderate underperformance' : 'mild underperformance'
 
-  const prompt = `You are a post-mortem diagnostician. Your job is to identify root causes of social media underperformance with clinical precision — not to be encouraging, not to hedge, not to find silver linings. Find what broke.
+  const prompt = `You are a post-mortem diagnostician. Your job is to identify root causes of social media underperformance with clinical precision â€” not to be encouraging, not to hedge, not to find silver linings. Find what broke.
 
 HOOK ANALYSIS:
 Hook text: "${data.hook_text}"
 Hook type: ${data.hook_type}
 Platform: ${data.platform}
-Result: ${perf.engagement_rate}% engagement rate (${underperformanceDepth} — client avg: ${ctx.avg_er}%)
+Result: ${perf.engagement_rate}% engagement rate (${underperformanceDepth} â€” client avg: ${ctx.avg_er}%)
 Performance vs avg: ${erDelta > 0 ? '+' : ''}${erDelta}%
 Client's top performing hook types historically: ${ctx.top_hook_types.join(', ')}
 
@@ -79,7 +79,7 @@ DIAGNOSTIC QUESTIONS TO WORK THROUGH:
 2. Is the hook text specific enough? Vague hooks ("something exciting is coming") perform worse than specific ones ("I lost $40k doing this") across all platforms.
 3. Does the hook match ${data.platform} native behavior? TikTok hooks must land in 1.5s. Instagram hooks need identity signal. LinkedIn hooks need intellectual tension.
 4. Is there a pattern interrupt? Does this hook break the visual/verbal pattern of the surrounding feed?
-5. Counter-evidence check: Is there any reason the hook type mismatch was NOT the issue? (e.g. low reach would mean the hook never got a chance to underperform — it's a distribution problem, not a hook problem)
+5. Counter-evidence check: Is there any reason the hook type mismatch was NOT the issue? (e.g. low reach would mean the hook never got a chance to underperform â€” it's a distribution problem, not a hook problem)
 
 VERDICT LOGIC:
 - "likely_cause": hook type is NOT in client's top performers AND hook has a specific identifiable weakness AND ER is significantly below avg
@@ -87,7 +87,7 @@ VERDICT LOGIC:
 - "not_issue": hook type matches client's proven types OR there's a distribution/reach issue more plausible as the primary cause
 
 Return ONLY valid JSON:
-{"verdict":"likely_cause"|"contributing"|"not_issue","finding":"One specific sentence citing the evidence — name the hook type, the pattern, the specific weakness","fix":"One actionable sentence — what specifically to change about the hook approach next time"}`
+{"verdict":"likely_cause"|"contributing"|"not_issue","finding":"One specific sentence citing the evidence â€” name the hook type, the pattern, the specific weakness","fix":"One actionable sentence â€” what specifically to change about the hook approach next time"}`
 
   return geminiJson<PostMortemAnalysis>(prompt, undefined, {
     temperature:     0.3,
@@ -123,7 +123,7 @@ VERDICT LOGIC:
 - "not_issue": format matches client history OR there's a more significant cause elsewhere
 
 Return ONLY valid JSON:
-{"verdict":"likely_cause"|"contributing"|"not_issue","finding":"One specific sentence citing format evidence — name the mismatch or confirm the match","fix":"One specific actionable sentence about format choice for next time"}`
+{"verdict":"likely_cause"|"contributing"|"not_issue","finding":"One specific sentence citing format evidence â€” name the mismatch or confirm the match","fix":"One specific actionable sentence about format choice for next time"}`
 
   return geminiJson<PostMortemAnalysis>(prompt, undefined, {
     temperature:     0.3,
@@ -150,7 +150,7 @@ DIAGNOSTIC QUESTIONS:
 1. Time delta: How far off is "${data.publish_time}" from the client's proven window "${ctx.best_posting_time}"? A 2-hour difference matters significantly on Instagram (algorithm gives 30-60min before decay). Less on TikTok (distribution is more algorithmic than chronological).
 2. Platform behavior: On ${data.platform}, timing affects early engagement velocity which affects algorithm amplification. Early velocity (first 30min) is disproportionately important.
 3. Reach correlation: If reach is low AND timing is off, timing becomes more likely as a cause. If reach is normal but ER is low, timing is less likely to be the culprit.
-4. Day-of-week: ${data.publish_time} — was this a peak or off-peak day for this platform and audience?
+4. Day-of-week: ${data.publish_time} â€” was this a peak or off-peak day for this platform and audience?
 5. Counter-evidence: On TikTok, timing matters less than content quality. On LinkedIn, the first 2 hours of business day are critical. Context matters.
 
 VERDICT LOGIC:
@@ -180,14 +180,14 @@ Platform: ${data.platform}
 Engagement rate: ${perf.engagement_rate}% (client avg: ${ctx.avg_er}%)
 Saves: ${perf.saves}
 
-CAPTION DIAGNOSTIC FRAMEWORK — evaluate on all 4 dimensions:
+CAPTION DIAGNOSTIC FRAMEWORK â€” evaluate on all 4 dimensions:
 1. Hook continuation: Does the caption's first 125 chars (before "more") continue the energy of the visual hook? Or does it drop the tension and become explanatory?
 2. CTA clarity: Is there ONE clear action asked? Two asks produce zero actions. A missing CTA on goal-driven content (saves, shares, comments) is always a miss.
 3. Friction: How much effort does the CTA require? "Comment your answer below" is lower friction than "DM us for pricing." Lower friction = higher compliance.
 4. Voice consistency: Does the caption sound like the same brand that made the visual? Voice breaks (formal caption on casual visual) reduce trust unconsciously.
 5. Length-platform fit: On ${data.platform}, what is the optimal caption length? TikTok captions are often ignored. Instagram captions with real text perform well on educational content. LinkedIn captions need a hook in line 1.
 
-SAVE SIGNAL: ${perf.saves} saves — saves indicate the audience found this reference-worthy. Low saves on educational content suggests the caption failed to frame the value. Low saves on entertainment content is normal.
+SAVE SIGNAL: ${perf.saves} saves â€” saves indicate the audience found this reference-worthy. Low saves on educational content suggests the caption failed to frame the value. Low saves on entertainment content is normal.
 
 VERDICT LOGIC:
 - "likely_cause": caption has a specific, identifiable flaw (weak CTA, hook continuation failure, voice break) AND saves are low relative to the content type
@@ -195,7 +195,7 @@ VERDICT LOGIC:
 - "not_issue": caption is technically sound for this platform and content type
 
 Return ONLY valid JSON:
-{"verdict":"likely_cause"|"contributing"|"not_issue","finding":"One specific sentence naming the exact caption weakness — cite the specific dimension (hook continuation, CTA, friction, voice, length)","fix":"One specific actionable sentence about what to rewrite and how"}`
+{"verdict":"likely_cause"|"contributing"|"not_issue","finding":"One specific sentence naming the exact caption weakness â€” cite the specific dimension (hook continuation, CTA, friction, voice, length)","fix":"One specific actionable sentence about what to rewrite and how"}`
 
   return geminiJson<PostMortemAnalysis>(prompt, undefined, {
     temperature:     0.3,
@@ -228,22 +228,22 @@ Format: [${analyses.format.verdict}] ${analyses.format.finding}
 Timing: [${analyses.timing.verdict}] ${analyses.timing.finding}
 Caption: [${analyses.caption.verdict}] ${analyses.caption.finding}
 
-${likelyCauses.length > 0 ? `PRIMARY CAUSES IDENTIFIED:\n${likelyCauses.join('\n')}` : 'No primary cause was isolated — this may be a compounding effect of multiple contributing factors.'}
+${likelyCauses.length > 0 ? `PRIMARY CAUSES IDENTIFIED:\n${likelyCauses.join('\n')}` : 'No primary cause was isolated â€” this may be a compounding effect of multiple contributing factors.'}
 ${contributing.length > 0 ? `\nCONTRIBUTING FACTORS:\n${contributing.join('\n')}` : ''}
 
 ${contextBlocks ? `INTELLIGENCE CONTEXT:\n${contextBlocks.trim()}\nUse competitor benchmarks above when assessing whether the publishing window was contested, whether the hook pattern was saturated, or whether the format was already dominant in this niche.\n\n` : ''}VERDICT RULES:
-- 2–3 sentences maximum. One primary cause named. One clear prescription.
+- 2â€“3 sentences maximum. One primary cause named. One clear prescription.
 - If multiple causes exist, rank them by likely impact percentage (e.g. "60% hook, 30% timing, 10% caption")
-- Do not soften. Do not hedge. Do not say "it may have been" — say what it was.
-- If reach is the primary problem (very low reach even by client standards), the verdict must name distribution as the issue — not creative execution.
+- Do not soften. Do not hedge. Do not say "it may have been" â€” say what it was.
+- If reach is the primary problem (very low reach even by client standards), the verdict must name distribution as the issue â€” not creative execution.
 - If competitor context is provided and a competitor posted in the same window or used the same hook type, name it explicitly.
 
-RERUN CONSTRAINTS — if this content were to be rerun with changes, what MUST change?
-Provide specific, usable values (not "better hook" — "use curiosity or transformation hook type"):
+RERUN CONSTRAINTS â€” if this content were to be rerun with changes, what MUST change?
+Provide specific, usable values (not "better hook" â€” "use curiosity or transformation hook type"):
 
 Return ONLY valid JSON:
 {
-  "verdict": "2–3 sentences: primary cause identified + impact estimate + what to do differently next time",
+  "verdict": "2â€“3 sentences: primary cause identified + impact estimate + what to do differently next time",
   "rerun_constraints": {
     "hook_type": "specific hook type to use",
     "format": "specific format to use",
@@ -259,10 +259,10 @@ Return ONLY valid JSON:
   )
 }
 
-// ─── Handler ─────────────────────────────────────────────────
+// â”€â”€â”€ Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function POST(req: NextRequest) {
-  const guard = await aiGuard()
+  const guard = await aiGuard(req)
   if (guard) return guard
 
   let body: PostMortemBody
@@ -283,7 +283,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'AI provider not configured' }, { status: 503 })
   }
 
-  // ── Fetch client intelligence + competitor context (non-blocking — runs in parallel with analyses)
+  // â”€â”€ Fetch client intelligence + competitor context (non-blocking â€” runs in parallel with analyses)
   let contextBlocks = ''
   if (body.client_id && HAS_DB) {
     const db = adminSupabase()
@@ -294,30 +294,30 @@ export async function POST(req: NextRequest) {
     contextBlocks = [intelBlock, compBlock].filter(Boolean).join('\n')
   }
 
-  // ── 4 parallel Gemini analyses ─────────────────────────────
+  // â”€â”€ 4 parallel Gemini analyses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [hookResult, formatResult, timingResult, captionResult] = await Promise.all([
     analyzeHook(body.session_data, body.performance, body.client_context).catch(
       (): PostMortemAnalysis => ({
         verdict: 'not_issue',
-        finding: 'Hook analysis unavailable — API error.',
+        finding: 'Hook analysis unavailable â€” API error.',
       }),
     ),
     analyzeFormat(body.session_data, body.performance, body.client_context).catch(
       (): PostMortemAnalysis => ({
         verdict: 'not_issue',
-        finding: 'Format analysis unavailable — API error.',
+        finding: 'Format analysis unavailable â€” API error.',
       }),
     ),
     analyzeTiming(body.session_data, body.performance, body.client_context).catch(
       (): PostMortemAnalysis => ({
         verdict: 'not_issue',
-        finding: 'Timing analysis unavailable — API error.',
+        finding: 'Timing analysis unavailable â€” API error.',
       }),
     ),
     analyzeCaption(body.session_data, body.performance, body.client_context).catch(
       (): PostMortemAnalysis => ({
         verdict: 'not_issue',
-        finding: 'Caption analysis unavailable — API error.',
+        finding: 'Caption analysis unavailable â€” API error.',
       }),
     ),
   ])
@@ -329,7 +329,7 @@ export async function POST(req: NextRequest) {
     caption: captionResult,
   }
 
-  // ── Gemini verdict ─────────────────────────────────────────
+  // â”€â”€ Gemini verdict â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let verdictData: { verdict: string; rerun_constraints: Record<string, string> }
   try {
     verdictData = await buildVerdict(analyses, body, contextBlocks)
@@ -339,7 +339,7 @@ export async function POST(req: NextRequest) {
         Object.entries(analyses)
           .filter(([, v]) => v.verdict === 'likely_cause')
           .map(([k]) => k)
-          .join(', ') || 'none isolated — compounding factors likely'
+          .join(', ') || 'none isolated â€” compounding factors likely'
       }. Review individual findings above for specific fixes.`,
       rerun_constraints: {
         hook_type:    body.client_context.top_hook_types[0] ?? 'curiosity',

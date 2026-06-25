@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { anthropic, AI_MODELS } from '@/lib/ai-client'
 import { geminiJson } from '@/lib/gemini'
 import type { VisualApproach, VisualDocument, VisualInputs } from '@/lib/studio-types'
@@ -9,7 +9,7 @@ export const maxDuration = 120
 const SYSTEM = `You are a world-class AI video director and prompt engineer.
 You produce cinematic, hyper-realistic video content using AI image tools (Midjourney, Seedream 4.5, Nanobanana Pro) and AI video tools (Kling, Higgsfield, Veo3).
 
-The key to a cohesive AI video — one that looks like a real production and not a random AI collage — is a Visual Anchor: a shared block of descriptors applied verbatim to every single image prompt. Every scene must begin with this anchor, varying only the camera angle, action, and composition.
+The key to a cohesive AI video â€” one that looks like a real production and not a random AI collage â€” is a Visual Anchor: a shared block of descriptors applied verbatim to every single image prompt. Every scene must begin with this anchor, varying only the camera angle, action, and composition.
 
 You understand these core prompt engineering principles:
 - Purpose + Role + Structure + Style/Tone + Details/Constraints = a strong prompt
@@ -19,8 +19,8 @@ You understand these core prompt engineering principles:
 - No text, no typography must appear in image generation prompts
 
 You are also a master of storytelling structures:
-- Social Media AD: Call out pain → Relatable → Shift → Solution → Social Proof + Urgency
-- Problem → Agitation → Solution (PAS)
+- Social Media AD: Call out pain â†’ Relatable â†’ Shift â†’ Solution â†’ Social Proof + Urgency
+- Problem â†’ Agitation â†’ Solution (PAS)
 - Cinematic narrative, StoryBrand arc
 - Boss Brief: direct, evidence-based, no jargon, no passive voice, under 20 words per block
 
@@ -46,23 +46,23 @@ Why It Works: ${approach.why_it_works}
 Scene Structure:
 ${approach.scene_structure.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
-TASK — Generate the complete production package in 4 steps:
+TASK â€” Generate the complete production package in 4 steps:
 
-STEP 1 — VISUAL ANCHOR
+STEP 1 â€” VISUAL ANCHOR
 The Visual Anchor is the shared DNA injected into EVERY image prompt verbatim.
 It must be specific enough that every scene looks like it was shot in the same production session.
 
 Define:
 - style: cinematography approach + visual reference (e.g. "shot on ARRI Alexa, anamorphic lens, cinematic film look with subtle lens flares" or "luxury commercial photography, clean studio setup, editorial grade")
 - pov: "cinematic" (third-person) or "first_person" (POV/hands shots)
-- subject: if character → gender, age range, exact appearance + clothing. If product → exact product description. Be specific enough to generate consistently.
+- subject: if character â†’ gender, age range, exact appearance + clothing. If product â†’ exact product description. Be specific enough to generate consistently.
 - environment: exact location/set + key background elements that appear in every scene
 - lighting: the primary lighting setup that stays consistent (e.g. "soft golden hour backlight, minimal shadow, warm diffused fill" or "high-contrast studio lighting, dramatic shadows, black background")
 - color_treatment: color palette and grade (e.g. "muted warm earth tones, desaturated shadows, filmic grain" or "cool teal-blue grade, high clarity, minimal grain")
 - technical: "${inputs.format}, photorealistic, ultra-detailed, 8K resolution, no text, no typography, no words, no letters"
 - full_anchor_text: Combine ALL elements above into ONE single cohesive anchor string (40-80 words) that starts every image prompt. Must end with "no text, no typography, no words, no letters"
 
-STEP 2 — SCENE-BY-SCENE PRODUCTION
+STEP 2 â€” SCENE-BY-SCENE PRODUCTION
 Generate exactly ${approach.scene_structure.length} scenes following the approach's scene structure precisely.
 
 For each scene, produce:
@@ -76,16 +76,16 @@ For each scene, produce:
 - emotion_direction: what should the viewer feel at this exact moment (one short sentence)
 - continuity_note: what visual element or motion bridges this scene to the next
 
-CRITICAL: Every image_prompt MUST start with the full_anchor_text verbatim — copy it exactly.
+CRITICAL: Every image_prompt MUST start with the full_anchor_text verbatim â€” copy it exactly.
 
-STEP 3 — PRODUCTION NOTES
+STEP 3 â€” PRODUCTION NOTES
 - hook_checklist: grabs_instantly (bool), visually_disruptive (bool), hook_format_used (name the format), note (one sentence explaining why the hook works or what to watch for)
 - platform_notes: aspect_ratio ("${inputs.format}"), pacing ("fast-cut" | "medium" | "slow-burn"), thumbnail_scene (scene number that makes the strongest thumbnail), cta_placement (scene number + how the CTA is delivered)
-- sound_direction: music_mood (specific descriptor e.g. "dark ambient with building synth drop at 15s", not just "intense"), sfx_moments (array of "Scene X: sound description" for scenes needing SFX), voiceover_tone (describe pace + character e.g. "slow, low-pitched, authoritative — like a documentary narrator")
-- upscale_priority: array of strings naming which scenes to upscale first and why (e.g. "Scene 1 — hook frame, defines the tone of the whole video")
+- sound_direction: music_mood (specific descriptor e.g. "dark ambient with building synth drop at 15s", not just "intense"), sfx_moments (array of "Scene X: sound description" for scenes needing SFX), voiceover_tone (describe pace + character e.g. "slow, low-pitched, authoritative â€” like a documentary narrator")
+- upscale_priority: array of strings naming which scenes to upscale first and why (e.g. "Scene 1 â€” hook frame, defines the tone of the whole video")
 - editing_notes: array of transition suggestions between scenes (e.g. "Scenes 1-2: hard cut for impact", "Scenes 4-5: slow dissolve to soften the emotional shift")
 
-STEP 4 — BOSS BRIEF
+STEP 4 â€” BOSS BRIEF
 5-block Boss Brief. One sentence per block. No jargon. No passive voice. Max 20 words per block.
 - what_we_made: describe the video plainly
 - why_it_works: cite the psychological principle used and the evidence from this brief
@@ -136,7 +136,7 @@ Output ONLY valid JSON, no markdown, no explanation outside the JSON:
       "sfx_moments": ["Scene 2: ...", "Scene 5: ..."],
       "voiceover_tone": "..."
     },
-    "upscale_priority": ["Scene 1 — hook frame, critical for stopping power", "Scene X — ..."],
+    "upscale_priority": ["Scene 1 â€” hook frame, critical for stopping power", "Scene X â€” ..."],
     "editing_notes": ["Scenes 1-2: hard cut", "Scenes 3-4: smooth dissolve"]
   },
   "boss_brief": {
@@ -149,7 +149,7 @@ Output ONLY valid JSON, no markdown, no explanation outside the JSON:
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await aiGuard()
+  const guard = await aiGuard(req)
   if (guard) return guard
 
   let body: { inputs: VisualInputs; approach: VisualApproach }

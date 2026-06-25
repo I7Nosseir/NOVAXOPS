@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // POST /api/studio/copy/inspiration/harvest
 //
 // Phase 2 of the Pinterest Inspiration Engine:
@@ -8,7 +8,7 @@
 //   4. AI scores each pin (visual / caption / structural) in parallel batches
 //   5. Filters to composite_score >= 6.0, returns top 50 sorted by score
 //
-// Synchronous — client waits. Expect 35-50 seconds. maxDuration = 60.
+// Synchronous â€” client waits. Expect 35-50 seconds. maxDuration = 60.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -19,7 +19,7 @@ import { aiGuard } from '@/lib/ai-guard'
 
 export const maxDuration = 60
 
-// ── Types shared with the client ──────────────────────────────
+// â”€â”€ Types shared with the client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ScoredPin {
   id:              string    // pinterest_pins UUID
@@ -27,7 +27,7 @@ export interface ScoredPin {
   title:           string
   description:     string
   saveCount:       number
-  compositeScore:  number    // 0.0–10.0
+  compositeScore:  number    // 0.0â€“10.0
   scoreRationale:  string
   styleClusterId?: string
 }
@@ -39,7 +39,7 @@ export interface HarvestResponse {
   filteredCount: number
 }
 
-// ── Supabase ──────────────────────────────────────────────────
+// â”€â”€ Supabase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function db() {
   return createClient(
@@ -48,7 +48,7 @@ function db() {
   )
 }
 
-// ── AI: generate targeted harvest queries ─────────────────────
+// â”€â”€ AI: generate targeted harvest queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface HarvestQuery { angle: string; query: string }
 
@@ -60,7 +60,7 @@ async function generateHarvestQueries(
   geminiKey: string | undefined,
 ): Promise<HarvestQuery[]> {
   const clusterBlock = approvedClusters
-    .map((c, i) => `${i + 1}. "${c.label}" — ${c.description}`)
+    .map((c, i) => `${i + 1}. "${c.label}" â€” ${c.description}`)
     .join('\n')
 
   const prompt = `You are a creative research director at a social media agency.
@@ -77,9 +77,9 @@ Distribute the 10 queries across the approved directions (2-4 per direction if m
 For each query:
 - Make it specific enough to surface stylistically relevant pins
 - Vary vocabulary to avoid duplicate results from the probe phase
-- Append aesthetic descriptors: "aesthetic", "inspo", "style board", "editorial", "mood" — only where they help
+- Append aesthetic descriptors: "aesthetic", "inspo", "style board", "editorial", "mood" â€” only where they help
 
-Return ONLY this JSON — no markdown:
+Return ONLY this JSON â€” no markdown:
 {
   "queries": [
     { "angle": "...", "query": "..." }
@@ -114,7 +114,7 @@ Return ONLY this JSON — no markdown:
   }
 }
 
-// ── AI: score a batch of pins ─────────────────────────────────
+// â”€â”€ AI: score a batch of pins â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface PinScore {
   idx:              number
@@ -145,7 +145,7 @@ BRIEF: ${briefText}
 PLATFORM: ${platform}
 APPROVED CREATIVE DIRECTIONS: ${approvedDirections}
 
-Score each pin on three dimensions (0.0–10.0 with one decimal):
+Score each pin on three dimensions (0.0â€“10.0 with one decimal):
 - visual_score: How well does the aesthetic/visual style match the approved directions?
 - caption_score: How well-written and structurally rich is the description? Does it have hook + body + close?
 - structural_score: How borrowable is the caption's STRUCTURE (hook mechanic, sentence rhythm, CTA pattern)?
@@ -155,10 +155,10 @@ ${pinList}
 
 Rules:
 - Score ALL ${pinBatch.length} pins (every idx present in input must appear in output)
-- Be discriminating — use the full 0–10 range. Empty or generic descriptions → below 3 on caption/structural
+- Be discriminating â€” use the full 0â€“10 range. Empty or generic descriptions â†’ below 3 on caption/structural
 - rationale: one phrase (max 10 words) explaining the structural value or lack thereof
 
-Return ONLY a JSON array — no markdown:
+Return ONLY a JSON array â€” no markdown:
 [
   { "idx": 0, "visual_score": 8.0, "caption_score": 7.5, "structural_score": 9.0, "rationale": "..." }
 ]`
@@ -194,10 +194,10 @@ Return ONLY a JSON array — no markdown:
   }
 }
 
-// ── Route handler ─────────────────────────────────────────────
+// â”€â”€ Route handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function POST(req: NextRequest) {
-  const guard = await aiGuard()
+  const guard = await aiGuard(req)
   if (guard) return guard
 
   let body: { session_id: string }
@@ -213,14 +213,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (!process.env.APIFY_API_KEY && !process.env.PINTEREST_ACCESS_TOKEN) {
-    return NextResponse.json({ error: 'Pinterest is not configured — set PINTEREST_ACCESS_TOKEN or APIFY_API_KEY' }, { status: 503 })
+    return NextResponse.json({ error: 'Pinterest is not configured â€” set PINTEREST_ACCESS_TOKEN or APIFY_API_KEY' }, { status: 503 })
   }
 
   const supabase = db()
   const anthropicKey = process.env.ANTHROPIC_API_KEY || undefined
   const geminiKey    = process.env.GEMINI_API_KEY    || undefined
 
-  // ── 1. Load session ───────────────────────────────────────────
+  // â”€â”€ 1. Load session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: session, error: sessErr } = await supabase
     .from('pinterest_scrape_sessions')
     .select('id, brief_text, platform, client_id, style_clusters, cluster_feedback, status')
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
 
   if (session.status !== 'harvest_pending' && session.status !== 'harvesting') {
     return NextResponse.json(
-      { error: `Session status is "${session.status}" — run feedback first` },
+      { error: `Session status is "${session.status}" â€” run feedback first` },
       { status: 409 }
     )
   }
@@ -254,12 +254,12 @@ export async function POST(req: NextRequest) {
 
   if (approvedClusters.length === 0) {
     return NextResponse.json(
-      { error: 'No approved clusters — save feedback before harvesting' },
+      { error: 'No approved clusters â€” save feedback before harvesting' },
       { status: 422 }
     )
   }
 
-  // ── 2. AI: generate 10 targeted queries ───────────────────────
+  // â”€â”€ 2. AI: generate 10 targeted queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let harvestQueries: HarvestQuery[] = []
   try {
     harvestQueries = await generateHarvestQueries(
@@ -288,7 +288,7 @@ export async function POST(req: NextRequest) {
     .update({ harvest_queries: harvestQueries })
     .eq('id', session_id)
 
-  // ── 3. Apify: scrape with targeted queries ────────────────────
+  // â”€â”€ 3. Apify: scrape with targeted queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const queryInputs: PinterestQueryInput[] = harvestQueries.map(q => ({
     query: q.query,
     angle: q.angle,
@@ -317,7 +317,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // ── 4. Save harvest pins to DB ────────────────────────────────
+  // â”€â”€ 4. Save harvest pins to DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const pinInserts = usablePins.map((p, idx) => ({
     session_id:      session_id,
     client_id:       (session.client_id as string | null) ?? null,
@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
     .update({ harvest_raw_count: insertedPins.length })
     .eq('id', session_id)
 
-  // ── 5. AI: score pins in parallel batches of 35 ───────────────
+  // â”€â”€ 5. AI: score pins in parallel batches of 35 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const BATCH_SIZE = 35
   const approvedDirections = approvedClusters.map(c => `"${c.label}": ${c.description}`).join(' | ')
   const briefText = session.brief_text as string
@@ -394,7 +394,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 6. Apply scores, filter, update DB ───────────────────────
+  // â”€â”€ 6. Apply scores, filter, update DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const SCORE_THRESHOLD = 6.0
   const scoredPins: ScoredPin[] = []
   const dbUpdates: Promise<unknown>[] = []
@@ -444,7 +444,7 @@ export async function POST(req: NextRequest) {
   scoredPins.sort((a, b) => b.compositeScore - a.compositeScore)
   const topPins = scoredPins.slice(0, 50)
 
-  // ── 7. Finalize session ───────────────────────────────────────
+  // â”€â”€ 7. Finalize session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   await supabase
     .from('pinterest_scrape_sessions')
     .update({

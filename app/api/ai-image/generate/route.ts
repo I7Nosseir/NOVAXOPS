@@ -52,6 +52,15 @@ interface ResizeToggles {
 
 type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } }
 
+// Gemini accepts: image/jpeg, image/png, image/webp, image/heic, image/heif, image/gif
+// Anything else (image/jpg, image/bmp, image/tiff, etc.) must be normalised.
+function normalizeImageMime(mime: string): string {
+  const base = mime.split(';')[0].trim().toLowerCase()
+  if (base === 'image/jpg') return 'image/jpeg'
+  const supported = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/gif'])
+  return supported.has(base) ? base : 'image/jpeg'
+}
+
 function extractMentions(prompt: string): string[] {
   const matches = prompt.match(/@ref\d+/g) ?? []
   return [...new Set(matches)].map(m => m.slice(1))
@@ -292,7 +301,7 @@ export async function POST(req: NextRequest) {
 
       const reqParts: GeminiPart[] = [
         { text: 'Source image to recompose:' },
-        { inlineData: { mimeType: sourceRef.mime, data: sourceRef.data } },
+        { inlineData: { mimeType: normalizeImageMime(sourceRef.mime), data: sourceRef.data } },
         { text: resizerInstruction },
       ]
 
@@ -403,14 +412,14 @@ export async function POST(req: NextRequest) {
 
         for (const ref of mentionedRefs) {
           reqParts.push({ text: `Reference image (@${ref.id}):` })
-          reqParts.push({ inlineData: { mimeType: ref.mime, data: ref.data } })
+          reqParts.push({ inlineData: { mimeType: normalizeImageMime(ref.mime), data: ref.data } })
         }
 
         if (unmentionedRefs.length > 0) {
           reqParts.push({ text: 'Additional reference images for visual context:' })
           for (const ref of unmentionedRefs) {
             reqParts.push({ text: `(@${ref.id}):` })
-            reqParts.push({ inlineData: { mimeType: ref.mime, data: ref.data } })
+            reqParts.push({ inlineData: { mimeType: normalizeImageMime(ref.mime), data: ref.data } })
           }
         }
 

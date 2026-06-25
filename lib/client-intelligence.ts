@@ -257,7 +257,14 @@ export async function buildClientIntelligenceBlock(
     if (pinterestBlock) blocks.push(pinterestBlock)
   } catch { /* non-critical — inspiration data is supplementary */ }
 
-  return blocks.length > 0 ? `\n\n${blocks.join('\n\n')}` : ''
+  if (blocks.length === 0) return ''
+  const joined = `\n\n${blocks.join('\n\n')}`
+  // Hard cap — prevents unbounded context from consuming the model's output budget
+  const MAX_CHARS = 3000
+  if (joined.length > MAX_CHARS) {
+    return joined.slice(0, MAX_CHARS) + '\n[...client context truncated]'
+  }
+  return joined
 }
 
 type CompetitorAnalysisShape = {

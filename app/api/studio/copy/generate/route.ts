@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
@@ -13,83 +13,83 @@ import type {
 
 export const maxDuration = 90
 
-// ── Framework instructions ────────────────────────────────────────────────────
+// â”€â”€ Framework instructions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const FRAMEWORK_INSTRUCTIONS: Record<CopyFramework, string> = {
   aida: `Apply the AIDA framework:
-• Attention — first line must stop the scroll with a specific hook (question, contradiction, or vivid detail)
-• Interest — build intrigue with specifics: who it's for, what makes it different
-• Desire — emotional resonance + proof: a number, a sensory detail, a relatable truth
-• Action — one specific, platform-native CTA. Not "Click here." Something a person would actually say.`,
+â€¢ Attention â€” first line must stop the scroll with a specific hook (question, contradiction, or vivid detail)
+â€¢ Interest â€” build intrigue with specifics: who it's for, what makes it different
+â€¢ Desire â€” emotional resonance + proof: a number, a sensory detail, a relatable truth
+â€¢ Action â€” one specific, platform-native CTA. Not "Click here." Something a person would actually say.`,
 
   pas: `Apply the PAS framework:
-• Problem — name the exact pain the audience lives with. Be specific enough that they feel called out.
-• Agitate — make them feel the weight of the problem. Not just "it's hard" but what it costs them daily.
-• Solution — the offer as the specific answer. Connect it back to the exact problem you named.
+â€¢ Problem â€” name the exact pain the audience lives with. Be specific enough that they feel called out.
+â€¢ Agitate â€” make them feel the weight of the problem. Not just "it's hard" but what it costs them daily.
+â€¢ Solution â€” the offer as the specific answer. Connect it back to the exact problem you named.
 Do NOT rush to the Solution. The Agitate phase earns the trust that the Solution converts.`,
 
   bab: `Apply the BAB framework:
-• Before — the limiting, frustrating state. First-person or empathy-bridged. Must be painfully recognizable.
-• After — the transformed state. Use specific outcomes, not hyperbole. "Down 8kg" not "amazing transformation."
-• Bridge — exactly HOW to get from Before to After. This is the offer, explained simply.`,
+â€¢ Before â€” the limiting, frustrating state. First-person or empathy-bridged. Must be painfully recognizable.
+â€¢ After â€” the transformed state. Use specific outcomes, not hyperbole. "Down 8kg" not "amazing transformation."
+â€¢ Bridge â€” exactly HOW to get from Before to After. This is the offer, explained simply.`,
 
   hook_story_offer: `Apply the Hook-Story-Offer framework:
-• Hook — exactly one sentence that earns the next sentence. Creates a gap the mind must fill.
-• Story — first-person narrative: protagonist (relatable), problem (specific), turning point (the discovery). 2-4 sentences. No filler.
-• Offer — positioned as the resolution of the story. Not bolted on — the story leads here organically.`,
+â€¢ Hook â€” exactly one sentence that earns the next sentence. Creates a gap the mind must fill.
+â€¢ Story â€” first-person narrative: protagonist (relatable), problem (specific), turning point (the discovery). 2-4 sentences. No filler.
+â€¢ Offer â€” positioned as the resolution of the story. Not bolted on â€” the story leads here organically.`,
 
   '4ps': `Apply the 4Ps framework:
-• Promise — a bold, specific claim. Not "best quality" but "18-month guarantee, zero exceptions."
-• Picture — paint the sensory/emotional experience of having/using the product. Slow down here. Use specific details.
-• Proof — one specific number, a named testimonial, or a verifiable fact. Vague social proof converts less.
-• Push — one clear action. What to do RIGHT NOW. Make it feel immediate, not eventual.`,
+â€¢ Promise â€” a bold, specific claim. Not "best quality" but "18-month guarantee, zero exceptions."
+â€¢ Picture â€” paint the sensory/emotional experience of having/using the product. Slow down here. Use specific details.
+â€¢ Proof â€” one specific number, a named testimonial, or a verifiable fact. Vague social proof converts less.
+â€¢ Push â€” one clear action. What to do RIGHT NOW. Make it feel immediate, not eventual.`,
 
   storybrand: `Apply the StoryBrand framework:
-• The AUDIENCE is the hero — not the brand. Write "you" as the protagonist.
-• They face a problem (external + internal: the external problem and how it makes them feel).
-• The brand is the GUIDE — wise, experienced, empathetic. Never the hero.
-• Simple plan: 1-3 steps to get the result.
-• Clear CTA: one specific action.
-• Vision of success: briefly paint the outcome if they act.`,
+â€¢ The AUDIENCE is the hero â€” not the brand. Write "you" as the protagonist.
+â€¢ They face a problem (external + internal: the external problem and how it makes them feel).
+â€¢ The brand is the GUIDE â€” wise, experienced, empathetic. Never the hero.
+â€¢ Simple plan: 1-3 steps to get the result.
+â€¢ Clear CTA: one specific action.
+â€¢ Vision of success: briefly paint the outcome if they act.`,
 
   pastor: `Apply the PASTOR framework (extended PAS for deeper emotional engagement):
-• Problem — name it specifically. The more precise, the more the right person feels seen.
-• Amplify — what happens if this problem goes unsolved? Real cost: time, money, emotional.
-• Story — someone (a character) who had this problem. What they tried. Why it didn't work. Until...
-• Transformation — what changed. Specific, believable, not miraculous.
-• Offer — what you're giving them. Framed as the bridge from their current state to the transformation.
-• Response — the CTA. Make it feel like the natural next step after the story, not an interruption.`,
+â€¢ Problem â€” name it specifically. The more precise, the more the right person feels seen.
+â€¢ Amplify â€” what happens if this problem goes unsolved? Real cost: time, money, emotional.
+â€¢ Story â€” someone (a character) who had this problem. What they tried. Why it didn't work. Until...
+â€¢ Transformation â€” what changed. Specific, believable, not miraculous.
+â€¢ Offer â€” what you're giving them. Framed as the bridge from their current state to the transformation.
+â€¢ Response â€” the CTA. Make it feel like the natural next step after the story, not an interruption.`,
 
-  auto: `Analyze the image, brief, client context, and platform — then choose the single best framework for this specific content. Factors to weigh:
-• Product launch → Hook-Story-Offer or 4Ps
-• Pain-point product → PAS or PASTOR
-• Transformation content → BAB
-• Brand awareness → StoryBrand
-• General engagement → AIDA
+  auto: `Analyze the image, brief, client context, and platform â€” then choose the single best framework for this specific content. Factors to weigh:
+â€¢ Product launch â†’ Hook-Story-Offer or 4Ps
+â€¢ Pain-point product â†’ PAS or PASTOR
+â€¢ Transformation content â†’ BAB
+â€¢ Brand awareness â†’ StoryBrand
+â€¢ General engagement â†’ AIDA
 State which framework you chose in framework_used and briefly explain why in framework_rationale.`,
 }
 
-// ── Length guides ─────────────────────────────────────────────────────────────
+// â”€â”€ Length guides â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const LENGTH_GUIDE: Record<CopyLength, string> = {
-  micro:    'Under 50 characters. Hook only — a single sentence. Perfect for story overlays or TikTok text.',
-  short:    '50–150 characters. Punchy. No elaboration. One idea, one punch.',
-  medium:   '150–300 characters. Standard caption. Hook + 1-2 body lines + CTA.',
-  long:     '300–500 characters. Carousel/educational. Multiple beats. Still every word earns its place.',
+  micro:    'Under 50 characters. Hook only â€” a single sentence. Perfect for story overlays or TikTok text.',
+  short:    '50â€“150 characters. Punchy. No elaboration. One idea, one punch.',
+  medium:   '150â€“300 characters. Standard caption. Hook + 1-2 body lines + CTA.',
+  long:     '300â€“500 characters. Carousel/educational. Multiple beats. Still every word earns its place.',
   extended: '500+ characters. Deep storytelling or PASTOR format. LinkedIn or long-form feed posts.',
 }
 
-// ── Tone descriptions ─────────────────────────────────────────────────────────
+// â”€â”€ Tone descriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TONE_DESC: Record<number, string> = {
-  1: 'Very formal — polished, professional, no contractions, no colloquialisms. Think brand press release register.',
-  2: 'Formal-warm — professional but approachable. Like a senior consultant who is also likeable.',
-  3: 'Balanced — conversational but not casual. The voice of a smart, friendly expert.',
-  4: 'Casual — sounds like a knowledgeable friend. Contractions, informal sentence breaks, direct address.',
-  5: 'Gen-Z casual — native dialect vocabulary, current slang, short punchy sentences. Sounds exactly like a human who lives this culture.',
+  1: 'Very formal â€” polished, professional, no contractions, no colloquialisms. Think brand press release register.',
+  2: 'Formal-warm â€” professional but approachable. Like a senior consultant who is also likeable.',
+  3: 'Balanced â€” conversational but not casual. The voice of a smart, friendly expert.',
+  4: 'Casual â€” sounds like a knowledgeable friend. Contractions, informal sentence breaks, direct address.',
+  5: 'Gen-Z casual â€” native dialect vocabulary, current slang, short punchy sentences. Sounds exactly like a human who lives this culture.',
 }
 
-// ── Arabic KB fetcher (cached 10 min, region + copywriting categories) ────────
+// â”€â”€ Arabic KB fetcher (cached 10 min, region + copywriting categories) â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface KbRow {
   category: string
@@ -136,7 +136,7 @@ async function fetchCopyKbBlock(dialect: CopyDialect): Promise<string> {
 
   const banned = rows.flatMap(r => r.banned_phrases ?? []).filter(Boolean)
   if (banned.length) {
-    parts.push(`BANNED PHRASES — NEVER USE IN ANY ARABIC OUTPUT:\n${banned.map(p => `• "${p}"`).join('\n')}`)
+    parts.push(`BANNED PHRASES â€” NEVER USE IN ANY ARABIC OUTPUT:\n${banned.map(p => `â€¢ "${p}"`).join('\n')}`)
   }
 
   const vocabRows = [...(byCategory.vocabulary ?? []), ...(byCategory.genz_vocabulary ?? [])]
@@ -181,10 +181,10 @@ async function fetchCopyKbBlock(dialect: CopyDialect): Promise<string> {
     )
   }
 
-  return parts.join('\n\n══════════\n\n')
+  return parts.join('\n\nâ•â•â•â•â•â•â•â•â•â•\n\n')
 }
 
-// ── Fetch image as base64 from a Google Drive URL (server-side) ───────────────
+// â”€â”€ Fetch image as base64 from a Google Drive URL (server-side) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function driveUrlToBase64(driveUrl: string): Promise<{ data: string; mimeType: string } | null> {
   try {
@@ -202,7 +202,7 @@ async function driveUrlToBase64(driveUrl: string): Promise<{ data: string; mimeT
   }
 }
 
-// ── Main prompt builder ───────────────────────────────────────────────────────
+// â”€â”€ Main prompt builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildPrompt(opts: {
   framework: CopyFramework
@@ -251,73 +251,73 @@ function buildPrompt(opts: {
   lines.push(`Your only job right now: write ${variantCount} caption variant${variantCount > 1 ? 's' : ''} that stop the scroll, earn the save, and convert.`)
 
   if (hasImage && isCarousel) {
-    lines.push(`\nYou have been shown ${imageCount} carousel slide image${imageCount > 1 ? 's' : ''} in order. Analyze each slide carefully — identify what each slide shows: subject, mood, key visual, any text overlay, and the emotional arc across slides. Use this understanding to:
-1. Write per-slide captions (50–120 chars each) — punchy overlays that complement what the viewer sees.
-2. Write the overall feed caption — the caption that appears in the post and captures the full carousel story using the chosen framework.`)
+    lines.push(`\nYou have been shown ${imageCount} carousel slide image${imageCount > 1 ? 's' : ''} in order. Analyze each slide carefully â€” identify what each slide shows: subject, mood, key visual, any text overlay, and the emotional arc across slides. Use this understanding to:
+1. Write per-slide captions (50â€“120 chars each) â€” punchy overlays that complement what the viewer sees.
+2. Write the overall feed caption â€” the caption that appears in the post and captures the full carousel story using the chosen framework.`)
   } else if (hasImage) {
-    lines.push(`\nYou have been shown the content image. Analyze it carefully — extract: subject, mood, key visual elements, setting, any visible text, and the emotion it conveys. Ground every caption in what you actually see.`)
+    lines.push(`\nYou have been shown the content image. Analyze it carefully â€” extract: subject, mood, key visual elements, setting, any visible text, and the emotion it conveys. Ground every caption in what you actually see.`)
   }
 
   if (clientIntelBlock) {
-    lines.push(`\n── CLIENT CONTEXT ──\n${clientIntelBlock}`)
+    lines.push(`\nâ”€â”€ CLIENT CONTEXT â”€â”€\n${clientIntelBlock}`)
   }
 
-  lines.push(`\n── FRAMEWORK ──`)
+  lines.push(`\nâ”€â”€ FRAMEWORK â”€â”€`)
   lines.push(FRAMEWORK_INSTRUCTIONS[framework])
 
   if (isArabic) {
-    lines.push(`\n── ARABIC LANGUAGE RULES (${dialect.toUpperCase()} DIALECT) ──`)
+    lines.push(`\nâ”€â”€ ARABIC LANGUAGE RULES (${dialect.toUpperCase()} DIALECT) â”€â”€`)
     lines.push(arabicKbBlock || getArabicDialectGuide(dialect))
     lines.push(HUMANIZATION_RULES_AR)
   }
 
   if (isEnglish) {
-    lines.push(`\n── ENGLISH HUMANIZATION RULES ──`)
+    lines.push(`\nâ”€â”€ ENGLISH HUMANIZATION RULES â”€â”€`)
     lines.push(HUMANIZATION_RULES_EN)
   }
 
   if (approvedExamples.length > 0) {
-    lines.push(`\n── APPROVED EXAMPLES (match this quality and voice — do not copy, use as style reference) ──`)
+    lines.push(`\nâ”€â”€ APPROVED EXAMPLES (match this quality and voice â€” do not copy, use as style reference) â”€â”€`)
     approvedExamples.forEach((ex, i) => {
-      const meta = [ex.framework_used, ex.dialect].filter(Boolean).join(' · ')
+      const meta = [ex.framework_used, ex.dialect].filter(Boolean).join(' Â· ')
       lines.push(`Example ${i + 1}${meta ? ` [${meta}]` : ''}:\n${ex.caption}`)
     })
   }
 
   if (inspirationRefs && inspirationRefs.length > 0) {
-    lines.push(`\n── STRUCTURAL INSPIRATION (borrow the pattern, never the words) ──`)
-    lines.push(`The copywriter identified these Pinterest captions as structurally valuable. Extract only their structural PATTERN — rhythm, hook mechanic, sentence architecture, or CTA format. Never copy their specific words, brand names, or content.`)
+    lines.push(`\nâ”€â”€ STRUCTURAL INSPIRATION (borrow the pattern, never the words) â”€â”€`)
+    lines.push(`The copywriter identified these Pinterest captions as structurally valuable. Extract only their structural PATTERN â€” rhythm, hook mechanic, sentence architecture, or CTA format. Never copy their specific words, brand names, or content.`)
     inspirationRefs.forEach(ref => {
       const excerpt = ref.description.slice(0, 200).replace(/\n/g, ' ')
-      lines.push(`[${ref.elementLabel}] "${ref.title || 'Untitled'}" — ${excerpt}`)
+      lines.push(`[${ref.elementLabel}] "${ref.title || 'Untitled'}" â€” ${excerpt}`)
     })
     lines.push(`Apply the structural patterns above, translated into the client's voice, brand, and language.`)
   }
 
-  lines.push(`\n── PREFERENCES ──`)
+  lines.push(`\nâ”€â”€ PREFERENCES â”€â”€`)
   lines.push(`PLATFORM: ${platform}`)
-  lines.push(`LANGUAGE: ${language === 'both' ? `Bilingual — write each variant in ${dialect} Arabic AND English. Deliver natural Arabic first, then English below it in the same caption field, separated by a blank line.` : language === 'ar' ? `Arabic only — ${dialect} dialect` : 'English only'}`)
+  lines.push(`LANGUAGE: ${language === 'both' ? `Bilingual â€” write each variant in ${dialect} Arabic AND English. Deliver natural Arabic first, then English below it in the same caption field, separated by a blank line.` : language === 'ar' ? `Arabic only â€” ${dialect} dialect` : 'English only'}`)
   lines.push(`LENGTH: ${LENGTH_GUIDE[captionLength]}`)
   lines.push(`TONE: ${TONE_DESC[toneIntensity] ?? TONE_DESC[3]}`)
   if (toneArchetype && toneArchetype !== 'auto') {
-    lines.push(`BRAND ARCHETYPE: ${toneArchetype} — apply the vocabulary and rhythm of this archetype consistently across all variants.`)
+    lines.push(`BRAND ARCHETYPE: ${toneArchetype} â€” apply the vocabulary and rhythm of this archetype consistently across all variants.`)
   }
 
   // Emoji rules
   if (emojiStyle === 'none') {
-    lines.push(`EMOJIS: None — zero emojis anywhere in any variant.`)
+    lines.push(`EMOJIS: None â€” zero emojis anywhere in any variant.`)
   } else if (emojiStyle === 'minimal') {
-    lines.push(`EMOJIS: Minimal — 1-2 emojis max per caption. Punctuation-only use (end of line, never mid-sentence).${customEmojis ? ` If using any, prefer from: ${customEmojis}` : ''}`)
+    lines.push(`EMOJIS: Minimal â€” 1-2 emojis max per caption. Punctuation-only use (end of line, never mid-sentence).${customEmojis ? ` If using any, prefer from: ${customEmojis}` : ''}`)
   } else if (emojiStyle === 'moderate') {
-    lines.push(`EMOJIS: Moderate — 3-5 emojis. Strategic placement only (hook emphasis, CTA, list markers).${customEmojis ? ` Preferred: ${customEmojis}` : ''}`)
+    lines.push(`EMOJIS: Moderate â€” 3-5 emojis. Strategic placement only (hook emphasis, CTA, list markers).${customEmojis ? ` Preferred: ${customEmojis}` : ''}`)
   } else {
-    lines.push(`EMOJIS: Rich — 6+ emojis. Full expressive use throughout.${customEmojis ? ` Preferred: ${customEmojis}` : ''}`)
+    lines.push(`EMOJIS: Rich â€” 6+ emojis. Full expressive use throughout.${customEmojis ? ` Preferred: ${customEmojis}` : ''}`)
   }
 
   // Hashtag rules
   const hashtagCount = { none: 0, minimal: '3-5', standard: '8-12', max: '20-30' }[hashtagStyle]
   if (hashtagStyle === 'none') {
-    lines.push(`HASHTAGS: None — include zero hashtags in any variant.`)
+    lines.push(`HASHTAGS: None â€” include zero hashtags in any variant.`)
   } else {
     lines.push(`HASHTAGS: Include ${hashtagCount} hashtags. Placement: ${hashtagPlacement === 'first_comment' ? 'add to the hashtags array field (they go in the first comment, NOT in the caption text)' : 'include at the end of the caption text'}.`)
     if (preferredHashtags.length > 0) lines.push(`REQUIRED HASHTAGS (always include): ${preferredHashtags.join(' ')}`)
@@ -330,20 +330,20 @@ function buildPrompt(opts: {
   } else if (ctaMode === 'custom' && customCta) {
     lines.push(`CTA: Use exactly this CTA (adapt phrasing naturally to each variant's tone): "${customCta}"`)
   } else {
-    lines.push(`CTA: Auto — choose the most natural CTA for ${platform} and this ${postGoal} goal. Make it sound like something a person would say, not a brand.`)
+    lines.push(`CTA: Auto â€” choose the most natural CTA for ${platform} and this ${postGoal} goal. Make it sound like something a person would say, not a brand.`)
   }
 
   // Post goal context
   const goalContext = {
-    awareness: 'Goal: Brand awareness — prioritize saves and shares over clicks.',
-    engagement: 'Goal: Engagement — end with a question or invitation that compels replies.',
-    conversion: 'Goal: Conversion — the CTA is the most important line. Make it immediate and low-friction.',
-    retention: 'Goal: Retention / loyalty — speak to existing fans, reward them with inside information.',
+    awareness: 'Goal: Brand awareness â€” prioritize saves and shares over clicks.',
+    engagement: 'Goal: Engagement â€” end with a question or invitation that compels replies.',
+    conversion: 'Goal: Conversion â€” the CTA is the most important line. Make it immediate and low-friction.',
+    retention: 'Goal: Retention / loyalty â€” speak to existing fans, reward them with inside information.',
   }[postGoal]
   if (goalContext) lines.push(goalContext)
 
   // Disclosure
-  if (disclosure === 'arabic') lines.push(`DISCLOSURE: Add "#إعلان" as the very first element in the caption (before any other text).`)
+  if (disclosure === 'arabic') lines.push(`DISCLOSURE: Add "#Ø¥Ø¹Ù„Ø§Ù†" as the very first element in the caption (before any other text).`)
   if (disclosure === 'english') lines.push(`DISCLOSURE: Add "Sponsored" or "#Ad" as the very first element in the caption.`)
 
   if (brief) lines.push(`\nBRIEF: ${brief}`)
@@ -351,22 +351,22 @@ function buildPrompt(opts: {
 
   if (isArabic) {
     lines.push(`\nARABIC FORMATTING RULES:
-• Use Arabic-Indic numerals (١ ٢ ٣) not Western numerals (1 2 3) in full Arabic captions
-• Use Arabic comma ، not English comma in Arabic sentences
-• Line breaks: one idea per line — never more than 3-4 lines without a visual break
-• Never start a line with a punctuation mark — it always attaches to the word before it`)
+â€¢ Use Arabic-Indic numerals (Ù¡ Ù¢ Ù£) not Western numerals (1 2 3) in full Arabic captions
+â€¢ Use Arabic comma ØŒ not English comma in Arabic sentences
+â€¢ Line breaks: one idea per line â€” never more than 3-4 lines without a visual break
+â€¢ Never start a line with a punctuation mark â€” it always attaches to the word before it`)
   }
 
-  lines.push(`\n── OUTPUT RULES ──`)
-  lines.push(`• Every variant must use the framework — not just in structure but in spirit`)
-  lines.push(`• No AI signature phrases (see banned lists above)`)
-  lines.push(`• Vary sentence length across each variant — human rhythm, not AI uniformity`)
-  lines.push(`• Each variant must feel distinctly different from the others — different hook type, different emotional angle`)
-  lines.push(`• No variant should be a minor reword of another`)
-  lines.push(`• alt_text: Write one clear, specific accessibility description of the image(s). If no image, describe what a hypothetical image for this post would show.`)
+  lines.push(`\nâ”€â”€ OUTPUT RULES â”€â”€`)
+  lines.push(`â€¢ Every variant must use the framework â€” not just in structure but in spirit`)
+  lines.push(`â€¢ No AI signature phrases (see banned lists above)`)
+  lines.push(`â€¢ Vary sentence length across each variant â€” human rhythm, not AI uniformity`)
+  lines.push(`â€¢ Each variant must feel distinctly different from the others â€” different hook type, different emotional angle`)
+  lines.push(`â€¢ No variant should be a minor reword of another`)
+  lines.push(`â€¢ alt_text: Write one clear, specific accessibility description of the image(s). If no image, describe what a hypothetical image for this post would show.`)
 
   if (isCarousel && imageCount > 0) {
-    lines.push(`\nCARROUSEL SLIDE CAPTIONS — write one per slide (${imageCount} total). Each must be 50–120 characters: a crisp overlay line that makes sense with just that slide visible. These go in "slide_captions".`)
+    lines.push(`\nCARROUSEL SLIDE CAPTIONS â€” write one per slide (${imageCount} total). Each must be 50â€“120 characters: a crisp overlay line that makes sense with just that slide visible. These go in "slide_captions".`)
   }
 
   const slideCaptionsSchema = isCarousel && imageCount > 0
@@ -376,7 +376,7 @@ function buildPrompt(opts: {
   ],`
     : ''
 
-  lines.push(`\nReturn ONLY valid JSON — no markdown fence, no explanation before or after:
+  lines.push(`\nReturn ONLY valid JSON â€” no markdown fence, no explanation before or after:
 {
   "variants": [
     {
@@ -395,10 +395,10 @@ function buildPrompt(opts: {
   return lines.join('\n')
 }
 
-// ── Route handler ─────────────────────────────────────────────────────────────
+// â”€â”€ Route handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function POST(req: NextRequest) {
-  const guard = await aiGuard()
+  const guard = await aiGuard(req)
   if (guard) return guard
 
   let body: {
@@ -424,16 +424,16 @@ export async function POST(req: NextRequest) {
     disclosure?: string
     tone_archetype?: string
     image?: CopyImage      // Phase 1 single image (backward compat)
-    images?: CopyImage[]   // Phase 2 carousel (1–5 images)
-    force_gemini?: boolean // Phase 3 bulk — skip Claude even when key is set
+    images?: CopyImage[]   // Phase 2 carousel (1â€“5 images)
+    force_gemini?: boolean // Phase 3 bulk â€” skip Claude even when key is set
     inspiration_references?: {
-      pin_id?:         string   // pinterest_pins UUID — used for copy_inspiration_links
+      pin_id?:         string   // pinterest_pins UUID â€” used for copy_inspiration_links
       title:           string
       description:     string
       elementBorrowed: string
       elementLabel:    string
     }[]
-    inspiration_session_id?: string   // pinterest_scrape_sessions UUID — for back-link
+    inspiration_session_id?: string   // pinterest_scrape_sessions UUID â€” for back-link
   }
 
   try {
@@ -471,7 +471,7 @@ export async function POST(req: NextRequest) {
     inspiration_session_id,
   } = body
 
-  // Normalise to a single array — images[] wins, falls back to legacy image
+  // Normalise to a single array â€” images[] wins, falls back to legacy image
   const allImages: CopyImage[] = (images && images.length > 0)
     ? images.filter(img => !!img.data)
     : (image?.data ? [image] : [])
@@ -500,19 +500,19 @@ export async function POST(req: NextRequest) {
     if (clientRow?.copywriting_profile && typeof clientRow.copywriting_profile === 'object') {
       const cp = clientRow.copywriting_profile as Record<string, unknown>
       if (cp.banned_words && Array.isArray(cp.banned_words) && cp.banned_words.length > 0) {
-        clientIntelBlock += `\n── CLIENT BANNED WORDS ──\nNever use these words or phrases for this client: ${(cp.banned_words as string[]).join(', ')}`
+        clientIntelBlock += `\nâ”€â”€ CLIENT BANNED WORDS â”€â”€\nNever use these words or phrases for this client: ${(cp.banned_words as string[]).join(', ')}`
       }
       if (cp.platform_voice_notes && typeof cp.platform_voice_notes === 'object') {
         const notes = cp.platform_voice_notes as Record<string, string>
         const platformNote = notes[platform.toLowerCase()]
         if (platformNote) {
-          clientIntelBlock += `\n── ${platform.toUpperCase()} VOICE NOTE ──\n${platformNote}`
+          clientIntelBlock += `\nâ”€â”€ ${platform.toUpperCase()} VOICE NOTE â”€â”€\n${platformNote}`
         }
       }
     }
   }
 
-  // 2. Fetch approved copy examples — Arabic gets dialect-preferred examples first
+  // 2. Fetch approved copy examples â€” Arabic gets dialect-preferred examples first
   const approvedExamples: { caption: string; framework_used: string | null; dialect?: string | null }[] = []
   if (client_id && db) {
     const isArabicGen = language === 'ar' || language === 'both'
@@ -703,7 +703,7 @@ export async function POST(req: NextRequest) {
     slide_captions: slideCaptions.length > 0 ? slideCaptions : undefined,
   }
 
-  // 8. Persist copy session + inspiration attribution (fire-and-forget — never block the response)
+  // 8. Persist copy session + inspiration attribution (fire-and-forget â€” never block the response)
   persistSession({
     db,
     client_id,
@@ -727,7 +727,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(result)
 }
 
-// ── Session persistence (called after AI response, non-blocking) ──────────────
+// â”€â”€ Session persistence (called after AI response, non-blocking) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function persistSession(opts: {
   db: ReturnType<typeof adminSupabase>

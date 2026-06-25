@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import React from 'react'
 import {
-  Document, Page, View, Text, StyleSheet, renderToBuffer,
+  Document, Page, View, Text, StyleSheet, renderToBuffer, Font,
 } from '@react-pdf/renderer'
+
+// Register Cairo (Arabic + Latin) so Arabic narrative text renders correctly.
+// Cairo is served directly from jsDelivr — no build-time download needed.
+Font.register({
+  family: 'Cairo',
+  fonts: [
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/cairo@5/files/cairo-arabic-400-normal.woff2', fontWeight: 400 },
+    { src: 'https://cdn.jsdelivr.net/npm/@fontsource/cairo@5/files/cairo-arabic-700-normal.woff2', fontWeight: 700 },
+  ],
+})
+
+function hasArabic(text: string): boolean {
+  return /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(text)
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -495,13 +509,16 @@ function AISection({ narrative }: { narrative: AIReportNarrative }) {
   const entries = Object.entries(narrative).filter(([, v]) => v?.trim())
   if (entries.length === 0) return null
   return React.createElement(View, null,
-    ...entries.map(([key, text]) =>
-      React.createElement(View, { key, style: s.narrativeSection },
+    ...entries.map(([key, text]) => {
+      const isAr = hasArabic(text!)
+      const textStyle = isAr
+        ? [s.narrativeText, { fontFamily: 'Cairo', textAlign: 'right' as const, direction: 'rtl' as const }]
+        : s.narrativeText
+      return React.createElement(View, { key, style: s.narrativeSection },
         React.createElement(Text, { style: s.narrativeHeading }, NARRATIVE_LABELS[key] ?? key),
-        // Strip markdown bold markers for PDF
-        React.createElement(Text, { style: s.narrativeText }, text!.replace(/\*\*/g, '')),
+        React.createElement(Text, { style: textStyle }, text!.replace(/\*\*/g, '')),
       )
-    )
+    })
   )
 }
 

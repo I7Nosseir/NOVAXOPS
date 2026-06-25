@@ -146,9 +146,7 @@ export async function POST(req: NextRequest) {
       requestTitle: title,
       approvalLink: `${appUrl}/approval/${token}`,
       expiresAt: expires_at.toISOString(),
-    }).catch(() => {
-      // Best-effort — do not fail the request if email sending fails
-    })
+    }).catch(err => console.error('[approval] sendApprovalRequest failed:', err))
   }
 
   return NextResponse.json({ id: request.id, token })
@@ -240,7 +238,7 @@ export async function PATCH(req: NextRequest) {
         requestTitle: request.title,
         decisionSummary: summary,
         postResults,
-      }).catch(() => {})
+      }).catch(err => console.error('[approval] sendApprovalDecision failed:', err))
     }
   }
 

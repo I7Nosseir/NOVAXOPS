@@ -100,7 +100,7 @@ async function fetchClientMetricoolContext(db: SupabaseClient, clientId: string)
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
     const [upcomingRes, publishedRes, draftRes] = await Promise.all([
-      // All scheduled posts for the next 30 days
+      // Upcoming scheduled posts — cap at 15 to bound context size
       db.from('scheduled_posts')
         .select('id,platforms,caption,scheduled_at,status,metricool_post_id')
         .eq('client_id', clientId)
@@ -108,15 +108,15 @@ async function fetchClientMetricoolContext(db: SupabaseClient, clientId: string)
         .gte('scheduled_at', now.toISOString())
         .lte('scheduled_at', in30days)
         .order('scheduled_at', { ascending: true })
-        .limit(60),
-      // Published this month with captions
+        .limit(15),
+      // Published this month — cap at 10
       db.from('scheduled_posts')
         .select('id,platforms,caption,published_at')
         .eq('client_id', clientId)
         .eq('status', 'published')
         .gte('published_at', startOfMonth)
         .order('published_at', { ascending: false })
-        .limit(30),
+        .limit(10),
       // Drafts
       db.from('scheduled_posts')
         .select('id')
@@ -431,15 +431,15 @@ async function fetchCeoAgencyBriefing(db: SupabaseClient): Promise<string> {
     safe(db.from('moderation_items').select('id,client_id,status,platform,content,contact_name').eq('status', 'pending').order('created_at', { ascending: false }).limit(20)),
     safe(db.from('client_context_bank').select('client_id,category,summary').eq('is_active', true).order('created_at', { ascending: false }).limit(40)),
     safe(db.from('client_quarterly_strategies').select('client_id,goals,themes').eq('year', year).eq('quarter', quarter)),
-    // All scheduled posts next 30 days — with captions
+    // Scheduled posts next 30 days — capped at 50 across all clients for context size
     safe(
       db.from('scheduled_posts')
-        .select('client_id,platforms,caption,scheduled_at')
+        .select('client_id,platforms,scheduled_at')
         .eq('status', 'scheduled')
         .gte('scheduled_at', now.toISOString())
         .lte('scheduled_at', in30days)
         .order('scheduled_at', { ascending: true })
-        .limit(200),
+        .limit(50),
     ),
     // Published this month per client
     safe(db.from('scheduled_posts').select('client_id').eq('status', 'published').gte('published_at', startOfMonth)),
@@ -526,14 +526,13 @@ async function fetchCeoAgencyBriefing(db: SupabaseClient): Promise<string> {
     if (pendingMod > 0) lines.push(`  Moderation pending: ${pendingMod}`)
     lines.push(`  Scheduled (next 30d): ${clientScheduled.length} posts | Published this month: ${published}`)
 
-    // Show all upcoming scheduled posts with captions
-    for (const p of clientScheduled) {
+    // Show upcoming scheduled post dates/platforms (no captions — CEO view is counts only)
+    for (const p of clientScheduled.slice(0, 5)) {
       const platforms = Array.isArray(p.platforms) ? (p.platforms as string[]).join('/') : String(p.platforms ?? '')
       const date = p.scheduled_at
         ? new Date(p.scheduled_at as string).toLocaleDateString('en-GB', { dateStyle: 'short' })
         : '?'
-      const caption = typeof p.caption === 'string' ? p.caption.slice(0, 150) : ''
-      lines.push(`    • [${platforms}] ${date} — "${caption}${caption.length >= 150 ? '…' : ''}"`)
+      lines.push(`    • [${platforms}] ${date}`)
     }
 
     if (strat) lines.push(`  Q${quarter} ${year} goal: ${strat.slice(0, 120)}`)
@@ -762,14 +761,14 @@ export async function POST(req: NextRequest) {
     client_id && !clientInContextItems ? fetchClientContext(db, client_id) : Promise.resolve(''),
     Promise.all(contextFetches),
     client_id && needsPerformanceData(messages) ? fetchPerformanceSummary(db, client_id) : Promise.resolve(''),
-    client_id ? fetchClientMetricoolContext(db, client_id).catch(() => '') : Promise.resolve(''),
-    client_id ? buildClientIntelligenceBlock(client_id, 'chat', db).catch(() => '') : Promise.resolve(''),
+    client_id ? fetchClientMetricoolContext(db, client_id).catch(err => { console.error('[assistant/chat] metricool context failed:', err); return '' }) : Promise.resolve(''),
+    client_id ? buildClientIntelligenceBlock(client_id, 'chat', db).catch(err => { console.error('[assistant/chat] client intelligence failed:', err); return '' }) : Promise.resolve(''),
     is_ceo ? fetchCeoAgencyBriefing(db).catch(err => { console.error('[assistant/chat] CEO briefing failed:', err); return '' }) : Promise.resolve(''),
-    user_id && !is_ceo ? fetchUserScopedContext(db, user_id).catch(() => '') : Promise.resolve(''),
+    user_id && !is_ceo ? fetchUserScopedContext(db, user_id).catch(err => { console.error('[assistant/chat] user context failed:', err); return '' }) : Promise.resolve(''),
     // Keyword-triggered detail fetchers
-    needsApprovalContext(messages) ? fetchApprovalContext(db, client_id || undefined).catch(() => '') : Promise.resolve(''),
-    needsModerationContext(messages) ? fetchModerationContext(db, client_id || undefined).catch(() => '') : Promise.resolve(''),
-    needsTaskContext(messages)       ? fetchPipelineContext(db, client_id || undefined).catch(() => '') : Promise.resolve(''),
+    needsApprovalContext(messages) ? fetchApprovalContext(db, client_id || undefined).catch(err => { console.error('[assistant/chat] approval context failed:', err); return '' }) : Promise.resolve(''),
+    needsModerationContext(messages) ? fetchModerationContext(db, client_id || undefined).catch(err => { console.error('[assistant/chat] moderation context failed:', err); return '' }) : Promise.resolve(''),
+    needsTaskContext(messages)       ? fetchPipelineContext(db, client_id || undefined).catch(err => { console.error('[assistant/chat] pipeline context failed:', err); return '' }) : Promise.resolve(''),
   ])
 
   const extraContext = [approvalContext, moderationContext, pipelineContext].filter(Boolean).join('\n\n') || undefined

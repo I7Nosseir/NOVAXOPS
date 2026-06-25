@@ -889,6 +889,14 @@ export default function AIImagePage() {
     void runDetect(imageData, imageMime)
   }
 
+  const autoSave = (imageData: string, mimeType: string, savePrompt: string) => {
+    void fetch('/api/ai-image/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageData, mimeType, prompt: savePrompt, aspectRatio }),
+    }).then(r => r.json()).then((d: { url?: string }) => { if (d.url) setSavedUrl(d.url) }).catch(() => {})
+  }
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return
     setGenerating(true); setError(null); setTextLayers([]); setSelectedId(null); setSavedUrl(null)
@@ -903,8 +911,10 @@ export default function AIImagePage() {
       })
       const data = await res.json() as { imageData?: string; mimeType?: string; error?: string; remaining?: number }
       if (!res.ok || data.error) { setError(data.error ?? 'Generation failed'); return }
-      setImageData(data.imageData!); setImageMime(data.mimeType ?? 'image/png')
+      const mime = data.mimeType ?? 'image/png'
+      setImageData(data.imageData!); setImageMime(mime)
       if (typeof data.remaining === 'number') setCapRemaining(data.remaining)
+      autoSave(data.imageData!, mime, prompt)
     } catch (e) { setError(e instanceof Error ? e.message : 'Network error')
     } finally { setGenerating(false) }
   }
@@ -926,8 +936,10 @@ export default function AIImagePage() {
       })
       const data = await res.json() as { imageData?: string; mimeType?: string; error?: string; remaining?: number }
       if (!res.ok || data.error) { setResizeError(data.error ?? 'Resize failed'); return }
-      setImageData(data.imageData!); setImageMime(data.mimeType ?? 'image/png')
+      const mime = data.mimeType ?? 'image/png'
+      setImageData(data.imageData!); setImageMime(mime)
       if (typeof data.remaining === 'number') setCapRemaining(data.remaining)
+      autoSave(data.imageData!, mime, `Resized: ${prompt || 'image'}`)
     } catch (e) { setResizeError(e instanceof Error ? e.message : 'Network error')
     } finally { setResizing(false) }
   }
@@ -943,7 +955,9 @@ export default function AIImagePage() {
       })
       const data = await res.json() as { imageData?: string; mimeType?: string; error?: string }
       if (!res.ok || data.error) { setEditError(data.error ?? 'Edit failed'); return }
-      setImageData(data.imageData!); setImageMime(data.mimeType ?? 'image/png')
+      const mime = data.mimeType ?? 'image/png'
+      setImageData(data.imageData!); setImageMime(mime)
+      autoSave(data.imageData!, mime, `Edited: ${editPrompt.trim()}`)
       setEditPrompt('')
     } catch (e) { setEditError(e instanceof Error ? e.message : 'Network error')
     } finally { setEditing(false) }
