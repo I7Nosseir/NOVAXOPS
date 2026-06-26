@@ -326,7 +326,7 @@ function SceneCard({ scene }: { scene: ScenePrompt }) {
             >
               <Video className="w-3 h-3" />
               Video Prompt
-              <span className="text-[10px] text-slate-400">(Kling · Higgsfield · Veo3)</span>
+              <span className="text-[10px] text-slate-400">(Kling · Veo3)</span>
               {showVideoPrompt ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
             </button>
             <CopyButton text={scene.video_prompt} label="Copy prompt" />
@@ -703,7 +703,7 @@ export default function VisualEnginePage() {
             <h1 className="text-xl font-bold text-slate-900">Visual Content Engine</h1>
           </div>
           <p className="text-sm text-slate-500 ml-11">
-            Full AI video pipeline — concept to scene-by-scene prompts. Image prompts for Midjourney/Seedream. Video prompts for Kling/Higgsfield/Veo3.
+            Full AI video pipeline — concept to scene-by-scene prompts. Image prompts for Midjourney/Seedream. Video prompts for Kling/Veo3.
           </p>
         </div>
         {pageState !== 'brief' && pageState !== 'analyzing' && (
@@ -729,16 +729,16 @@ export default function VisualEnginePage() {
         <div className="space-y-6">
           <StudioGuidancePanel
             title="How Visual Content Engine works"
-            description="Takes your product or brief and generates a visual approach (the creative strategy — e.g. day-in-the-life, transformation arc, sensory-led) then breaks it down into scene-by-scene production prompts ready for Higgsfield or any AI video/image tool."
+            description="Takes your product or brief and generates a visual approach (the creative strategy — e.g. day-in-the-life, transformation arc, sensory-led) then breaks it down into scene-by-scene production prompts ready for any AI video generation tool."
             items={[
               { term: 'Visual Approach', definition: 'The creative lens for the video — how you want the audience to experience it emotionally before you decide on shots. E.g. "contrast reveal" = before/after. "textural immersion" = close-up product feel.' },
               { term: 'Visual Anchor', definition: 'The single image or moment that the whole video is built around — usually the 3-second shot that makes it shareable.' },
-              { term: 'Scene Prompt', definition: 'A Higgsfield-ready description: subject, action, camera movement, lighting, duration. Each prompt is copy-pasteable into an AI video generation tool.' },
+              { term: 'Scene Prompt', definition: 'A production-ready description: subject, action, camera movement, lighting, duration. Each prompt is copy-pasteable into any AI video generation tool.' },
               { term: 'Narrative Purpose', definition: 'Why this scene exists in the story — setup, conflict, revelation, payoff. Guides shot selection and order.' },
             ]}
             tips={[
               { label: 'Best brief', tip: 'Describe the sensory experience you want to create ("warm, slow, golden hour") not just the product. Visuals start with feeling.' },
-              { label: 'Higgsfield', tip: 'Copy scene prompts directly into Higgsfield\'s prompt field — they\'re pre-formatted for cinematic character-consistent generation.' },
+              { label: 'Video tools', tip: 'Scene prompts are pre-formatted for cinematic AI video generation — copy them directly into Kling, Veo3, or any compatible tool.' },
             ]}
           />
 
@@ -1036,7 +1036,7 @@ export default function VisualEnginePage() {
               {['1. Copy anchor + image prompt → Midjourney / Seedream / Nanobanana Pro',
                 '2. Upscale output (Gigapixel / Bigjpg)',
                 '3. Touch up in Canva',
-                '4. Copy video prompt → Kling / Higgsfield / Veo3',
+                '4. Copy video prompt → Kling / Veo3',
                 '5. Add voiceover (ElevenLabs) + SFX (Pixabay)',
                 '6. Edit in CapCut',
               ].map((step, i) => (

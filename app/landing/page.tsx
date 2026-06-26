@@ -647,7 +647,7 @@ function BentoSection() {
 
           {/* Standard cards */}
           {[
-            { icon: Video, title: 'Visual Content Engine', desc: 'Scene-by-scene prompts for Higgsfield AI video generation.' },
+            { icon: Video, title: 'Visual Content Engine', desc: 'Scene-by-scene prompts for AI video generation (Kling, Veo3).' },
             { icon: MessageSquare, title: 'Comment Moderation', desc: 'AI-drafted replies to every comment and DM.' },
             { icon: TrendingUp, title: 'Hook Lab', desc: '20 hooks → 3C scoring → SCAMPER → top 3 winners.' },
             { icon: Users, title: 'Workload View', desc: 'Per-member load bars. Spot bottlenecks before they happen.' },

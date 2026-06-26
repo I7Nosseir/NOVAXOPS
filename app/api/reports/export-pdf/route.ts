@@ -460,7 +460,7 @@ function PlatformTable({ platforms }: { platforms: PlatformRow[] }) {
         ),
         React.createElement(Text, { style: [s.tableCellBold, { width: '14%' }] }, fmt(p.reach)),
         React.createElement(Text, { style: [s.tableCell,     { width: '17%' }] }, fmt(p.impressions)),
-        React.createElement(Text, { style: [s.tableCellBold, { width: '14%', color: P.primary }] }, `${Number(p.engagement_rate).toFixed(1)}%`),
+        React.createElement(Text, { style: [s.tableCellBold, { width: '14%', color: P.primary }] }, (p.reach > 0 || p.impressions > 0) && p.engagement_rate > 0 ? `${Number(p.engagement_rate).toFixed(1)}%` : '—'),
         React.createElement(Text, { style: [s.tableCell,     { width: '10%' }] }, String(p.posts)),
         React.createElement(Text, { style: [s.tableCell,     { width: '10%' }] }, p.saves > 0 ? fmt(p.saves) : '—'),
         React.createElement(Text, { style: [s.tableCell,     { width: '13%' }] }, p.comments > 0 ? fmt(p.comments) : '—'),

@@ -740,10 +740,12 @@ function MasterMonthlyReport({
                           <span>shares</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-1 text-slate-500 ml-auto">
-                        <span className="font-semibold" style={{ color: B.primary }}>{Math.round(Number(p.engagement_rate))}%</span>
-                        <span>interaction rate</span>
-                      </div>
+                      {(p.reach > 0 || p.impressions > 0) && p.engagement_rate > 0 && (
+                        <div className="flex items-center gap-1 text-slate-500 ml-auto">
+                          <span className="font-semibold" style={{ color: B.primary }}>{Math.round(Number(p.engagement_rate))}%</span>
+                          <span>interaction rate</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )

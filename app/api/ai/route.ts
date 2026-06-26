@@ -414,7 +414,7 @@ For each, specify:
 → Visual direction: [Lighting, composition, colour temperature]
 
 **AI GENERATION PROMPTS**
-5-6 Higgsfield/Flux prompts for this task. Each prompt must specify:
+5-6 AI image/video prompts for this task. Each prompt must specify:
 - Subject + action
 - Lighting (golden hour / soft studio / high contrast rim light / etc.)
 - Camera angle and distance (close-up / eye-level / 45-degree overhead / etc.)

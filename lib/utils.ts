@@ -234,7 +234,6 @@ export function hasRole(user: User | null, roles: UserRole[]): boolean {
 const VENDOR_MASK: Record<string, string> = {
   Metricool: 'Scheduling Platform',
   'Respond.io': 'Messaging Platform',
-  Higgsfield: 'Video Studio',
 }
 
 export function vendorName(role: UserRole | undefined, name: string): string {

@@ -83,7 +83,7 @@ const TOOLS = [
     href: '/studio/visual',
     icon: Clapperboard,
     title: 'Visual Content Engine',
-    description: 'Full AI video pipeline. Brief → 3 creative approaches → connected scene prompts for Midjourney, Kling, Higgsfield, Veo3.',
+    description: 'Full AI video pipeline. Brief → 3 creative approaches → connected scene prompts for Midjourney, Kling, Veo3.',
     badge: 'New',
     badgeColor: 'bg-amber-100 text-amber-800',
     gradient: false,
