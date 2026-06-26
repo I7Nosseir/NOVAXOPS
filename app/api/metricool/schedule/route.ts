@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   // Resolve client
   const { data: client, error: clientError } = await supabase
     .from('clients')
-    .select('metricool_blog_id, name')
+    .select('metricool_blog_id, name, organization_id')
     .eq('id', client_id)
     .single()
 
@@ -100,6 +100,7 @@ export async function POST(req: NextRequest) {
       media_urls: resolvedMediaUrls ?? [],
       scheduled_at,
       status: 'draft',
+      organization_id: (client as Record<string, unknown>).organization_id ?? null,
     })
     .select()
     .single()

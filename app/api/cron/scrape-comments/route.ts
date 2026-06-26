@@ -70,6 +70,7 @@ async function scrapeInstagramComments(
   handle: string,
   clientId: string,
   postCaption: string,
+  orgId: string | null,
 ): Promise<void> {
   if (!handle) return
 
@@ -124,6 +125,7 @@ async function scrapeInstagramComments(
       post_caption:     (caption ?? '').slice(0, 300),
       post_url:         postUrl,
       status:           'pending',
+      organization_id:  orgId,
     })
   }
 }
@@ -141,6 +143,7 @@ interface ApifyFbComment {
 async function scrapeFacebookComments(
   pageUrl: string,
   clientId: string,
+  orgId: string | null,
 ): Promise<void> {
   if (!pageUrl) return
 
@@ -174,6 +177,7 @@ async function scrapeFacebookComments(
       post_caption:     '',
       post_url:         c.postUrl ?? pageUrl,
       status:           'pending',
+      organization_id:  orgId,
     })
   }
 }
@@ -204,7 +208,7 @@ export async function GET(req: NextRequest) {
 
   const { data: clients, error } = await supabase
     .from('clients')
-    .select('id, name, brand_identity_json')
+    .select('id, name, brand_identity_json, organization_id')
     .eq('status', 'active')
 
   if (error) {
@@ -220,6 +224,7 @@ export async function GET(req: NextRequest) {
     const facebookPageUrl  = brand.facebook_page_url as string | undefined
 
     const result = { client: client.name, instagram: 0, facebook: 0 }
+    const orgId = (client as Record<string, unknown>).organization_id as string | null ?? null
 
     try {
       if (instagramHandle) {
@@ -229,7 +234,7 @@ export async function GET(req: NextRequest) {
           .eq('client_id', client.id)
           .eq('platform', 'instagram')
 
-        await scrapeInstagramComments(instagramHandle, client.id, '')
+        await scrapeInstagramComments(instagramHandle, client.id, '', orgId)
 
         const after = await supabase
           .from('moderation_items')
@@ -247,7 +252,7 @@ export async function GET(req: NextRequest) {
           .eq('client_id', client.id)
           .eq('platform', 'facebook')
 
-        await scrapeFacebookComments(facebookPageUrl, client.id)
+        await scrapeFacebookComments(facebookPageUrl, client.id, orgId)
 
         const after = await supabase
           .from('moderation_items')

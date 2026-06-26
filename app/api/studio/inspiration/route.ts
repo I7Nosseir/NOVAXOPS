@@ -25,7 +25,7 @@ async function getCallerProfile() {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('id, role')
+    .select('id, role, organization_id')
     .eq('auth_id', user.id)
     .single()
 
@@ -108,23 +108,24 @@ export async function POST(req: NextRequest) {
   }
 
   const now  = new Date().toISOString()
-  const item: InspirationBoardItem = {
-    id:            randomUUID(),
-    client_id:     body.client_id ?? null,
-    saved_by:      caller.id,             // always derived from authenticated session
-    platform:      body.platform,
-    content_type:  body.content_type,
-    title:         body.title,
-    url:           body.url,
-    thumbnail_url: body.thumbnail_url,
-    view_count:    body.view_count,
-    channel:       body.channel,
-    hashtag:       body.hashtag,
-    industry:      body.industry,
-    published_at:  body.published_at,
-    notes:         body.notes,
-    tags:          body.tags ?? [],
-    created_at:    now,
+  const item: InspirationBoardItem & { organization_id: string | null } = {
+    id:              randomUUID(),
+    client_id:       body.client_id ?? null,
+    saved_by:        caller.id,
+    platform:        body.platform,
+    content_type:    body.content_type,
+    title:           body.title,
+    url:             body.url,
+    thumbnail_url:   body.thumbnail_url,
+    view_count:      body.view_count,
+    channel:         body.channel,
+    hashtag:         body.hashtag,
+    industry:        body.industry,
+    published_at:    body.published_at,
+    notes:           body.notes,
+    tags:            body.tags ?? [],
+    created_at:      now,
+    organization_id: (caller as Record<string, unknown>).organization_id as string | null ?? null,
   }
 
   const db = createAdminClient()

@@ -170,7 +170,7 @@ export function TaskComments({ taskId, taskLinkedDocIds = [], onLinkDoc }: Props
     if (!text.trim() || !user || createComment.isPending) return
     const body = text.trim()
     try {
-      await createComment.mutateAsync({ task_id: taskId, user_id: user.id, body })
+      await createComment.mutateAsync({ task_id: taskId, user_id: user.id, body, organization_id: user.organization_id ?? null })
       setText('')
       setMentionQuery(null)
 

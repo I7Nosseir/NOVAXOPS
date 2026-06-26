@@ -9,6 +9,7 @@ import { getArabicDialectGuide, getClientDialect, HUMANIZATION_RULES_EN, HUMANIZ
 import type { ArabicDialect } from '@/lib/arabic-dialect'
 import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
 import { aiGuard } from '@/lib/ai-guard'
+import { resolveOrgId } from '@/lib/api-auth'
 
 const PRIMARY_MODEL = 'claude-sonnet-4-6'
 const ADVANCED_MODEL = 'claude-opus-4-7'
@@ -1555,27 +1556,31 @@ Return ONLY a valid JSON object, no markdown, no code fences:
 
     // Persist to Supabase (fire-and-forget — don't block response)
     if (db) {
-      if (canCache && task?.id) {
-        void Promise.resolve(db.from('ai_responses').upsert({
-          task_id: task.id,
-          agent_type: agent,
-          prompt_hash: hash,
-          response_json: { output_text: text },
-          cost_usd,
-          model_used: usedModel,
-          is_cached: false,
-        }, { onConflict: 'task_id,agent_type,prompt_hash' })).catch(err => console.error('[ai] cache write failed:', err))
-      }
+      void resolveOrgId({ clientId: (client as Record<string, unknown> | undefined)?.id as string | undefined }).then(orgId => {
+        if (canCache && task?.id) {
+          void Promise.resolve(db.from('ai_responses').upsert({
+            task_id: task.id,
+            agent_type: agent,
+            prompt_hash: hash,
+            response_json: { output_text: text },
+            cost_usd,
+            model_used: usedModel,
+            is_cached: false,
+            organization_id: orgId,
+          }, { onConflict: 'task_id,agent_type,prompt_hash' })).catch(err => console.error('[ai] cache write failed:', err))
+        }
 
-      void Promise.resolve(db.from('api_usage').insert({
-        service: useAnthropic ? 'claude' : 'gemini',
-        endpoint: agent,
-        task_id: task?.id ?? null,
-        tokens_in: tokensIn,
-        tokens_out: tokensOut,
-        cost_usd,
-        was_cached: false,
-      })).catch(err => console.error('[ai] usage tracking failed:', err))
+        void Promise.resolve(db.from('api_usage').insert({
+          service: useAnthropic ? 'claude' : 'gemini',
+          endpoint: agent,
+          task_id: task?.id ?? null,
+          tokens_in: tokensIn,
+          tokens_out: tokensOut,
+          cost_usd,
+          was_cached: false,
+          organization_id: orgId,
+        })).catch(err => console.error('[ai] usage tracking failed:', err))
+      }).catch(err => console.error('[ai] resolveOrgId failed:', err))
     }
 
     return NextResponse.json({ text, model: usedModel, cost_usd, cached: false })

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireRole } from '@/lib/api-auth'
+import { requireRole, resolveOrgId } from '@/lib/api-auth'
 import { buildClientIntelligenceBlock, buildCompetitorContextBlock } from '@/lib/client-intelligence'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
@@ -291,12 +291,15 @@ Rules: No hashtags. No emojis. Every content directive must be specific enough t
     // Persist to ai_generation_cache (fire-and-forget)
     if (HAS_DB) {
       const db = adminSupabase()
-      void db.from('ai_generation_cache').insert({
-        generation_type: 'ceo_crisis',
-        context_id: body.client_id ?? null,
-        meta: body.tool,
-        output_json: { result, client_name: body.client_name, tool: body.tool },
-      })
+      void resolveOrgId({ clientId: body.client_id }).then(orgId =>
+        db.from('ai_generation_cache').insert({
+          generation_type: 'ceo_crisis',
+          context_id: body.client_id ?? null,
+          meta: body.tool,
+          output_json: { result, client_name: body.client_name, tool: body.tool },
+          organization_id: orgId,
+        })
+      )
     }
 
     return NextResponse.json({ result })

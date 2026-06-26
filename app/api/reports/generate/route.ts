@@ -208,6 +208,7 @@ async function resolveClient(clientId: string): Promise<{
   metricoolBlogId: string | null
   logoUrl?: string
   brand?: { industry?: string; tone?: string }
+  organizationId?: string | null
 }> {
   if (HAS_DB) {
     try {
@@ -218,7 +219,7 @@ async function resolveClient(clientId: string): Promise<{
       )
       const { data: client } = await supabase
         .from('clients')
-        .select('name, metricool_blog_id, brand_identity_json')
+        .select('name, metricool_blog_id, brand_identity_json, organization_id')
         .eq('id', clientId)
         .single()
       if (client) {
@@ -231,6 +232,7 @@ async function resolveClient(clientId: string): Promise<{
             industry: brand.industry as string | undefined,
             tone:     (brand.tone ?? brand.brand_voice) as string | undefined,
           },
+          organizationId: (client.organization_id as string | null) ?? null,
         }
       }
     } catch { /* fall through */ }
@@ -388,6 +390,7 @@ Return the corrected report in the same ### section format.`
         client_name: client.name,
         report_type: reportType,
       },
+      organization_id: client.organizationId ?? null,
     })
   }
 

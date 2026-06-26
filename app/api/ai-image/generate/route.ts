@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
+import { resolveOrgId } from '@/lib/api-auth'
 import sharp from 'sharp'
 
 const DAILY_IMAGE_CAP = 50
@@ -191,6 +192,7 @@ export async function POST(req: NextRequest) {
 
   const logUsage = async () => {
     if (userId && adminDb) {
+      const orgId = await resolveOrgId({ userId })
       await adminDb.from('api_usage').insert({
         service: 'gemini',
         endpoint: 'image_generation',
@@ -199,6 +201,7 @@ export async function POST(req: NextRequest) {
         tokens_out: 0,
         credits_used: 0,
         cost_usd: 0,
+        organization_id: orgId,
       })
     }
   }

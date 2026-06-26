@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('id')
+    .select('id, organization_id')
     .eq('auth_id', user.id)
     .single()
 
@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
       created_by: profile?.id ?? null,
       expires_at: expires_at.toISOString(),
       items,
+      organization_id: (profile as Record<string, unknown> | null)?.organization_id ?? null,
     })
     .select()
     .single()
@@ -127,9 +128,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Insert per-post status rows (scheduled posts + ad-hoc items)
+  const approvalOrgId = (profile as Record<string, unknown> | null)?.organization_id ?? null
   const statusRows = [
-    ...post_ids.map((post_id) => ({ request_id: request.id, post_id, status: 'pending' })),
-    ...items.map((item) => ({ request_id: request.id, post_id: item.id, status: 'pending' })),
+    ...post_ids.map((post_id) => ({ request_id: request.id, post_id, status: 'pending', organization_id: approvalOrgId })),
+    ...items.map((item) => ({ request_id: request.id, post_id: item.id, status: 'pending', organization_id: approvalOrgId })),
   ]
   const { error: statusErr } = await db.from('approval_post_statuses').insert(statusRows)
 

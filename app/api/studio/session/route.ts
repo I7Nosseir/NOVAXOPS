@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { StudioSession, StudioTool } from '@/lib/studio-types'
-import { requireAuth } from '@/lib/api-auth'
+import { requireAuth, resolveOrgId } from '@/lib/api-auth'
 
 // ─── DB helpers ──────────────────────────────────────────────
 
@@ -79,18 +79,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'tool is required' }, { status: 400 })
   }
 
-  const payload: Partial<StudioSession> = {
-    name:       body.name      || 'Untitled Session',
-    tool:       body.tool,
-    client_id:  body.client_id  || null,
-    created_by: body.created_by || null,
-    brief:      body.brief      || null,
-    inputs:     body.inputs     || {},
-    status:     'running',
-    outputs:    {},
+  const orgId = await resolveOrgId({ clientId: body.client_id, userId: body.created_by })
+
+  const payload: Partial<StudioSession> & { organization_id: string | null } = {
+    name:            body.name      || 'Untitled Session',
+    tool:            body.tool,
+    client_id:       body.client_id  || null,
+    created_by:      body.created_by || null,
+    brief:           body.brief      || null,
+    inputs:          body.inputs     || {},
+    status:          'running',
+    outputs:         {},
     structured_answers: {},
-    chat_history: [],
-    edit_history:  [],
+    chat_history:    [],
+    edit_history:    [],
+    organization_id: orgId,
   }
 
   if (!HAS_DB) {

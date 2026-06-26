@@ -29,7 +29,7 @@ export function useTaskComments(taskId: string) {
 export function useCreateComment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { task_id: string; user_id: string; body: string }) => {
+    mutationFn: async (payload: { task_id: string; user_id: string; body: string; organization_id?: string | null }) => {
       const { data, error } = await supabase
         .from('task_comments')
         .insert({ ...payload, created_at: new Date().toISOString() })

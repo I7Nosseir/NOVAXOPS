@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireAuth } from '@/lib/api-auth'
+import { requireAuth, resolveOrgId } from '@/lib/api-auth'
 
 function adminSupabase() {
   return createClient(
@@ -28,14 +28,17 @@ export async function POST(req: NextRequest) {
 
   if (!HAS_DB) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
+  const orgId = await resolveOrgId({ clientId: body.client_id, userId: body.created_by })
+
   const db = adminSupabase()
   const { data, error } = await db
     .from('studio_sessions')
     .insert({
-      client_id:    body.client_id   || null,
-      created_by:   body.created_by  || null,
-      title:        body.title       || 'Untitled Session',
-      phase_1_data: body.phase_1_data || {},
+      client_id:       body.client_id   || null,
+      created_by:      body.created_by  || null,
+      title:           body.title       || 'Untitled Session',
+      phase_1_data:    body.phase_1_data || {},
+      organization_id: orgId,
     })
     .select()
     .single()

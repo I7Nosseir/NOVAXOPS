@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { resolveOrgId } from '@/lib/api-auth'
 
 function adminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -65,6 +66,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'client_id, agent_type, rating required' }, { status: 400 })
   }
 
+  const orgId = await resolveOrgId({ clientId: body.client_id, userId: body.created_by })
+
   const { data, error } = await db
     .from('ai_feedback')
     .insert({
@@ -76,6 +79,7 @@ export async function POST(req: NextRequest) {
       correction_text: body.correction_text ?? '',
       edited_version: body.edited_version ?? '',
       created_by: body.created_by ?? null,
+      organization_id: orgId,
     })
     .select('id')
     .single()

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
+import { resolveOrgId } from '@/lib/api-auth'
 
 async function getCallerProfile() {
   const cookieStore = await cookies()
@@ -68,16 +69,19 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
+  const orgId = await resolveOrgId({ clientId, userId: caller.id })
+
   const { data, error } = await db
     .from('client_context_bank')
     .insert({
-      client_id:   clientId,
-      category:    body.category,
-      summary:     body.summary,
-      full_text:   body.full_text,
-      source_type: body.source_type ?? 'manual',
-      created_by:  caller.id,           // always from authenticated session
-      is_active:   true,
+      client_id:       clientId,
+      category:        body.category,
+      summary:         body.summary,
+      full_text:       body.full_text,
+      source_type:     body.source_type ?? 'manual',
+      created_by:      caller.id,
+      is_active:       true,
+      organization_id: orgId,
     })
     .select()
     .single()

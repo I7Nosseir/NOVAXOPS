@@ -50,6 +50,51 @@ export async function requireAuth(): Promise<
 }
 
 /**
+ * Resolve an organization_id for use in DB inserts.
+ * Tries client first, then user record, then falls back to the NOVAX founding org.
+ * Never throws — returns null only if every lookup fails (caller should treat as fatal).
+ */
+export async function resolveOrgId(opts: {
+  clientId?: string | null
+  userId?: string | null
+} = {}): Promise<string | null> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase')
+    const db = createAdminClient()
+
+    if (opts.clientId) {
+      const { data } = await db
+        .from('clients')
+        .select('organization_id')
+        .eq('id', opts.clientId)
+        .single()
+      const orgId = (data as Record<string, unknown> | null)?.organization_id as string | null
+      if (orgId) return orgId
+    }
+
+    if (opts.userId) {
+      const { data } = await db
+        .from('users')
+        .select('organization_id')
+        .eq('id', opts.userId)
+        .single()
+      const orgId = (data as Record<string, unknown> | null)?.organization_id as string | null
+      if (orgId) return orgId
+    }
+
+    // Last resort: NOVAX founding org
+    const { data: org } = await db
+      .from('organizations')
+      .select('id')
+      .eq('slug', 'novax')
+      .single()
+    return (org as Record<string, unknown> | null)?.id as string | null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Require authentication AND one of the listed roles.
  * Returns { error: NextResponse } if auth fails or role not permitted.
  */

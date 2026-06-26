@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { CompetitorAnalysis } from '@/lib/types'
+import { resolveOrgId } from '@/lib/api-auth'
 
 /**
  * POST /api/competitors/export-pdf
@@ -227,6 +228,7 @@ export async function POST(req: NextRequest) {
   const publicUrl = urlData.publicUrl
 
   // Create asset record
+  const orgId = await resolveOrgId({ clientId: client_id })
   const { data: assetRow } = await supabase.from('assets').insert({
     client_id,
     file_name:    fileName,
@@ -236,6 +238,7 @@ export async function POST(req: NextRequest) {
     storage_path: uploadData.path,
     source:       'generated',
     tags:         ['competitive-analysis', 'report'],
+    organization_id: orgId,
   }).select('id').single()
 
   return NextResponse.json({

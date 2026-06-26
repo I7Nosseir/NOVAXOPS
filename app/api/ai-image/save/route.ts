@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase'
+import { resolveOrgId } from '@/lib/api-auth'
 
 /**
  * POST /api/ai-image/save
@@ -58,6 +59,8 @@ export async function POST(req: NextRequest) {
     || (prompt.trim() ? prompt.trim().slice(0, 80) : null)
     || `AI Generation ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
 
+  const orgId = await resolveOrgId({ clientId })
+
   const { data: asset, error: dbError } = await supabase
     .from('assets')
     .insert({
@@ -68,6 +71,7 @@ export async function POST(req: NextRequest) {
       license_info: aspectRatio ? `AI Generated · ${aspectRatio}` : 'AI Generated',
       title: assetTitle,
       client_id: clientId ?? null,
+      organization_id: orgId,
     })
     .select()
     .single()
