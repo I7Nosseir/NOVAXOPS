@@ -502,13 +502,21 @@ async function fetchNetworkPosts(
 
   return (items as MetricoolPostAnalytics[]).map(p => {
     const r = p as MetricoolPostAnalytics & Record<string, unknown>
-    // TikTok native API uses view_count / playCount / plays; YouTube uses videoViews
-    const videoViews = Number(r.videoViews ?? r.totalViews ?? r.totalVideoViews ?? r.videoViewCount ?? r.views ?? r.view_count ?? r.playCount ?? r.play_count ?? r.plays ?? 0)
+    // TikTok native API uses viewCount / view_count / playCount; YouTube uses videoViews
+    const videoViews = Number(
+      r.videoViews ?? r.viewCount ?? r.totalViews ?? r.totalVideoViews ??
+      r.videoViewCount ?? r.views ?? r.view_count ?? r.viewsCount ??
+      r.playCount ?? r.play_count ?? r.plays ?? 0
+    )
     const impressions = Number(p.impressions ?? 0) > 0
       ? Number(p.impressions)
       : (network === 'tiktok' || network === 'youtube' || network === 'youtube_short') ? videoViews : 0
-    // Facebook may return uniqueReach / organicReach; TikTok may return uniqueViewers
-    const rawReach = Number(p.reach ?? r.uniqueReach ?? r.uniqueViewers ?? r.unique_viewers ?? r.uniqueVideoViews ?? r.unique_video_views ?? r.organicReach ?? r.totalReach ?? 0)
+    // Facebook may return uniqueReach / organicReach; TikTok may return uniqueViewers / viewCount
+    const rawReach = Number(
+      p.reach ?? r.uniqueReach ?? r.uniqueViewers ?? r.unique_viewers ??
+      r.uniqueVideoViews ?? r.unique_video_views ?? r.organicReach ??
+      r.totalReach ?? r.reachCount ?? 0
+    )
     const reach = rawReach > 0 ? rawReach : impressions
     // Post URL field names: Instagram → url, Facebook → link, TikTok → shareUrl
     const postUrl = String(p.url ?? p.link ?? r.shareUrl ?? p.permalink ?? r.postUrl ?? r.postLink ?? '')
