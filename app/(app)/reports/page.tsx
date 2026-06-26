@@ -987,6 +987,25 @@ export default function ReportsPage() {
   const [selectedPlatforms, setSelectedPlatforms]   = useState<string[]>(ALL_PLATFORMS)
   const [probingPlatforms, setProbingPlatforms]     = useState(false)
 
+  // ── Date range ────────────────────────────────────────
+  const [dateMode, setDateMode]     = useState<'preset' | 'custom'>('preset')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo]     = useState('')
+
+  // Derived: the label shown in report headers + saved library
+  const periodLabel = dateMode === 'custom' && customFrom && customTo
+    ? (() => {
+        const fmt = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+        return `${fmt(customFrom)} – ${fmt(customTo)}`
+      })()
+    : period
+
+  // Derived: the resolved date range used when generating
+  const resolvedRange: { startDate: string; endDate: string } | null =
+    dateMode === 'custom'
+      ? (customFrom && customTo ? { startDate: customFrom, endDate: customTo } : null)
+      : parsePeriodToRange(period)
+
   const clientName = selectedClient
     ? (clients.find(c => c.id === selectedClient)?.name ?? 'Client')
     : 'Select a client'
@@ -1104,9 +1123,9 @@ export default function ReportsPage() {
     setAiError(null)
     setAiReport(null)
 
-    const range = parsePeriodToRange(period)
+    const range = resolvedRange
     if (!range) {
-      setDataError('Unrecognised period — select a valid month or quarter.')
+      setDataError(dateMode === 'custom' ? 'Select both a start and end date.' : 'Unrecognised period — select a valid month or quarter.')
       setGenerating(false)
       setGenerated(true)
       return
@@ -1168,11 +1187,11 @@ export default function ReportsPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               client_id:    selectedClient,
-              period,
+              period:       periodLabel,
               period_start: range.startDate,
               period_end:   range.endDate,
               data_json: {
-                period,
+                period:     periodLabel,
                 clientName,
                 logoUrl:        data.logoUrl,
                 stats:          data.stats,
@@ -1254,15 +1273,53 @@ ${styles}
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
 
-              <select
-                value={period}
-                onChange={e => { setPeriod(e.target.value); setGenerated(false); setAiReport(null) }}
-                className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
-              >
-                {PERIOD_OPTIONS.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
+              {/* Date mode toggle */}
+              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => { setDateMode('preset'); setGenerated(false); setAiReport(null) }}
+                  className={cn('px-3 py-2 text-xs font-semibold transition-colors', dateMode === 'preset' ? 'text-white' : 'text-slate-500 hover:text-slate-700 bg-white')}
+                  style={dateMode === 'preset' ? { background: B.primary } : undefined}
+                >
+                  Preset
+                </button>
+                <button
+                  onClick={() => { setDateMode('custom'); setGenerated(false); setAiReport(null) }}
+                  className={cn('px-3 py-2 text-xs font-semibold transition-colors', dateMode === 'custom' ? 'text-white' : 'text-slate-500 hover:text-slate-700 bg-white')}
+                  style={dateMode === 'custom' ? { background: B.primary } : undefined}
+                >
+                  Custom
+                </button>
+              </div>
+
+              {/* Period selector — preset or custom date inputs */}
+              {dateMode === 'preset' ? (
+                <select
+                  value={period}
+                  onChange={e => { setPeriod(e.target.value); setGenerated(false); setAiReport(null) }}
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
+                >
+                  {PERIOD_OPTIONS.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={e => { setCustomFrom(e.target.value); setGenerated(false); setAiReport(null) }}
+                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
+                  />
+                  <span className="text-xs text-slate-400 font-medium">to</span>
+                  <input
+                    type="date"
+                    value={customTo}
+                    min={customFrom || undefined}
+                    onChange={e => { setCustomTo(e.target.value); setGenerated(false); setAiReport(null) }}
+                    className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-novax-border bg-white transition-all"
+                  />
+                </div>
+              )}
 
               {/* Language toggle */}
               <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
@@ -1284,7 +1341,7 @@ ${styles}
 
               <button
                 onClick={handleGenerate}
-                disabled={generating || !selectedClient || selectedPlatforms.length === 0}
+                disabled={generating || !selectedClient || selectedPlatforms.length === 0 || (dateMode === 'custom' && (!customFrom || !customTo))}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60 transition-colors"
                 style={{ background: generating ? B.muted : B.primary }}
               >
@@ -1669,7 +1726,7 @@ ${styles}
         <div id="printable-report">
           <MasterMonthlyReport
             client={clientName}
-            period={period}
+            period={periodLabel}
             logoUrl={reportLogoUrl}
             liveStats={liveStats}
             prevStats={prevStats}
