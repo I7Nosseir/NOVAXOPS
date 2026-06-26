@@ -97,12 +97,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ),
     ])
 
+    // Hard 8-second ceiling — if anything in this chain hangs (DB slow,
+    // token refresh stall, cold Supabase instance), we bail out rather than
+    // showing an infinite spinner. User gets redirected to /login.
+    const hardTimeout = setTimeout(() => {
+      setLoading(false)
+      setProfileLoading(false)
+    }, 8000)
+
     sessionPromise
       .then(({ data: { session } }) => {
         setSession(session)
         if (session?.user) {
           setProfileLoading(true)
-          fetchProfile(session.user)
+          // Profile fetch also raced against a 5-second timeout so profileLoading
+          // can never get stuck even if the users table query hangs.
+          Promise.race([
+            fetchProfile(session.user),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
+          ])
             .then((profile) => setRealUser(profile))
             .catch(() => setRealUser(null))
             .finally(() => setProfileLoading(false))
@@ -112,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('[auth] getSession failed:', err)
       })
       .finally(() => {
+        clearTimeout(hardTimeout)
         setLoading(false)
       })
 
