@@ -1017,7 +1017,7 @@ export default function VisualEnginePage() {
                 <span className="text-[10px] bg-novax-light border border-novax-border text-novax rounded-full px-2 py-0.5 font-medium">{inputs.platform}</span>
                 <span className="text-[10px] bg-novax-light border border-novax-border text-novax rounded-full px-2 py-0.5 font-medium">{inputs.format}</span>
                 <span className="text-[10px] bg-novax-light border border-novax-border text-novax rounded-full px-2 py-0.5 font-medium">{inputs.length}</span>
-                <span className="text-[10px] bg-novax-light border border-novax-border text-novax rounded-full px-2 py-0.5 font-medium">{document.scenes.length} scenes</span>
+                <span className="text-[10px] bg-novax-light border border-novax-border text-novax rounded-full px-2 py-0.5 font-medium">{document.scenes?.length ?? 0} scenes</span>
                 <span className="text-[10px] bg-novax-light border border-novax-border text-novax rounded-full px-2 py-0.5 font-medium">{inputs.objective}</span>
               </div>
             </div>

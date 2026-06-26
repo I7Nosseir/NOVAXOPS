@@ -53,7 +53,13 @@ async function fetchPostStats(metricoolPostId: string, blogId: string): Promise<
  * Vercel Cron: runs daily at 07:00 UTC (see vercel.json).
  * Pulls stats for all posts published in the last 30 days and upserts snapshots.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  const secret = process.env.CRON_SECRET
+  const auth = req.headers.get('authorization')?.replace('Bearer ', '')
+  if (secret && auth !== secret) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: posts, error } = await supabase

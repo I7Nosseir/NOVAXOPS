@@ -35,6 +35,7 @@ export function useRealtime(table: string, queryKey: unknown[]) {
       .subscribe()
 
     return () => {
+      channel.unsubscribe()
       supabase.removeChannel(channel)
     }
   }, [table, queryClient])
@@ -64,7 +65,7 @@ export function useRealtimeMulti(
     })
 
     return () => {
-      channels.forEach(ch => supabase.removeChannel(ch))
+      channels.forEach(ch => { ch.unsubscribe(); supabase.removeChannel(ch) })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryClient])

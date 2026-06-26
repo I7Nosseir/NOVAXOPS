@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { ModerationItem, SocialPlatform } from '@/lib/types'
+import { useRealtime } from '@/lib/hooks/use-realtime'
 
 function mapItem(row: Record<string, unknown>): ModerationItem {
   return {
@@ -19,6 +20,7 @@ function mapItem(row: Record<string, unknown>): ModerationItem {
 }
 
 export function usePendingModerationCount() {
+  useRealtime('moderation_items', ['moderation', 'pending-count'])
   return useQuery({
     queryKey: ['moderation', 'pending-count'],
     queryFn: async () => {

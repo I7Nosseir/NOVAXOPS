@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
 
-export const DAILY_IMAGE_CAP = 50
+const DAILY_IMAGE_CAP = 50
 
 export async function GET(_req: NextRequest) {
   try {

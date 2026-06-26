@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useRealtime } from '@/lib/hooks/use-realtime'
 
 export interface AdHocItem {
   id: string
@@ -64,6 +65,7 @@ function mapRequest(row: RawApprovalRow): ApprovalRequest {
 }
 
 export function usePendingApprovalCount() {
+  useRealtime('approval_requests', ['approval-requests', 'pending-count'])
   return useQuery({
     queryKey: ['approval-requests', 'pending-count'],
     queryFn: async () => {

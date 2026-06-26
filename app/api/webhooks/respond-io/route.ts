@@ -86,17 +86,6 @@ export async function POST(req: NextRequest) {
     if (clientRow) client_id = clientRow.id
   }
 
-  // Fall back to first active client if no match (shouldn't happen in production)
-  if (!client_id) {
-    const { data: fallback } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('status', 'active')
-      .limit(1)
-      .single()
-    if (fallback) client_id = fallback.id
-  }
-
   if (!client_id) {
     return NextResponse.json({ error: 'Could not resolve client' }, { status: 422 })
   }

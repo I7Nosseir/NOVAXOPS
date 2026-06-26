@@ -27,6 +27,10 @@ function mapUser(row: Record<string, unknown>): User {
     initials: row.initials as string,
     color: row.color as string,
     page_permissions: (row.page_permissions as string[] | null) ?? null,
+    phone_number: (row.phone_number as string | null) ?? null,
+    needs_onboarding: (row.needs_onboarding as boolean) ?? false,
+    is_super_admin: (row.is_super_admin as boolean) ?? false,
+    organization_id: row.organization_id as string | undefined,
   }
 }
 
@@ -36,7 +40,7 @@ export function useUsers() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, email, role, department, initials, color, page_permissions')
+        .select('id, name, email, role, department, initials, color, page_permissions, phone_number, needs_onboarding, is_super_admin, organization_id')
         .order('name')
       if (error) throw error
       return (data ?? []).map(mapUser)

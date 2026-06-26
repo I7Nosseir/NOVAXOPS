@@ -89,7 +89,7 @@ export function useNotifications() {
         .slice(0, 20)
     },
     staleTime: 30_000,
-    // No polling — realtime subscription handles live updates
+    refetchInterval: 60_000, // safety net if realtime drops
   })
   return { notifications, isLoading, error }
 }

@@ -72,7 +72,7 @@ export async function GET() {
       continue
     }
 
-    if (mcStatus === 'PUBLISHED' || mcStatus === 'PUBLISHING') {
+    if (mcStatus === 'PUBLISHED') {
       await supabase
         .from('scheduled_posts')
         .update({ status: 'published', published_at: new Date().toISOString() })

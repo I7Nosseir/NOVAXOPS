@@ -31,7 +31,11 @@ async function readAiEnabled(): Promise<boolean> {
   }
 }
 
-// ── Rate limiter (10 requests / user-IP / minute) ─────────────────────────────
+// ── Rate limiter (10 requests / IP / minute) ─────────────────────────────────
+// NOTE: This is in-process memory — on Vercel each serverless instance has its
+// own map, so the effective limit per real user is 10 × (number of warm instances).
+// This is best-effort abuse prevention, not a hard global cap.
+// For a true global limit, replace with a Redis-backed solution (e.g. Upstash).
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 const RATE_LIMIT = 10
 

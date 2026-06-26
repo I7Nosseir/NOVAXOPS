@@ -20,6 +20,15 @@ const supabase = createClient(
  * add METRICOOL_WEBHOOK_SECRET to env and verify it here.
  */
 export async function POST(req: NextRequest) {
+  // Validate webhook secret if configured
+  const webhookSecret = process.env.METRICOOL_WEBHOOK_SECRET
+  if (webhookSecret) {
+    const incomingSecret = req.headers.get('x-webhook-secret') ?? req.headers.get('authorization')?.replace('Bearer ', '')
+    if (incomingSecret !== webhookSecret) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  }
+
   let body: Record<string, unknown>
   try {
     body = await req.json()

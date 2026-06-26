@@ -357,7 +357,7 @@ ${raw}
 
 Return the corrected report in the same ### section format.`
         const { text: validated, inputTokens: vi, outputTokens: vo } = await callGemini(validationPrompt)
-        if (validated) { finalText = validated; vInput = vi; vOutput = vo }
+        if (validated && validated.trim()) { finalText = validated; vInput = vi; vOutput = vo }
       }
 
       narrative = parseSections(finalText)

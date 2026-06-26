@@ -692,7 +692,7 @@ async function callGeminiFallback(system: string, messages: ChatMessage[]): Prom
 // ── POST handler ──────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const guard = await aiGuard()
+  const guard = await aiGuard(req)
   if (guard) return guard
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'

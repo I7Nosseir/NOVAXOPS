@@ -52,7 +52,7 @@ export function PlatformBadge({ platform }: { platform: SocialPlatform }) {
   return (
     <div className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-200">
       <PlatformIcon platform={platform} size="xs"/>
-      <span className="text-slate-600">{cfg.label}</span>
+      <span className="text-slate-600">{cfg?.label ?? String(platform)}</span>
     </div>
   )
 }

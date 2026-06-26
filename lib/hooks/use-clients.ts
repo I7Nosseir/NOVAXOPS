@@ -19,6 +19,7 @@ function mapClient(row: Record<string, unknown>): Client {
     performance_analyzed_at: row.performance_analyzed_at as string | undefined,
     design_brief_json: (row.design_brief_json as DesignBrief | null | undefined) ?? null,
     normalized_profile: (row.normalized_profile as ClientNormalizedProfile | undefined) ?? undefined,
+    chatwoot_inbox_id: (row.chatwoot_inbox_id as number | undefined) ?? undefined,
     created_at: row.created_at as string,
   }
 }

@@ -425,7 +425,7 @@ function KPIGrid({ stats, prevStats }: { stats?: Record<string, number>; prevSta
 }
 
 function PlatformTable({ platforms }: { platforms: PlatformRow[] }) {
-  const maxReach = Math.max(...platforms.map(p => p.reach), 1)
+  const maxReach = platforms.length > 0 ? Math.max(...platforms.map(p => p.reach), 1) : 1
   const cols = [
     { label: 'Platform',    w: '22%' },
     { label: 'Reach',       w: '14%' },

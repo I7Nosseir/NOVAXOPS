@@ -120,19 +120,35 @@ export default function PostMortemPage() {
     setPageState('loading')
 
     try {
+      const erVal       = parseFloat(manEr) || 0
+      const avgErVal    = parseFloat(manClientAvgEr) || 0
       const payload =
         inputMode === 'session'
-          ? { mode: 'session', session_id: selectedSid, client_id: clientId || null }
+          ? { session_id: selectedSid, client_id: clientId || null }
           : {
-              mode:        'manual',
-              platform:    manPlatform,
-              format:      manFormat,
-              hook:        manHook,
-              caption:     manCaption,
-              publish_date: manPublishDate,
-              er:          parseFloat(manEr) || 0,
-              client_avg_er: parseFloat(manClientAvgEr) || 0,
-              client_id:   clientId || null,
+              client_id: clientId || null,
+              session_data: {
+                brief:        '',
+                hook_text:    manHook,
+                hook_type:    'unknown',
+                format:       manFormat,
+                caption:      manCaption,
+                publish_time: manPublishDate,
+                platform:     manPlatform,
+              },
+              performance: {
+                engagement_rate: erVal,
+                vs_client_avg:   erVal - avgErVal,
+                reach:           0,
+                saves:           0,
+              },
+              client_context: {
+                client_name:       selectedClient?.name ?? '',
+                best_format:       manFormat,
+                best_posting_time: manPublishDate,
+                avg_er:            avgErVal,
+                top_hook_types:    [],
+              },
             }
 
       const res = await fetch('/api/studio/postmortem', {

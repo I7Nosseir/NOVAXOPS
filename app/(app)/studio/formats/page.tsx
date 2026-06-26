@@ -479,7 +479,7 @@ export default function FormatsPage() {
         <StudioLoading
           steps={loadingSteps}
           sessionName={`${niche} — ${platform}`}
-          tool="content"
+          tool="formats"
           elapsedSeconds={elapsedSeconds}
         />
       )}

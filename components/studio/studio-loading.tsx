@@ -19,7 +19,7 @@ export interface StudioLoadingQuestion {
 export interface StudioLoadingProps {
   steps: StudioLoadingStep[]
   sessionName?: string
-  tool: 'content' | 'hooks' | 'strategy' | 'campaign' | 'postmortem'
+  tool: 'content' | 'hooks' | 'strategy' | 'campaign' | 'postmortem' | 'formats' | 'visual' | 'intel' | 'trends'
   elapsedSeconds?: number
   totalSteps?: number
   completedSteps?: number
@@ -29,11 +29,15 @@ export interface StudioLoadingProps {
 }
 
 const TOOL_LABELS: Record<StudioLoadingProps['tool'], string> = {
-  content:   'Content Studio',
-  hooks:     'Hook Lab',
-  strategy:  'Strategy Command Center',
-  campaign:  'Campaign Igniter',
-  postmortem:'Post-Mortem',
+  content:    'Content Studio',
+  hooks:      'Hook Lab',
+  strategy:   'Strategy Command Center',
+  campaign:   'Campaign Igniter',
+  postmortem: 'Post-Mortem',
+  formats:    'Peak Format Generator',
+  visual:     'Visual Content Engine',
+  intel:      'Competitive Intel',
+  trends:     'Inspiration Board',
 }
 
 // ── Typewriter for insights ─────────────────────────────────────────────────

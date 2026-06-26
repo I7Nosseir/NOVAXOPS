@@ -40,7 +40,7 @@ const AuthContext = createContext<AuthContextValue>({
 async function fetchProfile(authUser: SupabaseUser): Promise<User | null> {
   const { data, error } = await supabase
     .from('users')
-    .select('id, name, email, role, department, initials, color, page_permissions, is_super_admin, organization_id')
+    .select('id, name, email, role, department, initials, color, page_permissions, is_super_admin, organization_id, needs_onboarding')
     .eq('auth_id', authUser.id)
     .single()
   if (error || !data) return null
@@ -55,6 +55,7 @@ async function fetchProfile(authUser: SupabaseUser): Promise<User | null> {
     page_permissions: (data.page_permissions as string[] | null) ?? null,
     is_super_admin: (data as Record<string, unknown>).is_super_admin === true,
     organization_id: (data as Record<string, unknown>).organization_id as string | undefined,
+    needs_onboarding: (data as Record<string, unknown>).needs_onboarding === true,
   }
 }
 
