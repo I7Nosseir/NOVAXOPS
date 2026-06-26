@@ -136,10 +136,13 @@ export default function StudioPage() {
   const { user } = useAuth()
 
   const [sessions,        setSessions]        = useState<StudioSession[]>([])
-  const [sessionsLoading, setSessionsLoading] = useState(true)
+  const [sessionsLoading, setSessionsLoading] = useState(false)
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!user?.id) {
+      setSessionsLoading(false)
+      return
+    }
     setSessionsLoading(true)
     fetch(`/api/studio/session?created_by=${user.id}&limit=10`)
       .then(r => r.json())
