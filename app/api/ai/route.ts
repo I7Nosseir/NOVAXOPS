@@ -9,11 +9,19 @@ import { getArabicDialectGuide, getClientDialect, HUMANIZATION_RULES_EN, HUMANIZ
 import type { ArabicDialect } from '@/lib/arabic-dialect'
 import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
 import { aiGuard } from '@/lib/ai-guard'
-import { resolveOrgId } from '@/lib/api-auth'
+import { resolveOrgId, getCallerProfile } from '@/lib/api-auth'
+import type { CallerProfile } from '@/lib/api-auth'
 
 const PRIMARY_MODEL = 'claude-sonnet-4-6'
 const ADVANCED_MODEL = 'claude-opus-4-7'
 const GEMINI_MODEL = 'gemini-3-flash-preview'
+
+// USD cost per token for each model
+const MODEL_COSTS: Record<string, { in: number; out: number }> = {
+  'claude-opus-4-7':        { in: 0.000015,     out: 0.000075   },
+  'claude-sonnet-4-6':      { in: 0.000003,     out: 0.000015   },
+  'gemini-3-flash-preview': { in: 0.0000000875, out: 0.00000035 },
+}
 
 // In-memory rate limit: 10 requests per unique key per minute
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
@@ -198,6 +206,10 @@ export async function POST(req: NextRequest) {
       )
     }
   }
+
+  // Resolve caller once — used for user_id in api_usage + orgId fallback
+  let callerProfile: CallerProfile | null = null
+  try { callerProfile = await getCallerProfile() } catch { /* non-critical */ }
 
   const { agent, client, task, project } = body
   const clientName = client?.name ?? 'the client'
@@ -1541,7 +1553,8 @@ Return ONLY a valid JSON object, no markdown, no code fences:
         .join('')
       tokensIn = response.usage.input_tokens
       tokensOut = response.usage.output_tokens
-      cost_usd = (tokensIn * 0.000003) + (tokensOut * 0.000015)
+      const rates = MODEL_COSTS[model] ?? MODEL_COSTS['claude-sonnet-4-6']
+      cost_usd = tokensIn * rates.in + tokensOut * rates.out
     } else {
       // Gemini: pass file as inline_data (supports PDF + images)
       const geminiFile: GeminiImage | undefined =
@@ -1552,11 +1565,16 @@ Return ONLY a valid JSON object, no markdown, no code fences:
             : undefined
       text = await callGemini(prompt, geminiFile)
       usedModel = GEMINI_MODEL
+      // Gemini doesn't return token counts — estimate from char length (4 chars ≈ 1 token)
+      tokensIn = Math.ceil(prompt.length / 4)
+      tokensOut = Math.ceil(text.length / 4)
+      const gRates = MODEL_COSTS[GEMINI_MODEL] ?? { in: 0, out: 0 }
+      cost_usd = tokensIn * gRates.in + tokensOut * gRates.out
     }
 
     // Persist to Supabase (fire-and-forget — don't block response)
     if (db) {
-      void resolveOrgId({ clientId: (client as Record<string, unknown> | undefined)?.id as string | undefined }).then(orgId => {
+      void resolveOrgId({ clientId: (client as Record<string, unknown> | undefined)?.id as string | undefined, userId: callerProfile?.id ?? undefined }).then(orgId => {
         if (canCache && task?.id) {
           void Promise.resolve(db.from('ai_responses').upsert({
             task_id: task.id,
@@ -1574,6 +1592,7 @@ Return ONLY a valid JSON object, no markdown, no code fences:
           service: useAnthropic ? 'claude' : 'gemini',
           endpoint: agent,
           task_id: task?.id ?? null,
+          user_id: callerProfile?.id ?? null,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
           cost_usd,
