@@ -17,6 +17,24 @@ const STYLE_SUFFIXES: Record<string, string> = {
 }
 
 const QUALITY_SUFFIX = ', professional quality, no artifacts, no blur, no distortion, no watermarks'
+const MIN_OUTPUT_PX = 2048
+
+async function upscaleTo2K(base64: string, mime: string): Promise<{ data: string; mime: string }> {
+  try {
+    const buf = Buffer.from(base64, 'base64')
+    const meta = await sharp(buf).metadata()
+    const maxDim = Math.max(meta.width ?? 0, meta.height ?? 0)
+    if (maxDim >= MIN_OUTPUT_PX) return { data: base64, mime }
+    const scale = MIN_OUTPUT_PX / maxDim
+    const out = await sharp(buf)
+      .resize(Math.round((meta.width ?? 0) * scale), Math.round((meta.height ?? 0) * scale), { kernel: sharp.kernel.lanczos3 })
+      .png()
+      .toBuffer()
+    return { data: out.toString('base64'), mime: 'image/png' }
+  } catch {
+    return { data: base64, mime }
+  }
+}
 
 // Pro model removed — too expensive for internal use
 const GEMINI_IMAGE_MODELS = new Set([
@@ -292,9 +310,10 @@ export async function POST(req: NextRequest) {
           .toBuffer()
 
         await logUsage()
+        const upscaledCrop = await upscaleTo2K(cropped.toString('base64'), 'image/png')
         return NextResponse.json(withRemaining({
-          imageData: cropped.toString('base64'),
-          mimeType: 'image/png',
+          imageData: upscaledCrop.data,
+          mimeType: upscaledCrop.mime,
         }))
       }
 
@@ -360,9 +379,10 @@ export async function POST(req: NextRequest) {
 
       if (coverage < 0.5) {
         await logUsage()
+        const upscaledFallback = await upscaleTo2K(imagePart.inlineData.data, imagePart.inlineData.mimeType ?? 'image/png')
         return NextResponse.json(withRemaining({
-          imageData: imagePart.inlineData.data,
-          mimeType: imagePart.inlineData.mimeType ?? 'image/png',
+          imageData: upscaledFallback.data,
+          mimeType: upscaledFallback.mime,
         }))
       }
 
@@ -380,9 +400,10 @@ export async function POST(req: NextRequest) {
         .toBuffer()
 
       await logUsage()
+      const upscaledComp = await upscaleTo2K(composited.toString('base64'), 'image/png')
       return NextResponse.json(withRemaining({
-        imageData: composited.toString('base64'),
-        mimeType: 'image/png',
+        imageData: upscaledComp.data,
+        mimeType: upscaledComp.mime,
       }))
     }
 
@@ -472,9 +493,10 @@ export async function POST(req: NextRequest) {
       }
 
       await logUsage()
+      const upscaled = await upscaleTo2K(imagePart.inlineData.data, imagePart.inlineData.mimeType ?? 'image/png')
       return NextResponse.json(withRemaining({
-        imageData: imagePart.inlineData.data,
-        mimeType: imagePart.inlineData.mimeType ?? 'image/png',
+        imageData: upscaled.data,
+        mimeType: upscaled.mime,
       }))
     }
 
@@ -522,9 +544,10 @@ export async function POST(req: NextRequest) {
       }
 
       await logUsage()
+      const upscaled = await upscaleTo2K(prediction.bytesBase64Encoded, prediction.mimeType ?? 'image/png')
       return NextResponse.json(withRemaining({
-        imageData: prediction.bytesBase64Encoded,
-        mimeType: prediction.mimeType ?? 'image/png',
+        imageData: upscaled.data,
+        mimeType: upscaled.mime,
       }))
     }
 
