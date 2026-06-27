@@ -20,47 +20,50 @@ export default function AdminUsagePage() {
 
   useEffect(() => {
     async function load() {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-      const monthStart = new Date()
-      monthStart.setDate(1)
-      monthStart.setHours(0, 0, 0, 0)
+      try {
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+        const monthStart = new Date()
+        monthStart.setDate(1)
+        monthStart.setHours(0, 0, 0, 0)
 
-      // Fetch last 1000 api_usage rows with org info
-      const { data: rows } = await supabase
-        .from('api_usage')
-        .select('organization_id, cost_usd, created_at, organizations(name)')
-        .gte('created_at', monthStart.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(2000)
+        // Fetch last 1000 api_usage rows with org info
+        const { data: rows } = await supabase
+          .from('api_usage')
+          .select('organization_id, cost_usd, created_at, organizations(name)')
+          .gte('created_at', monthStart.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(2000)
 
-      if (!rows) { setLoading(false); return }
+        if (!rows) return
 
-      const orgMap = new Map<string, UsageRow>()
+        const orgMap = new Map<string, UsageRow>()
 
-      for (const row of rows) {
-        const orgId   = row.organization_id ?? 'unknown'
-        const orgName = (row as unknown as { organizations: { name: string } | null })?.organizations?.name ?? 'Unknown'
-        const cost    = row.cost_usd ?? 0
-        const isToday = new Date(row.created_at) >= todayStart
+        for (const row of rows) {
+          const orgId   = row.organization_id ?? 'unknown'
+          const orgName = (row as unknown as { organizations: { name: string } | null })?.organizations?.name ?? 'Unknown'
+          const cost    = row.cost_usd ?? 0
+          const isToday = new Date(row.created_at) >= todayStart
 
-        if (!orgMap.has(orgId)) {
-          orgMap.set(orgId, { org_name: orgName, calls_today: 0, calls_month: 0, cost_today: 0, cost_month: 0 })
+          if (!orgMap.has(orgId)) {
+            orgMap.set(orgId, { org_name: orgName, calls_today: 0, calls_month: 0, cost_today: 0, cost_month: 0 })
+          }
+          const entry = orgMap.get(orgId)!
+          entry.calls_month++
+          entry.cost_month += cost
+          if (isToday) {
+            entry.calls_today++
+            entry.cost_today += cost
+          }
         }
-        const entry = orgMap.get(orgId)!
-        entry.calls_month++
-        entry.cost_month += cost
-        if (isToday) {
-          entry.calls_today++
-          entry.cost_today += cost
-        }
+
+        const sorted = Array.from(orgMap.values()).sort((a, b) => b.calls_month - a.calls_month)
+        setByOrg(sorted)
+        setTotalToday(sorted.reduce((s, r) => s + r.calls_today, 0))
+        setTotalMonth(sorted.reduce((s, r) => s + r.calls_month, 0))
+      } finally {
+        setLoading(false)
       }
-
-      const sorted = Array.from(orgMap.values()).sort((a, b) => b.calls_month - a.calls_month)
-      setByOrg(sorted)
-      setTotalToday(sorted.reduce((s, r) => s + r.calls_today, 0))
-      setTotalMonth(sorted.reduce((s, r) => s + r.calls_month, 0))
-      setLoading(false)
     }
     load()
   }, [])

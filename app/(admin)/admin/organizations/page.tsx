@@ -45,13 +45,16 @@ export default function AdminOrgsPage() {
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('organizations')
-        .select('*')
-        .order('created_at', { ascending: false })
+      try {
+        const { data } = await supabase
+          .from('organizations')
+          .select('*')
+          .order('created_at', { ascending: false })
 
-      if (data) setOrgs(data as OrgRow[])
-      setLoading(false)
+        if (data) setOrgs(data as OrgRow[])
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])

@@ -112,7 +112,7 @@ export default function ApprovalPortalPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!token) return
+    if (!token) { setLoading(false); return }
     fetch(`/api/approval?token=${encodeURIComponent(token)}`)
       .then(res => res.json())
       .then(json => {

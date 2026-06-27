@@ -219,7 +219,7 @@ export default function BriefPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!token) return
+    if (!token) { setLoading(false); return }
     fetch(`/api/brief-requests/${token}`)
       .then(r => r.json())
       .then(data => {

@@ -40,31 +40,34 @@ export default function AdminOverviewPage() {
 
   useEffect(() => {
     async function load() {
-      const [
-        { count: total_orgs },
-        { count: active_orgs },
-        { count: total_users },
-        { count: unresolved_errors },
-        { count: critical_errors },
-        { count: ai_calls_today },
-      ] = await Promise.all([
-        supabase.from('organizations').select('*', { count: 'exact', head: true }),
-        supabase.from('organizations').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('users').select('*', { count: 'exact', head: true }),
-        supabase.from('error_events').select('*', { count: 'exact', head: true }).eq('resolved', false),
-        supabase.from('error_events').select('*', { count: 'exact', head: true }).eq('resolved', false).eq('severity', 'critical'),
-        supabase.from('api_usage').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 86400000).toISOString()),
-      ])
+      try {
+        const [
+          { count: total_orgs },
+          { count: active_orgs },
+          { count: total_users },
+          { count: unresolved_errors },
+          { count: critical_errors },
+          { count: ai_calls_today },
+        ] = await Promise.all([
+          supabase.from('organizations').select('*', { count: 'exact', head: true }),
+          supabase.from('organizations').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+          supabase.from('users').select('*', { count: 'exact', head: true }),
+          supabase.from('error_events').select('*', { count: 'exact', head: true }).eq('resolved', false),
+          supabase.from('error_events').select('*', { count: 'exact', head: true }).eq('resolved', false).eq('severity', 'critical'),
+          supabase.from('api_usage').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 86400000).toISOString()),
+        ])
 
-      setStats({
-        total_orgs: total_orgs ?? 0,
-        active_orgs: active_orgs ?? 0,
-        total_users: total_users ?? 0,
-        unresolved_errors: unresolved_errors ?? 0,
-        critical_errors: critical_errors ?? 0,
-        ai_calls_today: ai_calls_today ?? 0,
-      })
-      setLoading(false)
+        setStats({
+          total_orgs: total_orgs ?? 0,
+          active_orgs: active_orgs ?? 0,
+          total_users: total_users ?? 0,
+          unresolved_errors: unresolved_errors ?? 0,
+          critical_errors: critical_errors ?? 0,
+          ai_calls_today: ai_calls_today ?? 0,
+        })
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])

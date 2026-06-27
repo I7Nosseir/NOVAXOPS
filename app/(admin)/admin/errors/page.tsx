@@ -35,19 +35,22 @@ export default function AdminErrorsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    let q = supabase
-      .from('error_events')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200)
+    try {
+      let q = supabase
+        .from('error_events')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200)
 
-    if (severity !== 'all') q = q.eq('severity', severity)
-    if (resolved === 'unresolved') q = q.eq('resolved', false)
-    if (resolved === 'resolved')   q = q.eq('resolved', true)
+      if (severity !== 'all') q = q.eq('severity', severity)
+      if (resolved === 'unresolved') q = q.eq('resolved', false)
+      if (resolved === 'resolved')   q = q.eq('resolved', true)
 
-    const { data } = await q
-    setEvents((data ?? []) as ErrorEvent[])
-    setLoading(false)
+      const { data } = await q
+      setEvents((data ?? []) as ErrorEvent[])
+    } finally {
+      setLoading(false)
+    }
   }, [severity, resolved])
 
   useEffect(() => { load() }, [load])
