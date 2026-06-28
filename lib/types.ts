@@ -197,6 +197,7 @@ export interface Task {
   status: TaskStatus
   sub_type?: string | null
   due_date: string | null
+  due_time?: string | null
   created_at: string
   updated_at: string
   tags: string[]

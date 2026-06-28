@@ -46,6 +46,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const [subType, setSubType] = useState<string | null>(null)
   const [priority, setPriority] = useState<Priority>('medium')
   const [dueDate, setDueDate] = useState('')
+  const [dueTime, setDueTime] = useState('')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagFocused, setTagFocused] = useState(false)
@@ -116,7 +117,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const reset = () => {
     setTitle(''); setDescription(''); setFinalSubmission(''); setClientId(''); setProjectId('')
     setAssignedTo(''); setStage(defaultStage ?? 'strategy'); setSubType(null); setPriority('medium')
-    setDueDate(''); setTagInput(''); setTags([])
+    setDueDate(''); setDueTime(''); setTagInput(''); setTags([])
     setLinkedDocIds([]); setDocSearch(''); setShowDocPicker(false)
     createTask.reset()
   }
@@ -152,6 +153,7 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
         status: 'active',
         sub_type: subType,
         due_date: dueDate || null,
+        due_time: dueTime || null,
         tags,
         linked_doc_ids: linkedDocIds,
       })
@@ -355,13 +357,23 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
                 </div>
               </div>
               <div>
-                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Due Date</label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 outline-none focus:border-novax-muted"
-                />
+                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Due Date &amp; Time</label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={e => setDueDate(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 outline-none focus:border-novax-muted"
+                  />
+                  <input
+                    type="time"
+                    value={dueTime}
+                    onChange={e => setDueTime(e.target.value)}
+                    disabled={!dueDate}
+                    className="w-32 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 outline-none focus:border-novax-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                    placeholder="Time"
+                  />
+                </div>
               </div>
             </div>
 

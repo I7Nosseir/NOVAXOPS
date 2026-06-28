@@ -260,6 +260,20 @@ const ROLE_CARDS: {
     restricted: ['Integrations config', 'Clients (edit)', 'Reports', 'Publishing'],
   },
   {
+    value: 'video_editor',
+    label: 'Video Editor',
+    description: 'Video production, asset library, and studio access.',
+    access: ['Pipeline (own tasks)', 'Tasks', 'Assets', 'Studio', 'Creative Eval'],
+    restricted: ['Integrations config', 'Clients (edit)', 'Reports', 'Publishing'],
+  },
+  {
+    value: 'web_developer',
+    label: 'Web Developer',
+    description: 'Development tasks, documents, and technical assets.',
+    access: ['Pipeline (own tasks)', 'Tasks', 'Assets', 'Docs', 'Creative Eval'],
+    restricted: ['Integrations config', 'Clients (edit)', 'Reports', 'Moderation'],
+  },
+  {
     value: 'social_manager',
     label: 'Social Manager',
     description: 'Manages publishing schedule and comment moderation.',

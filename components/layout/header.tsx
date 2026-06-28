@@ -5,6 +5,7 @@ import { Bell, Search, Plus, Sun, Moon, Menu, Eye, ChevronDown } from 'lucide-re
 import { usePathname } from 'next/navigation'
 import { useTheme } from '@/lib/theme-context'
 import { NotificationsPanel } from '@/components/layout/notifications-panel'
+import { useNotifications } from '@/lib/hooks/use-notifications'
 import { useAuth } from '@/lib/auth-context'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -40,6 +41,8 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: 'strategist',        label: 'Strategist' },
   { value: 'copywriter',        label: 'Copywriter' },
   { value: 'designer',          label: 'Designer' },
+  { value: 'video_editor',      label: 'Video Editor' },
+  { value: 'web_developer',     label: 'Web Developer' },
   { value: 'social_manager',    label: 'Social Manager' },
 ]
 
@@ -63,6 +66,7 @@ export function Header() {
   const { theme, toggle } = useTheme()
   const { user, realUser, previewRole, setPreviewRole, isPreviewMode } = useAuth()
   const { toggle: toggleSidebar } = useSidebar()
+  const { unreadCount } = useNotifications()
   const [showNotifs, setShowNotifs]         = useState(false)
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [showRolePicker, setShowRolePicker] = useState(false)
@@ -94,28 +98,28 @@ export function Header() {
           <h1 className="text-slate-900 dark:text-slate-100 font-semibold text-base truncate">{title}</h1>
         </div>
 
-        <div className="flex items-center gap-2 lg:gap-3">
-          {/* Search — desktop only */}
-          <div className="relative hidden lg:block">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Search — only on wide screens (1280px+) so it doesn't crowd Mac laptop headers */}
+          <div className="relative hidden xl:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
             <input
               placeholder="Search tasks, clients…"
-              className="w-56 pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-white/[0.06] dark:backdrop-blur border border-slate-200 dark:border-white/10 rounded-lg text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-novax-muted dark:focus:border-novax-border/60 focus:ring-2 focus:ring-novax-light dark:focus:ring-novax/20 transition-all"
+              className="w-44 2xl:w-52 pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-white/[0.06] dark:backdrop-blur border border-slate-200 dark:border-white/10 rounded-lg text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-novax-muted dark:focus:border-novax-border/60 focus:ring-2 focus:ring-novax-light dark:focus:ring-novax/20 transition-all"
             />
           </div>
 
-          {/* New Task */}
+          {/* New Task — always visible */}
           <button
             onClick={() => setShowCreateTask(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 btn-novax-glow text-white text-sm font-medium rounded-lg transition-all"
+            className="flex shrink-0 items-center gap-1.5 px-3 py-1.5 btn-novax-glow text-white text-sm font-medium rounded-lg transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">New Task</span>
           </button>
 
-          {/* Admin: Preview as Role — desktop only */}
+          {/* Admin: Preview as Role — only on wide screens (1280px+) */}
           {realUser?.role === 'admin' && (
-            <div className="relative hidden lg:block" ref={rolePickerRef}>
+            <div className="relative hidden xl:block" ref={rolePickerRef}>
               <button
                 onClick={() => setShowRolePicker(v => !v)}
                 className={cn(
@@ -174,20 +178,24 @@ export function Header() {
           {/* Theme toggle */}
           <button
             onClick={toggle}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400"
+            className="shrink-0 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400"
             title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
           >
             {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
           </button>
 
           {/* Notifications */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               onClick={() => setShowNotifs(v => !v)}
               className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
             >
               <Bell className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
             {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} />}
           </div>

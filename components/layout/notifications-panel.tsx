@@ -1,24 +1,23 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { CheckSquare, MessageSquare, AlertCircle, Globe, Zap, X } from 'lucide-react'
+import { CheckSquare, MessageSquare, AlertCircle, Globe, Zap, X, CheckCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/lib/hooks/use-notifications'
 
 const TYPE_CONFIG = {
-  approval:   { icon: AlertCircle, color: 'text-amber-500',  bg: 'bg-amber-50' },
-  moderation: { icon: MessageSquare, color: 'text-blue-500',  bg: 'bg-blue-50' },
-  task:       { icon: CheckSquare, color: 'text-novax-muted', bg: 'bg-novax-light' },
-  ai:         { icon: Zap,         color: 'text-purple-500', bg: 'bg-purple-50' },
-  published:  { icon: Globe,       color: 'text-emerald-500',bg: 'bg-emerald-50' },
+  approval:   { icon: AlertCircle,   color: 'text-amber-500',   bg: 'bg-amber-50'   },
+  moderation: { icon: MessageSquare, color: 'text-blue-500',    bg: 'bg-blue-50'    },
+  task:       { icon: CheckSquare,   color: 'text-novax-muted', bg: 'bg-novax-light' },
+  ai:         { icon: Zap,           color: 'text-purple-500',  bg: 'bg-purple-50'  },
+  published:  { icon: Globe,         color: 'text-emerald-500', bg: 'bg-emerald-50' },
 }
 
 interface Props { onClose: () => void }
 
 export function NotificationsPanel({ onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null)
-  const { notifications } = useNotifications()
-  const unread = notifications.filter(n => !n.read).length
+  const { notifications, markAllRead, unreadCount } = useNotifications()
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -28,20 +27,32 @@ export function NotificationsPanel({ onClose }: Props) {
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
 
+  const handleMarkAllRead = () => {
+    markAllRead()
+  }
+
   return (
     <div ref={ref} className="absolute right-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <p className="font-semibold text-slate-900 text-sm">Notifications</p>
-          {unread > 0 && (
+          {unreadCount > 0 && (
             <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-novax text-white text-[10px] font-bold">
-              {unread}
+              {unreadCount}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button className="text-xs text-novax-muted hover:text-novax font-medium transition-colors">Mark all read</button>
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              className="flex items-center gap-1 text-xs text-novax-muted hover:text-novax font-medium transition-colors"
+            >
+              <CheckCheck className="w-3 h-3" />
+              Mark all read
+            </button>
+          )}
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
             <X className="w-3.5 h-3.5 text-slate-400" />
           </button>
@@ -54,7 +65,7 @@ export function NotificationsPanel({ onClose }: Props) {
           <p className="text-sm text-slate-400 py-8 text-center">No recent activity</p>
         ) : (
           notifications.map(n => {
-            const cfg = TYPE_CONFIG[n.type as keyof typeof TYPE_CONFIG]
+            const cfg = TYPE_CONFIG[n.type as keyof typeof TYPE_CONFIG] ?? TYPE_CONFIG.task
             const Icon = cfg.icon
             return (
               <div key={n.id} className={cn('flex gap-3 px-4 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors', !n.read && 'bg-novax-light/30')}>
@@ -77,9 +88,9 @@ export function NotificationsPanel({ onClose }: Props) {
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-        <button className="text-xs text-novax-muted hover:text-novax font-medium transition-colors w-full text-center">
-          View all notifications
-        </button>
+        <p className="text-[10px] text-slate-400 text-center">
+          Showing last {notifications.length} activities
+        </p>
       </div>
     </div>
   )

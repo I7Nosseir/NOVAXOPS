@@ -26,6 +26,7 @@ export type CreateTaskPayload = {
   status: TaskStatus
   sub_type?: string | null
   due_date: string | null
+  due_time?: string | null
   tags: string[]
   linked_doc_ids?: string[]
 }
@@ -45,6 +46,7 @@ function mapTask(row: Record<string, unknown>): Task {
     status: row.status as Task['status'],
     sub_type: (row.sub_type as string) ?? null,
     due_date: (row.due_date as string) ?? null,
+    due_time: (row.due_time as string) ?? null,
     tags: (row.tags as string[]) ?? [],
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
