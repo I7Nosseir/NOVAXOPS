@@ -73,6 +73,52 @@ function formatReportDate(dateStr: string): string {
   } catch { return '' }
 }
 
+function parsePaidAdsCSV(csvText: string): Partial<PaidAdsData> {
+  const parseRow = (line: string): string[] => {
+    const result: string[] = []
+    let current = '', inQuotes = false
+    for (const ch of line) {
+      if (ch === '"') { inQuotes = !inQuotes }
+      else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = '' }
+      else { current += ch }
+    }
+    result.push(current.trim())
+    return result
+  }
+  const lines = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n').filter(l => l.trim())
+  if (lines.length < 2) return {}
+  const headers = parseRow(lines[0]).map(h => h.replace(/^"|"$/g, '').toLowerCase().trim())
+  const COL: Record<string, keyof PaidAdsData> = {
+    'amount spent': 'spend', 'cost': 'spend', 'spend': 'spend', 'total spend': 'spend', 'total cost': 'spend',
+    'reach': 'reach', 'impressions': 'impressions', 'total impressions': 'impressions',
+    'clicks': 'clicks', 'link clicks': 'clicks', 'total clicks': 'clicks',
+    'ctr': 'ctr', 'ctr (link click-through rate)': 'ctr', 'click-through rate': 'ctr',
+    'cpc': 'cpc', 'cpc (cost per link click)': 'cpc', 'avg. cpc': 'cpc', 'cost per click': 'cpc',
+    'cpm': 'cpm', 'cpm (cost per 1,000 impressions)': 'cpm', 'avg. cpm': 'cpm', 'cost per 1,000 impressions': 'cpm',
+    'results': 'conversions', 'conversions': 'conversions', 'purchases': 'conversions',
+    'roas': 'roas', 'return on ad spend': 'roas', 'purchase roas': 'roas',
+    'campaign name': 'campaignName', 'campaign': 'campaignName',
+  }
+  let dataRow: string[] | null = null
+  for (let i = lines.length - 1; i >= 1; i--) {
+    const row = parseRow(lines[i])
+    if (row[0].replace(/^"|"$/g, '').toLowerCase().trim().startsWith('total')) { dataRow = row; break }
+  }
+  if (!dataRow) dataRow = parseRow(lines[lines.length - 1])
+  const result: Partial<PaidAdsData> = {}
+  headers.forEach((h, idx) => {
+    const field = COL[h]
+    if (!field || !dataRow![idx]) return
+    const raw = dataRow![idx].replace(/^"|"$/g, '')
+    if (field === 'campaignName') { if (raw && !raw.toLowerCase().startsWith('total')) result[field] = raw; return }
+    const num = raw.replace(/[^0-9.]/g, '')
+    if (num && !isNaN(Number(num)) && Number(num) > 0) result[field] = num
+  })
+  const amtHeader = headers.find(h => /amount spent \(([a-z]{3})\)/.test(h))
+  if (amtHeader) { const m = amtHeader.match(/\(([a-z]{3})\)/); if (m) result.currency = m[1].toUpperCase() }
+  return result
+}
+
 // ─── Platform support ───────────────────────────────────────────────────────────
 const PLATFORM_COLORS: Record<string, string> = {
   instagram: '#E1306C', facebook: '#1877F2', linkedin: '#0A66C2',
@@ -629,7 +675,7 @@ function MasterMonthlyReport({
 
           {/* Month-by-month table */}
           {trendData.length > 0 && (
-            <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
+            <div className="mt-5 overflow-x-auto rounded-xl border border-slate-100">
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: B.light }}>
@@ -979,6 +1025,7 @@ export default function ReportsPage() {
   const [includePaidAds, setIncludePaidAds]        = useState(false)
   const [adCampaigns, setAdCampaigns]              = useState<PaidAdsData[]>([emptyCampaign()])
   const [scanningIdx, setScanningIdx]              = useState<number | null>(null)
+  const [csvLoadingIdx, setCsvLoadingIdx]          = useState<number | null>(null)
 
   // ── Library ──────────────────────────────────────────
   const [savedReports, setSavedReports]           = useState<SavedReport[]>([])
@@ -1227,19 +1274,43 @@ export default function ReportsPage() {
     ).map(s => s.outerHTML).join('\n')
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
-  body{margin:0;padding:24px 32px;background:#fff;font-family:system-ui,sans-serif;font-size:13px;color:#0f172a}
+  body{margin:0;padding:0;background:#fff;font-family:system-ui,sans-serif;font-size:13px;color:#0f172a}
   button,[data-no-print]{display:none!important}
   *{overflow-wrap:break-word!important;word-break:break-word!important;white-space:normal!important;box-sizing:border-box}
   img{max-width:100%}
-  @page{size:A4 portrait;margin:14mm 16mm}
-  @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-    .rounded-2xl,.rounded-xl,.rounded-lg{page-break-inside:avoid}}
+  @page{size:A4 portrait;margin:13mm 15mm}
+  @media print{
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    .report-cover-page{page-break-after:always!important;break-after:page!important}
+    .print-break-before{page-break-before:always!important;break-before:page!important;margin-top:0!important}
+    .space-y-6>*+*,.space-y-5>*+*{margin-top:0!important}
+    .rounded-2xl{page-break-inside:avoid;break-inside:avoid}
+    .recharts-tooltip-wrapper,.recharts-active-dot{display:none!important}
+    h1,h2,h3,p{orphans:3;widows:3}
+  }
+  /* Compact print padding */
+  .p-7{padding:20px!important}
+  .p-5{padding:13px!important}
+  .p-4{padding:10px!important}
+  .px-10{padding-left:22px!important;padding-right:22px!important}
+  .py-12{padding-top:22px!important;padding-bottom:22px!important}
+  .pb-8{padding-bottom:18px!important}
+  .mb-5{margin-bottom:10px!important}
+  .mb-6{margin-bottom:12px!important}
+  .space-y-6>*+*{margin-top:0!important}
+  /* Keep cover page compact */
+  .min-h-\\[320px\\]{min-height:220px!important}
+  .text-5xl{font-size:2.6rem!important;line-height:1.15!important}
+  /* Keep charts from overflowing */
+  .recharts-responsive-container{overflow:visible!important}
+  /* Overflow-hidden on report wrapper can clip print — expand */
+  #printable-report,#printable-report>*{overflow:visible!important}
 </style>
 ${styles}
-</head><body>${el.outerHTML}</body></html>`)
+</head><body>${el.querySelector('[data-report-inner]')?.outerHTML ?? el.outerHTML}</body></html>`)
     win.document.close()
     win.focus()
-    setTimeout(() => { win.print(); win.close() }, 800)
+    setTimeout(() => { win.print(); win.close() }, 900)
   }
 
   return (
@@ -1508,6 +1579,32 @@ ${styles}
                         {scanningIdx === ci ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
                         {scanningIdx === ci ? 'Scanning…' : 'Scan Screenshot'}
                       </button>
+                      <button
+                        disabled={csvLoadingIdx === ci}
+                        onClick={() => {
+                          const input = document.createElement('input')
+                          input.type = 'file'
+                          input.accept = '.csv,text/csv'
+                          input.onchange = async () => {
+                            const file = input.files?.[0]
+                            if (!file) return
+                            setCsvLoadingIdx(ci)
+                            try {
+                              const text = await file.text()
+                              const parsed = parsePaidAdsCSV(text)
+                              if (Object.keys(parsed).length > 0) {
+                                setAdCampaigns(prev => prev.map((c, i) => i === ci ? { ...c, ...parsed } : c))
+                              }
+                            } finally { setCsvLoadingIdx(null) }
+                          }
+                          input.click()
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-dashed border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-novax-border disabled:opacity-50 transition-colors shrink-0"
+                        title="Upload a CSV export from Meta, TikTok, or Google Ads Manager — columns are mapped automatically"
+                      >
+                        {csvLoadingIdx === ci ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <FileText className="w-3.5 h-3.5"/>}
+                        {csvLoadingIdx === ci ? 'Reading…' : 'Upload CSV'}
+                      </button>
                     </div>
 
                     {/* Metric fields */}
@@ -1725,20 +1822,22 @@ ${styles}
           <p className="text-sm text-slate-500 text-center max-w-md leading-relaxed">{dataError}</p>
         </div>
       ) : generated ? (
-        <div id="printable-report">
-          <MasterMonthlyReport
-            client={clientName}
-            period={periodLabel}
-            logoUrl={reportLogoUrl}
-            liveStats={liveStats}
-            prevStats={prevStats}
-            livePlatforms={livePlatforms}
-            liveTrend={liveTrend}
-            topPostGroups={topPostGroups}
-            aiReport={aiReport}
-            language={language}
-            adCampaigns={includePaidAds && adCampaigns.some(c => c.spend) ? adCampaigns.filter(c => c.spend) : null}
-          />
+        <div id="printable-report" className="overflow-x-auto">
+          <div data-report-inner="" className="min-w-[680px]">
+            <MasterMonthlyReport
+              client={clientName}
+              period={periodLabel}
+              logoUrl={reportLogoUrl}
+              liveStats={liveStats}
+              prevStats={prevStats}
+              livePlatforms={livePlatforms}
+              liveTrend={liveTrend}
+              topPostGroups={topPostGroups}
+              aiReport={aiReport}
+              language={language}
+              adCampaigns={includePaidAds && adCampaigns.some(c => c.spend) ? adCampaigns.filter(c => c.spend) : null}
+            />
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-slate-200">
