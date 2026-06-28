@@ -173,10 +173,10 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-50" onClick={handleClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 pointer-events-none">
         <div
           data-create-task-form
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto pointer-events-auto"
+          className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[92vh] sm:max-h-[90vh] overflow-y-auto pointer-events-auto"
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
@@ -313,14 +313,14 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
             {/* Priority */}
             <div>
               <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Priority</label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-4 gap-1.5">
                 {(['low', 'medium', 'high', 'urgent'] as Priority[]).map(p => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => setPriority(p)}
                     className={cn(
-                      'flex-1 py-1.5 text-xs font-semibold rounded-lg border capitalize transition-all',
+                      'py-1.5 text-xs font-semibold rounded-lg border capitalize transition-all',
                       priority === p
                         ? 'bg-novax text-white border-novax'
                         : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50',

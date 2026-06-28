@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Share2, Loader2, CheckCircle, LayoutTemplate, Download } from 'lucide-react'
+import { ArrowLeft, Share2, Loader2, CheckCircle, LayoutTemplate, Download, Globe, Lock } from 'lucide-react'
 import { DocEditor, type DocEditorRef } from '@/components/docs/doc-editor'
 import { SheetEditor } from '@/components/docs/sheet-editor'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
@@ -270,18 +270,30 @@ ${styles}
             Download PDF
           </button>
         )}
+        {/* Visibility toggle — quick one-click to switch public/private */}
         <button
-          onClick={() => setShowShare(true)}
+          onClick={() => togglePublic.mutate(!doc.is_public)}
+          title={doc.is_public ? 'Public — click to make private' : 'Private — click to make public'}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
             doc.is_public
-              ? 'bg-novax-light text-novax-muted hover:bg-novax-light-hover'
-              : 'text-slate-600 border border-slate-200 hover:bg-slate-50',
+              ? 'bg-novax-light text-novax-muted hover:bg-red-50 hover:text-red-600 hover:border hover:border-red-200'
+              : 'text-slate-600 border border-slate-200 hover:bg-novax-light hover:text-novax-muted hover:border-novax-border',
           )}
         >
-          <Share2 className="w-3.5 h-3.5" />
-          {doc.is_public ? 'Shared' : 'Share'}
+          {doc.is_public ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+          {doc.is_public ? 'Public' : 'Private'}
         </button>
+        {/* Share link — only shown when public */}
+        {doc.is_public && (
+          <button
+            onClick={() => setShowShare(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            Copy Link
+          </button>
+        )}
       </div>
 
       {/* Title + editor — wrapped for print */}

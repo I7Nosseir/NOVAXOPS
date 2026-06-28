@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet, Upload } from 'lucide-react'
+import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet, Upload, Globe, Lock } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
@@ -341,7 +341,7 @@ export default function DocsPage() {
                       <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">XLSX</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {client && (
                       <div className="flex items-center gap-1">
                         <div className="w-2 h-2 rounded-full" style={{ background: client.color }} />
@@ -353,26 +353,40 @@ export default function DocsPage() {
                         Updated {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
                       </span>
                     )}
+                    {/* Visibility badge — always visible */}
+                    <button
+                      onClick={e => { e.stopPropagation(); togglePublic.mutate({ id: doc.id, is_public: !doc.is_public }) }}
+                      title={doc.is_public ? 'Public — click to make private' : 'Private — click to make public'}
+                      className={cn(
+                        'flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-colors',
+                        doc.is_public
+                          ? 'text-novax-muted bg-novax-light hover:bg-red-50 hover:text-red-600'
+                          : 'text-slate-400 bg-slate-100 hover:bg-novax-light hover:text-novax-muted',
+                      )}
+                    >
+                      {doc.is_public
+                        ? <><Globe className="w-2.5 h-2.5" /> Public</>
+                        : <><Lock className="w-2.5 h-2.5" /> Private</>}
+                    </button>
                   </div>
                 </div>
 
                 <div
-                  className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="flex items-center gap-1 shrink-0"
                   onClick={e => e.stopPropagation()}
                 >
-                  <button
-                    onClick={() => setShareDoc(doc)}
-                    className={cn(
-                      'p-1.5 rounded-lg transition-colors',
-                      doc.is_public ? 'text-novax-muted bg-novax-light' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100',
-                    )}
-                    title="Share"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                  </button>
+                  {doc.is_public && (
+                    <button
+                      onClick={() => setShareDoc(doc)}
+                      className="p-1.5 rounded-lg text-novax-muted bg-novax-light hover:bg-novax-light-hover transition-colors opacity-0 group-hover:opacity-100"
+                      title="Copy share link"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => { if (confirm('Delete this document?')) deleteDoc.mutate(doc.id) }}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
