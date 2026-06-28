@@ -205,15 +205,15 @@ export default function DocEditorPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3">
         <button
           onClick={() => router.push('/docs')}
-          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        <div className="flex-1 flex items-center gap-3 min-w-0">
+        <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
           {/* Client badge */}
           {client && (
             <div className="flex items-center gap-1.5 shrink-0">
@@ -221,21 +221,21 @@ export default function DocEditorPage() {
                 className="w-2.5 h-2.5 rounded-full"
                 style={{ background: client.color }}
               />
-              <span className="text-xs text-slate-500">{client.name}</span>
+              <span className="text-xs text-slate-500 truncate max-w-[80px] sm:max-w-none">{client.name}</span>
             </div>
           )}
 
           {/* Save indicator */}
-          <div className="flex items-center gap-1.5 text-[11px]">
+          <div className="flex items-center gap-1.5 text-[11px] min-w-0">
             {isSaving ? (
               <>
-                <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
-                <span className="text-slate-400">Saving…</span>
+                <Loader2 className="w-3 h-3 text-slate-400 animate-spin shrink-0" />
+                <span className="text-slate-400 hidden sm:inline">Saving…</span>
               </>
             ) : lastSaved ? (
               <>
-                <CheckCircle className="w-3 h-3 text-emerald-500" />
-                <span className="text-slate-400">
+                <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />
+                <span className="text-slate-400 hidden sm:inline truncate">
                   Saved {formatDistanceToNow(lastSaved, { addSuffix: true })}
                 </span>
               </>
@@ -248,14 +248,14 @@ export default function DocEditorPage() {
             onClick={() => patchDoc.mutate({ is_template: !doc.is_template })}
             title={doc.is_template ? 'Remove from templates' : 'Save as template'}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0',
               doc.is_template
                 ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
                 : 'text-slate-600 border border-slate-200 hover:bg-slate-50',
             )}
           >
             <LayoutTemplate className="w-3.5 h-3.5" />
-            {doc.is_template ? 'Template' : 'Make Template'}
+            <span className="hidden sm:inline">{doc.is_template ? 'Template' : 'Make Template'}</span>
           </button>
         )}
         {doc.doc_type !== 'sheet' && (
@@ -284,10 +284,10 @@ ${styles}
               win.focus()
               setTimeout(() => { win.print(); win.close() }, 800)
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
-            Download PDF
+            <span className="hidden sm:inline">Download PDF</span>
           </button>
         )}
         {/* Visibility — cycles Personal → Team → Public */}
@@ -306,10 +306,10 @@ ${styles}
             <button
               onClick={() => setVisibility.mutate(next)}
               title={`${labels[v]} — click to set ${nextLabels[v]}`}
-              className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors', styles[v])}
+              className={cn('flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0', styles[v])}
             >
               <Icon className="w-3.5 h-3.5" />
-              {labels[v]}
+              <span className="hidden sm:inline">{labels[v]}</span>
             </button>
           )
         })()}
@@ -317,10 +317,10 @@ ${styles}
         {doc.is_public && (
           <button
             onClick={() => setShowShare(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors shrink-0"
           >
             <Share2 className="w-3.5 h-3.5" />
-            Copy Link
+            <span className="hidden sm:inline">Copy Link</span>
           </button>
         )}
       </div>

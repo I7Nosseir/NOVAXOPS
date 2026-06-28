@@ -191,37 +191,38 @@ export default function DocsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Documents</h1>
           <p className="text-sm text-slate-500 mt-0.5">Collaborative docs linked to clients and projects</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => importRef.current?.click()}
             disabled={importing}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
           >
             {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            Import
+            <span className="hidden sm:inline">Import</span>
           </button>
           <input ref={importRef} type="file" accept=".txt,.xlsx,.xls,.csv,.docx" className="hidden"
             onChange={e => e.target.files?.[0] && void handleImport(e.target.files[0])}/>
           <button
             onClick={() => createDoc.mutate({ title: 'Untitled Spreadsheet', doc_type: 'sheet' })}
             disabled={createDoc.isPending}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
           >
             <Sheet className="w-4 h-4" />
-            New Spreadsheet
+            <span className="hidden sm:inline">New Spreadsheet</span>
           </button>
           <button
             onClick={() => createDoc.mutate({})}
             disabled={createDoc.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
           >
             {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            New Document
+            <span className="hidden sm:inline">New Document</span>
+            <span className="sm:hidden">Doc</span>
           </button>
         </div>
       </div>
