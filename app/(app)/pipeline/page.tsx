@@ -128,9 +128,9 @@ function PipelineContent() {
             )}
           </div>
 
-          {/* Board mode toggle (only when board view) */}
+          {/* Board mode toggle (only when board view — hidden on mobile) */}
           {view === 'board' && (
-            <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden text-xs">
+            <div className="hidden sm:flex items-center rounded-lg border border-slate-200 overflow-hidden text-xs">
               <button
                 onClick={() => { setBoardMode('full'); localStorage.setItem('pipeline_board_mode', 'full') }}
                 title="Full view — all 10 stages"

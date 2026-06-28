@@ -1095,10 +1095,10 @@ export default function AIImagePage() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex gap-5 h-full min-h-[calc(100vh-8rem)]">
+    <div className="flex flex-col lg:flex-row gap-5 min-h-[calc(100vh-8rem)]">
 
       {/* ── Left Panel ── */}
-      <div className="w-80 shrink-0 space-y-4 overflow-y-auto pb-4">
+      <div className="w-full lg:w-80 lg:shrink-0 space-y-4 lg:overflow-y-auto pb-4">
 
         {/* Tab bar */}
         <div className="grid grid-cols-3 bg-slate-100 rounded-xl p-1 gap-1">

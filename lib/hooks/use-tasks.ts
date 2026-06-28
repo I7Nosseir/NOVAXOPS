@@ -133,25 +133,16 @@ export function useCreateTask() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (payload: CreateTaskPayload) => {
-      const now = new Date().toISOString()
-
-      // Race against a 15-second timeout so the button never freezes forever
-      const insertPromise = supabase
-        .from('tasks')
-        .insert({ ...payload, created_at: now, updated_at: now })
-        .select()
-        .single()
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Task creation timed out — check your connection and try again.')), 15_000)
-      )
-
-      const { data, error } = await Promise.race([insertPromise, timeoutPromise])
-      if (error) {
-        // Surface the real Supabase message so the user knows exactly what failed
-        throw new Error(error.message ?? 'Failed to create task.')
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json() as Record<string, unknown>
+      if (!res.ok) {
+        throw new Error((json.error as string | undefined) ?? 'Failed to create task.')
       }
-      const task = mapTask(data as Record<string, unknown>)
+      const task = mapTask(json)
 
       // Fire-and-forget assignment notification — does not block task creation
       if (payload.assigned_to) {

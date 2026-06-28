@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet, Upload } from 'lucide-react'
+import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet, Upload, Globe, Lock, Users } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
@@ -27,12 +27,34 @@ interface Document {
   content: object
   share_token: string
   is_public: boolean
+  is_personal: boolean
   is_template: boolean
   template_category: string | null
   doc_type: string
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+type DocVisibility = 'personal' | 'team' | 'public'
+
+function getVisibility(doc: Document): DocVisibility {
+  if (doc.is_personal) return 'personal'
+  if (doc.is_public) return 'public'
+  return 'team'
+}
+
+function nextVisibility(current: DocVisibility): DocVisibility {
+  if (current === 'personal') return 'team'
+  if (current === 'team') return 'public'
+  return 'personal'
+}
+
+function visibilityPatch(v: DocVisibility): { is_personal: boolean; is_public: boolean } {
+  return {
+    is_personal: v === 'personal',
+    is_public: v === 'public',
+  }
 }
 
 export default function DocsPage() {
@@ -78,12 +100,12 @@ export default function DocsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['docs'] }),
   })
 
-  const togglePublic = useMutation({
-    mutationFn: ({ id, is_public }: { id: string; is_public: boolean }) =>
+  const toggleVisibility = useMutation({
+    mutationFn: ({ id, visibility }: { id: string; visibility: DocVisibility }) =>
       fetch(`/api/docs/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_public }),
+        body: JSON.stringify(visibilityPatch(visibility)),
       }).then(r => r.json()),
     onSuccess: (updated: Document) => {
       queryClient.invalidateQueries({ queryKey: ['docs'] })
@@ -169,37 +191,38 @@ export default function DocsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Documents</h1>
           <p className="text-sm text-slate-500 mt-0.5">Collaborative docs linked to clients and projects</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => importRef.current?.click()}
             disabled={importing}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
           >
             {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            Import
+            <span className="hidden sm:inline">Import</span>
           </button>
           <input ref={importRef} type="file" accept=".txt,.xlsx,.xls,.csv,.docx" className="hidden"
             onChange={e => e.target.files?.[0] && void handleImport(e.target.files[0])}/>
           <button
             onClick={() => createDoc.mutate({ title: 'Untitled Spreadsheet', doc_type: 'sheet' })}
             disabled={createDoc.isPending}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
           >
             <Sheet className="w-4 h-4" />
-            New Spreadsheet
+            <span className="hidden sm:inline">New Spreadsheet</span>
           </button>
           <button
             onClick={() => createDoc.mutate({})}
             disabled={createDoc.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
           >
             {createDoc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            New Document
+            <span className="hidden sm:inline">New Document</span>
+            <span className="sm:hidden">Doc</span>
           </button>
         </div>
       </div>
@@ -341,7 +364,7 @@ export default function DocsPage() {
                       <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">XLSX</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {client && (
                       <div className="flex items-center gap-1">
                         <div className="w-2 h-2 rounded-full" style={{ background: client.color }} />
@@ -353,26 +376,48 @@ export default function DocsPage() {
                         Updated {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
                       </span>
                     )}
+                    {/* Visibility badge — cycles Personal → Team → Public on click */}
+                    {(() => {
+                      const v = getVisibility(doc)
+                      const next = nextVisibility(v)
+                      const labels: Record<DocVisibility, string> = { personal: 'Only me', team: 'Team', public: 'Public' }
+                      const nextLabels: Record<DocVisibility, string> = { personal: 'Team', team: 'Public', public: 'Only me' }
+                      const styles: Record<DocVisibility, string> = {
+                        personal: 'text-novax bg-novax-light hover:bg-novax-light-hover',
+                        team: 'text-slate-500 bg-slate-100 hover:bg-slate-200',
+                        public: 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100',
+                      }
+                      const Icon = v === 'personal' ? Lock : v === 'public' ? Globe : Users
+                      return (
+                        <button
+                          onClick={e => { e.stopPropagation(); toggleVisibility.mutate({ id: doc.id, visibility: next }) }}
+                          title={`${labels[v]} — click to set ${nextLabels[v]}`}
+                          className={cn('flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-colors', styles[v])}
+                        >
+                          <Icon className="w-2.5 h-2.5" />
+                          {labels[v]}
+                        </button>
+                      )
+                    })()}
                   </div>
                 </div>
 
                 <div
-                  className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="flex items-center gap-1 shrink-0"
                   onClick={e => e.stopPropagation()}
                 >
-                  <button
-                    onClick={() => setShareDoc(doc)}
-                    className={cn(
-                      'p-1.5 rounded-lg transition-colors',
-                      doc.is_public ? 'text-novax-muted bg-novax-light' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100',
-                    )}
-                    title="Share"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                  </button>
+                  {doc.is_public && (
+                    <button
+                      onClick={() => setShareDoc(doc)}
+                      className="p-1.5 rounded-lg text-novax-muted bg-novax-light hover:bg-novax-light-hover transition-colors opacity-0 group-hover:opacity-100"
+                      title="Copy share link"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => { if (confirm('Delete this document?')) deleteDoc.mutate(doc.id) }}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -391,7 +436,7 @@ export default function DocsPage() {
           isPublic={shareDoc.is_public}
           shareToken={shareDoc.share_token}
           onClose={() => setShareDoc(null)}
-          onTogglePublic={is_public => togglePublic.mutate({ id: shareDoc.id, is_public })}
+          onTogglePublic={is_public => toggleVisibility.mutate({ id: shareDoc.id, visibility: is_public ? 'public' : 'team' })}
         />
       )}
     </div>
