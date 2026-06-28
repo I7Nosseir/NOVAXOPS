@@ -3,6 +3,20 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
 
+async function resolveOrgId(authUserId: string): Promise<string | null> {
+  try {
+    const db = createAdminClient()
+    const { data } = await db
+      .from('users')
+      .select('organization_id')
+      .eq('auth_id', authUserId)
+      .single()
+    return (data as { organization_id: string | null } | null)?.organization_id ?? null
+  } catch {
+    return null
+  }
+}
+
 async function getAuthUser() {
   try {
     const cookieStore = await cookies()
@@ -35,12 +49,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'title and client_id are required' }, { status: 400 })
   }
 
+  const organization_id = await resolveOrgId(user.id)
+  if (!organization_id) {
+    return NextResponse.json({ error: 'Could not resolve organization' }, { status: 500 })
+  }
+
   const db = createAdminClient()
   const now = new Date().toISOString()
 
   const { data, error } = await db
     .from('tasks')
-    .insert({ ...body, created_at: now, updated_at: now })
+    .insert({ ...body, organization_id, created_at: now, updated_at: now })
     .select()
     .single()
 
