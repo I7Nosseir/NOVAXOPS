@@ -74,6 +74,7 @@ function formatReportDate(dateStr: string): string {
 }
 
 function parsePaidAdsCSV(csvText: string): Partial<PaidAdsData> {
+  // ── CSV tokeniser (handles quoted fields with embedded commas) ─────────────
   const parseRow = (line: string): string[] => {
     const result: string[] = []
     let current = '', inQuotes = false
@@ -85,37 +86,117 @@ function parsePaidAdsCSV(csvText: string): Partial<PaidAdsData> {
     result.push(current.trim())
     return result
   }
+
   const lines = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n').filter(l => l.trim())
   if (lines.length < 2) return {}
+
   const headers = parseRow(lines[0]).map(h => h.replace(/^"|"$/g, '').toLowerCase().trim())
-  const COL: Record<string, keyof PaidAdsData> = {
-    'amount spent': 'spend', 'cost': 'spend', 'spend': 'spend', 'total spend': 'spend', 'total cost': 'spend',
-    'reach': 'reach', 'impressions': 'impressions', 'total impressions': 'impressions',
-    'clicks': 'clicks', 'link clicks': 'clicks', 'total clicks': 'clicks',
-    'ctr': 'ctr', 'ctr (link click-through rate)': 'ctr', 'click-through rate': 'ctr',
-    'cpc': 'cpc', 'cpc (cost per link click)': 'cpc', 'avg. cpc': 'cpc', 'cost per click': 'cpc',
-    'cpm': 'cpm', 'cpm (cost per 1,000 impressions)': 'cpm', 'avg. cpm': 'cpm', 'cost per 1,000 impressions': 'cpm',
-    'results': 'conversions', 'conversions': 'conversions', 'purchases': 'conversions',
-    'roas': 'roas', 'return on ad spend': 'roas', 'purchase roas': 'roas',
-    'campaign name': 'campaignName', 'campaign': 'campaignName',
+
+  // ── Keyword-scoring field detector ────────────────────────────────────────
+  // Each field has: keywords that raise score, exclusion terms that zero it out.
+  // Score = 100 for exact match, 50+ for substring match (longer keyword → higher).
+  type FieldDef = {
+    field: keyof PaidAdsData
+    keywords: string[]
+    exclude?: string[]
   }
-  let dataRow: string[] | null = null
-  for (let i = lines.length - 1; i >= 1; i--) {
-    const row = parseRow(lines[i])
-    if (row[0].replace(/^"|"$/g, '').toLowerCase().trim().startsWith('total')) { dataRow = row; break }
+  const FIELDS: FieldDef[] = [
+    // campaignName first so generic "campaign" column doesn't bleed into numeric fields
+    { field: 'campaignName', keywords: ['campaign name', 'campaign title', 'ad name', 'ad set name', 'adset name', 'ad campaign', 'campaign'], exclude: ['spend', 'cost', 'budget', 'result', 'impression', 'click', 'reach'] },
+    // spend — exclude any "per X" cost columns and rate columns
+    { field: 'spend',       keywords: ['amount spent', 'total spend', 'total cost', 'media cost', 'budget used', 'ad spend', 'investment', 'spend', 'spent', 'cost', 'budget'], exclude: ['per click', 'per result', 'per conversion', 'per 1', 'cpc', 'cpm', 'cpa', 'rate', '%', 'roas', 'return'] },
+    // reach — unique people count
+    { field: 'reach',       keywords: ['unique reach', 'people reached', 'accounts reached', 'unique people', 'reach'], exclude: ['organic reach', 'paid reach', 'video'] },
+    // impressions — total views/exposures
+    { field: 'impressions', keywords: ['total impressions', 'paid impressions', 'impressions', 'views', 'exposures'], exclude: ['video views', 'reel views', 'post views', 'per', 'rate', 'cpm'] },
+    // clicks — outbound link clicks (not click-through rate)
+    { field: 'clicks',      keywords: ['link clicks', 'website clicks', 'outbound clicks', 'url clicks', 'total clicks', 'clicks'], exclude: ['rate', 'through', 'ctr', 'per', 'cost', 'cpc', '%'] },
+    // ctr — percentage rate
+    { field: 'ctr',         keywords: ['click-through rate', 'click through rate', 'link ctr', 'ctr'], exclude: [] },
+    // cpc — cost per click
+    { field: 'cpc',         keywords: ['cost per link click', 'cost per click', 'avg. cpc', 'average cpc', 'cpc'], exclude: ['rate', '%', 'cpm', 'per result', 'per conversion'] },
+    // cpm — cost per 1000 impressions
+    { field: 'cpm',         keywords: ['cost per 1,000', 'cost per 1000', 'cost per thousand', 'cost per mille', 'avg. cpm', 'average cpm', 'cpm'], exclude: ['click', 'result', 'conversion'] },
+    // conversions / results
+    { field: 'conversions', keywords: ['total conversions', 'conversions', 'results', 'purchases', 'leads generated', 'leads', 'actions', 'sign ups', 'installs'], exclude: ['rate', 'cost per', 'value', 'roas', 'return'] },
+    // roas
+    { field: 'roas',        keywords: ['purchase roas', 'return on ad spend', 'roas'], exclude: [] },
+  ]
+
+  const score = (header: string, def: FieldDef): number => {
+    const h = header.toLowerCase()
+    if (def.exclude?.some(ex => h.includes(ex))) return 0
+    for (const kw of def.keywords) {
+      if (h === kw) return 100
+      if (h.includes(kw)) return 50 + Math.round((kw.length / h.length) * 49)
+    }
+    return 0
   }
-  if (!dataRow) dataRow = parseRow(lines[lines.length - 1])
-  const result: Partial<PaidAdsData> = {}
-  headers.forEach((h, idx) => {
-    const field = COL[h]
-    if (!field || !dataRow![idx]) return
-    const raw = dataRow![idx].replace(/^"|"$/g, '')
-    if (field === 'campaignName') { if (raw && !raw.toLowerCase().startsWith('total')) result[field] = raw; return }
-    const num = raw.replace(/[^0-9.]/g, '')
-    if (num && !isNaN(Number(num)) && Number(num) > 0) result[field] = num
+
+  // Assign each header to the highest-scoring field (each field wins at most one column)
+  const assigned = new Map<keyof PaidAdsData, { colIdx: number; s: number }>()
+  headers.forEach((h, colIdx) => {
+    for (const def of FIELDS) {
+      const s = score(h, def)
+      if (s > 0 && s > (assigned.get(def.field)?.s ?? 0)) {
+        assigned.set(def.field, { colIdx, s })
+      }
+    }
   })
-  const amtHeader = headers.find(h => /amount spent \(([a-z]{3})\)/.test(h))
-  if (amtHeader) { const m = amtHeader.match(/\(([a-z]{3})\)/); if (m) result.currency = m[1].toUpperCase() }
+
+  // ── Pick the best data row ────────────────────────────────────────────────
+  // Prefer an explicit "Total" / "Grand total" row; fall back to last data row.
+  // If there is only one data row, just use it directly.
+  let dataRow: string[]
+  if (lines.length === 2) {
+    dataRow = parseRow(lines[1])
+  } else {
+    let found: string[] | null = null
+    for (let i = lines.length - 1; i >= 1; i--) {
+      const row = parseRow(lines[i])
+      const first = row[0].replace(/^"|"$/g, '').toLowerCase().trim()
+      if (first.startsWith('total') || first.startsWith('grand total') || first === '') {
+        found = row; break
+      }
+    }
+    dataRow = found ?? parseRow(lines[lines.length - 1])
+  }
+
+  // ── Extract values ────────────────────────────────────────────────────────
+  const result: Partial<PaidAdsData> = {}
+  for (const [field, { colIdx }] of assigned) {
+    const raw = (dataRow[colIdx] ?? '').replace(/^"|"$/g, '').trim()
+    if (!raw) continue
+
+    if (field === 'campaignName') {
+      if (!raw.toLowerCase().startsWith('total')) result[field] = raw
+      continue
+    }
+
+    // Strip everything except digits and the first decimal point
+    const cleaned = raw.replace(/[^0-9.]/g, '').replace(/\.(?=.*\.)/g, '')
+    if (cleaned && !isNaN(Number(cleaned)) && Number(cleaned) > 0) {
+      result[field] = cleaned
+    }
+  }
+
+  // ── Currency detection ────────────────────────────────────────────────────
+  // 1. Parenthesised currency in header: "Amount spent (SAR)"
+  const parenCurr = headers.find(h => /\(([a-z]{3})\)/.test(h))
+  if (parenCurr) {
+    const m = parenCurr.match(/\(([a-z]{3})\)/); if (m) result.currency = m[1].toUpperCase()
+  }
+  // 2. Currency symbol in the spend cell value
+  if (!result.currency && result.spend !== undefined) {
+    const spendColIdx = assigned.get('spend')?.colIdx
+    if (spendColIdx != null) {
+      const raw = (dataRow[spendColIdx] ?? '').replace(/^"|"$/g, '')
+      const sym = raw.match(/^\s*([A-Z]{2,3})\s/)?.[1] ?? raw.match(/([$€£¥₹])/)?.[1]
+      const symMap: Record<string, string> = { '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₹': 'INR' }
+      if (sym) result.currency = symMap[sym] ?? sym
+    }
+  }
+
   return result
 }
 
