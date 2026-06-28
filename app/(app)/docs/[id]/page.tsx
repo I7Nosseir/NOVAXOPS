@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Share2, Loader2, CheckCircle, LayoutTemplate, Download, Globe, Lock } from 'lucide-react'
+import { ArrowLeft, Share2, Loader2, CheckCircle, LayoutTemplate, Download, Globe, Lock, Users } from 'lucide-react'
 import { DocEditor, type DocEditorRef } from '@/components/docs/doc-editor'
 import { SheetEditor } from '@/components/docs/sheet-editor'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
@@ -19,12 +19,27 @@ interface Document {
   content: object
   share_token: string
   is_public: boolean
+  is_personal: boolean
   is_template: boolean
   template_category: string | null
   doc_type: string
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+type DocVisibility = 'personal' | 'team' | 'public'
+
+function getVisibility(doc: Document): DocVisibility {
+  if (doc.is_personal) return 'personal'
+  if (doc.is_public) return 'public'
+  return 'team'
+}
+
+function nextVisibility(current: DocVisibility): DocVisibility {
+  if (current === 'personal') return 'team'
+  if (current === 'team') return 'public'
+  return 'personal'
 }
 
 export default function DocEditorPage() {
@@ -145,13 +160,18 @@ export default function DocEditorPage() {
     scheduleSave({ title, content: newContent })
   }
 
-  const togglePublic = useMutation({
-    mutationFn: (is_public: boolean) =>
-      fetch(`/api/docs/${id}`, {
+  const setVisibility = useMutation({
+    mutationFn: (visibility: DocVisibility) => {
+      const patch = {
+        is_personal: visibility === 'personal',
+        is_public: visibility === 'public',
+      }
+      return fetch(`/api/docs/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_public }),
-      }).then(r => r.json()),
+        body: JSON.stringify(patch),
+      }).then(r => r.json())
+    },
     onSuccess: (updated: Document) => {
       queryClient.setQueryData(['doc', id], updated)
       queryClient.invalidateQueries({ queryKey: ['docs'] })
@@ -270,21 +290,30 @@ ${styles}
             Download PDF
           </button>
         )}
-        {/* Visibility toggle — quick one-click to switch public/private */}
-        <button
-          onClick={() => togglePublic.mutate(!doc.is_public)}
-          title={doc.is_public ? 'Public — click to make private' : 'Private — click to make public'}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-            doc.is_public
-              ? 'bg-novax-light text-novax-muted hover:bg-red-50 hover:text-red-600 hover:border hover:border-red-200'
-              : 'text-slate-600 border border-slate-200 hover:bg-novax-light hover:text-novax-muted hover:border-novax-border',
-          )}
-        >
-          {doc.is_public ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-          {doc.is_public ? 'Public' : 'Private'}
-        </button>
-        {/* Share link — only shown when public */}
+        {/* Visibility — cycles Personal → Team → Public */}
+        {(() => {
+          const v = getVisibility(doc)
+          const next = nextVisibility(v)
+          const labels: Record<DocVisibility, string> = { personal: 'Only me', team: 'Team', public: 'Public' }
+          const nextLabels: Record<DocVisibility, string> = { personal: 'Team', team: 'Public', public: 'Only me' }
+          const styles: Record<DocVisibility, string> = {
+            personal: 'bg-novax-light text-novax-muted border border-novax-border hover:bg-novax-light-hover',
+            team: 'text-slate-600 border border-slate-200 hover:bg-slate-50',
+            public: 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100',
+          }
+          const Icon = v === 'personal' ? Lock : v === 'public' ? Globe : Users
+          return (
+            <button
+              onClick={() => setVisibility.mutate(next)}
+              title={`${labels[v]} — click to set ${nextLabels[v]}`}
+              className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors', styles[v])}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {labels[v]}
+            </button>
+          )
+        })()}
+        {/* Share link — only when public */}
         {doc.is_public && (
           <button
             onClick={() => setShowShare(true)}
@@ -329,7 +358,7 @@ ${styles}
           isPublic={doc.is_public}
           shareToken={doc.share_token}
           onClose={() => setShowShare(false)}
-          onTogglePublic={isPublic => togglePublic.mutate(isPublic)}
+          onTogglePublic={isPublic => setVisibility.mutate(isPublic ? 'public' : 'team')}
         />
       )}
     </div>

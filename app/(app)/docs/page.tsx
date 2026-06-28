@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet, Upload, Globe, Lock } from 'lucide-react'
+import { FileText, Plus, Trash2, Share2, Search, ChevronDown, Loader2, LayoutTemplate, Star, Sheet, Upload, Globe, Lock, Users } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { DocShareDialog } from '@/components/docs/doc-share-dialog'
@@ -27,12 +27,34 @@ interface Document {
   content: object
   share_token: string
   is_public: boolean
+  is_personal: boolean
   is_template: boolean
   template_category: string | null
   doc_type: string
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+type DocVisibility = 'personal' | 'team' | 'public'
+
+function getVisibility(doc: Document): DocVisibility {
+  if (doc.is_personal) return 'personal'
+  if (doc.is_public) return 'public'
+  return 'team'
+}
+
+function nextVisibility(current: DocVisibility): DocVisibility {
+  if (current === 'personal') return 'team'
+  if (current === 'team') return 'public'
+  return 'personal'
+}
+
+function visibilityPatch(v: DocVisibility): { is_personal: boolean; is_public: boolean } {
+  return {
+    is_personal: v === 'personal',
+    is_public: v === 'public',
+  }
 }
 
 export default function DocsPage() {
@@ -78,12 +100,12 @@ export default function DocsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['docs'] }),
   })
 
-  const togglePublic = useMutation({
-    mutationFn: ({ id, is_public }: { id: string; is_public: boolean }) =>
+  const toggleVisibility = useMutation({
+    mutationFn: ({ id, visibility }: { id: string; visibility: DocVisibility }) =>
       fetch(`/api/docs/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_public }),
+        body: JSON.stringify(visibilityPatch(visibility)),
       }).then(r => r.json()),
     onSuccess: (updated: Document) => {
       queryClient.invalidateQueries({ queryKey: ['docs'] })
@@ -353,21 +375,29 @@ export default function DocsPage() {
                         Updated {formatDistanceToNow(new Date(doc.updated_at), { addSuffix: true })}
                       </span>
                     )}
-                    {/* Visibility badge — always visible */}
-                    <button
-                      onClick={e => { e.stopPropagation(); togglePublic.mutate({ id: doc.id, is_public: !doc.is_public }) }}
-                      title={doc.is_public ? 'Public — click to make private' : 'Private — click to make public'}
-                      className={cn(
-                        'flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-colors',
-                        doc.is_public
-                          ? 'text-novax-muted bg-novax-light hover:bg-red-50 hover:text-red-600'
-                          : 'text-slate-400 bg-slate-100 hover:bg-novax-light hover:text-novax-muted',
-                      )}
-                    >
-                      {doc.is_public
-                        ? <><Globe className="w-2.5 h-2.5" /> Public</>
-                        : <><Lock className="w-2.5 h-2.5" /> Private</>}
-                    </button>
+                    {/* Visibility badge — cycles Personal → Team → Public on click */}
+                    {(() => {
+                      const v = getVisibility(doc)
+                      const next = nextVisibility(v)
+                      const labels: Record<DocVisibility, string> = { personal: 'Only me', team: 'Team', public: 'Public' }
+                      const nextLabels: Record<DocVisibility, string> = { personal: 'Team', team: 'Public', public: 'Only me' }
+                      const styles: Record<DocVisibility, string> = {
+                        personal: 'text-novax bg-novax-light hover:bg-novax-light-hover',
+                        team: 'text-slate-500 bg-slate-100 hover:bg-slate-200',
+                        public: 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100',
+                      }
+                      const Icon = v === 'personal' ? Lock : v === 'public' ? Globe : Users
+                      return (
+                        <button
+                          onClick={e => { e.stopPropagation(); toggleVisibility.mutate({ id: doc.id, visibility: next }) }}
+                          title={`${labels[v]} — click to set ${nextLabels[v]}`}
+                          className={cn('flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-colors', styles[v])}
+                        >
+                          <Icon className="w-2.5 h-2.5" />
+                          {labels[v]}
+                        </button>
+                      )
+                    })()}
                   </div>
                 </div>
 
@@ -405,7 +435,7 @@ export default function DocsPage() {
           isPublic={shareDoc.is_public}
           shareToken={shareDoc.share_token}
           onClose={() => setShareDoc(null)}
-          onTogglePublic={is_public => togglePublic.mutate({ id: shareDoc.id, is_public })}
+          onTogglePublic={is_public => toggleVisibility.mutate({ id: shareDoc.id, visibility: is_public ? 'public' : 'team' })}
         />
       )}
     </div>
