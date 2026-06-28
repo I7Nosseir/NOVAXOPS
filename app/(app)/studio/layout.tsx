@@ -8,7 +8,10 @@ import { canSeePage } from '@/lib/page-permissions'
 
 function hasStudioAccess(user: { role: string; page_permissions?: string[] | null }): boolean {
   if (user.role === 'admin' || user.role === 'ceo') return true
-  return canSeePage('studio', user.page_permissions)
+  // Grant layout access if user has the hub OR any individual studio tool permission
+  const perms = user.page_permissions
+  if (perms == null) return true
+  return perms.some(p => p === 'studio' || p.startsWith('studio-'))
 }
 
 export default function StudioLayout({ children }: { children: React.ReactNode }) {
