@@ -17,6 +17,7 @@ export type StudioTool =
   | 'repurpose'
   | 'media_buying'
   | 'copy'
+  | 'decks'
 
 export type SessionStatus = 'running' | 'partial' | 'complete' | 'error'
 

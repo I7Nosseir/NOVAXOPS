@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail, Trash2, FileImage, Link2, Download, TableProperties, CalendarPlus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail, Trash2, FileImage, Link2, Download, TableProperties, CalendarPlus, ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useClients } from '@/lib/hooks/use-clients'
 import { usePosts } from '@/lib/hooks/use-posts'
@@ -293,6 +293,28 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
 
   const bulkImportRef = useRef<HTMLInputElement | null>(null)
 
+  // Pre-approval check state: postId → result
+  const [checkResults, setCheckResults] = useState<Record<string, {
+    loading: boolean; ready?: boolean; score?: number; verdict?: string; issues?: string[]; expanded?: boolean
+  }>>({})
+
+  async function handlePreApprovalCheck(postId: string, caption: string, platform?: string) {
+    if (!caption?.trim()) return
+    setCheckResults(prev => ({ ...prev, [postId]: { loading: true } }))
+    try {
+      const res = await fetch('/api/ai/pre-approval-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caption, client_id: clientId || undefined, platform: platform ?? 'instagram' }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Check failed')
+      setCheckResults(prev => ({ ...prev, [postId]: { loading: false, ...data, expanded: !data.ready } }))
+    } catch {
+      setCheckResults(prev => ({ ...prev, [postId]: { loading: false } }))
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -455,7 +477,67 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
                                   Clear
                                 </button>
                               )}
+                              {/* Pre-flight check */}
+                              {(() => {
+                                const cr = checkResults[post.id]
+                                if (cr?.loading) {
+                                  return <span className="flex items-center gap-1 text-[11px] text-slate-400"><Loader2 className="w-3 h-3 animate-spin"/>Checking…</span>
+                                }
+                                if (cr && cr.score !== undefined) {
+                                  const ready = cr.ready
+                                  const amber = !ready && (cr.score ?? 0) >= 5
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCheckResults(prev => ({ ...prev, [post.id]: { ...prev[post.id], expanded: !prev[post.id].expanded } }))}
+                                      className={cn(
+                                        'flex items-center gap-1 text-[11px] font-semibold transition-colors',
+                                        ready ? 'text-emerald-600' : amber ? 'text-amber-600' : 'text-red-600'
+                                      )}
+                                    >
+                                      {ready
+                                        ? <ShieldCheck className="w-3 h-3"/>
+                                        : amber ? <ShieldAlert className="w-3 h-3"/> : <ShieldX className="w-3 h-3"/>
+                                      }
+                                      {cr.score}/10
+                                    </button>
+                                  )
+                                }
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePreApprovalCheck(post.id, post.caption ?? '', post.platforms?.[0])}
+                                    className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-novax-muted font-medium transition-colors"
+                                    title="AI pre-flight check before sending to client"
+                                  >
+                                    <ShieldCheck className="w-3 h-3"/>
+                                    Pre-flight
+                                  </button>
+                                )
+                              })()}
                             </div>
+                            {/* Expanded check result */}
+                            {(() => {
+                              const cr = checkResults[post.id]
+                              if (!cr?.expanded || cr.score === undefined) return null
+                              return (
+                                <div className="mt-2 space-y-1">
+                                  {cr.verdict && (
+                                    <p className="text-[11px] text-slate-600 leading-snug italic">{cr.verdict}</p>
+                                  )}
+                                  {(cr.issues ?? []).length > 0 && (
+                                    <ul className="space-y-1">
+                                      {(cr.issues ?? []).map((issue, i) => (
+                                        <li key={i} className="flex items-start gap-1.5 text-[11px] text-slate-500">
+                                          <span className="text-amber-400 shrink-0 mt-0.5">•</span>
+                                          {issue}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )}
                       </div>

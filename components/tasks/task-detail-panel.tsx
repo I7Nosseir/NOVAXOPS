@@ -5,7 +5,7 @@ import {
   X, Sparkles, FileSearch, Search, BookOpen, Loader2, CheckCircle,
   Clock, Zap, Copy, MoreHorizontal, Trash2, Eye, BookOpen as ReadIcon,
   ChevronDown, ChevronRight, Monitor, FileText, Plus, ExternalLink,
-  Wand2, ClipboardList, SendHorizontal,
+  Wand2, ClipboardList, SendHorizontal, MessageSquare, ScanLine,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -20,6 +20,7 @@ import { MarkdownContent } from '@/components/ui/markdown-content'
 import { useAuth } from '@/lib/auth-context'
 import { TaskComments } from './task-comments'
 import { AIFeedbackButtons } from '@/components/shared/ai-feedback-buttons'
+import { AIFeedbackPanel } from '@/components/shared/ai-feedback-panel'
 
 interface CopyVariant {
   id: string; label: string; tone: string; framework?: string; hook?: string; text: string
@@ -82,6 +83,17 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const [docsExpanded, setDocsExpanded]         = useState(false)
   const [docSearch, setDocSearch]               = useState('')
   const [showDocSearch, setShowDocSearch]       = useState(false)
+
+  // ── Thinking Partner ────────────────────────────────────────────────────────
+  const [thinkInput,    setThinkInput]    = useState('')
+  const [thinkLoading,  setThinkLoading]  = useState(false)
+  const [thinkMessages, setThinkMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const thinkEndRef = useRef<HTMLDivElement>(null)
+
+  // ── Client Fit checker ──────────────────────────────────────────────────────
+  const [fitLoading, setFitLoading] = useState(false)
+  const [fitResult,  setFitResult]  = useState<{ fit_score: number; verdict: string; pushbacks: string[]; fixes: string[] } | null>(null)
+  const [showFitPanel, setShowFitPanel] = useState(false)
 
   const { clients }      = useClients()
   const { projects }     = useProjects()
@@ -272,6 +284,61 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   }
   const unlinkDoc = (docId: string) => {
     updateTask.mutate({ id: task.id, linked_doc_ids: linkedIds.filter(id => id !== docId) })
+  }
+
+  // ── Client Fit handler ──────────────────────────────────────────────────────
+  const handleClientFit = async () => {
+    const content = task.description?.trim() ?? ''
+    if (!content || !task.client_id) return
+    setFitLoading(true)
+    setFitResult(null)
+    setShowFitPanel(true)
+    try {
+      const res = await fetch('/api/ai/client-fit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, client_id: task.client_id }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Check failed')
+      setFitResult(data)
+    } catch {
+      setShowFitPanel(false)
+    } finally {
+      setFitLoading(false)
+    }
+  }
+
+  // ── Think handler ───────────────────────────────────────────────────────────
+  const handleThink = async () => {
+    const q = thinkInput.trim()
+    if (!q || thinkLoading) return
+    const userMsg = { role: 'user' as const, content: q }
+    const next = [...thinkMessages, userMsg]
+    setThinkMessages(next)
+    setThinkInput('')
+    setThinkLoading(true)
+    setTimeout(() => thinkEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    try {
+      const res = await fetch('/api/ai/task-thinking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: q,
+          task: { title: task.title, description: task.description, pipeline_stage: task.pipeline_stage, priority: task.priority },
+          client_id: task.client_id ?? undefined,
+          messages: thinkMessages.slice(-8),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Generation failed')
+      setThinkMessages([...next, { role: 'assistant', content: data.reply }])
+    } catch {
+      setThinkMessages([...next, { role: 'assistant', content: 'Could not generate a response. Please try again.' }])
+    } finally {
+      setThinkLoading(false)
+      setTimeout(() => thinkEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    }
   }
 
   return (
@@ -574,6 +641,33 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                 </p>
               )}
 
+              {/* Does this fit? */}
+              {task.client_id && task.description && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleClientFit}
+                    disabled={fitLoading}
+                    className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-novax-muted font-medium transition-colors disabled:opacity-40"
+                  >
+                    {fitLoading ? <Loader2 className="w-3 h-3 animate-spin"/> : <ScanLine className="w-3 h-3"/>}
+                    {fitLoading ? 'Checking…' : showFitPanel && fitResult ? 'Recheck client fit' : 'Does this fit the client?'}
+                  </button>
+                  {showFitPanel && (
+                    <AIFeedbackPanel
+                      score={fitResult?.fit_score}
+                      verdict={fitResult?.verdict}
+                      items={fitResult?.pushbacks}
+                      suggestions={fitResult?.fixes}
+                      itemsLabel="Client would push back on"
+                      suggestionsLabel="How to fix"
+                      loading={fitLoading}
+                      className="mt-1"
+                    />
+                  )}
+                </div>
+              )}
+
               {/* Final deliverable */}
               <div className="rounded-xl border border-novax-border bg-novax-light p-4 space-y-2">
                 <p className="text-[10px] font-bold text-novax uppercase tracking-wider">Final Deliverable</p>
@@ -797,6 +891,69 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                 ) : null}
               </div>
             )}
+
+            {/* ── THINK ──────────────────────────────────────────────── */}
+            <div className="border-t border-slate-100 px-6 py-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-3.5 h-3.5 text-novax-muted" />
+                <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Thinking Partner</p>
+                <span className="text-[10px] text-slate-400">Ask a question, get a direct opinion</span>
+              </div>
+
+              {/* Message history */}
+              {thinkMessages.length > 0 && (
+                <div className="max-h-64 overflow-y-auto space-y-3 pr-1">
+                  {thinkMessages.map((m, i) => (
+                    <div key={i} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+                      <div className={cn(
+                        'max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed',
+                        m.role === 'user'
+                          ? 'bg-novax text-white rounded-tr-sm'
+                          : 'bg-slate-100 text-slate-700 rounded-tl-sm',
+                      )}>
+                        {m.content}
+                      </div>
+                    </div>
+                  ))}
+                  {thinkLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-slate-100 rounded-xl rounded-tl-sm px-3 py-2">
+                        <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
+                      </div>
+                    </div>
+                  )}
+                  <div ref={thinkEndRef} />
+                </div>
+              )}
+
+              {/* Input */}
+              <div className="flex gap-2">
+                <input
+                  value={thinkInput}
+                  onChange={e => setThinkInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleThink() } }}
+                  placeholder="Ask anything about this task…"
+                  disabled={thinkLoading}
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-novax-muted disabled:opacity-50"
+                />
+                <button
+                  onClick={handleThink}
+                  disabled={thinkLoading || !thinkInput.trim()}
+                  className="px-3 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  {thinkLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Ask'}
+                </button>
+                {thinkMessages.length > 0 && (
+                  <button
+                    onClick={() => setThinkMessages([])}
+                    className="px-2.5 py-2 text-slate-400 hover:text-slate-600 text-[10px] border border-slate-200 rounded-lg transition-colors"
+                    title="Clear conversation"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* ── DESIGN BRIEF ───────────────────────────────────────── */}
             {client?.design_brief_json && (

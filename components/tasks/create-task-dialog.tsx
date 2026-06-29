@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { X, FileText, Paperclip, Sheet } from 'lucide-react'
+import { X, FileText, Paperclip, Sheet, ScanLine, Loader2, CheckCircle } from 'lucide-react'
 import {
   cn, STAGE_CONFIG, PIPELINE_STAGES,
   getSubtypesForStage, PREDEFINED_TAGS, STAGE_TAG_SUGGESTIONS,
@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { PipelineStage, Priority } from '@/lib/types'
+import { AIFeedbackPanel } from '@/components/shared/ai-feedback-panel'
 
 interface DocOption {
   id: string
@@ -53,6 +54,12 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
   const [linkedDocIds, setLinkedDocIds] = useState<string[]>([])
   const [docSearch, setDocSearch] = useState('')
   const [showDocPicker, setShowDocPicker] = useState(false)
+  const [briefCheckLoading, setBriefCheckLoading] = useState(false)
+  const [briefCheckResult, setBriefCheckResult] = useState<{
+    quality: 'good' | 'needs_work' | 'incomplete'
+    gaps: string[]
+    suggestions: string[]
+  } | null>(null)
 
   // Fetch existing tags from DB for custom tag autocomplete
   const { data: tagRows = [] } = useQuery<{ tags: string[] | null }[]>({
@@ -114,11 +121,32 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
     }
   }
 
+  async function handleBriefCheck() {
+    if (!title.trim() && !description.trim()) return
+    setBriefCheckLoading(true)
+    setBriefCheckResult(null)
+    try {
+      const res = await fetch('/api/ai/brief-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, task_type: subType ?? stage }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Check failed')
+      setBriefCheckResult(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Brief check failed.')
+    } finally {
+      setBriefCheckLoading(false)
+    }
+  }
+
   const reset = () => {
     setTitle(''); setDescription(''); setFinalSubmission(''); setClientId(''); setProjectId('')
     setAssignedTo(''); setStage(defaultStage ?? 'strategy'); setSubType(null); setPriority('medium')
     setDueDate(''); setDueTime(''); setTagInput(''); setTags([])
     setLinkedDocIds([]); setDocSearch(''); setShowDocPicker(false)
+    setBriefCheckResult(null)
     createTask.reset()
   }
 
@@ -207,10 +235,42 @@ export function CreateTaskDialog({ open, defaultStage, onClose }: Props) {
               <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Description</label>
               <textarea
                 value={description}
-                onChange={e => setDescription(e.target.value)}
+                onChange={e => { setDescription(e.target.value); setBriefCheckResult(null) }}
                 placeholder="Brief description…"
                 rows={2}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light resize-none"
+              />
+              <div className="flex items-center justify-between mt-1">
+                {(title.trim() || description.trim()) ? (
+                  <button
+                    type="button"
+                    onClick={handleBriefCheck}
+                    disabled={briefCheckLoading}
+                    className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-novax-muted font-medium transition-colors disabled:opacity-40"
+                  >
+                    {briefCheckLoading
+                      ? <Loader2 className="w-3 h-3 animate-spin"/>
+                      : briefCheckResult?.quality === 'good'
+                        ? <CheckCircle className="w-3 h-3 text-emerald-500"/>
+                        : <ScanLine className="w-3 h-3"/>
+                    }
+                    {briefCheckLoading ? 'Checking…' : briefCheckResult?.quality === 'good' ? 'Brief looks good' : 'Check brief quality'}
+                  </button>
+                ) : <span/>}
+              </div>
+              <AIFeedbackPanel
+                score={briefCheckResult ? (briefCheckResult.quality === 'good' ? 9 : briefCheckResult.quality === 'needs_work' ? 5 : 2) : undefined}
+                verdict={
+                  briefCheckResult?.quality === 'good' ? 'This brief is clear enough to assign.' :
+                  briefCheckResult?.quality === 'needs_work' ? 'A few gaps — worth filling before assigning.' :
+                  briefCheckResult?.quality === 'incomplete' ? 'Missing critical information — fill gaps before assigning.' :
+                  undefined
+                }
+                items={briefCheckResult?.gaps}
+                suggestions={briefCheckResult?.suggestions}
+                itemsLabel="What's missing"
+                suggestionsLabel="Questions to answer"
+                loading={briefCheckLoading}
               />
             </div>
 

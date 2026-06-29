@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw, Pencil } from 'lucide-react'
+import { Send, Calendar, Plus, Eye, Clock, CheckCircle, X, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, Download, Search, ExternalLink, Loader2, AlertTriangle, FileText, CheckCircle2, TriangleAlert, Image as ImageIcon, Layers, Link2, Upload, TableProperties, Trash2, RefreshCw, Pencil, ScanLine, ShieldCheck } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePosts, useSchedulePost, useSaveDraft } from '@/lib/hooks/use-posts'
@@ -17,6 +17,7 @@ import type { ScheduledPost, SocialPlatform } from '@/lib/types'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import { supabase } from '@/lib/supabase'
 import { convertGoogleDriveUrl, isGoogleDriveUrl, isProxyDriveUrl, importDriveFileToStorage } from '@/lib/google-drive'
+import { AIFeedbackPanel } from '@/components/shared/ai-feedback-panel'
 interface PinterestPin { id: string; title: string; description: string; imageUrl: string; link: string; dominantColor: string }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -664,6 +665,8 @@ function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [], in
   const [aiArVariants, setAiArVariants] = useState<CaptionVariant[] | null>(null)
   const [humanizing, setHumanizing] = useState(false)
   const [humanizingAr, setHumanizingAr] = useState(false)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewResult, setReviewResult] = useState<{ score: number; verdict: string; issues: string[]; rewrites: string[] } | null>(null)
 
   const mediaDims = useMediaDimensions(singleUrl)
   const urlIsVideoDetected = /\.(mp4|mov|webm|avi|m4v|mkv|wmv|flv)(\?|$)/i.test(singleUrl)
@@ -671,6 +674,30 @@ function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [], in
   const showThumbnailField = singleUrl.trim() !== '' && (isReel || driveConverted)
   const storySelected = (selectedPlatforms.includes('instagram') && instagramPostType === 'STORY')
     || (selectedPlatforms.includes('facebook') && facebookPostType === 'STORY')
+
+  async function handleGetFeedback() {
+    if (!caption.trim()) return
+    setReviewLoading(true)
+    setReviewResult(null)
+    try {
+      const res = await fetch('/api/ai/review-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caption,
+          client_id: selectedClient || undefined,
+          platform: selectedPlatforms[0] ?? 'instagram',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Review failed')
+      setReviewResult(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Review failed.')
+    } finally {
+      setReviewLoading(false)
+    }
+  }
 
   async function humanizeCaption(targetLang: 'en' | 'ar') {
     const isAr = targetLang === 'ar'
@@ -1355,9 +1382,29 @@ function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [], in
                       {humanizing ? 'Humanizing…' : 'Make Human'}
                     </button>
                   )}
+                  {caption.trim() && (
+                    <button
+                      onClick={handleGetFeedback}
+                      disabled={reviewLoading || aiLoading || humanizing}
+                      className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-novax-muted font-medium transition-colors disabled:opacity-40"
+                      title="Get honest AI feedback on this caption"
+                    >
+                      {reviewLoading ? <Loader2 className="w-3 h-3 animate-spin"/> : <ScanLine className="w-3 h-3"/>}
+                      {reviewLoading ? 'Reviewing…' : 'Get feedback'}
+                    </button>
+                  )}
                 </div>
                 <span className="text-[11px] text-slate-400">{caption.length} / 2200</span>
               </div>
+              <AIFeedbackPanel
+                score={reviewResult?.score}
+                verdict={reviewResult?.verdict}
+                items={reviewResult?.issues}
+                suggestions={reviewResult?.rewrites}
+                suggestionsLabel="Rewrites"
+                onUseSuggestion={text => { setCaption(text); setReviewResult(null) }}
+                loading={reviewLoading}
+              />
               {aiVariants && (
                 <div className="mt-2 space-y-1.5">
                   <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">Select a variant to use:</p>

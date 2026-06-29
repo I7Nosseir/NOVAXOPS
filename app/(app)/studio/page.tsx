@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Zap, Wand2, Brain, Flame, BarChart2, Target, TrendingUp,
-  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers, Crosshair, LineChart, PenLine,
+  ArrowRight, Sparkles, BookOpen, Clapperboard, Layers, Crosshair, LineChart, PenLine, Presentation,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
@@ -123,6 +123,17 @@ const TOOLS = [
     dark: false,
     cta: 'Build Plan',
   },
+  {
+    href: '/studio/decks',
+    icon: Presentation,
+    title: 'Deck Builder',
+    description: 'Prompt or paste content — get a full presentation. Campaign decks, strategy docs, reports, and pitches. Export as PPTX and PDF with your brand colors.',
+    badge: 'New',
+    badgeColor: 'bg-amber-100 text-amber-800',
+    gradient: false,
+    dark: false,
+    cta: 'Build Deck',
+  },
 ]
 
 const QUICK_LINKS = [
@@ -161,6 +172,7 @@ export default function StudioPage() {
       visual:     '/studio/visual',
       formats:    '/studio/formats',
       copy:       '/studio/copy',
+      decks:      '/studio/decks',
     }
     const route = routes[session.tool]
     if (route) router.push(`${route}?session_id=${session.id}`)
