@@ -223,19 +223,27 @@ export default function StrategyPage() {
 
       // Boss Brief
       let bb: BossBrief | null = null
-      try {
-        const bbRes = await fetch('/api/studio/brief-confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            brief, mode: 'boss_brief',
-            strategy: { campaign_line: doc.campaign_line, quarter_role: doc.quarter_role },
-            client:   selectedClient ? { name: selectedClient.name } : null,
-          }),
-        })
-        const bbData = await bbRes.json() as { boss_brief?: BossBrief }
-        bb = bbData.boss_brief ?? null
-      } catch { /* non-fatal */ }
+      let bbAttempts = 0
+      while (bbAttempts < 2) {
+        try {
+          const bbRes = await fetch('/api/studio/brief-confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              brief, mode: 'boss_brief',
+              strategy: { campaign_line: doc.campaign_line, quarter_role: doc.quarter_role },
+              client:   selectedClient ? { name: selectedClient.name } : null,
+            }),
+          })
+          if (!bbRes.ok) throw new Error('Boss Brief API error')
+          const bbData = await bbRes.json() as { boss_brief?: BossBrief }
+          bb = bbData.boss_brief ?? null
+          break
+        } catch {
+          bbAttempts++
+        }
+      }
+      if (!bb) toast.error('Executive summary unavailable — generation failed.')
       setBossBrief(bb)
 
       // Save session
@@ -244,7 +252,9 @@ export default function StrategyPage() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'complete', outputs: { strategy: doc }, boss_brief: bb }),
-        }).catch(() => {})
+        })
+          .then(r => { if (!r.ok) toast.error('Session could not be saved. Copy your output now.') })
+          .catch(() => toast.error('Session could not be saved. Copy your output now.'))
         setSessions(prev => [{
           id: sid, name, tool: 'strategy', status: 'complete',
           outputs: { strategy: doc }, boss_brief: bb,

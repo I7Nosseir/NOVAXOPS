@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Kanban, Building2, FolderKanban,
   Send, MessageSquare, Image, BarChart2, Settings,
   ChevronRight, CheckSquare, Users, Sparkles, BookMarked, LogOut, X, TrendingUp, Wand2, ListTodo, ScanSearch, FileText,
-  Zap, Brain, Crown, Clapperboard, Flame, Layers, Activity, ImagePlus, BookOpen,
+  Zap, Brain, Crown, Clapperboard, Flame, Layers, Activity, BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -60,7 +60,6 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Creative',
     items: [
       { href: '/assets',        icon: Image,      label: 'Assets',        permKey: 'assets' },
-      { href: '/ai-image',      icon: ImagePlus,  label: 'AI Image',      permKey: 'ai-image' },
       { href: '/creative-eval',  icon: Sparkles,   label: 'Creative Eval',          permKey: 'creative-eval' },
       { href: '/strategy-eval', icon: Brain,      label: 'Strategy & Content Eval', permKey: 'strategy-eval' },
       { href: '/docs',          icon: FileText,   label: 'Documents',     permKey: 'docs' },

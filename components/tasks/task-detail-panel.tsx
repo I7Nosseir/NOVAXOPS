@@ -40,9 +40,10 @@ const AGENTS: { type: AgentType; label: string; icon: typeof Sparkles; descripti
 ]
 
 const STATUS_CONFIG = {
-  active:    { label: 'Active',   dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
-  blocked:   { label: 'Blocked',  dot: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200' },
-  completed: { label: 'Done',     dot: 'bg-slate-400',   text: 'text-slate-600',   bg: 'bg-slate-100',   border: 'border-slate-200' },
+  pending:   { label: 'To Do',       dot: 'bg-slate-400',   text: 'text-slate-600',   bg: 'bg-slate-100',  border: 'border-slate-300' },
+  active:    { label: 'In Progress', dot: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50',    border: 'border-blue-200' },
+  blocked:   { label: 'Blocked',     dot: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200' },
+  completed: { label: 'Done',        dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
 }
 
 interface Props {
@@ -488,14 +489,14 @@ export function TaskDetailPanel({ task, onClose }: Props) {
 
                 {/* Status toggles */}
                 <div className="ml-auto flex items-center gap-1">
-                  {(['active', 'blocked', 'completed'] as TaskStatus[]).map(s => {
-                    const sc  = STATUS_CONFIG[s]
-                    const active = task.status === s
+                  {(['pending', 'active', 'blocked', 'completed'] as TaskStatus[]).map(s => {
+                    const sc      = STATUS_CONFIG[s]
+                    const isCurrent = task.status === s
                     return (
                       <button
                         key={s}
                         onClick={async () => {
-                          if (!authUser || active) return
+                          if (!authUser || isCurrent) return
                           const res = await fetch(`/api/tasks/${task.id}/status`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
@@ -511,11 +512,13 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                         title={sc.label}
                         className={cn(
                           'flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all',
-                          active ? cn(sc.bg, sc.text, sc.border) : 'border-transparent text-slate-400 hover:bg-slate-100',
+                          isCurrent
+                            ? cn(sc.bg, sc.text, sc.border)
+                            : 'border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600',
                         )}
                       >
                         <div className={cn('w-1.5 h-1.5 rounded-full', sc.dot)} />
-                        {active && sc.label}
+                        {sc.label}
                       </button>
                     )
                   })}

@@ -20,6 +20,8 @@ import { PlatformIcon } from '@/components/ui/platform-icon'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import type { TopPost } from '@/app/api/dashboard/top-posts/route'
+import type { SocialPlatform } from '@/lib/types'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -609,6 +611,74 @@ function LoginBlastButton() {
   )
 }
 
+// ── What Worked This Week ──────────────────────────────────────────────────────
+
+function WhatWorkedThisWeek() {
+  const [posts, setPosts] = useState<TopPost[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/dashboard/top-posts')
+      .then(r => r.json())
+      .then((d: { posts?: TopPost[] }) => setPosts(d.posts ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="dash-card">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="w-4 h-4 text-novax-accent" />
+          <h3 className="font-semibold text-slate-900 dark:text-white">What worked this week</h3>
+        </div>
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-14 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!posts.length) return null
+
+  return (
+    <div className="dash-card">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-novax-accent" />
+          <div>
+            <h3 className="font-semibold text-slate-900 dark:text-white">What worked this week</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Posts with ER &gt; 2× client average</p>
+          </div>
+        </div>
+        <span className="text-xs text-slate-400">{posts.length} post{posts.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div className="space-y-2">
+        {posts.map(post => (
+          <div key={post.post_id} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+            <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: post.client_color }} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 truncate">{post.client_name}</span>
+                <PlatformIcon platform={post.platform as SocialPlatform} size="xs" />
+                <span className="text-[10px] text-emerald-600 font-bold ml-auto shrink-0">{post.er}% ER</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{post.caption || '(no caption)'}</p>
+              {post.client_avg_er > 0 && (
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {Math.round((post.er / post.client_avg_er) * 10) / 10}× above average ({post.client_avg_er}%)
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { user }   = useAuth()
   const { tasks }  = useTasks()
@@ -684,6 +754,9 @@ export default function DashboardPage() {
 
       {/* Social Performance — Metricool month-to-date */}
       <SocialPerformanceSection/>
+
+      {/* What worked this week — posts with ER > 2× client average */}
+      <WhatWorkedThisWeek/>
 
       {/* Latest Posts Feed — live thumbnails from Metricool */}
       <LatestPostsFeed/>
@@ -768,7 +841,7 @@ export default function DashboardPage() {
               <h3 className="font-semibold text-slate-900 dark:text-white">Top Content</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">Best performing by engagement rate</p>
             </div>
-            <a href="/performance" className="text-xs text-novax hover:text-novax-hover font-medium">Performance →</a>
+            <a href="/reports" className="text-xs text-novax hover:text-novax-hover font-medium">Performance →</a>
           </div>
           <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-0.5">
             {topPosts.map((post, i) => {

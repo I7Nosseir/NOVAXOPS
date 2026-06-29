@@ -3,6 +3,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { ClientNormalizedProfile } from '@/lib/types'
 
+export interface ClientIntelligenceSummary {
+  voice?: string
+  avoid?: string[]
+  goal?: string
+  competitor_note?: string
+  quarter_theme?: string
+}
+
 export function adminSupabase(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -301,6 +309,64 @@ function formatCompetitorBlock(analysis: CompetitorAnalysisShape, asOf: string):
 
   if (lines.length === 0) return ''
   return `\n\n── COMPETITIVE CONTEXT (as of ${asOf}) ──\n${lines.join('\n')}\nYour output must be clearly differentiated from the competitor patterns above.`
+}
+
+export async function buildClientIntelligenceSummary(
+  clientId: string,
+  db: SupabaseClient
+): Promise<ClientIntelligenceSummary> {
+  const summary: ClientIntelligenceSummary = {}
+
+  const { data: clientRow } = await db
+    .from('clients')
+    .select('normalized_profile, brand_identity_json')
+    .eq('id', clientId)
+    .single()
+
+  const profile = clientRow?.normalized_profile as ClientNormalizedProfile | undefined
+  if (profile?.brand_voice?.length) {
+    summary.voice = Array.isArray(profile.brand_voice) ? profile.brand_voice.join(', ') : String(profile.brand_voice)
+  } else {
+    const bi = clientRow?.brand_identity_json as { tone_of_voice?: string } | undefined
+    if (bi?.tone_of_voice) summary.voice = bi.tone_of_voice
+  }
+
+  const { data: ctxRows } = await db
+    .from('client_context_bank')
+    .select('category, summary')
+    .eq('client_id', clientId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  const avoidItems: string[] = []
+  for (const row of (ctxRows ?? []) as { category: string; summary: string }[]) {
+    if (row.category === 'Client Instructions' && avoidItems.length < 3) {
+      avoidItems.push(row.summary.slice(0, 80))
+    } else if (row.category === 'Campaign Feedback' && !summary.goal) {
+      summary.goal = row.summary.slice(0, 100)
+    } else if (row.category === 'Competitor Intel' && !summary.competitor_note) {
+      summary.competitor_note = row.summary.slice(0, 100)
+    }
+  }
+  if (avoidItems.length > 0) summary.avoid = avoidItems
+
+  const now = new Date()
+  const year = now.getFullYear()
+  const quarter = Math.ceil((now.getMonth() + 1) / 3)
+  const { data: stratRow } = await db
+    .from('client_quarterly_strategies')
+    .select('themes')
+    .eq('client_id', clientId)
+    .eq('year', year)
+    .eq('quarter', quarter)
+    .maybeSingle()
+
+  if (stratRow?.themes) {
+    summary.quarter_theme = String(stratRow.themes).slice(0, 100)
+  }
+
+  return summary
 }
 
 /**

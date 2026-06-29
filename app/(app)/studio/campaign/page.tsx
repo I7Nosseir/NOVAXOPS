@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -241,7 +242,9 @@ export default function CampaignIgniterPage() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'complete', outputs: { campaign: doc }, boss_brief: bb }),
-        }).catch(() => {})
+        })
+          .then(r => { if (!r.ok) toast.error('Session could not be saved. Copy your output now.') })
+          .catch(() => toast.error('Session could not be saved. Copy your output now.'))
       }
 
       setPageState('document')

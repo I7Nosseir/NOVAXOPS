@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -17,6 +18,7 @@ import { StudioSessionList } from '@/components/studio/studio-session-list'
 import { StudioSaveActions } from '@/components/studio/studio-save-actions'
 import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
 import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
+import type { ClientIntelligenceSummary } from '@/lib/client-intelligence'
 import type {
   HookDocument,
   BossBrief,
@@ -92,9 +94,10 @@ export default function HookLabPage() {
   const [sessionId, setSessionId] = useState<string | null>(null)
 
   // Document
-  const [hookDoc,     setHookDoc]     = useState<HookDocument | null>(null)
-  const [bossBrief,   setBossBrief]   = useState<BossBrief | null>(null)
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
+  const [hookDoc,             setHookDoc]             = useState<HookDocument | null>(null)
+  const [bossBrief,           setBossBrief]           = useState<BossBrief | null>(null)
+  const [chatHistory,         setChatHistory]         = useState<ChatMessage[]>([])
+  const [intelligenceSummary, setIntelligenceSummary] = useState<ClientIntelligenceSummary | null>(null)
 
   const selectedClient = clients.find(c => c.id === clientId)
 
@@ -129,6 +132,23 @@ export default function HookLabPage() {
       })
       .catch(() => {})
   }, [params])
+
+  // ── Intelligence summary (for Based On panel) ──────────────────────────────
+  useEffect(() => {
+    if (pageState !== 'document' || !clientId) return
+    fetch(`/api/clients/${clientId}/intelligence-summary`)
+      .then(r => r.json())
+      .then((data: ClientIntelligenceSummary) => setIntelligenceSummary(data))
+      .catch(() => {})
+  }, [pageState, clientId])
+
+  // ── Schedule handler — opens Publishing with caption pre-filled ─────────────
+  function handleSchedule(caption: string) {
+    const platform = platforms[0] ?? 'instagram'
+    const platformKey = platform.toLowerCase().replace(/\s*\(.*\)/, '').replace(/\s+/g, '_')
+    const q = new URLSearchParams({ caption, client: clientId, platform: platformKey })
+    router.push(`/publishing?${q.toString()}`)
+  }
 
   // ── Elapsed timer ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -271,15 +291,23 @@ export default function HookLabPage() {
 
       // Boss Brief
       let bb: BossBrief | null = null
-      try {
-        const bbRes = await fetch('/api/studio/brief-confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brief, mode: 'boss_brief', hook: bestHook?.hook_text, client: selectedClient ? { name: selectedClient.name } : null }),
-        })
-        const bbData = await bbRes.json() as { boss_brief?: BossBrief }
-        bb = bbData.boss_brief ?? null
-      } catch { /* non-fatal */ }
+      let bbAttempts = 0
+      while (bbAttempts < 2) {
+        try {
+          const bbRes = await fetch('/api/studio/brief-confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ brief, mode: 'boss_brief', hook: bestHook?.hook_text, client: selectedClient ? { name: selectedClient.name } : null }),
+          })
+          if (!bbRes.ok) throw new Error('Boss Brief API error')
+          const bbData = await bbRes.json() as { boss_brief?: BossBrief }
+          bb = bbData.boss_brief ?? null
+          break
+        } catch {
+          bbAttempts++
+        }
+      }
+      if (!bb) toast.error('Executive summary unavailable — generation failed.')
       setBossBrief(bb)
 
       // Save session + prepend to session list
@@ -288,7 +316,9 @@ export default function HookLabPage() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'complete', outputs: { hooks: doc }, boss_brief: bb }),
-        }).catch(() => {})
+        })
+          .then(r => { if (!r.ok) toast.error('Session could not be saved. Copy your output now.') })
+          .catch(() => toast.error('Session could not be saved. Copy your output now.'))
         const newSession: StudioSession = {
           id: sid,
           name: `${selectedClient?.name ?? 'Hooks'} — ${platforms[0]}`,
@@ -589,6 +619,8 @@ export default function HookLabPage() {
             bossBrief={bossBrief}
             language={language}
             onExportPdf={() => window.print()}
+            onSchedule={handleSchedule}
+            intelligenceSummary={intelligenceSummary}
             onEditApplied={(target, newContent) => {
               if (!hookDoc) return
               const idx = parseInt(target.replace('hook_', ''), 10)

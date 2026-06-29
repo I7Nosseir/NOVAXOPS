@@ -11,7 +11,7 @@ export type PipelineStage =
   | 'reporting'
 
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'
-export type TaskStatus = 'active' | 'blocked' | 'completed'
+export type TaskStatus = 'pending' | 'active' | 'blocked' | 'completed'
 export type UserRole = 'admin' | 'ceo' | 'creative_director' | 'copywriter' | 'designer' | 'social_manager' | 'account_manager' | 'strategist' | 'video_editor' | 'web_developer'
 export type Department = 'creative' | 'strategy' | 'accounts' | 'social'
 export type SocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'twitter' | 'youtube' | 'pinterest'

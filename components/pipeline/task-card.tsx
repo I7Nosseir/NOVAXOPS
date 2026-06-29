@@ -9,9 +9,24 @@ import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
 
 const STATUS_DOT: Record<string, string> = {
-  active: 'bg-emerald-500',
-  blocked: 'bg-red-500',
-  completed: 'bg-slate-400',
+  pending:   'bg-slate-400',
+  active:    'bg-blue-500',
+  blocked:   'bg-red-500',
+  completed: 'bg-emerald-500',
+}
+
+const STATUS_PILL: Record<string, string> = {
+  pending:   'bg-slate-100 text-slate-500',
+  active:    'bg-blue-50 text-blue-600',
+  blocked:   'bg-red-50 text-red-600',
+  completed: 'bg-emerald-50 text-emerald-700',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  pending:   'To Do',
+  active:    'In Progress',
+  blocked:   'Blocked',
+  completed: 'Done',
 }
 
 interface Props {
@@ -96,11 +111,14 @@ export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
             : '—'}
         </div>
         <div className="flex items-center gap-1.5">
-          {/* Status dot */}
-          <div
-            className={cn('w-2 h-2 rounded-full', STATUS_DOT[task.status] ?? 'bg-slate-300')}
-            title={task.status}
-          />
+          {/* Status pill */}
+          <span className={cn(
+            'inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none',
+            STATUS_PILL[task.status] ?? 'bg-slate-100 text-slate-400',
+          )}>
+            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[task.status] ?? 'bg-slate-300')} />
+            {STATUS_LABEL[task.status] ?? task.status}
+          </span>
           {user && (
             <div
               className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { TaskStatus } from '@/lib/types'
 
 const MANAGER_ROLES = ['admin', 'ceo', 'creative_director', 'account_manager', 'strategist']
-const VALID_STATUSES: TaskStatus[] = ['active', 'blocked', 'completed']
+const VALID_STATUSES: TaskStatus[] = ['pending', 'active', 'blocked', 'completed']
 
 function db() {
   return createClient(

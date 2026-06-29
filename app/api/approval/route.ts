@@ -201,6 +201,54 @@ export async function PATCH(req: NextRequest) {
       .match({ request_id: request.id, post_id })
   }
 
+  // Auto-log approval decisions to client_context_bank
+  try {
+    const { data: scheduledPosts } = (request.post_ids ?? []).length > 0
+      ? await db.from('scheduled_posts').select('id, caption').in('id', request.post_ids ?? [])
+      : { data: [] as { id: string; caption: string }[] }
+
+    const { data: fullReq } = await db
+      .from('approval_requests')
+      .select('items')
+      .eq('id', request.id)
+      .single()
+    const adhocItems = (fullReq?.items ?? []) as { id: string; caption: string }[]
+
+    const contextInserts: Record<string, unknown>[] = []
+    for (const [post_id, { status, note }] of Object.entries(decisions)) {
+      const scheduledPost = (scheduledPosts ?? []).find(p => p.id === post_id)
+      const adhocItem = adhocItems.find(x => x.id === post_id)
+      const caption = scheduledPost?.caption ?? adhocItem?.caption ?? ''
+      if (!caption) continue
+
+      if (status === 'approved') {
+        contextInserts.push({
+          client_id:   request.client_id,
+          category:    'Campaign Feedback',
+          summary:     `Client approved: "${caption.slice(0, 120)}"`,
+          full_text:   `Client approved content in approval request "${request.title}"`,
+          source_type: 'feedback',
+          is_active:   true,
+        })
+      } else if (status === 'changes_requested' && note?.trim()) {
+        contextInserts.push({
+          client_id:   request.client_id,
+          category:    'Client Instructions',
+          summary:     `Client requested changes: "${note.trim().slice(0, 200)}"`,
+          full_text:   `Original caption: "${caption.slice(0, 200)}" — Client note: "${note.trim()}"`,
+          source_type: 'feedback',
+          is_active:   true,
+        })
+      }
+    }
+
+    if (contextInserts.length > 0) {
+      await db.from('client_context_bank').insert(contextInserts)
+    }
+  } catch (err) {
+    console.error('[approval] context bank auto-write failed:', err)
+  }
+
   // Fire-and-forget: notify the team member who created the request
   if (request.created_by) {
     const [{ data: createdByUser }, { data: client }, { data: postData }] = await Promise.all([

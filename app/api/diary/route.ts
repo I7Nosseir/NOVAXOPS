@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
 
 function err(msg: string, status = 500): NextResponse {
@@ -6,28 +8,45 @@ function err(msg: string, status = 500): NextResponse {
   return NextResponse.json({ error: msg }, { status })
 }
 
+async function getAuthUser(): Promise<{ id: string; role: string } | null> {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll() } },
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const db = createAdminClient()
+  const { data: profile } = await db
+    .from('users')
+    .select('id, role')
+    .eq('auth_id', user.id)
+    .single()
+
+  if (!profile) return null
+  return { id: profile.id as string, role: profile.role as string }
+}
+
 /**
  * GET /api/diary
  * ?userId=<uuid>   — admin only: fetch a specific user's entries
  * ?date=YYYY-MM-DD — return the single entry for that date
  * Default: return all entries for the requesting user, ordered newest first.
- *
- * The admin identity is resolved from the x-user-id / x-user-role headers
- * that the client passes in every authenticated request.
  */
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url)
-    const requestingRole = req.headers.get('x-user-role') ?? ''
-    const requestingId   = req.headers.get('x-user-id')  ?? ''
-    const targetUserId   = searchParams.get('userId')
-    const date           = searchParams.get('date')
+    const authUser = await getAuthUser()
+    if (!authUser) return err('Unauthenticated', 401)
 
-    if (!requestingId) return err('Unauthenticated', 401)
+    const { searchParams } = new URL(req.url)
+    const targetUserId = searchParams.get('userId')
+    const date         = searchParams.get('date')
 
     // Non-admins may only read their own diary
     const resolvedUserId =
-      targetUserId && requestingRole === 'admin' ? targetUserId : requestingId
+      targetUserId && authUser.role === 'admin' ? targetUserId : authUser.id
 
     const db = createAdminClient()
 
@@ -61,10 +80,8 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const requestingId   = req.headers.get('x-user-id')  ?? ''
-    const requestingRole = req.headers.get('x-user-role') ?? ''
-
-    if (!requestingId) return err('Unauthenticated', 401)
+    const authUser = await getAuthUser()
+    if (!authUser) return err('Unauthenticated', 401)
 
     const body = await req.json()
     const { date, userId: bodyUserId, ...fields } = body
@@ -73,7 +90,7 @@ export async function POST(req: NextRequest) {
 
     // Admin can write on behalf of another user
     const targetUserId =
-      bodyUserId && requestingRole === 'admin' ? bodyUserId : requestingId
+      bodyUserId && authUser.role === 'admin' ? bodyUserId : authUser.id
 
     const db = createAdminClient()
 

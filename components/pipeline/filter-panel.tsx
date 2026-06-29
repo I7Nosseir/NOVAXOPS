@@ -168,18 +168,23 @@ export function FilterPanel({ filters, onUpdate, onClose }: Props) {
       <div>
         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Status</p>
         <div className="flex gap-2">
-          {(['active', 'blocked', 'completed'] as TaskStatus[]).map(s => {
-            const active = filters.statuses.includes(s)
+          {([
+            { value: 'pending'   as TaskStatus, label: 'To Do' },
+            { value: 'active'    as TaskStatus, label: 'In Progress' },
+            { value: 'blocked'   as TaskStatus, label: 'Blocked' },
+            { value: 'completed' as TaskStatus, label: 'Done' },
+          ]).map(({ value, label }) => {
+            const active = filters.statuses.includes(value)
             return (
               <button
-                key={s}
-                onClick={() => onUpdate({ ...filters, statuses: toggle(filters.statuses, s) })}
+                key={value}
+                onClick={() => onUpdate({ ...filters, statuses: toggle(filters.statuses, value) })}
                 className={cn(
-                  'flex-1 py-1.5 text-xs font-semibold rounded-lg border capitalize transition-all',
+                  'flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all',
                   active ? 'bg-novax text-white border-novax' : 'border-slate-200 text-slate-600 hover:bg-slate-50',
                 )}
               >
-                {s}
+                {label}
               </button>
             )
           })}

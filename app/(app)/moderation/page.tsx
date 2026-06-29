@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { MessageSquare, Send, EyeOff, AlertOctagon, CheckCircle, Sparkles, RefreshCw } from 'lucide-react'
 import { useModerationItems, useUpdateModerationItem } from '@/lib/hooks/use-moderation'
 import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
@@ -31,12 +32,19 @@ function ModerationCard({ item }: { item: ModerationItem }) {
     if (!reply.trim()) return
     setSending(true)
     try {
-      await fetch('/api/chatwoot/reply', {
+      const res = await fetch('/api/chatwoot/reply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moderation_item_id: item.id, reply_text: reply }),
       })
-    } catch { /* DB update below is authoritative */ } finally {
+      if (!res.ok) {
+        toast.error('Reply failed to send. Try again.')
+        return
+      }
+    } catch {
+      toast.error('Reply failed to send. Try again.')
+      return
+    } finally {
       setSending(false)
     }
     setStatus('replied')

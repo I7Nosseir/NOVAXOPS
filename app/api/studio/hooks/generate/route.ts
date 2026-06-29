@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase } from '@/lib/client-intelligence'
 import { aiGuard } from '@/lib/ai-guard'
@@ -23,9 +23,9 @@ export interface GeneratedHook {
 function languageInstruction(language: string, dialect: string): string {
   if (language !== 'arabic') return ''
   if (dialect === 'saudi') {
-    return '\nLANGUAGE: Write ALL hooks in Saudi Arabic (Ø§Ù„Ù„Ù‡Ø¬Ø© Ø§Ù„Ø³Ø¹ÙˆØ¯ÙŠØ©). Use Saudi colloquialisms, Saudi dialect vocabulary, and culturally relevant Saudi references. All hook text must be in Arabic script.\n'
+    return '\nLANGUAGE: Write ALL hooks in Saudi Arabic (اللهجة السعودية). Use Saudi colloquialisms, Saudi dialect vocabulary, and culturally relevant Saudi references. All hook text must be in Arabic script.\n'
   }
-  return '\nLANGUAGE: Write ALL hooks in Egyptian Arabic (Ø§Ù„Ù„Ù‡Ø¬Ø© Ø§Ù„Ù…ØµØ±ÙŠØ© / Ø¹Ø§Ù…ÙŠØ© Ù…ØµØ±ÙŠØ©). Use Egyptian dialect vocabulary, Egyptian colloquialisms, and culturally relevant Egyptian/pan-Arab references. All hook text must be in Arabic script.\n'
+  return '\nLANGUAGE: Write ALL hooks in Egyptian Arabic (اللهجة المصرية / عامية مصرية). Use Egyptian dialect vocabulary, Egyptian colloquialisms, and culturally relevant Egyptian/pan-Arab references. All hook text must be in Arabic script.\n'
 }
 
 const HOOK_PROMPT = (
@@ -40,12 +40,12 @@ const HOOK_PROMPT = (
 ) => `You are the best hook writer in the world. You have studied every format that broke through on ${platform} and you know the exact psychological mechanism behind each one.
 ${languageInstruction(language, dialect)}
 A great hook does three things simultaneously:
-1. It creates an immediate information gap â€” the brain feels incomplete and must resolve it
-2. It signals identity â€” the viewer instantly knows "this is for me" or "this is about someone I know"
-3. It triggers a micro-commitment â€” reading/watching the next line feels less like a choice and more like a reflex
+1. It creates an immediate information gap — the brain feels incomplete and must resolve it
+2. It signals identity — the viewer instantly knows "this is for me" or "this is about someone I know"
+3. It triggers a micro-commitment — reading/watching the next line feels less like a choice and more like a reflex
 
 A weak hook: generic, could apply to any brand, no identity signal, no gap.
-A strong hook: specific enough that only a fraction of scrollers stop â€” but that fraction is exactly the right audience.
+A strong hook: specific enough that only a fraction of scrollers stop — but that fraction is exactly the right audience.
 
 BRIEF: ${brief}
 PLATFORM: ${platform}
@@ -61,59 +61,59 @@ ${platform === 'TikTok' ? '- Maximum 8 words for text overlays. Spoken hooks: fi
   platform === 'YouTube' ? '- Title hooks: promise a transformation or reveal. Thumbnail hook: creates a visual question. First 15 seconds: restate the promise, add urgency.' :
   '- Match platform norms: specific, identity-forward, pattern-interrupting.'}
 
-HOOK TYPES â€” generate at least 2 of each type:
+HOOK TYPES — generate at least 2 of each type:
 - Curiosity: Opens an information gap so specific the audience feels they already missed something important
 - Contradiction: Challenges a belief the audience holds so tightly they need to read to defend it
-- Fear: Loss aversion or FOMO â€” must be credible, not hyperbolic
+- Fear: Loss aversion or FOMO — must be credible, not hyperbolic
 - Status: Leverages identity and belonging signals specific to this audience
-- Authority: Establishes credibility in the first phrase â€” a number, a credential, a named result
-- Transformation: Before/after framing â€” the before must be painfully recognizable
+- Authority: Establishes credibility in the first phrase — a number, a credential, a named result
+- Transformation: Before/after framing — the before must be painfully recognizable
 - Emotional: Vulnerability or shared experience that makes the audience feel seen, not sold to
 - Story: Opens a narrative loop with a specific character in a specific situation
-- Shock: A counter-intuitive truth or surprising fact â€” must be verifiable
+- Shock: A counter-intuitive truth or surprising fact — must be verifiable
 
-3C SCORING â€” score each dimension 0-10 with precision:
+3C SCORING — score each dimension 0-10 with precision:
 - Clarity (0-10): Does it land with zero cognitive friction? 10 = any 7-year-old understands the setup. 5 = requires two reads.
 - Context (0-10): Does it signal the exact audience in the first phrase? 10 = the target audience feels personally called out. 5 = vaguely relevant.
-- Curiosity (0-10): THIS IS THE MOST IMPORTANT DIMENSION. Does it open a loop so specific the viewer cannot close it without watching to the end? 10 = stopping is physically uncomfortable. 5 = mildly interesting. Score this last and score it ruthlessly â€” most hooks that feel good score 6 here, not 8.
+- Curiosity (0-10): THIS IS THE MOST IMPORTANT DIMENSION. Does it open a loop so specific the viewer cannot close it without watching to the end? 10 = stopping is physically uncomfortable. 5 = mildly interesting. Score this last and score it ruthlessly — most hooks that feel good score 6 here, not 8.
 
 CALIBRATION EXAMPLES (so you don't cluster scores around 7):
-- Score 30 (S tier): "The doctor told me I had 6 months. I responded with a spreadsheet." â€” Curiosity + Shock + Story all in one. Perfect clarity. Universal identity signal. Irresistible gap.
-- Score 22 (A tier): "I grew my account to 100k by doing the exact opposite of what every guru says." â€” Clear, relevant, information gap. Not perfect because the "guru" trope is slightly worn.
-- Score 16 (B tier): "Here are 5 things I wish I knew about investing." â€” Clear, contextual, but the gap is weak. No urgency. Predictable.
-- Score 9 (C tier): "Want to learn more about our products?" â€” No gap, no identity, no tension.
+- Score 30 (S tier): "The doctor told me I had 6 months. I responded with a spreadsheet." — Curiosity + Shock + Story all in one. Perfect clarity. Universal identity signal. Irresistible gap.
+- Score 22 (A tier): "I grew my account to 100k by doing the exact opposite of what every guru says." — Clear, relevant, information gap. Not perfect because the "guru" trope is slightly worn.
+- Score 16 (B tier): "Here are 5 things I wish I knew about investing." — Clear, contextual, but the gap is weak. No urgency. Predictable.
+- Score 9 (C tier): "Want to learn more about our products?" — No gap, no identity, no tension.
 
-VIRALITY TIERS: S = 27â€“30 total, A = 21â€“26, B = 15â€“20, C = below 15
+VIRALITY TIERS: S = 27—30 total, A = 21—26, B = 15—20, C = below 15
 
-VIRAL CONTENT LAWS â€” every hook must satisfy all four:
-1. OPEN LOOP: The hook must create a question that closes ONLY by watching/reading to the end. Not "I have advice" â€” "I found out why [specific thing], and the answer surprised me." The viewer must feel that stopping means missing something specific they want.
+VIRAL CONTENT LAWS — every hook must satisfy all four:
+1. OPEN LOOP: The hook must create a question that closes ONLY by watching/reading to the end. Not "I have advice" — "I found out why [specific thing], and the answer surprised me." The viewer must feel that stopping means missing something specific they want.
 2. CONTROVERSY POTENTIAL: Score each hook mentally: does it say something that 50% will agree with and 50% will push back on? The best hooks divide opinion on ideas, not on the brand. Controversy drives comments, and comments drive reach.
 3. DISCUSSION TRIGGER: The hook should naturally lead the viewer to want to share their own version, opinion, or story. People share what makes them feel seen or what lets them show who they are.
-4. PRIZE PROMISE (for content that runs long): If this hook introduces a video or carousel, it must implicitly or explicitly promise something the viewer GETS by reaching the end â€” a specific number, method, result, or revelation they couldn't have known otherwise.
+4. PRIZE PROMISE (for content that runs long): If this hook introduces a video or carousel, it must implicitly or explicitly promise something the viewer GETS by reaching the end — a specific number, method, result, or revelation they couldn't have known otherwise.
 
 FORMAT RECOMMENDATIONS:
-- vocal: Best delivered as a spoken opener (designed for video â€” one breath, natural pause after)
+- vocal: Best delivered as a spoken opener (designed for video — one breath, natural pause after)
 - text_block: Best as on-screen text overlay (7 words max, high contrast)
 - caption: Best as written post opening (works when read silently)
 - all_three: Strong enough to cross all formats without losing power
 
-REPEATABLE FORMAT SIGNAL â€” for each hook, assess: could this hook be executed as a series?
+REPEATABLE FORMAT SIGNAL — for each hook, assess: could this hook be executed as a series?
 Job Ladder principle: same structure, different subjects, new piece every week. Formats that can run forever become brand identity. Note this in format_note when applicable.
 
 FOR EACH HOOK, ALSO WRITE:
-- headline: A 4â€“8 word content title this hook introduces â€” NOT the hook itself. This names the content piece.
-- body: 2â€“3 sentences of body copy that deliver on the hook's promise, deepen the tension, and set up the CTA. No filler. Every word earns its place. End with one sentence that is a genuine point of view â€” something people either strongly agree or strongly disagree with.
-- cta: One specific, native call-to-action sentence for ${platform}. Matches the content goal (${goal}). Must ask for the viewer's OWN OPINION or EXPERIENCE â€” not just "follow for more." Example: "What was your version of this?" beats "What do you think?"
+- headline: A 4—8 word content title this hook introduces — NOT the hook itself. This names the content piece.
+- body: 2—3 sentences of body copy that deliver on the hook's promise, deepen the tension, and set up the CTA. No filler. Every word earns its place. End with one sentence that is a genuine point of view — something people either strongly agree or strongly disagree with.
+- cta: One specific, native call-to-action sentence for ${platform}. Matches the content goal (${goal}). Must ask for the viewer's OWN OPINION or EXPERIENCE — not just "follow for more." Example: "What was your version of this?" beats "What do you think?"
 
 Rules:
 - No hashtags, no emojis anywhere in any field
-- Every hook must be a complete, standalone line â€” not mid-sentence
-- Vary sentence structure â€” some 4-word punches, some 12-word setups
+- Every hook must be a complete, standalone line — not mid-sentence
+- Vary sentence structure — some 4-word punches, some 12-word setups
 - No two hooks can use the same structural template
 - If a hook feels like something you've read before, it's not good enough
 - Curiosity score of 8+ requires the hook to promise something specific, not just be interesting
 
-Return ONLY a valid JSON array of exactly 20 hooks â€” no markdown, no explanation, no wrapper:
+Return ONLY a valid JSON array of exactly 20 hooks — no markdown, no explanation, no wrapper:
 [
   {
     "hook_text": "...",
@@ -125,8 +125,8 @@ Return ONLY a valid JSON array of exactly 20 hooks â€” no markdown, no expl
     "virality_tier": "S",
     "format_rec": "vocal",
     "format_note": "One-breath opener, pause after the question lands",
-    "headline": "4â€“8 words naming the content",
-    "body": "2â€“3 sentences of body copy that deliver on the hook",
+    "headline": "4—8 words naming the content",
+    "body": "2—3 sentences of body copy that deliver on the hook",
     "cta": "One platform-native CTA sentence"
   }
 ]`

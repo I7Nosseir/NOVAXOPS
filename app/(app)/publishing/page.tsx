@@ -620,7 +620,7 @@ interface CaptionVariant {
   text: string
 }
 
-function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [] }: { onClose: () => void; initialCaption?: string; initialMediaUrls?: string[] }) {
+function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [], initialClientId = '', initialPlatform = '' }: { onClose: () => void; initialCaption?: string; initialMediaUrls?: string[]; initialClientId?: string; initialPlatform?: string }) {
   const assignedClientIds = useMyAssignedClientIds()
   const { clients: allClients } = useClients()
   const clients = assignedClientIds !== null
@@ -632,8 +632,10 @@ function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [] }: 
   const [brief, setBrief] = useState('')
   const [caption, setCaption] = useState(initialCaption)
   const [captionAr, setCaptionAr] = useState('')
-  const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(['instagram'])
-  const [selectedClient, setSelectedClient] = useState('')
+  const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(
+    initialPlatform ? [initialPlatform as SocialPlatform] : ['instagram']
+  )
+  const [selectedClient, setSelectedClient] = useState(initialClientId)
   const [scheduleDate, setScheduleDate] = useState('')
   const [lang, setLang] = useState<'en' | 'ar' | 'both'>('en')
 
@@ -2609,24 +2611,30 @@ function PublishingPageContent() {
   const [compose, setCompose] = useState(false)
   const [templateCaption, setTemplateCaption] = useState('')
   const [templateMediaUrls, setTemplateMediaUrls] = useState<string[]>([])
+  const [templateClientId, setTemplateClientId] = useState('')
+  const [templatePlatform, setTemplatePlatform] = useState('')
   const [briefDialog, setBriefDialog] = useState(false)
   const [bulkDialog, setBulkDialog] = useState(false)
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
   const [view, setView] = useState<'grid' | 'calendar'>('grid')
   const [syncing, setSyncing] = useState(false)
 
-  // Auto-open compose when arriving from library "Use as template" or approval "Schedule"
+  // Auto-open compose when arriving from library "Use as template", approval "Schedule", or Studio
   const templateHandled = useRef(false)
   useEffect(() => {
     if (templateHandled.current) return
     const cap = searchParams.get('caption')
     const mediaUrlsParam = searchParams.get('media_urls') ?? searchParams.get('media_url') ?? ''
+    const clientParam = searchParams.get('client') ?? ''
+    const platformParam = searchParams.get('platform') ?? ''
     if (cap || mediaUrlsParam) {
       templateHandled.current = true
       if (cap) setTemplateCaption(decodeURIComponent(cap))
       if (mediaUrlsParam) {
         setTemplateMediaUrls(decodeURIComponent(mediaUrlsParam).split('|').filter(Boolean))
       }
+      if (clientParam) setTemplateClientId(clientParam)
+      if (platformParam) setTemplatePlatform(platformParam)
       setCompose(true)
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -2789,7 +2797,7 @@ function PublishingPageContent() {
         <CalendarView onCompose={() => setCompose(true)}/>
       )}
 
-      {compose && <ComposeDialog onClose={() => { setCompose(false); setTemplateCaption(''); setTemplateMediaUrls([]) }} initialCaption={templateCaption} initialMediaUrls={templateMediaUrls}/>}
+      {compose && <ComposeDialog onClose={() => { setCompose(false); setTemplateCaption(''); setTemplateMediaUrls([]); setTemplateClientId(''); setTemplatePlatform('') }} initialCaption={templateCaption} initialMediaUrls={templateMediaUrls} initialClientId={templateClientId} initialPlatform={templatePlatform}/>}
       {briefDialog && <BriefToCalendarDialog onClose={() => setBriefDialog(false)}/>}
       {bulkDialog && <BulkScheduleDialog onClose={() => setBulkDialog(false)}/>}
     </div>

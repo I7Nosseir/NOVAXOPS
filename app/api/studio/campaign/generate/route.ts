@@ -56,20 +56,6 @@ async function savePhase(sessionId: string, phase: string, output: unknown): Pro
   }
 }
 
-// â”€â”€â”€ JSON parse helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function parseJson<T>(text: string, fallback: T): T {
-  try {
-    const clean = text
-      .replace(/^```(?:json)?\n?/i, '')
-      .replace(/\n?```$/, '')
-      .trim()
-    return JSON.parse(clean) as T
-  } catch {
-    return fallback
-  }
-}
-
 // â”€â”€â”€ Phase 1: Cultural Tension Mining â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function runPhase1(
@@ -271,10 +257,10 @@ async function runPhase5(
 TARGET AUDIENCE: ${targetAudience}
 
 Great participatory mechanics create the feeling that the audience is co-authoring something real:
-- Duolingo's death hoax: audiences mourned publicly â†’ Duo came back from the dead â†’ UGC explosion
-- Vaseline Verified: audiences tested the viral hacks â†’ posted results â†’ brand amplified the honest outcomes
-- McDonald's Floating Menu: pedestrians photographed a floating billboard daily â†’ organic city-by-city spread
-- Dove Real Beauty: women defined beauty in their own words â†’ brand used their words verbatim in ads
+- Duolingo's death hoax: audiences mourned publicly â†' Duo came back from the dead â†' UGC explosion
+- Vaseline Verified: audiences tested the viral hacks â†' posted results â†' brand amplified the honest outcomes
+- McDonald's Floating Menu: pedestrians photographed a floating billboard daily â†' organic city-by-city spread
+- Dove Real Beauty: women defined beauty in their own words â†' brand used their words verbatim in ads
 
 Mechanic types:
 - UGC trigger: audience creates content as the direct response
@@ -382,7 +368,7 @@ async function runPhase7(
 Your execution briefs are legendary because they are specific enough that a junior social media manager can execute without a single clarifying question, yet creative enough that agencies study them.
 
 This 7-phase ideation pipeline has just completed. The concepts below have survived:
-cultural tension mining â†’ constraint inversion â†’ cross-domain stimulation â†’ 20-concept divergent ideation â†’ participatory mechanic design â†’ convergent scoring.
+cultural tension mining â†' constraint inversion â†' cross-domain stimulation â†' 20-concept divergent ideation â†' participatory mechanic design â†' convergent scoring.
 
 Only the top ${top5.length} survived the filter. Now write their complete execution briefs.
 
@@ -438,8 +424,8 @@ FIELD-BY-FIELD REQUIREMENTS:
    "Primary: [platform] â€” [specific native content format e.g. 'Instagram Reels 9:16' or 'TikTok Stitch' or 'LinkedIn Document post'] | Secondary: [platform] â€” [format for amplification]"
 
 7. execution_steps
-   7 steps. Each step format: "[Role] â€” [specific action] â†’ [specific measurable or observable outcome]"
-   Bad: "Post the content" â€” Good: "Social Manager â€” Schedule the seed Reel for Tuesday 7:30 PM â†’ catches the primary engagement window before competitor posting peaks at 9 PM"
+   7 steps. Each step format: "[Role] â€” [specific action] â†' [specific measurable or observable outcome]"
+   Bad: "Post the content" â€” Good: "Social Manager â€” Schedule the seed Reel for Tuesday 7:30 PM â†' catches the primary engagement window before competitor posting peaks at 9 PM"
    Steps must be sequential and assignable to a specific team role.
 
 8. content_ladder
@@ -524,38 +510,14 @@ No markdown fences. No trailing commas. No comments inside the JSON.
 ]`
 
   const text = await geminiGenerate(prompt, undefined, { temperature: 0.75, maxOutputTokens: 16000 })
-  return parseJson<CampaignConcept[]>(text, top5.map((c, i) => ({
-    campaign_name:          `Concept ${i + 1}`,
-    tagline:                c.concept,
-    core_idea:              c.concept,
-    why_it_works:           'Social proof via observation learning â€” audiences adopt behaviors they see their peers perform first',
-    cultural_tension:       tensions[0]?.tension ?? 'Core audience tension',
-    platform:               body.current_platforms[0] ?? 'Instagram',
-    execution_steps:        [
-      'Creative Director â€” define the core mechanic and brief the production team â†’ aligned execution brief',
-      'Social Manager â€” identify the seed audience of 20 and brief them â†’ confirmed seed list',
-      'Designer â€” produce the seed content piece â†’ final creative asset',
-      'Social Manager â€” distribute to seed audience â†’ first organic reactions captured',
-      'Social Manager â€” monitor for organic spread signals â†’ initial participation rate measured',
-      'Creative Director â€” amplify top-performing organic responses â†’ second wave of reach',
-      'Account Manager â€” report participation rate and share metrics to client â†’ campaign performance review',
-    ],
-    content_ladder:          [
-      'Week 1: Seed content (minimal branding) â€” curiosity hook â€” audience asks questions',
-      'Week 2: Brand response to audience questions â€” credibility hook â€” sustained engagement',
-      'Week 3: Audience-generated content amplified â€” social proof hook â€” organic reach peak',
-    ],
-    seed_strategy:          'Identify 20 genuine customers who have previously engaged with brand content. Send them the campaign concept privately, ask them to be the first to respond publicly. Do not ask for positive framing â€” ask for honest reaction.',
-    virality_trigger:       `When a bystander sees peers genuinely engaging with ${body.client_name}'s content on their terms, they share it because it feels real rather than manufactured â€” something rare enough to be worth sending to someone.`,
-    participation_mechanic: c.mechanic_description,
-    shareable_moment:       'The moment when the audience response is amplified by the brand â€” the frame where the person feels seen by a brand for the first time',
-    scoring:                { boldness: c.boldness, implementability: c.implementability, virality: c.virality },
-    budget:                 c.implementability >= 7 ? 'Low (<$500)' : c.implementability >= 4 ? 'Medium ($500â€“$5,000)' : 'High (>$5,000)',
-    timeline:               c.implementability >= 7 ? '3â€“5 days' : c.implementability >= 4 ? '2â€“3 weeks' : '6+ weeks',
-    risk:                   'Seed audience shares without context, stripping the campaign narrative before it builds',
-    mitigation:             'Brief seed audience with a one-paragraph context note. Ask them to share with the campaign framing intact, not in isolation.',
-    anti_example:           'Generic UGC campaigns that launched without seeding have low initial participation â€” this concept avoids that by guaranteeing a first wave of authentic response before any public launch.',
-  })))
+  const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim()
+  const arrMatch = clean.match(/\[[\s\S]*\]/)
+  if (!arrMatch) throw new Error('Phase 7: AI returned no valid JSON array in execution briefs')
+  try {
+    return JSON.parse(arrMatch[0]) as CampaignConcept[]
+  } catch {
+    throw new Error('Phase 7: AI returned malformed JSON for execution briefs')
+  }
 }
 
 // â”€â”€â”€ Boss Brief â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -632,12 +594,9 @@ export async function POST(req: NextRequest) {
   try {
     tensions = await runPhase1(body)
     if (body.session_id) await savePhase(body.session_id, 'tensions', tensions)
-  } catch {
-    tensions = [{
-      tension:     `Consumers in ${body.industry} want premium results but simultaneously resist the price signal that would signal quality`,
-      evidence:    'Price sensitivity coexists with aspiration â€” audiences research premium options then buy mid-tier and justify it',
-      opportunity: 'A brand that democratizes the premium result and openly acknowledges the price tension wins the audience that felt judged by the category',
-    }]
+  } catch (err) {
+    console.error('[campaign/generate Phase 1]', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'Campaign generation failed at Phase 1 (Cultural Tensions). Please try again.', phase: 1 }, { status: 500 })
   }
 
   // â”€â”€ Phase 2 â€” Constraint Inversion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -645,11 +604,9 @@ export async function POST(req: NextRequest) {
   try {
     inversions = await runPhase2(body.industry, body.client_name)
     if (body.session_id) await savePhase(body.session_id, 'inversions', inversions)
-  } catch {
-    inversions = [{
-      rule:      `Every ${body.industry} brand shows aspirational results rather than the real process`,
-      inversion: 'Document the failure, the doubt, and the boring daily process â€” make the audience feel seen in the struggle rather than judged by the result',
-    }]
+  } catch (err) {
+    console.error('[campaign/generate Phase 2]', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'Campaign generation failed at Phase 2 (Constraint Inversion). Please try again.', phase: 2 }, { status: 500 })
   }
 
   // â”€â”€ Phase 3 â€” Cross-Domain Stimulation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -670,12 +627,9 @@ export async function POST(req: NextRequest) {
   try {
     rawConcepts = await runPhase4(tensions, inversions, seeds, body.boldness, body.target_audience, body.client_name, body.industry)
     if (body.session_id) await savePhase(body.session_id, 'raw_concepts', rawConcepts)
-  } catch {
-    rawConcepts = [
-      `Invite critics to test the product publicly and document everything unfiltered`,
-      `Give away the product to 30 people with one rule: document everything that goes wrong`,
-      `Run a campaign that only exists if people talk about it â€” silence ends it in 24 hours`,
-    ]
+  } catch (err) {
+    console.error('[campaign/generate Phase 4]', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'Campaign generation failed at Phase 4 (Divergent Ideation). Please try again.', phase: 4 }, { status: 500 })
   }
 
   // â”€â”€ Phase 5 â€” Participatory Mechanics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -709,26 +663,7 @@ export async function POST(req: NextRequest) {
     if (body.session_id) await savePhase(body.session_id, 'concepts', concepts)
   } catch (err) {
     console.error('[campaign/generate Phase 7]', err instanceof Error ? err.message : err)
-    concepts = scoredConcepts.slice(0, 3).map((c, i) => ({
-      campaign_name:          `Concept ${i + 1}`,
-      tagline:                c.concept,
-      core_idea:              c.concept,
-      why_it_works:           'Social proof via observation learning',
-      cultural_tension:       tensions[0]?.tension ?? 'Core audience tension',
-      platform:               body.current_platforms[0] ?? 'Instagram',
-      execution_steps:        ['Define the mechanic', 'Produce seed content', 'Launch to seed audience', 'Amplify organic responses', 'Measure participation rate'],
-      content_ladder:         ['Week 1: Seed content â€” curiosity hook', 'Week 2: Brand responds â€” credibility hook', 'Week 3: UGC amplified â€” social proof'],
-      seed_strategy:          '20 genuine customers briefed privately before public launch',
-      virality_trigger:       'The moment when audience participation is reflected back by the brand â€” feels real, not manufactured',
-      participation_mechanic: c.mechanic_description,
-      shareable_moment:       'The specific frame where the audience sees their contribution amplified by the brand',
-      scoring:                { boldness: c.boldness, implementability: c.implementability, virality: c.virality },
-      budget:                 c.implementability >= 7 ? 'Low (<$500)' : c.implementability >= 4 ? 'Medium ($500â€“$5,000)' : 'High (>$5,000)',
-      timeline:               c.implementability >= 7 ? '3â€“5 days' : '2â€“3 weeks',
-      risk:                   'Seed audience shares without campaign context',
-      mitigation:             'Brief seed audience with context note before any public launch',
-      anti_example:           'Generic UGC campaigns without seeding fail at launch due to low initial participation',
-    }))
+    return NextResponse.json({ error: 'Campaign execution briefs failed to generate. Please try again.', phase: 7 }, { status: 500 })
   }
 
   // â”€â”€ Boss Brief â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -126,9 +126,9 @@ const TOOLS = [
 ]
 
 const QUICK_LINKS = [
-  { href: '/performance', icon: TrendingUp, label: 'Performance',  description: 'Content analytics and pattern intelligence' },
-  { href: '/tasks',       icon: Target,    label: 'My Tasks',      description: 'Tasks assigned to you' },
-  { href: '/publishing',  icon: BarChart2, label: 'Publishing',    description: 'Manage and schedule your content queue' },
+  { href: '/reports',    icon: TrendingUp, label: 'Performance',  description: 'Content analytics and pattern intelligence' },
+  { href: '/tasks',      icon: Target,     label: 'My Tasks',     description: 'Tasks assigned to you' },
+  { href: '/publishing', icon: BarChart2,  label: 'Publishing',   description: 'Manage and schedule your content queue' },
 ]
 
 export default function StudioPage() {

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import {
   Camera, Copy, CheckCircle, Star,
-  TriangleAlert, MessageSquare, Download, ChevronDown,
+  TriangleAlert, MessageSquare, Download, ChevronDown, Calendar,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
@@ -19,6 +19,7 @@ import type {
   PostMortemDiagnosis,
   BossBrief,
 } from '@/lib/studio-types'
+import type { ClientIntelligenceSummary } from '@/lib/client-intelligence'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,8 @@ export interface StudioDocumentProps {
   onChatOpen?: () => void
   onEditApplied?: (target: string, newContent: string) => void
   isLoading?: boolean
+  onSchedule?: (caption: string) => void
+  intelligenceSummary?: ClientIntelligenceSummary | null
 }
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
@@ -99,6 +102,54 @@ function ThreeCBars({
           </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── Based On panel ──────────────────────────────────────────────────────────
+
+function BasedOnPanel({ summary }: { summary: ClientIntelligenceSummary }) {
+  const [open, setOpen] = useState(false)
+  const hasData = summary.voice || summary.avoid?.length || summary.goal || summary.competitor_note || summary.quarter_theme
+  if (!hasData) return null
+
+  const preview = [
+    summary.voice && `Voice: ${summary.voice}`,
+    summary.avoid?.[0] && `Avoid: "${summary.avoid[0]}"`,
+    summary.goal && `Goal: ${summary.goal}`,
+  ].filter(Boolean).slice(0, 2).join(' · ')
+
+  return (
+    <div className="px-5 pb-3 pt-1 border-t border-slate-100">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <span className="font-medium">Context used</span>
+        <ChevronDown className={cn('w-3 h-3 transition-transform duration-150', open && 'rotate-180')} />
+      </button>
+      {!open && preview && (
+        <p className="mt-0.5 text-[10px] text-slate-400 truncate pl-0">{preview}</p>
+      )}
+      {open && (
+        <div className="mt-1.5 space-y-1 pl-0 text-[10px] text-slate-500">
+          {summary.voice && (
+            <p><span className="font-semibold text-slate-600">Voice:</span> {summary.voice}</p>
+          )}
+          {summary.avoid && summary.avoid.length > 0 && (
+            <p><span className="font-semibold text-slate-600">Avoid:</span> {summary.avoid.join('; ')}</p>
+          )}
+          {summary.goal && (
+            <p><span className="font-semibold text-slate-600">Goal:</span> {summary.goal}</p>
+          )}
+          {summary.competitor_note && (
+            <p><span className="font-semibold text-slate-600">Competitor gap:</span> {summary.competitor_note}</p>
+          )}
+          {summary.quarter_theme && (
+            <p><span className="font-semibold text-slate-600">Quarter theme:</span> {summary.quarter_theme}</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -268,12 +319,16 @@ function ContentPieceCard({
   total,
   language,
   defaultOpen,
+  onSchedule,
+  intelligenceSummary,
 }: {
   piece: ContentPiece
   index: number
   total: number
   language?: 'english' | 'arabic'
   defaultOpen?: boolean
+  onSchedule?: (caption: string) => void
+  intelligenceSummary?: ClientIntelligenceSummary | null
 }) {
   const [expanded, setExpanded]   = useState(defaultOpen ?? false)
   const [copied,   setCopied]     = useState(false)
@@ -446,16 +501,32 @@ function ContentPieceCard({
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">CAPTION</span>
-                  <button onClick={copyCaption} className="flex items-center gap-1 text-xs text-novax-muted hover:text-novax transition-colors">
-                    {copied ? <CheckCircle className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                    {copied ? 'Copied' : 'Copy'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {onSchedule && (
+                      <button
+                        onClick={() => onSchedule(piece.caption_preview!)}
+                        className="flex items-center gap-1 text-xs text-novax-muted hover:text-novax transition-colors"
+                      >
+                        <Calendar className="w-3 h-3" />
+                        Schedule
+                      </button>
+                    )}
+                    <button onClick={copyCaption} className="flex items-center gap-1 text-xs text-novax-muted hover:text-novax transition-colors">
+                      {copied ? <CheckCircle className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap" dir={isArabic ? 'rtl' : 'ltr'}>
                   {piece.caption_preview}
                 </p>
               </div>
             </div>
+          )}
+
+          {/* Based on — context transparency panel */}
+          {intelligenceSummary && expanded && (
+            <BasedOnPanel summary={intelligenceSummary} />
           )}
         </div>
       )}
@@ -468,9 +539,13 @@ function ContentPieceCard({
 function ContentToolDocument({
   doc,
   language,
+  onSchedule,
+  intelligenceSummary,
 }: {
   doc: ContentDocument
   language?: 'english' | 'arabic'
+  onSchedule?: (caption: string) => void
+  intelligenceSummary?: ClientIntelligenceSummary | null
 }) {
   // Build a pieces array — use doc.pieces if present, else synthesize from root fields
   const pieces: ContentPiece[] = doc.pieces && doc.pieces.length > 0
@@ -531,6 +606,8 @@ function ContentToolDocument({
             total={pieces.length}
             language={language}
             defaultOpen={pieces.length === 1}
+            onSchedule={onSchedule}
+            intelligenceSummary={intelligenceSummary}
           />
         ))}
       </div>
@@ -543,9 +620,13 @@ function ContentToolDocument({
 function HooksToolDocument({
   doc,
   language,
+  onSchedule,
+  intelligenceSummary,
 }: {
   doc: HookDocument
   language?: 'english' | 'arabic'
+  onSchedule?: (caption: string) => void
+  intelligenceSummary?: ClientIntelligenceSummary | null
 }) {
   const [savedHooks,   setSavedHooks]   = useState<Set<number>>(new Set())
   const [copiedIdx,    setCopiedIdx]    = useState<number | null>(null)
@@ -631,7 +712,18 @@ function HooksToolDocument({
       {bestHook && (
         <div className="bg-novax text-white rounded-2xl overflow-hidden">
           <div className="px-6 pt-6 pb-4">
-            <p className="text-[10px] tracking-widest text-novax-accent font-bold uppercase mb-1">BEST HOOK</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[10px] tracking-widest text-novax-accent font-bold uppercase mb-1">BEST HOOK</p>
+              {onSchedule && (
+                <button
+                  onClick={() => onSchedule(bestHook.hook_text)}
+                  className="flex items-center gap-1 text-[10px] text-novax-accent/70 hover:text-novax-accent border border-white/10 rounded-lg px-2 py-1 transition-colors shrink-0"
+                >
+                  <Calendar className="w-3 h-3" />
+                  Schedule
+                </button>
+              )}
+            </div>
             <p className="text-xl font-semibold leading-snug mt-3" dir={isArabic ? 'rtl' : 'ltr'}>
               {bestHook.hook_text}
             </p>
@@ -657,6 +749,11 @@ function HooksToolDocument({
                   <span className="text-[10px] text-white/40 shrink-0 uppercase tracking-wider">CTA</span>
                 </div>
               )}
+            </div>
+          )}
+          {intelligenceSummary && (
+            <div className="border-t border-white/10 px-6 py-3">
+              <BasedOnPanel summary={intelligenceSummary} />
             </div>
           )}
         </div>
@@ -734,6 +831,15 @@ function HooksToolDocument({
                       <Copy className="w-3.5 h-3.5" />
                     )}
                   </button>
+                  {onSchedule && (
+                    <button
+                      onClick={() => onSchedule(hook.hook_text)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-novax hover:bg-novax-light transition-colors"
+                      title="Schedule this hook"
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1354,6 +1460,8 @@ export function StudioDocument({
   pdfExporting = false,
   onChatOpen,
   isLoading = false,
+  onSchedule,
+  intelligenceSummary,
 }: StudioDocumentProps) {
   if (isLoading || !content) {
     return (
@@ -1381,10 +1489,10 @@ export function StudioDocument({
       />
 
       {tool === 'content' && (
-        <ContentToolDocument doc={content as ContentDocument} language={language} />
+        <ContentToolDocument doc={content as ContentDocument} language={language} onSchedule={onSchedule} intelligenceSummary={intelligenceSummary} />
       )}
       {tool === 'hooks' && (
-        <HooksToolDocument doc={content as HookDocument} language={language} />
+        <HooksToolDocument doc={content as HookDocument} language={language} onSchedule={onSchedule} intelligenceSummary={intelligenceSummary} />
       )}
       {tool === 'strategy' && (
         <StrategyToolDocument doc={content as StrategyDocument} />

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Zap, ArrowLeft, PlusCircle,
@@ -21,6 +22,7 @@ import { StudioSessionList } from '@/components/studio/studio-session-list'
 import { StudioSaveActions } from '@/components/studio/studio-save-actions'
 import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
 import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
+import type { ClientIntelligenceSummary } from '@/lib/client-intelligence'
 import type {
   StructuredQuestion,
   ContentDocument,
@@ -155,6 +157,7 @@ type RawScript = {
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function ContentStudioPage() {
   const params        = useSearchParams()
+  const router        = useRouter()
   const { clients }   = useClients()
   const { user }      = useAuth()
 
@@ -196,7 +199,8 @@ export default function ContentStudioPage() {
   const [viability,        setViability]        = useState<ViabilityResult | null>(null)
   const [viabilityLoading, setViabilityLoading] = useState(false)
   const [judgments,        setJudgments]        = useState<JudgmentResult[]>([])
-  const [pdfLoading,       setPdfLoading]       = useState(false)
+  const [pdfLoading,         setPdfLoading]         = useState(false)
+  const [intelligenceSummary, setIntelligenceSummary] = useState<ClientIntelligenceSummary | null>(null)
   const viabilityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const selectedClient = clients.find(c => c.id === inputs.client_id)
@@ -236,6 +240,27 @@ export default function ContentStudioPage() {
       })
       .catch(() => {})
   }, [params])
+
+  // ── Intelligence summary (for Based On panel) ──────────────────────────────
+  useEffect(() => {
+    if (pageState !== 'document' || !inputs.client_id) return
+    fetch(`/api/clients/${inputs.client_id}/intelligence-summary`)
+      .then(r => r.json())
+      .then((data: ClientIntelligenceSummary) => setIntelligenceSummary(data))
+      .catch(() => {})
+  }, [pageState, inputs.client_id])
+
+  // ── Schedule handler — opens Publishing with caption pre-filled ─────────────
+  function handleSchedule(caption: string) {
+    const platform = inputs.platforms[0] ?? 'instagram'
+    const platformKey = platform.toLowerCase().replace(/\s*\(.*\)/, '').replace(/\s+/g, '_')
+    const q = new URLSearchParams({
+      caption,
+      client: inputs.client_id,
+      platform: platformKey,
+    })
+    router.push(`/publishing?${q.toString()}`)
+  }
 
   // ── Elapsed timer ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -579,21 +604,29 @@ export default function ContentStudioPage() {
       // Step 8: Boss Brief
       startStep(7)
       let bb: BossBrief | null = null
-      try {
-        const bbRes = await fetch('/api/studio/brief-confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            brief:  inputs.brief,
-            mode:   'boss_brief',
-            hook:   assignedHooks[0]?.hook_text,
-            script: scriptResults[0],
-            client: selectedClient ? { name: selectedClient.name } : null,
-          }),
-        })
-        const bbData = await bbRes.json() as { boss_brief?: BossBrief }
-        bb = bbData.boss_brief ?? null
-      } catch { /* non-fatal */ }
+      let bbAttempts = 0
+      while (bbAttempts < 2) {
+        try {
+          const bbRes = await fetch('/api/studio/brief-confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              brief:  inputs.brief,
+              mode:   'boss_brief',
+              hook:   assignedHooks[0]?.hook_text,
+              script: scriptResults[0],
+              client: selectedClient ? { name: selectedClient.name } : null,
+            }),
+          })
+          if (!bbRes.ok) throw new Error('Boss Brief API error')
+          const bbData = await bbRes.json() as { boss_brief?: BossBrief }
+          bb = bbData.boss_brief ?? null
+          break
+        } catch {
+          bbAttempts++
+        }
+      }
+      if (!bb) toast.error('Executive summary unavailable — generation failed.')
       setBossBrief(bb)
       completeStep(7)
 
@@ -658,7 +691,9 @@ export default function ContentStudioPage() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'complete', outputs: { content: doc }, boss_brief: bb }),
-        }).catch(() => {})
+        })
+          .then(r => { if (!r.ok) toast.error('Session could not be saved. Copy your output now.') })
+          .catch(() => toast.error('Session could not be saved. Copy your output now.'))
         setSessions(prev => [{
           id: sid, name, tool: 'content', status: 'complete',
           outputs: { content: doc }, boss_brief: bb,
@@ -1308,6 +1343,8 @@ export default function ContentStudioPage() {
               language={inputs.language}
               onExportPdf={handleExportPdf}
               onEditApplied={handleEditApplied}
+              onSchedule={handleSchedule}
+              intelligenceSummary={intelligenceSummary}
             />
 
             {/* Content judgment panel */}
