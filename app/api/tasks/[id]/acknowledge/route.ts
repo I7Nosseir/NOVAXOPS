@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function db() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
-}
+import { createAdminClient } from '@/lib/supabase'
+import { sendTaskAcknowledged } from '@/lib/email'
 
 // POST /api/tasks/[id]/acknowledge
 // Body: { user_id: string; type: 'seen' | 'read' }
-// Uses service role to bypass RLS — validates that user_id matches the task's assignee.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -29,11 +22,11 @@ export async function POST(
     return NextResponse.json({ error: 'user_id and type (seen|read) required' }, { status: 400 })
   }
 
-  const supabase = db()
+  const db = createAdminClient()
 
-  const { data: task, error: fetchErr } = await supabase
+  const { data: task, error: fetchErr } = await db
     .from('tasks')
-    .select('assigned_to, seen_at, read_at')
+    .select('assigned_to, seen_at, read_at, created_by, title, client_id')
     .eq('id', id)
     .single()
 
@@ -54,11 +47,73 @@ export async function POST(
     ? { read_at: now, read_by: user_id, updated_at: now }
     : { seen_at: now, seen_by: user_id, updated_at: now }
 
-  const { error } = await supabase.from('tasks').update(updates).eq('id', id)
+  const { error } = await db.from('tasks').update(updates).eq('id', id)
   if (error) {
     console.error('[tasks/acknowledge]', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Fire-and-forget: notify creator
+  if (task.created_by) {
+    notifyCreator(db, {
+      taskId:    id,
+      taskTitle: task.title as string,
+      createdBy: task.created_by as string,
+      assigneeId: user_id,
+      type: type as 'seen' | 'read',
+    }).catch(err => console.error('[tasks/acknowledge] notification failed:', err))
+  }
+
   return NextResponse.json({ ok: true })
+}
+
+async function notifyCreator(
+  db: ReturnType<typeof createAdminClient>,
+  opts: {
+    taskId: string
+    taskTitle: string
+    createdBy: string
+    assigneeId: string
+    type: 'seen' | 'read'
+  },
+) {
+  const { taskId, taskTitle, createdBy, assigneeId, type } = opts
+
+  const [creatorResult, assigneeResult] = await Promise.all([
+    db.from('users').select('name, email').eq('id', createdBy).single(),
+    db.from('users').select('name').eq('id', assigneeId).single(),
+  ])
+
+  const creator  = creatorResult.data  as { name: string; email: string } | null
+  const assignee = assigneeResult.data as { name: string } | null
+
+  const verb = type === 'seen' ? 'seen' : 'read'
+  const description = `${assignee?.name ?? 'Assignee'} has ${verb} task: ${taskTitle}`
+
+  // In-app notification for the creator
+  await db.from('audit_log').insert({
+    action:      `task.${verb}`,
+    entity_type: 'task',
+    entity_id:   taskId,
+    user_id:     createdBy,
+    metadata: {
+      description,
+      task_title:    taskTitle,
+      assignee_name: assignee?.name ?? '',
+      ack_type:      type,
+    },
+    created_at: new Date().toISOString(),
+  })
+
+  // Email the creator
+  if (creator?.email) {
+    await sendTaskAcknowledged({
+      creatorEmail:  creator.email,
+      creatorName:   creator.name ?? 'Team',
+      assigneeName:  assignee?.name ?? 'Assignee',
+      taskTitle,
+      taskId,
+      type,
+    })
+  }
 }

@@ -560,3 +560,84 @@ export async function sendDailyDigest(params: DailyDigestParams): Promise<SendRe
     return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }
+
+// ---------------------------------------------------------------------------
+// sendTaskAcknowledged — notifies task creator when assignee clicks Seen or Read
+// ---------------------------------------------------------------------------
+
+export interface TaskAcknowledgedParams {
+  creatorEmail: string
+  creatorName: string
+  assigneeName: string
+  taskTitle: string
+  taskId: string
+  type: 'seen' | 'read'
+}
+
+export async function sendTaskAcknowledged(params: TaskAcknowledgedParams): Promise<SendResult> {
+  const { creatorEmail, creatorName, assigneeName, taskTitle, taskId, type } = params
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
+  const label  = type === 'seen' ? 'seen and is working on' : 'read and acknowledged'
+
+  const html = htmlWrapper(`
+    ${h2(type === 'seen' ? 'Task Seen' : 'Task Read')}
+    ${p(`Hi ${creatorName}, <strong>${assigneeName}</strong> has ${label} your task.`)}
+    ${p(`<strong style="color:#1e293b;">${taskTitle}</strong>`)}
+    ${ctaButton('View Task', `${appUrl}/pipeline?task=${taskId}`)}
+  `)
+
+  try {
+    const resend = client()
+    const { error } = await resend.emails.send({
+      from:    FROM,
+      to:      creatorEmail,
+      subject: `${assigneeName} has ${type === 'seen' ? 'seen' : 'read'} your task: ${taskTitle}`,
+      html,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sendTaskStatusChanged — notifies task creator when anyone changes task status
+// ---------------------------------------------------------------------------
+
+export interface TaskStatusChangedParams {
+  creatorEmail: string
+  creatorName: string
+  changedByName: string
+  taskTitle: string
+  taskId: string
+  newStatus: string
+}
+
+export async function sendTaskStatusChanged(params: TaskStatusChangedParams): Promise<SendResult> {
+  const { creatorEmail, creatorName, changedByName, taskTitle, taskId, newStatus } = params
+  const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
+  const statusLabel = newStatus.charAt(0).toUpperCase() + newStatus.slice(1)
+
+  const html = htmlWrapper(`
+    ${h2('Task Status Updated')}
+    ${p(`Hi ${creatorName}, <strong>${changedByName}</strong> changed the status of your task.`)}
+    ${p(`<strong style="color:#1e293b;">${taskTitle}</strong>`)}
+    ${metaTable([['New Status', statusLabel]])}
+    ${ctaButton('View Task', `${appUrl}/pipeline?task=${taskId}`)}
+  `)
+
+  try {
+    const resend = client()
+    const { error } = await resend.emails.send({
+      from:    FROM,
+      to:      creatorEmail,
+      subject: `Task status changed to ${statusLabel}: ${taskTitle}`,
+      html,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}

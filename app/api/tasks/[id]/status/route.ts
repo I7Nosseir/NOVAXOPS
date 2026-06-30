@@ -1,43 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase'
+import { sendTaskStatusChanged } from '@/lib/email'
 import type { TaskStatus } from '@/lib/types'
 
-const MANAGER_ROLES = ['admin', 'ceo', 'creative_director', 'account_manager', 'strategist']
 const VALID_STATUSES: TaskStatus[] = ['pending', 'active', 'blocked', 'completed']
 
-function db() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
-}
-
 // PATCH /api/tasks/[id]/status
-// Body: { user_id: string; role: string; status: TaskStatus }
-// Allowed if: caller is the task assignee OR has a manager-level role.
+// Body: { user_id: string; status: TaskStatus }
+// Any authenticated user can update task status.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
 
-  let body: { user_id?: string; role?: string; status?: TaskStatus }
+  let body: { user_id?: string; status?: TaskStatus }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const { user_id, role, status } = body
-  if (!user_id || !role || !status || !VALID_STATUSES.includes(status)) {
-    return NextResponse.json({ error: 'user_id, role, and valid status required' }, { status: 400 })
+  const { user_id, status } = body
+  if (!user_id || !status || !VALID_STATUSES.includes(status)) {
+    return NextResponse.json({ error: 'user_id and valid status required' }, { status: 400 })
   }
 
-  const supabase = db()
+  const db = createAdminClient()
 
-  const { data: task, error: fetchErr } = await supabase
+  const { data: task, error: fetchErr } = await db
     .from('tasks')
-    .select('assigned_to')
+    .select('created_by, title, assigned_to, client_id')
     .eq('id', id)
     .single()
 
@@ -45,13 +38,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Task not found' }, { status: 404 })
   }
 
-  const isAssignee = task.assigned_to === user_id
-  const isManager = MANAGER_ROLES.includes(role)
-  if (!isAssignee && !isManager) {
-    return NextResponse.json({ error: 'Not authorized to update this task' }, { status: 403 })
-  }
-
-  const { error } = await supabase
+  const { error } = await db
     .from('tasks')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', id)
@@ -61,5 +48,66 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Fire-and-forget: notify creator if someone else changed the status
+  if (task.created_by && task.created_by !== user_id) {
+    notifyCreatorOfStatusChange(db, {
+      taskId:      id,
+      taskTitle:   task.title as string,
+      createdBy:   task.created_by as string,
+      changedById: user_id,
+      newStatus:   status,
+    }).catch(err => console.error('[tasks/status] notification failed:', err))
+  }
+
   return NextResponse.json({ ok: true })
+}
+
+async function notifyCreatorOfStatusChange(
+  db: ReturnType<typeof createAdminClient>,
+  opts: {
+    taskId: string
+    taskTitle: string
+    createdBy: string
+    changedById: string
+    newStatus: string
+  },
+) {
+  const { taskId, taskTitle, createdBy, changedById, newStatus } = opts
+
+  const [creatorResult, changerResult] = await Promise.all([
+    db.from('users').select('name, email').eq('id', createdBy).single(),
+    db.from('users').select('name').eq('id', changedById).single(),
+  ])
+
+  const creator = creatorResult.data  as { name: string; email: string } | null
+  const changer = changerResult.data  as { name: string } | null
+
+  const description = `${changer?.name ?? 'Team member'} marked task "${taskTitle}" as ${newStatus}`
+
+  // In-app notification for the creator
+  await db.from('audit_log').insert({
+    action:      'task.status_changed',
+    entity_type: 'task',
+    entity_id:   taskId,
+    user_id:     createdBy,
+    metadata: {
+      description,
+      task_title:     taskTitle,
+      changed_by:     changer?.name ?? '',
+      new_status:     newStatus,
+    },
+    created_at: new Date().toISOString(),
+  })
+
+  // Email the creator
+  if (creator?.email) {
+    await sendTaskStatusChanged({
+      creatorEmail:   creator.email,
+      creatorName:    creator.name ?? 'Team',
+      changedByName:  changer?.name ?? 'A team member',
+      taskTitle,
+      taskId,
+      newStatus,
+    })
+  }
 }

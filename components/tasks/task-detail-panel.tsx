@@ -103,8 +103,9 @@ export function TaskDetailPanel({ task, onClose }: Props) {
   const deleteTask       = useDeleteTask()
   const queryClient      = useQueryClient()
 
-  const canManage = !!authUser && ['admin', 'ceo', 'creative_director', 'account_manager', 'strategist'].includes(authUser.role)
-  const isCreator = !!authUser && authUser.id === task?.created_by
+  const canManage       = !!authUser && ['admin', 'ceo', 'creative_director', 'account_manager', 'strategist'].includes(authUser.role)
+  const isCreator       = !!authUser && authUser.id === task?.created_by
+  const canChangeStatus = !!authUser
 
   const { data: allDocs = [] } = useQuery<{ id: string; title: string; is_template: boolean }[]>({
     queryKey: ['docs'],
@@ -166,13 +167,6 @@ export function TaskDetailPanel({ task, onClose }: Props) {
     } catch { /* non-critical */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id, authUser?.id])
-
-  useEffect(() => {
-    if (task && authUser && authUser.id === task.assigned_to && !task.seen_at) {
-      acknowledge('seen')
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id])
 
   if (!task) return null
 
@@ -405,7 +399,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
               Studio
             </a>
 
-            {(canManage || isCreator) && (
+            {isCreator && (
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => { setShowMenu(v => !v); setDeleteConfirm(false) }}
@@ -454,6 +448,41 @@ export function TaskDetailPanel({ task, onClose }: Props) {
           </div>
         </div>
 
+        {/* ── ASSIGNEE ACTION BAR ────────────────────────────────────── */}
+        {isAssignee && (
+          <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-100 bg-novax-light shrink-0">
+            <span className="text-xs text-novax-muted font-medium mr-1">Your task:</span>
+            {!task.seen_at ? (
+              <button
+                onClick={() => acknowledge('seen')}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-novax bg-white border border-novax-border rounded-lg hover:bg-novax-light-hover transition-colors"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Seen — I&apos;m on it
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Seen {seenUser ? `by ${seenUser.name}` : ''} {task.seen_at ? `· ${timeAgo(task.seen_at)}` : ''}
+              </span>
+            )}
+            {task.seen_at && !task.read_at ? (
+              <button
+                onClick={markRead}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-novax bg-white border border-novax-border rounded-lg hover:bg-novax-light-hover transition-colors"
+              >
+                <ReadIcon className="w-3.5 h-3.5" />
+                Mark as Read
+              </button>
+            ) : task.read_at ? (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Read {task.read_at ? `· ${timeAgo(task.read_at)}` : ''}
+              </span>
+            ) : null}
+          </div>
+        )}
+
         {/* ── TWO-COLUMN BODY ────────────────────────────────────────── */}
         <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
 
@@ -467,7 +496,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
               <div className="flex items-center gap-2 flex-wrap">
 
                 {/* Stage */}
-                {canManage && editingField === 'pipeline_stage' ? (
+                {canChangeStatus && editingField === 'pipeline_stage' ? (
                   <select
                     value={draftStage}
                     autoFocus
@@ -481,8 +510,8 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                   </select>
                 ) : (
                   <span
-                    onClick={canManage ? () => { setDraftStage(task.pipeline_stage); setEditingField('pipeline_stage') } : undefined}
-                    className={cn('text-[10px] font-bold px-2.5 py-1 rounded-full border', stage.bg, stage.color, stage.border, canManage && 'cursor-pointer hover:opacity-80 transition-all')}
+                    onClick={() => { setDraftStage(task.pipeline_stage); setEditingField('pipeline_stage') }}
+                    className={cn('text-[10px] font-bold px-2.5 py-1 rounded-full border cursor-pointer hover:opacity-80 transition-all', stage.bg, stage.color, stage.border)}
                   >
                     {stage.label}
                   </span>
@@ -567,7 +596,7 @@ export function TaskDetailPanel({ task, onClose }: Props) {
                           const res = await fetch(`/api/tasks/${task.id}/status`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ user_id: authUser.id, role: authUser.role, status: s }),
+                            body: JSON.stringify({ user_id: authUser.id, status: s }),
                           })
                           if (!res.ok) {
                             const d = await res.json()

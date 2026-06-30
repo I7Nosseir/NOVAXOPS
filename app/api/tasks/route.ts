@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase'
+import { sendTaskAssigned } from '@/lib/email'
 
 async function resolveOrgId(authUserId: string): Promise<string | null> {
   try {
@@ -50,16 +51,16 @@ export async function POST(req: NextRequest) {
   }
 
   const organization_id = await resolveOrgId(user.id)
-  if (!organization_id) {
-    return NextResponse.json({ error: 'Could not resolve organization' }, { status: 500 })
-  }
 
   const db = createAdminClient()
   const now = new Date().toISOString()
 
+  const insertData: Record<string, unknown> = { ...body, created_at: now, updated_at: now }
+  if (organization_id) insertData.organization_id = organization_id
+
   const { data, error } = await db
     .from('tasks')
-    .insert({ ...body, organization_id, created_at: now, updated_at: now })
+    .insert(insertData)
     .select()
     .single()
 
@@ -68,5 +69,59 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Fire-and-forget: notify assignee via email + audit_log
+  if (data.assigned_to) {
+    notifyAssignee(db, data).catch(err =>
+      console.error('[POST /api/tasks] notification failed:', err)
+    )
+  }
+
   return NextResponse.json(data, { status: 201 })
+}
+
+async function notifyAssignee(
+  db: ReturnType<typeof createAdminClient>,
+  task: Record<string, unknown>,
+) {
+  const taskId    = task.id as string
+  const taskTitle = task.title as string
+  const assignedTo = task.assigned_to as string
+  const clientId  = task.client_id as string
+
+  // Look up assignee profile + client name in parallel
+  const [assigneeResult, clientResult] = await Promise.all([
+    db.from('users').select('name, email').eq('id', assignedTo).single(),
+    db.from('clients').select('name').eq('id', clientId).single(),
+  ])
+
+  const assignee    = assigneeResult.data as { name: string; email: string } | null
+  const clientName  = (clientResult.data as { name: string } | null)?.name ?? 'Unknown client'
+
+  // In-app notification via audit_log
+  await db.from('audit_log').insert({
+    action:      'task.assigned',
+    entity_type: 'task',
+    entity_id:   taskId,
+    user_id:     assignedTo,
+    metadata: {
+      description: `New task assigned: ${taskTitle}`,
+      task_title:  taskTitle,
+      client_id:   clientId,
+      client_name: clientName,
+    },
+    created_at: new Date().toISOString(),
+  })
+
+  // Email
+  if (assignee?.email) {
+    await sendTaskAssigned({
+      taskTitle,
+      taskId,
+      assigneeName:  assignee.name ?? 'Team member',
+      assigneeEmail: assignee.email,
+      clientName,
+      dueDate:   (task.due_date as string | null) ?? null,
+      priority:  (task.priority as string | null) ?? null,
+    })
+  }
 }
