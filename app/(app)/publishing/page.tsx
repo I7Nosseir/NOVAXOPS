@@ -658,6 +658,8 @@ function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [], in
   const [driveImporting, setDriveImporting] = useState(false)
   const [instagramPostType, setInstagramPostType] = useState<'POST' | 'REEL' | 'STORY'>('POST')
   const [facebookPostType, setFacebookPostType] = useState<'POST' | 'REEL' | 'STORY'>('POST')
+  // null = not yet loaded (show all); string[] = loaded (only these are connected)
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null)
 
   const [aiLoading, setAiLoading] = useState(false)
   const [aiVariants, setAiVariants] = useState<CaptionVariant[] | null>(null)
@@ -856,6 +858,26 @@ function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [], in
     }
   }, [clients, selectedClient])
 
+  // Fetch which platforms are connected for the selected client
+  useEffect(() => {
+    if (!selectedClient) return
+    setConnectedPlatforms(null)
+    fetch(`/api/metricool/connected-platforms?client_id=${selectedClient}`)
+      .then(r => r.json())
+      .then(d => {
+        const connected: string[] = d.connected ?? []
+        setConnectedPlatforms(connected)
+        // Remove any selected platforms that aren't connected for this client
+        if (connected.length > 0) {
+          setSelectedPlatforms(prev => {
+            const valid = prev.filter(p => connected.includes(p))
+            return valid.length > 0 ? valid : prev
+          })
+        }
+      })
+      .catch(() => setConnectedPlatforms(null)) // on error, leave all available
+  }, [selectedClient])
+
   const togglePlatform = (p: SocialPlatform) => {
     setSelectedPlatforms(prev =>
       prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
@@ -1021,13 +1043,19 @@ function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [], in
               {platforms.map(p => {
                 const cfg = PLATFORM_CONFIG[p]
                 const active = selectedPlatforms.includes(p)
+                // null means still loading — show all as available
+                const isConnected = connectedPlatforms === null || connectedPlatforms.includes(p)
                 return (
                   <button
                     key={p}
-                    onClick={() => togglePlatform(p)}
+                    onClick={() => isConnected && togglePlatform(p)}
+                    disabled={!isConnected}
+                    title={!isConnected ? `${cfg.label} is not connected for this client` : undefined}
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                      active
+                      !isConnected
+                        ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                        : active
                         ? 'border-novax-border-active bg-novax-light text-novax'
                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     )}
