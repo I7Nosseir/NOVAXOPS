@@ -562,6 +562,52 @@ export async function sendDailyDigest(params: DailyDigestParams): Promise<SendRe
 }
 
 // ---------------------------------------------------------------------------
+// sendRoleChanged — notifies a user when their role is updated by an admin
+// ---------------------------------------------------------------------------
+
+export interface RoleChangedParams {
+  toEmail: string
+  toName: string
+  oldRole: string
+  newRole: string
+  changedByName: string
+}
+
+function formatRole(r: string): string {
+  return r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+export async function sendRoleChanged(params: RoleChangedParams): Promise<SendResult> {
+  const { toEmail, toName, oldRole, newRole, changedByName } = params
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.novaxops.com'
+
+  const html = htmlWrapper(`
+    ${h2('Your Role Has Been Updated')}
+    ${p(`Hi ${toName}, your role in NOVAX Ops has been updated by <strong style="color:#1e293b;">${changedByName}</strong>.`)}
+    ${metaTable([
+      ['Previous Role', formatRole(oldRole)],
+      ['New Role',      formatRole(newRole)],
+    ])}
+    ${p('Your access and permissions have been updated to reflect your new role. If you believe this is an error, please contact your administrator.')}
+    ${ctaButton('Open NOVAX Ops', appUrl)}
+  `)
+
+  try {
+    const resend = client()
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to: toEmail,
+      subject: `Your role has been updated to ${formatRole(newRole)}`,
+      html,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // sendTaskAcknowledged — notifies task creator when assignee clicks Seen or Read
 // ---------------------------------------------------------------------------
 

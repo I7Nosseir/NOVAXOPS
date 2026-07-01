@@ -116,6 +116,24 @@ export function useResendInvitation() {
   })
 }
 
+export function useUpdateUserRole() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: UserRole }) => {
+      const res = await fetch(`/api/users/${userId}/role`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Update failed')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+}
+
 export function useUpdateUserPermissions() {
   const queryClient = useQueryClient()
   return useMutation({

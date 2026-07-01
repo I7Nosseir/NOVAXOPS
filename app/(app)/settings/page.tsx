@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, CheckCircle2, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut, Send, Network } from 'lucide-react'
+import { CheckCircle, CheckCircle2, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut, Send, Network, Pencil } from 'lucide-react'
+import { toast } from 'sonner'
 import { OrganizationsTab } from '@/components/settings/organizations-tab'
-import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, useUpdateUserPermissions, type InviteResult } from '@/lib/hooks/use-users'
+import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, useUpdateUserPermissions, useUpdateUserRole, type InviteResult } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUpdateClient } from '@/lib/hooks/use-clients'
@@ -368,6 +369,83 @@ function RolePreviewTab() {
             </button>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Change Role Dialog ───────────────────────────────────────────────────────
+
+const ALL_ROLES: { value: UserRole; label: string; description: string }[] = [
+  { value: 'admin',            label: 'Admin',            description: 'Full access, integrations, team management' },
+  { value: 'ceo',             label: 'CEO',              description: 'Full access, sees vendor names, no integrations config' },
+  { value: 'creative_director',label: 'Creative Director', description: 'Full task + client access, manages creative team' },
+  { value: 'account_manager', label: 'Account Manager',  description: 'Client-facing, approvals, reporting' },
+  { value: 'strategist',      label: 'Strategist',       description: 'Strategy-stage tasks, projects, studio' },
+  { value: 'copywriter',      label: 'Copywriter',       description: 'Assigned copy tasks, AI agents' },
+  { value: 'designer',        label: 'Designer',         description: 'Design tasks, asset library' },
+  { value: 'video_editor',    label: 'Video Editor',     description: 'Video production, assets, studio' },
+  { value: 'web_developer',   label: 'Web Developer',    description: 'Development tasks, docs, technical assets' },
+  { value: 'social_manager',  label: 'Social Manager',   description: 'Publishing, scheduling, moderation' },
+]
+
+function ChangeRoleDialog({ user, onClose }: { user: User; onClose: () => void }) {
+  const updateRole = useUpdateUserRole()
+  const [selected, setSelected] = useState<UserRole>(user.role)
+
+  async function handleSave() {
+    if (selected === user.role) { onClose(); return }
+    try {
+      await updateRole.mutateAsync({ userId: user.id, role: selected })
+      toast.success(`${user.name}'s role updated to ${ALL_ROLES.find(r => r.value === selected)?.label ?? selected}. They've been notified by email.`)
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update role')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Change Role</h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">{user.name} · {user.email}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4"/></button>
+        </div>
+
+        <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+          {ALL_ROLES.map(r => (
+            <button
+              key={r.value}
+              onClick={() => setSelected(r.value)}
+              className={cn(
+                'w-full text-left px-3 py-2.5 rounded-lg border transition-all',
+                selected === r.value
+                  ? 'border-novax-border-active bg-novax-light'
+                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50',
+              )}
+            >
+              <p className={cn('text-xs font-semibold', selected === r.value ? 'text-novax' : 'text-slate-800')}>{r.label}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{r.description}</p>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={updateRole.isPending || selected === user.role}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-novax hover:bg-novax-hover text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            {updateRole.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin"/>}
+            Save & Notify
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -865,6 +943,7 @@ export default function SettingsPage() {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [showBulkPerms, setShowBulkPerms] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [changingRoleUser, setChangingRoleUser] = useState<User | null>(null)
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
   const [aiToggling, setAiToggling] = useState(false)
   const [blastSending, setBlastSending] = useState(false)
@@ -960,6 +1039,12 @@ export default function SettingsPage() {
           selectedUsers={users.filter(u => selectedUserIds.has(u.id))}
           onClose={() => setShowBulkPerms(false)}
           onApplied={() => { setSelectedUserIds(new Set()); setShowBulkPerms(false) }}
+        />
+      )}
+      {changingRoleUser && (
+        <ChangeRoleDialog
+          user={changingRoleUser}
+          onClose={() => setChangingRoleUser(null)}
         />
       )}
       {editingUser && (
@@ -1129,7 +1214,20 @@ export default function SettingsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-600 capitalize">{u.role.replace(/_/g, ' ')}</td>
+                      <td className="px-4 py-3">
+                        {isAdmin && u.id !== currentUser?.id ? (
+                          <button
+                            onClick={() => setChangingRoleUser(u)}
+                            className="group flex items-center gap-1.5 text-xs text-slate-600 capitalize hover:text-novax transition-colors"
+                            title="Change role"
+                          >
+                            {u.role.replace(/_/g, ' ')}
+                            <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"/>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-600 capitalize">{u.role.replace(/_/g, ' ')}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-xs text-slate-600 capitalize">{u.department}</td>
                       <td className="px-4 py-3">
                         <span className={cn(
