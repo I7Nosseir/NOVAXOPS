@@ -1,69 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  ChevronLeft, Flame, Brain, BarChart2, Target,
-  Loader2, AlertCircle, X, Check,
-} from 'lucide-react'
+import { ChevronLeft, Loader2, AlertCircle, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useClients } from '@/lib/hooks/use-clients'
 import { DECK_DESIGN_TEMPLATES, type DesignTemplate } from '@/lib/deck-templates'
-import type { DeckTemplate, DeckInputMode, DeckDocument } from '@/lib/deck-types'
+import type { DeckInputMode, DeckDocument } from '@/lib/deck-types'
 
-type Step = 'template' | 'design' | 'input' | 'generating' | 'preview'
-
-const STRUCTURE_TEMPLATES: {
-  id: DeckTemplate
-  icon: React.ElementType
-  title: string
-  description: string
-  slides: string
-}[] = [
-  {
-    id: 'campaign',
-    icon: Flame,
-    title: 'Campaign Presentation',
-    description: '4–6 campaign concepts with taglines, tone of voice, and rationale.',
-    slides: '11–15 slides',
-  },
-  {
-    id: 'strategy',
-    icon: Brain,
-    title: 'Strategy Deck',
-    description: 'Content pillars, platform roles, KPIs, and quarterly roadmap.',
-    slides: '8 slides',
-  },
-  {
-    id: 'report',
-    icon: BarChart2,
-    title: 'Client Report',
-    description: 'Performance summary, top content, learnings, and next-month focus.',
-    slides: '7 slides',
-  },
-  {
-    id: 'pitch',
-    icon: Target,
-    title: 'Pitch Deck',
-    description: 'Problem, solution, proof, investment options, and clear CTA.',
-    slides: '6 slides',
-  },
-]
-
-const STRUCTURE_LABELS: Record<DeckTemplate, string> = {
-  campaign: 'Campaign Presentation',
-  strategy: 'Strategy Deck',
-  report:   'Client Report',
-  pitch:    'Pitch Deck',
-}
+type Step = 'design' | 'input' | 'generating' | 'preview'
 
 export default function DeckBuilderPage() {
   const { user }    = useAuth()
   const { clients } = useClients()
 
-  const [step,           setStep]          = useState<Step>('template')
-  const [template,       setTemplate]      = useState<DeckTemplate | null>(null)
+  const [step,           setStep]          = useState<Step>('design')
   const [designTemplate, setDesignTemplate] = useState<DesignTemplate | null>(null)
   const [mode,           setMode]          = useState<DeckInputMode>('ai_generate')
   const [clientId,       setClientId]      = useState('')
@@ -73,19 +25,13 @@ export default function DeckBuilderPage() {
   const [exportingPptx,  setExportingPptx] = useState(false)
   const [exportingPdf,   setExportingPdf]  = useState(false)
 
-  function selectTemplate(t: DeckTemplate) {
-    setTemplate(t)
-    setError(null)
-    setStep('design')
-  }
-
   function selectDesign(d: DesignTemplate) {
     setDesignTemplate(d)
     setStep('input')
   }
 
   async function handleGenerate() {
-    if (!template || !designTemplate || prompt.trim().length < 20) {
+    if (!designTemplate || prompt.trim().length < 20) {
       setError('Please write at least 20 characters of content.')
       return
     }
@@ -96,7 +42,6 @@ export default function DeckBuilderPage() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          template,
           mode,
           prompt,
           client_id:       clientId || undefined,
@@ -116,7 +61,7 @@ export default function DeckBuilderPage() {
           body: JSON.stringify({
             tool:      'decks',
             client_id: clientId || undefined,
-            input:     { template, designTemplate: designTemplate.id, mode, prompt },
+            input:     { designTemplate: designTemplate.id, mode, prompt },
             output:    { deck: deckData },
           }),
         }).catch(err => console.error('[decks] session save failed:', err))
@@ -158,8 +103,7 @@ export default function DeckBuilderPage() {
   }
 
   function handleStartOver() {
-    setStep('template')
-    setTemplate(null)
+    setStep('design')
     setDesignTemplate(null)
     setPrompt('')
     setClientId('')
@@ -175,7 +119,7 @@ export default function DeckBuilderPage() {
       <div>
         <h1 className="text-xl font-bold text-slate-900">Deck Builder</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Pick a structure and design, write your brief, export as PPTX and PDF.
+          Choose a visual style, write your brief, and get a full presentation — exported as PPTX and PDF.
         </p>
       </div>
 
@@ -190,49 +134,10 @@ export default function DeckBuilderPage() {
         </div>
       )}
 
-      {/* ── Step 1: Structure ─────────────────────────────────── */}
-      {step === 'template' && (
-        <div className="space-y-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Step 1 of 3 — Choose structure</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {STRUCTURE_TEMPLATES.map(t => {
-              const Icon = t.icon
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => selectTemplate(t.id)}
-                  className="group text-left p-6 bg-white border border-slate-200 rounded-2xl hover:border-novax-border hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-novax-light flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-novax-muted" />
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full">{t.slides}</span>
-                  </div>
-                  <h3 className="font-semibold text-slate-900 group-hover:text-novax transition-colors">{t.title}</h3>
-                  <p className="text-sm text-slate-500 mt-1 leading-snug">{t.description}</p>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Step 2: Design ────────────────────────────────────── */}
-      {step === 'design' && template && (
+      {/* ── Step 1: Design ────────────────────────────────────── */}
+      {step === 'design' && (
         <div className="space-y-5">
-          <button
-            onClick={() => setStep('template')}
-            className="flex items-center gap-1 text-sm text-slate-500 hover:text-novax transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Step 2 of 3 — Choose design</p>
-            <span className="text-[10px] bg-novax text-white px-2 py-0.5 rounded-full font-semibold">{STRUCTURE_LABELS[template]}</span>
-          </div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Step 1 of 2 — Choose design</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {DECK_DESIGN_TEMPLATES.map(dt => (
@@ -249,7 +154,10 @@ export default function DeckBuilderPage() {
                     <div className="h-1 rounded-sm w-2/3" style={{ backgroundColor: dt.branding.surface, opacity: 0.35 }} />
                     <div className="h-1 rounded-sm w-1/2" style={{ backgroundColor: dt.branding.surface, opacity: 0.2 }} />
                   </div>
+                  {/* Decorative accent strip */}
                   <div className="absolute top-0 left-0 bottom-0 w-1" style={{ backgroundColor: dt.branding.accent }} />
+                  {/* Top-right circle accent */}
+                  <div className="absolute -top-4 -right-4 w-14 h-14 rounded-full opacity-20" style={{ backgroundColor: dt.branding.accent }} />
                 </div>
                 <div className="p-4">
                   <h3 className="font-semibold text-sm text-slate-900 group-hover:text-novax transition-colors">{dt.name}</h3>
@@ -271,8 +179,8 @@ export default function DeckBuilderPage() {
         </div>
       )}
 
-      {/* ── Step 3: Input ─────────────────────────────────────── */}
-      {step === 'input' && template && designTemplate && (
+      {/* ── Step 2: Input ─────────────────────────────────────── */}
+      {step === 'input' && designTemplate && (
         <div className="space-y-5">
           <button
             onClick={() => setStep('design')}
@@ -283,8 +191,7 @@ export default function DeckBuilderPage() {
           </button>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Step 3 of 3 — Brief</p>
-            <span className="text-[10px] bg-novax text-white px-2 py-0.5 rounded-full font-semibold">{STRUCTURE_LABELS[template]}</span>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Step 2 of 2 — Brief</p>
             <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded-full">
               <div className="w-2.5 h-2.5 rounded-full border border-white/50" style={{ backgroundColor: designTemplate.branding.background }} />
               <span className="text-[10px] font-semibold text-slate-600">{designTemplate.name}</span>
@@ -340,7 +247,7 @@ export default function DeckBuilderPage() {
               rows={mode === 'ai_generate' ? 7 : 10}
               placeholder={
                 mode === 'ai_generate'
-                  ? 'Describe the deck you need. Include client name, industry, goals, and campaign ideas.\n\nExample: Create a 4-campaign deck for Lusin, a premium Armenian restaurant in Dubai. Campaigns: Heritage Nights, Seasonal Menu, Private Dining, Weekend Brunch.'
+                  ? 'Describe the deck you need. Include client name, industry, goals, and key content.\n\nExamples:\n– Campaign deck for Lusin, a premium restaurant in Dubai. 4 campaigns: Heritage Nights, Seasonal Menu, Private Dining, Weekend Brunch.\n– Q3 strategy deck for a fashion brand targeting Gen Z on Instagram and TikTok.\n– Performance report for April showing top content, learnings, and May focus.'
                   : 'Paste your full deck content exactly as you want it. The AI will structure it into slides without changing a single word.\n\nClearly label each section or campaign for best results.'
               }
               className="w-full resize-none text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none font-mono leading-relaxed"
@@ -348,7 +255,7 @@ export default function DeckBuilderPage() {
             <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
               <p className="text-xs text-slate-400">
                 {mode === 'ai_generate'
-                  ? `Design: ${designTemplate.name} applied automatically — no branding instructions needed.`
+                  ? `${designTemplate.name} design applied automatically. AI determines the best slide structure for your content.`
                   : 'Your exact wording is preserved. AI only decides which text goes in which field.'}
               </p>
               <span className={cn('text-xs font-medium', prompt.trim().length < 20 ? 'text-slate-400' : 'text-emerald-600')}>
@@ -367,7 +274,7 @@ export default function DeckBuilderPage() {
         </div>
       )}
 
-      {/* ── Step 4: Generating ────────────────────────────────── */}
+      {/* ── Generating ────────────────────────────────── */}
       {step === 'generating' && (
         <div className="flex flex-col items-center justify-center py-32 gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-novax-accent" />
@@ -378,7 +285,7 @@ export default function DeckBuilderPage() {
         </div>
       )}
 
-      {/* ── Step 5: Preview ───────────────────────────────────── */}
+      {/* ── Preview ───────────────────────────────────── */}
       {step === 'preview' && deck && (
         <div className="space-y-4">
           {/* Toolbar */}
@@ -386,7 +293,6 @@ export default function DeckBuilderPage() {
             <div className="min-w-0">
               <p className="font-semibold text-slate-900 truncate">{deck.title}</p>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-[10px] bg-novax text-white px-2 py-0.5 rounded-full font-bold uppercase">{deck.template}</span>
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full border border-slate-200" style={{ backgroundColor: deck.branding.background }} />
                   <span className="text-[10px] text-slate-500 font-medium">{designTemplate?.name ?? 'Custom'}</span>
@@ -446,6 +352,12 @@ export default function DeckBuilderPage() {
                     <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: ac }} />
                   )}
 
+                  {/* Decorative circle — cover and dark slides */}
+                  {isDark && (
+                    <div className="absolute -bottom-8 -right-8 rounded-full opacity-10"
+                      style={{ width: '45%', paddingBottom: '45%', backgroundColor: ac }} />
+                  )}
+
                   <div
                     className="absolute inset-0 flex flex-col"
                     style={{
@@ -462,6 +374,7 @@ export default function DeckBuilderPage() {
                             {slide.tag}
                           </span>
                         )}
+                        <div style={{ width: '32px', height: '2px', backgroundColor: ac, borderRadius: '2px' }} />
                         <h1 style={{
                           fontSize: 'clamp(17px, 3.4vw, 40px)', fontWeight: 800,
                           color: b.surface, fontFamily: b.titleFont + ', serif', lineHeight: 1.1,
@@ -469,12 +382,9 @@ export default function DeckBuilderPage() {
                           {slide.title}
                         </h1>
                         {slide.subtitle && (
-                          <>
-                            <div style={{ width: '32px', height: '2px', backgroundColor: ac, borderRadius: '2px' }} />
-                            <p style={{ fontSize: 'clamp(9px, 1.5vw, 17px)', color: ac, fontWeight: 500 }}>
-                              {slide.subtitle}
-                            </p>
-                          </>
+                          <p style={{ fontSize: 'clamp(9px, 1.5vw, 17px)', color: ac, fontWeight: 500 }}>
+                            {slide.subtitle}
+                          </p>
                         )}
                       </div>
                     )}
@@ -537,6 +447,9 @@ export default function DeckBuilderPage() {
                     {/* METRICS / CTA — dark, centered */}
                     {(slide.type === 'metrics' || slide.type === 'cta') && (
                       <div className="flex flex-col items-center justify-center flex-1 text-center gap-3">
+                        <span style={{ fontSize: 'clamp(5px, 0.65vw, 7px)', fontWeight: 700, color: ac, textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+                          {slide.type === 'cta' ? 'Next Steps' : 'Key Results'}
+                        </span>
                         <h2 style={{
                           fontSize: 'clamp(13px, 2.1vw, 25px)', fontWeight: 700,
                           color: b.surface, fontFamily: b.titleFont + ', serif',

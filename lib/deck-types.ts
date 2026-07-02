@@ -1,4 +1,4 @@
-export type DeckTemplate = 'campaign' | 'strategy' | 'report' | 'pitch'
+export type DeckTemplate = 'campaign' | 'strategy' | 'report' | 'pitch' | 'universal'
 export type DeckInputMode = 'ai_generate' | 'exact_text'
 
 export interface DeckBranding {
@@ -35,7 +35,7 @@ export interface DeckDocument {
 export interface DeckStructureRequest {
   session_id?: string
   client_id?: string
-  template: DeckTemplate
+  template?: DeckTemplate   // optional — defaults to auto-detect from prompt
   mode: DeckInputMode
   prompt: string
   client_name?: string

@@ -5,6 +5,7 @@ import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intell
 import type { DeckStructureRequest, DeckDocument, DeckSlide } from '@/lib/deck-types'
 import { NOVAX_BRANDING } from '@/lib/deck-types'
 import { getDeckDesignTemplate } from '@/lib/deck-templates'
+import { validateBrandingContrast } from '@/lib/design-system'
 
 export const maxDuration = 120
 
@@ -54,6 +55,28 @@ const SLIDE_SCHEMAS: Record<string, string> = {
   `.trim(),
 }
 
+const UNIVERSAL_SCHEMA = `
+Analyze the brief and build the best slide structure (6–15 slides) for the content.
+
+Available slide types:
+  cover              — title page (always slide 0). Fields: title, subtitle, tag (client/date)
+  executive_summary  — overview or key context. Fields: title, body
+  section_header     — visual section break. Fields: title only (renders centered, large)
+  campaign           — any concept, idea, or individual item with a headline. Fields: title, subtitle, body, bullets
+    Special "why" slide: immediately after a campaign slide, add another campaign slide with tag="why"
+    and bullets prefixed "TOV:" (tone of voice lines) and "WHY:" (rationale lines)
+  pillar             — strategy pillar, theme, or framework item. Fields: title, body, bullets
+  metrics            — KPIs, numbers, results (renders dark). Fields: title, body, bullets
+  cta                — final action slide (renders dark). Fields: title, body, bullets
+
+Auto-detect the deck type from the brief:
+  - Campaign concepts  → executive_summary + 4–6 campaign pairs (main + why) + cta
+  - Strategy/pillars   → executive_summary + section_header + 3–5 pillar slides + metrics + cta
+  - Performance report → executive_summary + metrics + campaign (best content) + pillar (insights) + cta
+  - Pitch/proposal     → executive_summary + campaign (problem) + campaign (solution) + metrics + cta
+  - Mixed/other        → use whatever structure best serves the content
+`.trim()
+
 function extractTitle(slides: DeckSlide[]): string {
   const cover = slides.find(s => s.type === 'cover')
   return cover?.title || 'Presentation'
@@ -67,14 +90,13 @@ export async function POST(request: NextRequest) {
     const body: DeckStructureRequest = await request.json()
     const { session_id, client_id, template, mode, prompt, client_name, design_template } = body
 
-    if (!template || !mode || !prompt?.trim()) {
-      return NextResponse.json({ error: 'Missing template, mode, or prompt' }, { status: 400 })
+    if (!mode || !prompt?.trim()) {
+      return NextResponse.json({ error: 'Missing mode or prompt' }, { status: 400 })
     }
 
-    const slideSchema = SLIDE_SCHEMAS[template]
-    if (!slideSchema) {
-      return NextResponse.json({ error: `Unknown template: ${template}` }, { status: 400 })
-    }
+    const slideSchema = template && template !== 'universal'
+      ? (SLIDE_SCHEMAS[template] ?? UNIVERSAL_SCHEMA)
+      : UNIVERSAL_SCHEMA
 
     // Resolve design template branding — if specified, skip Gemini branding extraction
     const designTemplateData = design_template ? getDeckDesignTemplate(design_template) : undefined
@@ -124,7 +146,7 @@ ${mode === 'exact_text'
 - Be specific to the brief — never use placeholder text.`
 }
 
-SLIDE SCHEMA — template: ${template}
+SLIDE SCHEMA
 ${slideSchema}
 
 Every slide must have: id (UUID v4), type, title.
@@ -174,16 +196,22 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
     const deck: DeckDocument = {
       title:        extractTitle(slides),
       client_name:  client_name ?? '',
-      template,
+      template:     template ?? 'universal',
       branding,
       slides,
       generated_at: new Date().toISOString(),
+    }
+
+    const contrastWarnings = validateBrandingContrast(branding)
+    if (contrastWarnings.length > 0) {
+      console.warn('[decks/structure] Contrast warnings:', contrastWarnings)
     }
 
     console.log('[decks/structure] Done:', {
       slides: deck.slides.length,
       design_template: designTemplateData?.id ?? 'custom',
       accent: deck.branding.accent,
+      contrastOk: contrastWarnings.length === 0,
     })
 
     if (session_id) {
