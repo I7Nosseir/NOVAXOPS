@@ -21,6 +21,7 @@ export function adminSupabase(): SupabaseClient | null {
 interface ContextEntry {
   category: string
   summary: string
+  source?: string
   created_at: string
 }
 
@@ -173,106 +174,199 @@ function buildProfileBlock(p: ClientNormalizedProfile): string {
   return lines.join('\n')
 }
 
+// ── Slot budgets (total = 3000 chars) ────────────────────────────────────────
+const SLOT_BUDGETS = {
+  brand:      400, // Always: brand voice, tone, rules
+  rejections: 300, // Always: latest rejection signals / corrections
+  agentCtx:   400, // Always: agent-specific intelligence
+  quarter:    300, // Always: quarter goals + active campaign theme
+  perf:       400, // If available: performance win patterns
+  competitor: 300, // If available: competitor brief
+  remaining:  900, // Fill: other context bank entries
+}
+
+// Which context-bank category to pull for Slot 3 per agent type
+const AGENT_CONTEXT_FOCUS: Record<string, 'wins' | 'approved' | 'instructions'> = {
+  hooks:           'wins',
+  hook_score:      'wins',
+  hook_lab:        'wins',
+  copywriter:      'approved',
+  post_caption:    'approved',
+  review_caption:  'approved',
+  revision_helper: 'approved',
+  client_fit:      'instructions',
+  task_thinking:   'instructions',
+  task_analyzer:   'instructions',
+  brief_check:     'instructions',
+  strategy:        'instructions',
+  strategy_gaps:   'instructions',
+  researcher:      'instructions',
+}
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text
+  // Truncate at last newline before limit to avoid mid-line cuts
+  const cut = text.lastIndexOf('\n', max)
+  return (cut > max * 0.6 ? text.slice(0, cut) : text.slice(0, max)) + '…'
+}
+
 export async function buildClientIntelligenceBlock(
   clientId: string,
   agentType: string,
   db: SupabaseClient
 ): Promise<string> {
-  const blocks: string[] = []
-
-  // 0. Normalized profile — structural foundation for every AI call
-  const { data: clientRow } = await db
-    .from('clients')
-    .select('normalized_profile')
-    .eq('id', clientId)
-    .single()
-
-  const profile = clientRow?.normalized_profile as ClientNormalizedProfile | undefined
-  if (profile && Object.keys(profile).length > 0) {
-    const profileText = buildProfileBlock(profile)
-    if (profileText.trim()) {
-      blocks.push(`── CLIENT CORE PROFILE ──\n${profileText}`)
-    }
-  }
-
-  // 1. Context bank — last 10 active entries
-  const { data: ctxRows } = await db
-    .from('client_context_bank')
-    .select('category, summary, created_at')
-    .eq('client_id', clientId)
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
-    .limit(10)
-
-  if (ctxRows && ctxRows.length > 0) {
-    const lines = (ctxRows as ContextEntry[]).map(
-      r => `[${r.category}] ${r.summary}`
-    )
-    blocks.push(`── CLIENT MEMORY ──\n${lines.join('\n')}`)
-  }
-
-  // 2. AI feedback — last 8 negative corrections for this agent type
-  const { data: fbRows } = await db
-    .from('ai_feedback')
-    .select('tags, correction_text, edited_version')
-    .eq('client_id', clientId)
-    .eq('agent_type', agentType)
-    .eq('rating', 'negative')
-    .order('created_at', { ascending: false })
-    .limit(8)
-
-  if (fbRows && fbRows.length > 0) {
-    const lines = (fbRows as FeedbackEntry[])
-      .filter(r => r.correction_text || r.tags?.length)
-      .map(r => {
-        const tagStr = r.tags?.length ? `(${r.tags.join(', ')})` : ''
-        return `- ${tagStr} ${r.correction_text || 'avoid this style'}`.trim()
-      })
-    if (lines.length > 0) {
-      blocks.push(
-        `── LEARNED FROM PAST CORRECTIONS FOR THIS CLIENT ──\n${lines.join('\n')}`
-      )
-    }
-  }
-
-  // 3. Active quarter strategy excerpt (first 800 chars)
   const now = new Date()
   const year = now.getFullYear()
   const quarter = Math.ceil((now.getMonth() + 1) / 3)
-  const { data: stratRow } = await db
-    .from('client_quarterly_strategies')
-    .select('goals, themes, kpis')
-    .eq('client_id', clientId)
-    .eq('year', year)
-    .eq('quarter', quarter)
-    .maybeSingle()
 
-  if (stratRow && (stratRow.goals || stratRow.themes)) {
-    const excerpt = [
-      stratRow.goals ? `Goals: ${stratRow.goals}` : '',
-      stratRow.themes ? `Themes: ${stratRow.themes}` : '',
-      stratRow.kpis ? `KPIs: ${stratRow.kpis}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n')
-      .slice(0, 800)
-    blocks.push(`── QUARTER STRATEGY (Q${quarter} ${year}) ──\n${excerpt}`)
+  // ── Fetch all data in parallel ──────────────────────────────────────────────
+  const [
+    profileResult,
+    ctxResult,
+    fbResult,
+    stratResult,
+    perfResult,
+  ] = await Promise.all([
+    db.from('clients').select('normalized_profile').eq('id', clientId).single(),
+
+    db.from('client_context_bank')
+      .select('category, summary, source, created_at')
+      .eq('client_id', clientId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(40),
+
+    db.from('ai_feedback')
+      .select('tags, correction_text')
+      .eq('client_id', clientId)
+      .eq('agent_type', agentType)
+      .eq('rating', 'negative')
+      .order('created_at', { ascending: false })
+      .limit(6),
+
+    db.from('client_quarterly_strategies')
+      .select('goals, themes, kpis')
+      .eq('client_id', clientId)
+      .eq('year', year)
+      .eq('quarter', quarter)
+      .maybeSingle(),
+
+    db.from('client_context_bank')
+      .select('summary, created_at')
+      .eq('client_id', clientId)
+      .eq('is_active', true)
+      .eq('category', 'Performance Win')
+      .order('created_at', { ascending: false })
+      .limit(5),
+  ])
+
+  const profile  = profileResult.data?.normalized_profile as ClientNormalizedProfile | undefined
+  const ctxRows  = (ctxResult.data ?? []) as ContextEntry[]
+  const fbRows   = (fbResult.data ?? []) as FeedbackEntry[]
+  const stratRow = stratResult.data
+  const perfWins = (perfResult.data ?? []) as { summary: string; created_at: string }[]
+
+  const slots: string[] = []
+
+  // ── Slot 1: Brand voice (400 chars) ────────────────────────────────────────
+  if (profile && Object.keys(profile).length > 0) {
+    const profileText = buildProfileBlock(profile)
+    if (profileText.trim()) {
+      slots.push(`── CLIENT PROFILE ──\n${truncate(profileText, SLOT_BUDGETS.brand)}`)
+    }
   }
 
-  // 4. Pinterest inspiration learning — aggregated structural preferences from past copy sessions
+  // ── Slot 2: Rejection signals (300 chars) ──────────────────────────────────
+  // Combines: explicit Client Instructions from context bank + negative AI feedback
+  const rejectionLines: string[] = []
+
+  const instructions = ctxRows.filter(r => r.category === 'Client Instructions').slice(0, 4)
+  for (const r of instructions) rejectionLines.push(`• ${r.summary}`)
+
+  for (const fb of fbRows.slice(0, 4)) {
+    if (!fb.correction_text && !fb.tags?.length) continue
+    const tagStr = fb.tags?.length ? `(${fb.tags.join(', ')}) ` : ''
+    rejectionLines.push(`• Avoid: ${tagStr}${fb.correction_text ?? 'this style'}`)
+  }
+
+  if (rejectionLines.length > 0) {
+    const block = rejectionLines.join('\n')
+    slots.push(`── WHAT NOT TO DO ──\n${truncate(block, SLOT_BUDGETS.rejections)}`)
+  }
+
+  // ── Slot 3: Agent-specific intelligence (400 chars) ────────────────────────
+  const focus = AGENT_CONTEXT_FOCUS[agentType] ?? 'instructions'
+  const agentLines: string[] = []
+
+  if (focus === 'wins' && perfWins.length > 0) {
+    agentLines.push('What worked well for this client:')
+    for (const pw of perfWins.slice(0, 3)) agentLines.push(`• ${pw.summary}`)
+  } else if (focus === 'approved') {
+    const approved = ctxRows.filter(r => r.category === 'Campaign Feedback' && r.source === 'approval_auto').slice(0, 4)
+    if (approved.length > 0) {
+      agentLines.push('Patterns the client has approved:')
+      for (const r of approved) agentLines.push(`• ${r.summary}`)
+    }
+  } else {
+    // 'instructions': show Market Intel and any remaining Client Instructions not in Slot 2
+    const marketIntel = ctxRows.filter(r => r.category === 'Market Intel').slice(0, 3)
+    if (marketIntel.length > 0) {
+      agentLines.push('Market context:')
+      for (const r of marketIntel) agentLines.push(`• ${r.summary}`)
+    }
+  }
+
+  if (agentLines.length > 0) {
+    slots.push(`── AGENT CONTEXT ──\n${truncate(agentLines.join('\n'), SLOT_BUDGETS.agentCtx)}`)
+  }
+
+  // ── Slot 4: Quarter goals (300 chars) ──────────────────────────────────────
+  if (stratRow && (stratRow.goals || stratRow.themes)) {
+    const lines = [
+      stratRow.themes ? `Quarter theme: ${stratRow.themes}` : '',
+      stratRow.goals  ? `Goals: ${stratRow.goals}`          : '',
+      stratRow.kpis   ? `KPIs: ${stratRow.kpis}`            : '',
+    ].filter(Boolean).join('\n')
+    slots.push(`── Q${quarter} ${year} STRATEGY ──\n${truncate(lines, SLOT_BUDGETS.quarter)}`)
+  }
+
+  // ── Slot 5: Performance wins (400 chars, if available) ─────────────────────
+  if (focus !== 'wins' && perfWins.length > 0) {
+    const lines = perfWins.slice(0, 3).map(pw => `• ${pw.summary}`)
+    slots.push(`── WHAT WORKS FOR THIS CLIENT ──\n${truncate(lines.join('\n'), SLOT_BUDGETS.perf)}`)
+  }
+
+  // ── Slot 6: Competitor context (300 chars, if available) ───────────────────
+  try {
+    const competitorBlock = await buildCompetitorContextBlock(clientId, db)
+    if (competitorBlock.trim()) {
+      slots.push(truncate(competitorBlock.trim(), SLOT_BUDGETS.competitor))
+    }
+  } catch { /* non-critical */ }
+
+  // ── Slot 7: Remaining context entries (900 chars) ──────────────────────────
+  const usedCategories = new Set(['Client Instructions', 'Campaign Feedback', 'Market Intel', 'Performance Win', 'Performance Loss'])
+  const remaining = ctxRows
+    .filter(r => !usedCategories.has(r.category))
+    .slice(0, 12)
+
+  if (remaining.length > 0) {
+    const lines = remaining.map(r => `[${r.category}] ${r.summary}`)
+    slots.push(`── OTHER CONTEXT ──\n${truncate(lines.join('\n'), SLOT_BUDGETS.remaining)}`)
+  }
+
+  // ── Pinterest inspiration (bonus, if space allows) ─────────────────────────
   try {
     const pinterestBlock = await buildPinterestInspirationBlock(clientId, db)
-    if (pinterestBlock) blocks.push(pinterestBlock)
-  } catch { /* non-critical — inspiration data is supplementary */ }
+    if (pinterestBlock) slots.push(pinterestBlock)
+  } catch { /* non-critical */ }
 
-  if (blocks.length === 0) return ''
-  const joined = `\n\n${blocks.join('\n\n')}`
-  // Hard cap — prevents unbounded context from consuming the model's output budget
-  const MAX_CHARS = 3000
-  if (joined.length > MAX_CHARS) {
-    return joined.slice(0, MAX_CHARS) + '\n[...client context truncated]'
-  }
-  return joined
+  if (slots.length === 0) return ''
+
+  const joined = '\n\n' + slots.join('\n\n')
+  // Final safety cap — should rarely trigger with slot budgets enforced above
+  const MAX_CHARS = 3200
+  return joined.length > MAX_CHARS ? joined.slice(0, MAX_CHARS) + '\n[…]' : joined
 }
 
 type CompetitorAnalysisShape = {

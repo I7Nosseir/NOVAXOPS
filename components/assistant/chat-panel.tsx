@@ -6,7 +6,7 @@ import {
   FileText, Layers, CheckSquare, Building2,
   ExternalLink, Copy, Check, Loader2, PenLine,
   History, Plus, AlertTriangle, Clipboard, ClipboardCheck,
-  FilePlus, Paperclip, ImageIcon,
+  FilePlus, Paperclip, ImageIcon, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
@@ -542,11 +542,27 @@ export function ChatPanel({
   // / command
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
 
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef       = useRef<HTMLTextAreaElement>(null)
-  const panelRef       = useRef<HTMLDivElement>(null)
-  const historyRef     = useRef<HTMLDivElement>(null)
-  const fileInputRef   = useRef<HTMLInputElement>(null)
+  const messagesEndRef    = useRef<HTMLDivElement>(null)
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
+  const inputRef          = useRef<HTMLTextAreaElement>(null)
+  const panelRef          = useRef<HTMLDivElement>(null)
+  const historyRef        = useRef<HTMLDivElement>(null)
+  const fileInputRef      = useRef<HTMLInputElement>(null)
+
+  const [hScroll, setHScroll] = useState({ canLeft: false, canRight: false })
+
+  const updateHScroll = useCallback(() => {
+    const el = messagesScrollRef.current
+    if (!el) return
+    setHScroll({
+      canLeft:  el.scrollLeft > 4,
+      canRight: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    })
+  }, [])
+
+  const scrollH = useCallback((delta: number) => {
+    messagesScrollRef.current?.scrollBy({ left: delta, behavior: 'smooth' })
+  }, [])
   const onSaveRef      = useRef(onSave)
   useEffect(() => { onSaveRef.current = onSave }, [onSave])
 
@@ -554,10 +570,21 @@ export function ChatPanel({
   const sessionIsComplete = messages.length >= MAX_MESSAGES
   const sessionNearLimit  = messages.length >= WARN_MESSAGES && !sessionIsComplete
 
-  // Auto-scroll
+  // Auto-scroll (vertical)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingText])
+
+  // Horizontal scroll detection
+  useEffect(() => {
+    const el = messagesScrollRef.current
+    if (!el) return
+    updateHScroll()
+    const ro = new ResizeObserver(updateHScroll)
+    ro.observe(el)
+    el.addEventListener('scroll', updateHScroll)
+    return () => { ro.disconnect(); el.removeEventListener('scroll', updateHScroll) }
+  }, [updateHScroll])
 
   // Focus input when panel opens
   useEffect(() => {
@@ -1141,7 +1168,12 @@ export function ChatPanel({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-slate-50/50">
+      <div className="relative flex-1 min-h-0">
+      <div
+        ref={messagesScrollRef}
+        onScroll={updateHScroll}
+        className="h-full overflow-auto px-4 py-4 space-y-4 bg-slate-50/50"
+      >
 
         {/* Approaching limit warning */}
         {sessionNearLimit && (
@@ -1268,6 +1300,30 @@ export function ChatPanel({
         )}
 
         <div ref={messagesEndRef} />
+      </div>
+
+      {/* Horizontal scroll buttons — appear only when content overflows */}
+      {(hScroll.canLeft || hScroll.canRight) && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white/95 border border-slate-200 rounded-full px-2 py-1 shadow-lg backdrop-blur-sm z-20 select-none">
+          <button
+            onClick={() => scrollH(-300)}
+            disabled={!hScroll.canLeft}
+            className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100 disabled:opacity-25 transition-all"
+            title="Scroll left"
+          >
+            <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
+          </button>
+          <span className="text-[10px] text-slate-400 px-0.5 font-medium">scroll</span>
+          <button
+            onClick={() => scrollH(300)}
+            disabled={!hScroll.canRight}
+            className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100 disabled:opacity-25 transition-all"
+            title="Scroll right"
+          >
+            <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+          </button>
+        </div>
+      )}
       </div>
 
       {/* Context chips */}

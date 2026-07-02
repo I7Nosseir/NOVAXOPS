@@ -23,6 +23,7 @@ import { StudioSaveActions } from '@/components/studio/studio-save-actions'
 import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
 import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
 import type { ClientIntelligenceSummary } from '@/lib/client-intelligence'
+import { ExportFormatModal, type ExportOptions } from '@/components/shared/export-format-modal'
 import type {
   StructuredQuestion,
   ContentDocument,
@@ -200,6 +201,7 @@ export default function ContentStudioPage() {
   const [viabilityLoading, setViabilityLoading] = useState(false)
   const [judgments,        setJudgments]        = useState<JudgmentResult[]>([])
   const [pdfLoading,         setPdfLoading]         = useState(false)
+  const [showExportModal,    setShowExportModal]    = useState(false)
   const [intelligenceSummary, setIntelligenceSummary] = useState<ClientIntelligenceSummary | null>(null)
   const viabilityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -376,7 +378,7 @@ export default function ContentStudioPage() {
   }
 
   // ── PDF export ───────────────────────────────────────────────────────────────
-  async function handleExportPdf() {
+  async function doExportPdf(opts: ExportOptions) {
     if (!contentDoc) return
     setPdfLoading(true)
     try {
@@ -398,6 +400,7 @@ export default function ContentStudioPage() {
           },
           clientName:  selectedClient?.name,
           clientColor: selectedClient?.color,
+          options: { size: opts.size, theme: opts.theme },
         }),
       })
       if (!res.ok) throw new Error('PDF failed')
@@ -408,6 +411,7 @@ export default function ContentStudioPage() {
       a.download = `novax-content-${selectedClient?.name?.replace(/\s+/g, '-').toLowerCase() ?? 'plan'}.pdf`
       a.click()
       URL.revokeObjectURL(url)
+      setShowExportModal(false)
     } catch {
       setError('PDF export failed. Try again.')
     } finally {
@@ -1341,7 +1345,7 @@ export default function ContentStudioPage() {
               content={contentDoc}
               bossBrief={bossBrief}
               language={inputs.language}
-              onExportPdf={handleExportPdf}
+              onExportPdf={() => setShowExportModal(true)}
               onEditApplied={handleEditApplied}
               onSchedule={handleSchedule}
               intelligenceSummary={intelligenceSummary}
@@ -1434,7 +1438,7 @@ export default function ContentStudioPage() {
                 Export .xlsx
               </button>
               <button
-                onClick={handleExportPdf}
+                onClick={() => setShowExportModal(true)}
                 disabled={pdfLoading}
                 className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-novax hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors flex-1 justify-center"
               >
@@ -1466,6 +1470,19 @@ export default function ContentStudioPage() {
           onEditDetected={(edit: EditPayload) => handleEditApplied(edit.target, edit.new_content)}
         />
       )}
+
+      {/* Export Format Modal */}
+      <ExportFormatModal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        exporting={pdfLoading}
+        config={{
+          title:   'Export Content PDF',
+          subtitle: selectedClient?.name ?? undefined,
+          hideTheme: true,
+        }}
+        onExport={doExportPdf}
+      />
     </div>
   )
 }

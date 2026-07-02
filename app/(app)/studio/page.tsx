@@ -178,10 +178,6 @@ export default function StudioPage() {
     if (route) router.push(`${route}?session_id=${session.id}`)
   }
 
-  function handleNewSession() {
-    router.push('/studio/content')
-  }
-
   return (
     <div className="max-w-4xl space-y-8">
       {/* Header */}
@@ -199,7 +195,6 @@ export default function StudioPage() {
       <StudioSessionList
         sessions={sessions}
         onSessionClick={handleSessionClick}
-        onNewSession={handleNewSession}
         onDeleteSession={(id) => setSessions(prev => prev.filter(s => s.id !== id))}
         isLoading={sessionsLoading}
       />

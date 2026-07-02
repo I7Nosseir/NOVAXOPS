@@ -108,12 +108,15 @@ function Footer({ clientName }: { clientName: string }) {
   )
 }
 
+// Module-level page size (set once per render — react-pdf is synchronous)
+let CONTENT_PDF_SIZE: 'A4' | 'LETTER' = 'A4'
+
 // ── Cover Page ────────────────────────────────────────────────────────────────
 function CoverPage({ clientName, clientColor, inputs, hook, date }: {
   clientName: string; clientColor?: string; inputs: InputSummary; hook?: string; date: string
 }) {
   const bc = brand(clientColor)
-  return ce(Page, { size: 'A4', style: S.coverPage },
+  return ce(Page, { size: CONTENT_PDF_SIZE, style: S.coverPage },
     ce(View, { style: { ...S.coverTop, backgroundColor: bc } },
       ce(Text, { style: S.coverBrand }, 'NOVAX'),
       ce(Text, { style: S.coverTitle }, `${clientName}\nContent Plan`),
@@ -143,7 +146,7 @@ function CoverPage({ clientName, clientColor, inputs, hook, date }: {
 
 // ── Boss Brief Page ───────────────────────────────────────────────────────────
 function BossBriefPage({ bb, clientName }: { bb: BossBrief; clientName: string }) {
-  return ce(Page, { size: 'A4', style: S.page },
+  return ce(Page, { size: CONTENT_PDF_SIZE, style: S.page },
     ce(Text, { style: S.secLabel }, 'BOSS BRIEF'),
     ce(Text, { style: { ...S.h1, marginBottom: 20 } }, '30-Second Executive Summary'),
     ce(View, { style: S.bbGrid },
@@ -169,7 +172,7 @@ function PiecePage({ piece, idx, total, clientName, clientColor }: {
   const pAny  = piece as ContentPiece & { slides?: { title: string; body: string; visual_note?: string }[]; visual_direction?: string; text_overlay?: string }
   const label = `${piece.type.toUpperCase()}${total > 1 ? ` · PIECE ${idx + 1} OF ${total}` : ''}`
 
-  return ce(Page, { size: 'A4', style: S.page },
+  return ce(Page, { size: CONTENT_PDF_SIZE, style: S.page },
     // Header row
     ce(View, { style: S.pieceRow },
       ce(View, { style: { ...S.typeBadge, backgroundColor: bc } }, ce(Text, { style: S.typeBadgeTx }, label)),
@@ -258,15 +261,20 @@ interface InputSummary {
 }
 
 interface ExportBody {
-  content: ContentDocument; bossBrief?: BossBrief | null
-  inputs: InputSummary; clientName?: string; clientColor?: string
+  content:    ContentDocument
+  bossBrief?: BossBrief | null
+  inputs:     InputSummary
+  clientName?: string
+  clientColor?: string
+  options?: { size?: 'A4' | 'LETTER'; theme?: 'brand' | 'light' }
 }
 
 // ── Route ──────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as ExportBody
-    const { content, bossBrief, inputs, clientName = 'Client', clientColor } = body
+    const { content, bossBrief, inputs, clientName = 'Client', clientColor, options } = body
+    CONTENT_PDF_SIZE = options?.size ?? 'A4'
 
     if (!content) return NextResponse.json({ error: 'content required' }, { status: 400 })
 

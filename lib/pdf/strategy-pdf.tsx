@@ -57,11 +57,10 @@ const C = {
   border:     '#DDE6E5',
 }
 
-// ── Fonts are Helvetica (built-in) — no registration needed ──────────────────
-// react-pdf wraps text automatically inside Text, but View containers with
-// explicit heights or overflow:hidden will clip. All content views use
-// paddingBottom to stay clear of the footer, and Text nodes always flex:1.
-
+// ── Per-render PDF options (set once at the start of StrategyPDF) ────────────
+// react-pdf renders synchronously in Node.js — module-level vars are safe here.
+let PDF_SIZE:  'A4' | 'LETTER' = 'A4'
+let PDF_THEME: 'brand' | 'light' = 'brand'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -207,9 +206,13 @@ function CoverPage({ clientName, doc, clientColor, platforms, quarter, year }: {
   const campaignLine = s(doc.campaign_line)
   const positioningStatement = s(doc.positioning_statement)
 
+  const lightCover = PDF_THEME === 'light'
   return (
-    <Page size="A4" style={{ backgroundColor: C.dark, fontFamily: 'Helvetica', position: 'relative' }}>
-      <AccentStrip color={bc} />
+    <Page size={PDF_SIZE} style={{ backgroundColor: lightCover ? C.g50 : C.dark, fontFamily: 'Helvetica', position: 'relative' }}>
+      {lightCover
+        ? <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 8, backgroundColor: bc }} />
+        : <AccentStrip color={bc} />
+      }
 
       {/* Top decorative grid dots */}
       <View style={{ position: 'absolute', top: 0, right: 0, width: 240, height: 240, opacity: 0.05 }}>
@@ -236,16 +239,15 @@ function CoverPage({ clientName, doc, clientColor, platforms, quarter, year }: {
 
       {/* Strategy label */}
       <View style={{ position: 'absolute', top: 80, left: 60, right: 60 }}>
-        <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica', color: '#4A6A65', letterSpacing: 3 }}>
+        <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica', color: lightCover ? C.g500 : '#4A6A65', letterSpacing: 3 }}>
           QUARTERLY SOCIAL MEDIA STRATEGY
         </Text>
       </View>
 
       {/* Client name — center of page */}
       <View style={{ position: 'absolute', top: 220, left: 60, right: 60 }}>
-        {/* Thin accent line above name */}
         <View style={{ width: 48, height: 2, backgroundColor: bc, marginBottom: 20 }} />
-        <Text style={{ fontSize: 46, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.1, letterSpacing: -0.5 }}>
+        <Text style={{ fontSize: 46, fontFamily: 'Helvetica-Bold', color: lightCover ? C.g900 : C.white, lineHeight: 1.1, letterSpacing: -0.5 }}>
           {clientName}
         </Text>
         {campaignLine ? (
@@ -254,7 +256,7 @@ function CoverPage({ clientName, doc, clientColor, platforms, quarter, year }: {
           </Text>
         ) : null}
         {positioningStatement ? (
-          <Text style={{ fontSize: 10, fontFamily: 'Helvetica', color: '#7A9A96', marginTop: 14, lineHeight: 1.6, maxWidth: 380 }}>
+          <Text style={{ fontSize: 10, fontFamily: 'Helvetica', color: lightCover ? C.g500 : '#7A9A96', marginTop: 14, lineHeight: 1.6, maxWidth: 380 }}>
             {positioningStatement}
           </Text>
         ) : null}
@@ -262,17 +264,17 @@ function CoverPage({ clientName, doc, clientColor, platforms, quarter, year }: {
 
       {/* Quarter + platforms row */}
       <View style={{ position: 'absolute', top: 500, left: 60, right: 60 }}>
-        <View style={{ height: 0.75, backgroundColor: '#2A4A44', marginBottom: 20 }} />
+        <View style={{ height: 0.75, backgroundColor: lightCover ? C.g200 : '#2A4A44', marginBottom: 20 }} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           {(quarter || year) && (
-            <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#9BB8B4' }}>
+            <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: lightCover ? C.g700 : '#9BB8B4' }}>
               {[quarter, year].filter(Boolean).join(' ')}
             </Text>
           )}
           {platforms.slice(0, 6).map(p => (
-            <View key={p} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#182E28', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+            <View key={p} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: lightCover ? C.g100 : '#182E28', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
               <PlatformLogo platform={p} size={12} />
-              <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica', color: '#9BB8B4' }}>{p}</Text>
+              <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica', color: lightCover ? C.g700 : '#9BB8B4' }}>{p}</Text>
             </View>
           ))}
         </View>
@@ -280,8 +282,8 @@ function CoverPage({ clientName, doc, clientColor, platforms, quarter, year }: {
 
       {/* Bottom — NOVAX attribution */}
       <View style={{ position: 'absolute', bottom: 40, left: 60, right: 60, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontSize: 7, fontFamily: 'Helvetica', color: '#3A5A56' }}>Confidential — Prepared exclusively for {clientName}</Text>
-        <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#4A6A65', letterSpacing: 2 }}>NOVAX</Text>
+        <Text style={{ fontSize: 7, fontFamily: 'Helvetica', color: lightCover ? C.g500 : '#3A5A56' }}>Confidential — Prepared exclusively for {clientName}</Text>
+        <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: lightCover ? C.g500 : '#4A6A65', letterSpacing: 2 }}>NOVAX</Text>
       </View>
     </Page>
   )
@@ -301,7 +303,7 @@ function TOCPage({ doc, clientName, accentColor, totalPages }: { doc: StrategyDo
   ]
 
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="Table of Contents" accentColor={accentColor} />
       <View style={{ paddingHorizontal: 50, paddingTop: 40 }}>
         <Text style={{ fontSize: 26, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 8 }}>Contents</Text>
@@ -337,22 +339,26 @@ function SectionDividerPage({ number, title, description, accentColor }: {
   description?: string
   accentColor: string
 }) {
+  const light = PDF_THEME === 'light'
   return (
-    <Page size="A4" style={{ backgroundColor: C.dark, fontFamily: 'Helvetica', position: 'relative' }}>
-      <AccentStrip color={accentColor} />
+    <Page size={PDF_SIZE} style={{ backgroundColor: light ? C.white : C.dark, fontFamily: 'Helvetica', position: 'relative' }}>
+      {light
+        ? <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: accentColor }} />
+        : <AccentStrip color={accentColor} />
+      }
       {/* Giant section number as background element */}
-      <View style={{ position: 'absolute', bottom: 40, right: 40, opacity: 0.04 }}>
-        <Text style={{ fontSize: 200, fontFamily: 'Helvetica-Bold', color: C.accent }}>{number}</Text>
+      <View style={{ position: 'absolute', bottom: 40, right: 40, opacity: light ? 0.06 : 0.04 }}>
+        <Text style={{ fontSize: 200, fontFamily: 'Helvetica-Bold', color: light ? accentColor : C.accent }}>{number}</Text>
       </View>
       <View style={{ position: 'absolute', top: 280, left: 60, right: 100 }}>
         <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: accentColor, letterSpacing: 3, marginBottom: 16 }}>
           {`${number} ─`}
         </Text>
-        <Text style={{ fontSize: 36, fontFamily: 'Helvetica-Bold', color: C.white, lineHeight: 1.15, letterSpacing: -0.5 }}>
+        <Text style={{ fontSize: 36, fontFamily: 'Helvetica-Bold', color: light ? C.g900 : C.white, lineHeight: 1.15, letterSpacing: -0.5 }}>
           {title}
         </Text>
         {description && (
-          <Text style={{ fontSize: 11, fontFamily: 'Helvetica', color: '#7A9A96', marginTop: 16, lineHeight: 1.6 }}>
+          <Text style={{ fontSize: 11, fontFamily: 'Helvetica', color: light ? C.g500 : '#7A9A96', marginTop: 16, lineHeight: 1.6 }}>
             {description}
           </Text>
         )}
@@ -374,7 +380,7 @@ function ExecutiveSummaryPage({ doc, clientName, accentColor, pageNum, totalPage
   const hasExtraSections = !!(doc.executive_summary || hasIntelligence || obstacle)
 
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="01 — Strategic Foundation" accentColor={accentColor} />
       <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 72 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 24 }}>Strategic Foundation</Text>
@@ -477,7 +483,7 @@ function BrandIdentityPage({ doc, clientName, accentColor, pageNum, totalPages }
   const hasExtra   = !!(campTheme || hasTenants || (qrole && !doc.positioning_statement))
 
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="02 — Brand Identity" accentColor={accentColor} />
       <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 24 }}>Brand Identity & Direction</Text>
@@ -532,7 +538,7 @@ function ContentPillarsPage({ pillars, pageIndex, clientName, accentColor, pageN
   const PILLAR_ACCENTS = [accentColor, C.gold, '#7C3AED', '#DB2777', '#EA580C', '#0891B2']
 
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="03 — Content Pillars" accentColor={accentColor} />
       <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         {pageIndex === 0 && (
@@ -598,7 +604,7 @@ function PlatformStrategyPage({ roles, clientName, accentColor, pageNum, totalPa
   totalPages: number
 }) {
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="04 — Platform Strategy" accentColor={accentColor} />
       <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 6 }}>Platform Roles</Text>
@@ -645,7 +651,7 @@ function MonthlyRoadmapIntroPage({ tactics, clientName, accentColor, pageNum, to
   const MONTH_COLORS = [accentColor, C.gold, '#7C3AED']
 
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="05 — Monthly Roadmap" accentColor={accentColor} />
       <View style={{ flex: 1, paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 6 }}>Monthly Execution Roadmap</Text>
@@ -724,7 +730,7 @@ function MonthlyTacticPage({ tactic, monthIndex, clientName, accentColor, pageNu
   const monthColor = MONTH_COLORS[monthIndex % MONTH_COLORS.length]
 
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label={`05 — Monthly Roadmap · Month ${monthIndex + 1}`} accentColor={accentColor} />
       <View style={{ paddingHorizontal: 50, paddingTop: 28, paddingBottom: 60 }}>
         {/* Month header */}
@@ -811,7 +817,7 @@ function StrategyArcPage({ arc, flow, clientName, accentColor, pageNum, totalPag
   totalPages: number
 }) {
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="06 — Strategy Arc" accentColor={accentColor} />
       <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 24 }}>Strategy Arc & Narrative Flow</Text>
@@ -879,7 +885,7 @@ function FormatRolesPage({ formats, clientName, accentColor, pageNum, totalPages
   ].filter(c => c.items.length > 0)
 
   return (
-    <Page size="A4" style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
+    <Page size={PDF_SIZE} style={{ backgroundColor: C.g50, fontFamily: 'Helvetica' }}>
       <PageHeader label="07 — Creative Formats" accentColor={accentColor} />
       <View style={{ paddingHorizontal: 50, paddingTop: 32, paddingBottom: 60 }}>
         <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: C.g900, marginBottom: 6 }}>Creative Format Playbook</Text>
@@ -923,12 +929,16 @@ function BossBriefPage({ brief, clientName, accentColor, pageNum, totalPages }: 
   if (brief.watch_out_for) {
     items.push({ label: 'Watch Out For', value: s(brief.watch_out_for), color: '#EF4444' })
   }
+  const light = PDF_THEME === 'light'
   return (
-    <Page size="A4" style={{ backgroundColor: C.dark, fontFamily: 'Helvetica', position: 'relative' }}>
-      <AccentStrip color={accentColor} />
+    <Page size={PDF_SIZE} style={{ backgroundColor: light ? C.g50 : C.dark, fontFamily: 'Helvetica', position: 'relative' }}>
+      {light
+        ? <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: accentColor }} />
+        : <AccentStrip color={accentColor} />
+      }
       <View style={{ paddingHorizontal: 60, paddingTop: 50 }}>
         <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: accentColor, letterSpacing: 3, marginBottom: 8 }}>BOSS BRIEF — 30-SECOND VERSION</Text>
-        <Text style={{ fontSize: 26, fontFamily: 'Helvetica-Bold', color: C.white, marginBottom: 32 }}>The One-Page Summary</Text>
+        <Text style={{ fontSize: 26, fontFamily: 'Helvetica-Bold', color: light ? C.g900 : C.white, marginBottom: 32 }}>The One-Page Summary</Text>
         <View style={{ gap: 16 }}>
           {items.map(({ label, value, color }, i) => (
             <View key={i} style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-start' }}>
@@ -937,7 +947,7 @@ function BossBriefPage({ brief, clientName, accentColor, pageNum, totalPages }: 
                 <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: color, letterSpacing: 1.5, marginBottom: 4 }}>
                   {label.toUpperCase()}
                 </Text>
-                <Text style={{ fontSize: 10.5, fontFamily: 'Helvetica', color: '#C8D8D5', lineHeight: 1.65 }}>{value}</Text>
+                <Text style={{ fontSize: 10.5, fontFamily: 'Helvetica', color: light ? C.g700 : '#C8D8D5', lineHeight: 1.65 }}>{value}</Text>
               </View>
             </View>
           ))}
@@ -953,23 +963,27 @@ function BossBriefPage({ brief, clientName, accentColor, pageNum, totalPages }: 
 function BackCoverPage({ clientName, accentColor, quarter, year }: {
   clientName: string; accentColor: string; quarter?: string; year?: number
 }) {
+  const light = PDF_THEME === 'light'
   const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   return (
-    <Page size="A4" style={{ backgroundColor: C.dark, fontFamily: 'Helvetica', position: 'relative' }}>
-      <AccentStrip color={accentColor} />
+    <Page size={PDF_SIZE} style={{ backgroundColor: light ? C.white : C.dark, fontFamily: 'Helvetica', position: 'relative' }}>
+      {light
+        ? <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: accentColor }} />
+        : <AccentStrip color={accentColor} />
+      }
       {/* Large decorative circle */}
-      <View style={{ position: 'absolute', bottom: -80, right: -80, width: 320, height: 320, borderRadius: 160, backgroundColor: accentColor, opacity: 0.04 }} />
+      <View style={{ position: 'absolute', bottom: -80, right: -80, width: 320, height: 320, borderRadius: 160, backgroundColor: accentColor, opacity: light ? 0.08 : 0.04 }} />
       <View style={{ position: 'absolute', top: 280, left: 60, right: 60, alignItems: 'center' }}>
         <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: accentColor, letterSpacing: 3, marginBottom: 20 }}>NOVAX</Text>
         <View style={{ width: 60, height: 1.5, backgroundColor: accentColor, marginBottom: 24 }} />
-        <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', color: C.white, marginBottom: 8, textAlign: 'center' }}>
+        <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', color: light ? C.g900 : C.white, marginBottom: 8, textAlign: 'center' }}>
           Strategy Ready. Time to Execute.
         </Text>
-        <Text style={{ fontSize: 10, fontFamily: 'Helvetica', color: '#7A9A96', textAlign: 'center', lineHeight: 1.6 }}>
+        <Text style={{ fontSize: 10, fontFamily: 'Helvetica', color: light ? C.g500 : '#7A9A96', textAlign: 'center', lineHeight: 1.6 }}>
           {`Prepared for ${clientName}`}
           {(quarter || year) ? ` · ${[quarter, year].filter(Boolean).join(' ')}` : ''}
         </Text>
-        <Text style={{ fontSize: 8.5, fontFamily: 'Helvetica', color: '#3A5A56', marginTop: 30 }}>{dateStr}</Text>
+        <Text style={{ fontSize: 8.5, fontFamily: 'Helvetica', color: light ? C.g400 : '#3A5A56', marginTop: 30 }}>{dateStr}</Text>
       </View>
     </Page>
   )
@@ -977,15 +991,25 @@ function BackCoverPage({ clientName, accentColor, quarter, year }: {
 
 // ── Main Document ─────────────────────────────────────────────────────────────
 
-export interface StrategyPDFProps {
-  doc: StrategyDocument
-  clientName: string
-  clientColor?: string
-  platforms?: string[]
-  bossBrief?: BossBrief | null
+export interface StrategyPdfOptions {
+  size?:  'A4' | 'LETTER'
+  theme?: 'brand' | 'light'
 }
 
-export function StrategyPDF({ doc, clientName, clientColor, platforms = [], bossBrief }: StrategyPDFProps) {
+export interface StrategyPDFProps {
+  doc:         StrategyDocument
+  clientName:  string
+  clientColor?: string
+  platforms?:  string[]
+  bossBrief?:  BossBrief | null
+  options?:    StrategyPdfOptions
+}
+
+export function StrategyPDF({ doc, clientName, clientColor, platforms = [], bossBrief, options }: StrategyPDFProps) {
+  // Set module-level render options (safe — react-pdf is synchronous)
+  PDF_SIZE  = options?.size  ?? 'A4'
+  PDF_THEME = options?.theme ?? 'brand'
+
   const accentColor = brand(clientColor)
   const quarter = s(doc.quarter)
   const year    = doc.year ?? undefined
@@ -998,123 +1022,117 @@ export function StrategyPDF({ doc, clientName, clientColor, platforms = [], boss
   const formats  = doc.format_roles as StrategyFormatRoles | undefined
   const pAll     = platforms.length > 0 ? platforms : a(doc.platforms)
 
-  // Compute total pages
-  const pillarPages   = Math.ceil(pillars.length / 3) || 1
+  // ── Section visibility gates — only render if there is content ───────────
+  const hasFoundation = !!(
+    doc.positioning_statement || doc.campaign_line || doc.quarter_role ||
+    doc.executive_summary || doc.north_star || doc.audience_insight ||
+    doc.obstacle || doc.competitive_gap || doc.creative_tension
+  )
+  const hasIdentity = !!(
+    doc.identity_shift || doc.campaign_theme ||
+    (doc.tenant_integration as unknown[])?.length
+  )
+  const pillarPages   = Math.ceil(pillars.length / 3)   // 0 when no pillars
+  const hasPillars    = pillars.length > 0
   const platformPages = pRoles.length > 0 ? 1 : 0
+  const hasMonthly    = mTactics.length > 0
   const hasArc        = arc.length > 0 || flow.length > 0
   const hasFormats    = !!(formats && (a(formats.reels).length || a(formats.motion_graphics).length || a(formats.static_carousel).length))
   const hasBoss       = !!bossBrief
 
-  // Page count breakdown:
-  // 1  cover
-  // 1  TOC
-  // 1  section divider: Foundation
-  // 1  executive summary
-  // 1  section divider: Identity
-  // 1  brand identity
-  // 1  section divider: Pillars
-  // N  pillar pages
-  // 1  section divider: Platform
-  // P  platform page
-  // 1  section divider: Monthly
-  // 1  monthly intro
-  // M  monthly detail pages
-  // 1  section divider: Arc (if exists)
-  // 1  arc page (if exists)
-  // 1  section divider: Formats (if exists)
-  // 1  formats page (if exists)
-  // B  boss brief (if exists)
-  // 1  back cover
+  // ── Total page count ─────────────────────────────────────────────────────
   const total =
-    1 + 1 +
-    1 + 1 +
-    1 + 1 +
-    1 + pillarPages +
-    (pRoles.length > 0 ? 1 + platformPages : 0) +
-    1 + 1 + mTactics.length +
+    1 + 1 +                                              // cover + toc
+    (hasFoundation ? 2 : 0) +                           // divider + exec summary
+    (hasIdentity ? 2 : 0) +                             // divider + identity
+    (hasPillars ? 1 + pillarPages : 0) +               // divider + N pillar pages
+    (pRoles.length > 0 ? 1 + platformPages : 0) +      // divider + platform page
+    (hasMonthly ? 1 + 1 + mTactics.length : 0) +       // divider + intro + M month pages
     (hasArc ? 2 : 0) +
     (hasFormats ? 2 : 0) +
     (hasBoss ? 1 : 0) +
-    1
+    1                                                    // back cover
 
   let pageNum = 0
   const p = () => { pageNum++; return pageNum }
 
   return (
     <Document title={`${clientName} — Social Media Strategy${quarter ? ` ${quarter}` : ''}${year ? ` ${year}` : ''}`} author="NOVAX" creator="NOVAX Ops">
-      {/* 1. Cover */}
+      {/* Cover */}
       <CoverPage doc={doc} clientName={clientName} clientColor={clientColor} platforms={pAll} quarter={quarter} year={year} key={`p${p()}`} />
 
-      {/* 2. TOC */}
+      {/* TOC */}
       <TOCPage doc={doc} clientName={clientName} accentColor={accentColor} totalPages={total} key={`p${p()}`} />
 
-      {/* 3. Section divider: Foundation */}
-      <SectionDividerPage number="01" title="Strategic Foundation" description="Positioning, campaign line, quarter role, and main obstacle." accentColor={accentColor} key={`p${p()}`} />
+      {/* 01 — Strategic Foundation (only if any content exists) */}
+      {hasFoundation && [
+        <SectionDividerPage key={`p${p()}`} number="01" title="Strategic Foundation" description="Positioning, campaign line, quarter role, and main obstacle." accentColor={accentColor} />,
+        <ExecutiveSummaryPage key="exec" doc={doc} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} />,
+      ]}
 
-      {/* 4. Executive Summary */}
-      <ExecutiveSummaryPage doc={doc} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} key="exec" />
+      {/* 02 — Brand Identity (only if identity shift or campaign theme exists) */}
+      {hasIdentity && [
+        <SectionDividerPage key={`p${p()}`} number="02" title="Brand Identity" description="Who the brand becomes this quarter and how that shift happens." accentColor={accentColor} />,
+        <BrandIdentityPage key="identity" doc={doc} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} />,
+      ]}
 
-      {/* 5. Section divider: Identity */}
-      <SectionDividerPage number="02" title="Brand Identity" description="Who the brand becomes this quarter and how that shift happens." accentColor={accentColor} key={`p${p()}`} />
+      {/* 03 — Content Pillars (only if pillars exist) */}
+      {hasPillars && [
+        <SectionDividerPage key={`p${p()}`} number="03" title="Content Pillars" description={`${pillars.length} pillars defined — each serving a distinct audience need.`} accentColor={accentColor} />,
+        ...Array.from({ length: pillarPages }).map((_, pi) => (
+          <ContentPillarsPage
+            key={`pillars-${pi}`}
+            pillars={pillars.slice(pi * 3, pi * 3 + 3)}
+            pageIndex={pi}
+            clientName={clientName}
+            accentColor={accentColor}
+            pageNum={p()}
+            totalPages={total}
+          />
+        )),
+      ]}
 
-      {/* 6. Brand Identity */}
-      <BrandIdentityPage doc={doc} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} key="identity" />
-
-      {/* 7. Section divider: Pillars */}
-      <SectionDividerPage number="03" title="Content Pillars" description={`${pillars.length} pillars defined — each serving a distinct audience need.`} accentColor={accentColor} key={`p${p()}`} />
-
-      {/* 8–N. Pillars (3 per page) */}
-      {Array.from({ length: pillarPages }).map((_, pi) => (
-        <ContentPillarsPage
-          key={`pillars-${pi}`}
-          pillars={pillars.slice(pi * 3, pi * 3 + 3)}
-          pageIndex={pi}
-          clientName={clientName}
-          accentColor={accentColor}
-          pageNum={p()}
-          totalPages={total}
-        />
-      ))}
-
-      {/* Platform section */}
+      {/* 04 — Platform Strategy (conditional — already was) */}
       {pRoles.length > 0 && [
         <SectionDividerPage key={`p${p()}`} number="04" title="Platform Strategy" description={`${pRoles.length} platform roles defined — each with a distinct strategic objective.`} accentColor={accentColor} />,
         <PlatformStrategyPage key="platform" roles={pRoles} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} />,
       ]}
 
-      {/* Monthly roadmap */}
-      <SectionDividerPage key={`p${p()}`} number="05" title="Monthly Roadmap" description={`${mTactics.length}-month execution plan with theme lines, personas, and outcomes.`} accentColor={accentColor} />
-      <MonthlyRoadmapIntroPage key="monthly-intro" tactics={mTactics} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} />
-      {mTactics.map((tactic, mi) => (
-        <MonthlyTacticPage
-          key={`month-${mi}`}
-          tactic={tactic}
-          monthIndex={mi}
-          clientName={clientName}
-          accentColor={accentColor}
-          pageNum={p()}
-          totalPages={total}
-        />
-      ))}
+      {/* 05 — Monthly Roadmap (only if monthly tactics exist) */}
+      {hasMonthly && [
+        <SectionDividerPage key={`p${p()}`} number="05" title="Monthly Roadmap" description={`${mTactics.length}-month execution plan with theme lines, personas, and outcomes.`} accentColor={accentColor} />,
+        <MonthlyRoadmapIntroPage key="monthly-intro" tactics={mTactics} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} />,
+        ...mTactics.map((tactic, mi) => (
+          <MonthlyTacticPage
+            key={`month-${mi}`}
+            tactic={tactic}
+            monthIndex={mi}
+            clientName={clientName}
+            accentColor={accentColor}
+            pageNum={p()}
+            totalPages={total}
+          />
+        )),
+      ]}
 
-      {/* Strategy arc */}
+      {/* 06 — Strategy Arc */}
       {hasArc && [
         <SectionDividerPage key={`p${p()}`} number="06" title="Strategy Arc" description="The narrative arc and content flow beats that run through the quarter." accentColor={accentColor} />,
         <StrategyArcPage key="arc" arc={arc} flow={flow} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} />,
       ]}
 
-      {/* Format roles */}
+      {/* 07 — Format Roles */}
       {hasFormats && [
         <SectionDividerPage key={`p${p()}`} number="07" title="Creative Formats" description="The format playbook — what each content type does and when to use it." accentColor={accentColor} />,
         <FormatRolesPage key="formats" formats={formats!} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} />,
       ]}
 
-      {/* Boss brief */}
+      {/* Boss Brief */}
       {hasBoss && (
         <BossBriefPage key="boss" brief={bossBrief!} clientName={clientName} accentColor={accentColor} pageNum={p()} totalPages={total} />
       )}
 
-      {/* Back cover */}
+      {/* Back Cover */}
       <BackCoverPage key="back" clientName={clientName} accentColor={accentColor} quarter={quarter} year={year} />
     </Document>
   )

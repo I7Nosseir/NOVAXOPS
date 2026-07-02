@@ -248,15 +248,6 @@ export function StudioSessionList({
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
           Recent Sessions
         </span>
-        {onNewSession && (
-          <button
-            onClick={onNewSession}
-            className="flex items-center gap-1.5 text-xs text-novax font-medium hover:text-novax-hover transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Session
-          </button>
-        )}
       </div>
 
       {/* Loading skeletons */}
@@ -271,14 +262,7 @@ export function StudioSessionList({
       {/* Empty state */}
       {!isLoading && sessions.length === 0 && (
         <div className="flex flex-col items-center justify-center py-10 text-center">
-          <p className="text-sm text-slate-500 mb-4">No sessions yet</p>
-          <button
-            onClick={onNewSession}
-            className="flex items-center gap-2 px-4 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-xl transition-colors"
-          >
-            <Zap className="w-4 h-4" />
-            Start first session
-          </button>
+          <p className="text-sm text-slate-500">No sessions yet — pick a tool below to get started.</p>
         </div>
       )}
 

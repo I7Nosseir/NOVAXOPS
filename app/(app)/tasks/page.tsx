@@ -87,6 +87,14 @@ function TaskRow({
   const overdue  = !!task.due_date && isOverdue(task.due_date) && task.status !== 'completed'
   const subStyle = task.sub_type ? getSubtypeStyle(task.sub_type) : null
 
+  const STATUS_STYLE: Record<string, { label: string; bg: string; color: string; dot: string }> = {
+    active:    { label: 'Active',    bg: 'bg-emerald-50',  color: 'text-emerald-700', dot: 'bg-emerald-500' },
+    pending:   { label: 'Pending',   bg: 'bg-amber-50',    color: 'text-amber-700',   dot: 'bg-amber-400'   },
+    blocked:   { label: 'Blocked',   bg: 'bg-red-50',      color: 'text-red-600',     dot: 'bg-red-500'     },
+    completed: { label: 'Completed', bg: 'bg-slate-100',   color: 'text-slate-500',   dot: 'bg-slate-400'   },
+  }
+  const statusStyle = STATUS_STYLE[task.status] ?? STATUS_STYLE.active
+
   return (
     <button
       onClick={onClick}
@@ -95,7 +103,8 @@ function TaskRow({
       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: client?.color ?? '#94a3b8' }} />
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-800 group-hover:text-novax transition-colors truncate">
+        <p className={cn('text-sm font-medium group-hover:text-novax transition-colors truncate',
+          task.status === 'completed' ? 'text-slate-400 line-through' : 'text-slate-800')}>
           {task.title}
         </p>
         <div className="flex items-center gap-1.5 mt-0.5">
@@ -107,6 +116,12 @@ function TaskRow({
           )}
         </div>
       </div>
+
+      {/* Status badge */}
+      <span className={cn('hidden sm:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0', statusStyle.bg, statusStyle.color)}>
+        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusStyle.dot)} />
+        {statusStyle.label}
+      </span>
 
       <span className={cn('hidden sm:inline-flex text-[11px] px-2 py-0.5 rounded-full font-medium', stage.bg, stage.color)}>
         {stage.label}

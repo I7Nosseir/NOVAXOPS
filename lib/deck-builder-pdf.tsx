@@ -16,6 +16,7 @@ function pdfFont(font: string): string {
 function makeStyles(b: DeckBranding) {
   return StyleSheet.create({
     cover: {
+      flex: 1,
       backgroundColor: b.background,
       padding: 48,
       display: 'flex',
@@ -24,18 +25,21 @@ function makeStyles(b: DeckBranding) {
       alignItems: 'center',
     },
     page: {
+      flex: 1,
       backgroundColor: b.surface,
       padding: 40,
       display: 'flex',
       flexDirection: 'column',
     },
     darkPage: {
+      flex: 1,
       backgroundColor: b.background,
       padding: 40,
       display: 'flex',
       flexDirection: 'column',
     },
     centeredPage: {
+      flex: 1,
       backgroundColor: b.surface,
       padding: 40,
       display: 'flex',
@@ -212,14 +216,29 @@ function SlideContent({ slide, styles, b }: SlideProps) {
 }
 
 export function DeckPdfDocument({ deck }: { deck: DeckDocument }) {
-  const styles = makeStyles(deck.branding)
+  const b = deck.branding
+  const styles = makeStyles(b)
+  const pageStyle = StyleSheet.create({
+    base: { display: 'flex', flexDirection: 'column', height: '100%' },
+  })
   return (
     <Document>
-      {deck.slides.map(slide => (
-        <Page key={slide.id} size="A4" orientation="landscape">
-          <SlideContent slide={slide} styles={styles} b={deck.branding} />
-        </Page>
-      ))}
+      {deck.slides.map(slide => {
+        const isDark = slide.type === 'cover' || slide.type === 'metrics' || slide.type === 'cta'
+        return (
+          <Page
+            key={slide.id}
+            size="A4"
+            orientation="landscape"
+            style={[
+              pageStyle.base,
+              { backgroundColor: isDark ? b.background : b.surface },
+            ]}
+          >
+            <SlideContent slide={slide} styles={styles} b={b} />
+          </Page>
+        )
+      })}
     </Document>
   )
 }

@@ -3,6 +3,17 @@ import { aiGuard } from '@/lib/ai-guard'
 import { geminiJson } from '@/lib/gemini'
 import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
 import type { DeckStructureRequest, DeckDocument, DeckSlide } from '@/lib/deck-types'
+import { NOVAX_BRANDING } from '@/lib/deck-types'
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/
+const SAFE_FONTS = new Set(['Calibri', 'Georgia', 'Times New Roman', 'Helvetica'])
+
+function validHex(v: unknown, fallback: string): string {
+  return typeof v === 'string' && HEX_RE.test(v.trim()) ? v.trim() : fallback
+}
+function validFont(v: unknown, fallback: string): string {
+  return typeof v === 'string' && SAFE_FONTS.has(v.trim()) ? v.trim() : fallback
+}
 
 export const maxDuration = 120
 
@@ -116,11 +127,29 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
       { temperature: 0.4, maxOutputTokens: 16384 },
     )
 
-    if (!result?.branding || !Array.isArray(result?.slides)) {
-      throw new Error('Gemini returned invalid structure — missing branding or slides')
+    if (!Array.isArray(result?.slides) || result.slides.length === 0) {
+      throw new Error('Gemini returned invalid structure — missing slides')
     }
 
-    const slides: DeckSlide[] = result.slides.map(slide => ({
+    const rawB = result.branding ?? {}
+    if (!result.branding) {
+      console.warn('[decks/structure] Gemini omitted branding — using NOVAX defaults')
+    }
+
+    const branding = {
+      background: validHex(rawB.background, NOVAX_BRANDING.background),
+      surface:    validHex(rawB.surface,    NOVAX_BRANDING.surface),
+      primary:    validHex(rawB.primary,    NOVAX_BRANDING.primary),
+      accent:     validHex(rawB.accent,     NOVAX_BRANDING.accent),
+      body:       validHex(rawB.body,       NOVAX_BRANDING.body),
+      muted:      validHex(rawB.muted,      NOVAX_BRANDING.muted),
+      titleFont:  validFont(rawB.titleFont, NOVAX_BRANDING.titleFont),
+      bodyFont:   validFont(rawB.bodyFont,  NOVAX_BRANDING.bodyFont),
+    }
+
+    console.log('[decks/structure] branding resolved:', branding)
+
+    const slides: DeckSlide[] = result.slides.map((slide: DeckSlide) => ({
       ...slide,
       id: slide.id || crypto.randomUUID(),
     }))
@@ -129,16 +158,7 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
       title:        extractTitle(slides),
       client_name:  client_name ?? '',
       template,
-      branding: {
-        background: result.branding.background || '#1B3D38',
-        surface:    result.branding.surface    || '#FFFFFF',
-        primary:    result.branding.primary    || '#1B3D38',
-        accent:     result.branding.accent     || '#5BB4AE',
-        body:       result.branding.body       || '#0F172A',
-        muted:      result.branding.muted      || '#64748B',
-        titleFont:  result.branding.titleFont  || 'Calibri',
-        bodyFont:   result.branding.bodyFont   || 'Calibri',
-      },
+      branding,
       slides,
       generated_at: new Date().toISOString(),
     }

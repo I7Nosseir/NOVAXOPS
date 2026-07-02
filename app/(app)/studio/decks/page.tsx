@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import {
   ChevronLeft, Flame, Brain, BarChart2, Target,
-  Loader2, AlertCircle, X,
+  Loader2, AlertCircle, X, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import type { DeckTemplate, DeckInputMode, DeckDocument } from '@/lib/deck-types'
+import { ExportFormatModal, type ExportOptions } from '@/components/shared/export-format-modal'
 
 type Step = 'template' | 'input' | 'generating' | 'preview'
 
@@ -62,6 +63,7 @@ export default function DeckBuilderPage() {
   const [error,         setError]        = useState<string | null>(null)
   const [exportingPptx, setExportingPptx] = useState(false)
   const [exportingPdf,  setExportingPdf]  = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   function handleSelectTemplate(t: DeckTemplate) {
     setTemplate(t)
@@ -112,8 +114,9 @@ export default function DeckBuilderPage() {
     }
   }
 
-  async function handleExport(format: 'pptx' | 'pdf') {
+  async function handleExport(opts: ExportOptions) {
     if (!deck) return
+    const format = opts.format
     const setter = format === 'pptx' ? setExportingPptx : setExportingPdf
     setter(true)
     try {
@@ -134,6 +137,7 @@ export default function DeckBuilderPage() {
       document.body.appendChild(a)
       a.click()
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 1000)
+      setShowExportModal(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed')
     } finally {
@@ -282,21 +286,16 @@ export default function DeckBuilderPage() {
             <div className="flex items-center gap-2 shrink-0 ml-4">
               <Button
                 size="sm"
-                onClick={() => handleExport('pptx')}
-                disabled={exportingPptx}
+                onClick={() => setShowExportModal(true)}
+                disabled={exportingPptx || exportingPdf}
                 className="bg-novax hover:bg-novax-hover text-white"
               >
-                {exportingPptx && <Loader2 className="w-3 h-3 animate-spin mr-1.5" />}
-                PPTX
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handleExport('pdf')}
-                disabled={exportingPdf}
-                className="bg-novax hover:bg-novax-hover text-white"
-              >
-                {exportingPdf && <Loader2 className="w-3 h-3 animate-spin mr-1.5" />}
-                PDF
+                {(exportingPptx || exportingPdf) ? (
+                  <Loader2 className="w-3 h-3 animate-spin mr-1.5" />
+                ) : (
+                  <Download className="w-3 h-3 mr-1.5" />
+                )}
+                Export
               </Button>
               <button
                 onClick={handleStartOver}
@@ -434,6 +433,21 @@ export default function DeckBuilderPage() {
           </div>
         </div>
       )}
+
+      {/* Export Format Modal */}
+      <ExportFormatModal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        exporting={exportingPptx || exportingPdf}
+        config={{
+          title:        'Export Deck',
+          subtitle:     deck?.title ?? undefined,
+          supportsPptx: true,
+          defaultFormat: 'pptx',
+          hideTheme:    true,
+        }}
+        onExport={handleExport}
+      />
     </div>
   )
 }

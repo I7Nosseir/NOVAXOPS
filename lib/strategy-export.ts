@@ -2,6 +2,7 @@
 // @react-pdf/renderer is NOT imported here; it lives in the API routes only
 
 import type { StrategyDocument, BossBrief } from '@/lib/studio-types'
+import type { ExportOptions } from '@/components/shared/export-format-modal'
 
 type StrategyMetaData = Partial<Record<
   'intelligence' | 'positioning' | 'execution' | 'scale' | 'optimize',
@@ -16,6 +17,7 @@ export async function exportStrategyPdf(
   clientColor?: string,
   platforms?: string[],
   bossBrief?: BossBrief | null,
+  exportOptions?: ExportOptions,
 ) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 60_000)
@@ -33,6 +35,7 @@ export async function exportStrategyPdf(
         bossBrief: bossBrief ?? null,
         quarter: doc.quarter,
         year: doc.year,
+        options: exportOptions ? { size: exportOptions.size, theme: exportOptions.theme } : undefined,
       }),
       signal: controller.signal,
     })

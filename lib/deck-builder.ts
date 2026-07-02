@@ -187,8 +187,21 @@ function renderSlide(s: PptxGenJS.Slide, slide: DeckSlide, b: DeckBranding): voi
 export async function buildDeckPptx(deck: DeckDocument): Promise<Buffer> {
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_WIDE'
-  for (const slide of deck.slides) {
-    renderSlide(pptx.addSlide(), slide, deck.branding)
+  const b = deck.branding
+
+  console.log('[buildDeckPptx] branding:', {
+    background: b.background, surface: b.surface, primary: b.primary,
+    accent: b.accent, titleFont: b.titleFont, bodyFont: b.bodyFont,
+  })
+
+  for (let i = 0; i < deck.slides.length; i++) {
+    const slide = deck.slides[i]
+    console.log(`[buildDeckPptx] slide ${i + 1}/${deck.slides.length}: type=${slide.type}`)
+    const s = pptx.addSlide()
+    renderSlide(s, slide, b)
   }
-  return await pptx.write({ outputType: 'nodebuffer' }) as unknown as Buffer
+
+  const raw = await pptx.write({ outputType: 'nodebuffer' })
+  // pptx.write returns ArrayBuffer in some runtimes; ensure Node Buffer
+  return Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer)
 }

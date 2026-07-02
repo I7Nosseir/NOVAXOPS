@@ -3,6 +3,7 @@ import React from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { StrategyPDF } from '@/lib/pdf/strategy-pdf'
 import type { StrategyDocument, BossBrief } from '@/lib/studio-types'
+import type { StrategyPdfOptions } from '@/lib/pdf/strategy-pdf'
 
 export async function POST(req: NextRequest) {
   let body: {
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
     bossBrief?: BossBrief | null
     quarter?: string
     year?: number
+    options?: StrategyPdfOptions
   }
 
   try {
@@ -29,6 +31,7 @@ export async function POST(req: NextRequest) {
     bossBrief,
     quarter,
     year,
+    options,
   } = body
 
   // Merge top-level quarter/year into the doc so the PDF picks them up
@@ -45,6 +48,7 @@ export async function POST(req: NextRequest) {
       clientColor,
       platforms,
       bossBrief,
+      options,
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

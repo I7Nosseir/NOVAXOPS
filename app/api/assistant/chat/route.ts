@@ -669,13 +669,28 @@ Rules for doc_create responses:
   return prompt
 }
 
-// ── Gemini fallback ───────────────────────────────────────────
+// ── Gemini streaming helper ───────────────────────────────────
+// Uses the SSE endpoint so tokens arrive token-by-token (typewriter effect)
+// and usageMetadata is captured for cost tracking.
 
-async function callGeminiFallback(system: string, messages: ChatMessage[]): Promise<string> {
+interface GeminiChunk {
+  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }
+}
+
+async function* streamGemini(
+  system: string,
+  messages: ChatMessage[],
+): AsyncGenerator<{ text?: string; usage?: { tokensIn: number; tokensOut: number } }> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('No AI API key configured.')
-  const combined = `${system}\n\n${messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')}`
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`
+
+  const combined = [
+    system,
+    ...messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`),
+  ].join('\n\n')
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${key}`
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -685,8 +700,44 @@ async function callGeminiFallback(system: string, messages: ChatMessage[]): Prom
     }),
   })
   if (!res.ok) throw new Error(`Gemini ${res.status}`)
-  const data = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? 'No response from AI.'
+  if (!res.body) throw new Error('Gemini returned no body')
+
+  const reader  = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer    = ''
+  let tokensIn  = 0
+  let tokensOut = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const payload = line.slice(6).trim()
+        if (!payload) continue
+        try {
+          const chunk = JSON.parse(payload) as GeminiChunk
+          const text  = chunk.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+          if (text) yield { text }
+          if (chunk.usageMetadata) {
+            tokensIn  = chunk.usageMetadata.promptTokenCount    ?? tokensIn
+            tokensOut = chunk.usageMetadata.candidatesTokenCount ?? tokensOut
+          }
+        } catch { /* skip malformed SSE line */ }
+      }
+    }
+  } finally {
+    reader.cancel().catch(() => {})
+  }
+
+  if (tokensIn > 0 || tokensOut > 0) {
+    yield { usage: { tokensIn, tokensOut } }
+  }
 }
 
 // ── POST handler ──────────────────────────────────────────────
@@ -788,31 +839,49 @@ export async function POST(req: NextRequest) {
 
   const useAnthropic = !!process.env.ANTHROPIC_API_KEY
 
-  // ── Gemini fallback — wrap in fake SSE stream so client code is identical ──
+  // ── Gemini streaming (live token-by-token, with cost tracking) ──────────────
   if (!useAnthropic) {
-    try {
-      const text = await callGeminiFallback(systemPrompt, messages)
-      const encoder = new TextEncoder()
-      return new Response(
-        new ReadableStream({
-          start(ctrl) {
-            ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`))
-            ctrl.enqueue(encoder.encode('data: [DONE]\n\n'))
-            ctrl.close()
-          },
-        }),
-        { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } },
-      )
-    } catch (err) {
-      console.error('[assistant/chat] Gemini error:', err)
-      return new Response(JSON.stringify({ error: 'AI service unavailable. Please try again.' }), { status: 500 })
+    if (!process.env.GEMINI_API_KEY) {
+      return new Response(JSON.stringify({ error: 'No AI service configured.' }), { status: 503 })
     }
+    const enc = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(ctrl) {
+        try {
+          for await (const event of streamGemini(systemPrompt, messages)) {
+            if (event.text) {
+              ctrl.enqueue(enc.encode(`data: ${JSON.stringify({ text: event.text })}\n\n`))
+            }
+            if (event.usage) {
+              void trackAiUsage({
+                service:    'gemini',
+                endpoint:   'assistant/chat',
+                user_id:    user_id || undefined,
+                tokens_in:  event.usage.tokensIn,
+                tokens_out: event.usage.tokensOut,
+                model:      GEMINI_MODEL,
+              })
+            }
+          }
+          ctrl.enqueue(enc.encode('data: [DONE]\n\n'))
+          ctrl.close()
+        } catch (err) {
+          console.error('[assistant/chat] Gemini error:', err)
+          ctrl.enqueue(enc.encode(`data: ${JSON.stringify({ error: 'AI service unavailable. Please try again.' })}\n\n`))
+          ctrl.close()
+        }
+      },
+    })
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+    })
   }
 
   // ── Claude streaming ──────────────────────────────────────────
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const model     = is_ceo ? MODEL_CEO : MODEL_STANDARD
   const encoder   = new TextEncoder()
+  // Bump to 64 K — Sonnet 4.6 supports up to 64 000 output tokens
 
   // Build Claude messages — attach images to the last user message if provided
   type AnthropicImageBlock = {
@@ -853,7 +922,7 @@ export async function POST(req: NextRequest) {
       try {
         const claudeStream = anthropic.messages.stream({
           model,
-          max_tokens: 32000,
+          max_tokens: 64000,
           system:     systemPrompt,
           messages:   claudeMessages,
         })

@@ -5,10 +5,11 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   Brain, ArrowLeft,
-  AlertTriangle, RefreshCw,
+  AlertTriangle, RefreshCw, ScanLine, Loader2, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { exportStrategyPdf } from '@/lib/strategy-export'
+import { ExportFormatModal, type ExportOptions } from '@/components/shared/export-format-modal'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
@@ -81,6 +82,14 @@ export default function StrategyPage() {
   const [bossBrief,     setBossBrief]     = useState<BossBrief | null>(null)
   const [chatHistory,   setChatHistory]   = useState<ChatMessage[]>([])
   const [pdfExporting,  setPdfExporting]  = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+
+  // ── Strategy Gap Finder ─────────────────────────────────────────────────────
+  const [gapLoading,  setGapLoading]  = useState(false)
+  const [gapResult,   setGapResult]   = useState<{
+    gaps: string[]; risks: string[]; thin_periods: string[]; quick_fixes: string[]
+  } | null>(null)
+  const [gapExpanded, setGapExpanded] = useState(true)
 
   const selectedClient = clients.find(c => c.id === clientId)
 
@@ -271,6 +280,42 @@ export default function StrategyPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Strategy generation failed.')
       setPageState('brief')
+    }
+  }
+
+  // ── Gap Finder handler ──────────────────────────────────────────────────────
+  async function handleFindGaps() {
+    if (!strategyDoc || gapLoading) return
+    setGapLoading(true)
+    setGapResult(null)
+    setGapExpanded(true)
+    // Convert the StrategyDocument to a readable text blob
+    const lines: string[] = []
+    if (strategyDoc.executive_summary)       lines.push(`Executive Summary: ${strategyDoc.executive_summary}`)
+    if (strategyDoc.positioning_statement)   lines.push(`Positioning: ${strategyDoc.positioning_statement}`)
+    if (Array.isArray(strategyDoc.content_pillars)) {
+      strategyDoc.content_pillars.forEach(p => lines.push(`Pillar: ${p.name} — ${p.description}`))
+    }
+    if (Array.isArray(strategyDoc.strategy_arc)) {
+      strategyDoc.strategy_arc.forEach(ph => lines.push(`Phase ${ph.number}: ${ph.phase_name} — ${ph.description}`))
+    }
+    if (Array.isArray(strategyDoc.monthly_tactics)) {
+      strategyDoc.monthly_tactics.forEach(m => lines.push(`Month: ${m.month} — Theme: ${m.theme_line}. Focus: ${m.focus?.join(', ') ?? ''}`))
+    }
+    const strategyText = lines.join('\n') || JSON.stringify(strategyDoc).slice(0, 6000)
+    try {
+      const res = await fetch('/api/studio/strategy-gaps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategy_text: strategyText, client_id: clientId || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Analysis failed')
+      setGapResult(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gap analysis failed.')
+    } finally {
+      setGapLoading(false)
     }
   }
 
@@ -479,31 +524,92 @@ export default function StrategyPage() {
           bossBrief={bossBrief}
           language="english"
           pdfExporting={pdfExporting}
-          onExportPdf={async () => {
+          onExportPdf={() => {
             if (!strategyDoc || pdfExporting) return
-            setPdfExporting(true)
-            try {
-              await exportStrategyPdf(
-                strategyDoc,
-                selectedClient?.name ?? strategyDoc.client_name ?? 'Client',
-                selectedClient?.color,
-                platforms,
-                bossBrief,
-              )
-              toast.success('Strategy PDF downloaded')
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : 'PDF export failed'
-              console.error('[strategy-pdf] export failed', e)
-              toast.error(`PDF export failed: ${msg}`)
-            } finally {
-              setPdfExporting(false)
-            }
+            setShowExportModal(true)
           }}
           onEditApplied={(target, newContent) => {
             if (!strategyDoc) return
             setStrategyDoc({ ...strategyDoc, [target]: newContent })
           }}
         />
+      )}
+
+      {/* ── STRATEGY GAP FINDER ── */}
+      {pageState === 'document' && strategyDoc && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={gapResult ? () => setGapExpanded(v => !v) : handleFindGaps}
+            disabled={gapLoading}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2">
+              <ScanLine className="w-3.5 h-3.5 text-novax-muted"/>
+              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                {gapResult ? `Gaps found` : "What's missing?"}
+              </span>
+              {gapResult && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                  {[...gapResult.gaps, ...gapResult.risks, ...gapResult.thin_periods].length} issues
+                </span>
+              )}
+              {gapLoading && <Loader2 className="w-3.5 h-3.5 text-novax-muted animate-spin"/>}
+            </div>
+            {gapResult ? (
+              gapExpanded ? <ChevronDown className="w-4 h-4 text-slate-400"/> : <ChevronRight className="w-4 h-4 text-slate-400"/>
+            ) : (
+              <span className="text-[11px] text-novax-muted font-medium">
+                {gapLoading ? 'Analysing…' : 'Run gap analysis'}
+              </span>
+            )}
+          </button>
+
+          {gapResult && gapExpanded && (
+            <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-4">
+              {[
+                { title: 'Missing topics & formats', items: gapResult.gaps,         color: 'text-amber-700 bg-amber-50' },
+                { title: 'Risks',                    items: gapResult.risks,        color: 'text-red-700 bg-red-50' },
+                { title: 'Thin periods',             items: gapResult.thin_periods, color: 'text-slate-600 bg-slate-100' },
+              ].filter(s => s.items.length > 0).map(({ title, items, color }) => (
+                <div key={title}>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{title}</p>
+                  <ul className="space-y-1.5">
+                    {items.map((item, i) => (
+                      <li key={i} className={cn('text-xs leading-relaxed px-2.5 py-1.5 rounded-lg', color)}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+
+              {gapResult.quick_fixes.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick fixes</p>
+                  <ul className="space-y-2">
+                    {gapResult.quick_fixes.map((fix, i) => (
+                      <li key={i} className="flex gap-2 text-xs text-slate-700">
+                        <span className="text-novax-muted font-bold shrink-0 mt-0.5">{i + 1}.</span>
+                        {fix}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleFindGaps}
+                disabled={gapLoading}
+                className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-novax-muted transition-colors disabled:opacity-40"
+              >
+                <RefreshCw className="w-3 h-3"/>
+                Re-run analysis
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Studio chat — self-contained overlay */}
@@ -516,6 +622,39 @@ export default function StrategyPage() {
           onEditDetected={(edit: EditPayload) => setStrategyDoc(prev => prev ? { ...prev, [edit.target]: edit.new_content } : prev)}
         />
       )}
+
+      {/* Export Format Modal */}
+      <ExportFormatModal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        exporting={pdfExporting}
+        config={{
+          title:   'Export Strategy PDF',
+          subtitle: selectedClient?.name ? `${selectedClient.name} · ${quarter} ${year}` : undefined,
+        }}
+        onExport={async (opts: ExportOptions) => {
+          if (!strategyDoc) return
+          setPdfExporting(true)
+          try {
+            await exportStrategyPdf(
+              strategyDoc,
+              selectedClient?.name ?? strategyDoc.client_name ?? 'Client',
+              selectedClient?.color,
+              platforms,
+              bossBrief,
+              opts,
+            )
+            setShowExportModal(false)
+            toast.success('Strategy PDF downloaded')
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : 'PDF export failed'
+            console.error('[strategy-pdf] export failed', e)
+            toast.error(`PDF export failed: ${msg}`)
+          } finally {
+            setPdfExporting(false)
+          }
+        }}
+      />
     </div>
   )
 }

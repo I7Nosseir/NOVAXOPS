@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   Wand2, ArrowLeft, Loader2, CheckCircle, PlusCircle,
-  AlertTriangle, RefreshCw, Star, Copy,
+  AlertTriangle, RefreshCw, Star, Copy, ScanLine,
 } from 'lucide-react'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useAuth } from '@/lib/auth-context'
@@ -99,6 +99,14 @@ export default function HookLabPage() {
   const [chatHistory,         setChatHistory]         = useState<ChatMessage[]>([])
   const [intelligenceSummary, setIntelligenceSummary] = useState<ClientIntelligenceSummary | null>(null)
 
+  // ── Hook Strength Checker ───────────────────────────────────────────────────
+  const [ownHook,       setOwnHook]       = useState('')
+  const [hookScoring,   setHookScoring]   = useState(false)
+  const [hookScore,     setHookScore]     = useState<{
+    curiosity: number; clarity: number; compulsion: number; total: number
+    verdict: string; weakness: string; alternatives: string[]
+  } | null>(null)
+
   const selectedClient = clients.find(c => c.id === clientId)
 
   // ── Fetch session history ───────────────────────────────────────────────────
@@ -141,6 +149,27 @@ export default function HookLabPage() {
       .then((data: ClientIntelligenceSummary) => setIntelligenceSummary(data))
       .catch(() => {})
   }, [pageState, clientId])
+
+  // ── Hook Strength Checker handler ──────────────────────────────────────────
+  async function handleHookScore() {
+    if (!ownHook.trim() || hookScoring) return
+    setHookScoring(true)
+    setHookScore(null)
+    try {
+      const res = await fetch('/api/studio/hooks/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hook: ownHook, client_id: clientId || undefined, brief }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Scoring failed')
+      setHookScore(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Scoring failed.')
+    } finally {
+      setHookScoring(false)
+    }
+  }
 
   // ── Schedule handler — opens Publishing with caption pre-filled ─────────────
   function handleSchedule(caption: string) {
@@ -609,6 +638,92 @@ export default function HookLabPage() {
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && hookDoc && (
         <div className="space-y-3">
+          {/* Hook Strength Checker */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <ScanLine className="w-3.5 h-3.5 text-novax-muted"/>
+              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Score your own hook</p>
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={ownHook}
+                onChange={e => { setOwnHook(e.target.value); setHookScore(null) }}
+                onKeyDown={e => { if (e.key === 'Enter') handleHookScore() }}
+                placeholder="Type any hook to score it against the 3C framework…"
+                disabled={hookScoring}
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-novax-muted disabled:opacity-50"
+              />
+              <button
+                onClick={handleHookScore}
+                disabled={hookScoring || !ownHook.trim()}
+                className="flex items-center gap-1.5 px-3 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap"
+              >
+                {hookScoring ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <ScanLine className="w-3.5 h-3.5"/>}
+                {hookScoring ? 'Scoring…' : 'Score it'}
+              </button>
+            </div>
+
+            {hookScore && (
+              <div className="space-y-3">
+                {/* 3C scores */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Curiosity',  val: hookScore.curiosity },
+                    { label: 'Clarity',    val: hookScore.clarity },
+                    { label: 'Compulsion', val: hookScore.compulsion },
+                  ].map(({ label, val }) => {
+                    const color = val >= 8 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : val >= 6 ? 'text-novax bg-novax-light border-novax-border' : val >= 4 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-red-600 bg-red-50 border-red-200'
+                    return (
+                      <div key={label} className={cn('rounded-lg border p-2.5 text-center', color)}>
+                        <p className="text-lg font-bold leading-none">{val}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide mt-0.5">{label}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Total + verdict */}
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    'flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-bold border shrink-0',
+                    hookScore.total >= 8 ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                    : hookScore.total >= 6 ? 'text-novax bg-novax-light border-novax-border'
+                    : hookScore.total >= 4 ? 'text-amber-600 bg-amber-50 border-amber-200'
+                    : 'text-red-600 bg-red-50 border-red-200',
+                  )}>
+                    {hookScore.total}/10
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">{hookScore.verdict}</p>
+                </div>
+
+                {/* Weakness + alternatives */}
+                {hookScore.weakness && (
+                  <div className="border-t border-slate-100 pt-3 space-y-2">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">What's holding it back</p>
+                    <p className="text-xs text-slate-700 italic">"{hookScore.weakness}"</p>
+                    {hookScore.alternatives.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fixed versions</p>
+                        {hookScore.alternatives.map((alt, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="text-[10px] font-bold text-novax-muted mt-0.5">{i + 1}</span>
+                            <p className="text-xs text-slate-800 flex-1">{alt}</p>
+                            <button
+                              onClick={() => { setOwnHook(alt); setHookScore(null) }}
+                              className="text-[10px] font-medium text-novax-muted hover:text-novax transition-colors shrink-0"
+                            >
+                              Use
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <StudioDocument
             tool="hooks"
             clientName={selectedClient?.name ?? ''}

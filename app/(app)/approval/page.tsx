@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail, Trash2, FileImage, Link2, Download, TableProperties, CalendarPlus, ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, Plus, Copy, ChevronDown, X, Send, Loader2, Upload, ImageIcon, Mail, Trash2, FileImage, Link2, Download, TableProperties, CalendarPlus, ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, ShieldX, Wand2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useClients } from '@/lib/hooks/use-clients'
 import { usePosts } from '@/lib/hooks/use-posts'
@@ -12,6 +12,7 @@ import { formatDate, cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import { supabase } from '@/lib/supabase'
 import { convertGoogleDriveUrl } from '@/lib/google-drive'
+import { AIFeedbackPanel } from '@/components/shared/ai-feedback-panel'
 
 const STATUS_CONFIG = {
   pending:           { label: 'Awaiting Review', color: 'text-amber-600',   bg: 'bg-amber-50',   icon: Clock },
@@ -751,6 +752,95 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ─── Revision Helper panel ────────────────────────────────────────────────────
+interface RevisionData {
+  loading: boolean
+  interpretation?: string
+  changes?: string[]
+  revised_caption?: string
+}
+function RevisionPanel({ data, onClose, onUse }: { data: RevisionData; onClose: () => void; onUse: (text: string) => void }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    if (!data.revised_caption) return
+    navigator.clipboard.writeText(data.revised_caption).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-novax-border bg-novax-light p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Wand2 className="w-3 h-3 text-novax-muted"/>
+          <span className="text-[11px] font-semibold text-novax uppercase tracking-wider">Revision Help</span>
+        </div>
+        <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <X className="w-3 h-3"/>
+        </button>
+      </div>
+
+      {data.loading ? (
+        <div className="flex items-center gap-2 py-2">
+          <Loader2 className="w-3.5 h-3.5 text-novax-muted animate-spin"/>
+          <span className="text-xs text-novax-muted">Interpreting client feedback…</span>
+        </div>
+      ) : (
+        <>
+          {data.interpretation && (
+            <div>
+              <p className="text-[10px] font-bold text-novax uppercase tracking-wider mb-1">What they actually mean</p>
+              <p className="text-xs text-slate-700 leading-relaxed">{data.interpretation}</p>
+            </div>
+          )}
+
+          {data.changes && data.changes.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-novax uppercase tracking-wider mb-1">Specific changes</p>
+              <ul className="space-y-1">
+                {data.changes.map((c, i) => (
+                  <li key={i} className="flex gap-1.5 text-xs text-slate-700">
+                    <span className="text-novax-muted font-bold shrink-0">{i + 1}.</span>
+                    {c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {data.revised_caption && (
+            <div>
+              <p className="text-[10px] font-bold text-novax uppercase tracking-wider mb-1">Revised caption</p>
+              <div className="bg-white rounded-lg p-3 border border-novax-border">
+                <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">{data.revised_caption}</p>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => onUse(data.revised_caption!)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-novax hover:bg-novax-hover text-white text-[11px] font-semibold rounded-lg transition-colors"
+                >
+                  <Send className="w-3 h-3"/>
+                  Use in Compose
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold border border-novax-border rounded-lg text-slate-700 hover:bg-white transition-colors"
+                >
+                  {copied ? <CheckCircle className="w-3 h-3 text-emerald-500"/> : <Copy className="w-3 h-3"/>}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function ApprovalPage() {
   useRealtime('approval_requests', ['approvals'])
   useRealtime('approval_post_statuses', ['approvals'])
@@ -762,6 +852,31 @@ export default function ApprovalPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+
+  // Revision helper state: postId → result
+  const [revisions, setRevisions] = useState<Record<string, {
+    loading: boolean
+    interpretation?: string
+    changes?: string[]
+    revised_caption?: string
+    open?: boolean
+  }>>({})
+
+  async function handleRevisionHelper(postId: string, caption: string, clientNote: string, clientId?: string) {
+    setRevisions(prev => ({ ...prev, [postId]: { loading: true, open: true } }))
+    try {
+      const res = await fetch('/api/ai/revision-helper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ original_caption: caption, client_note: clientNote, client_id: clientId }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Failed')
+      setRevisions(prev => ({ ...prev, [postId]: { loading: false, open: true, ...data } }))
+    } catch {
+      setRevisions(prev => ({ ...prev, [postId]: { loading: false, open: false } }))
+    }
+  }
 
   const copyLink = (token: string) => {
     const url = `${window.location.origin}/approval/${token}`
@@ -923,6 +1038,30 @@ export default function ApprovalPage() {
                                 <p className="text-[11px] font-semibold text-amber-700 mb-0.5">Client note</p>
                                 <p className="text-xs text-amber-800">{postNote}</p>
                               </div>
+                              {postStatus === 'changes_requested' && (
+                                <div className="mt-2">
+                                  {!revisions[post.id]?.open ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevisionHelper(post.id, post.caption ?? '', postNote, req.client_id)}
+                                      className="flex items-center gap-1 text-[11px] font-medium text-novax-muted hover:text-novax transition-colors"
+                                    >
+                                      <Wand2 className="w-3 h-3"/>
+                                      Help me fix this
+                                    </button>
+                                  ) : (
+                                    <RevisionPanel
+                                      data={revisions[post.id]}
+                                      onClose={() => setRevisions(prev => ({ ...prev, [post.id]: { ...prev[post.id], open: false } }))}
+                                      onUse={text => {
+                                        const params = new URLSearchParams({ caption: text })
+                                        if (req.client_id) params.set('client', req.client_id)
+                                        router.push(`/publishing?${params.toString()}`)
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -994,6 +1133,30 @@ export default function ApprovalPage() {
                                 <p className="text-[11px] font-semibold text-amber-700 mb-0.5">Client note</p>
                                 <p className="text-xs text-amber-800">{itemNote}</p>
                               </div>
+                              {itemStatus === 'changes_requested' && (
+                                <div className="mt-2">
+                                  {!revisions[item.id]?.open ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevisionHelper(item.id, item.caption ?? '', itemNote, req.client_id)}
+                                      className="flex items-center gap-1 text-[11px] font-medium text-novax-muted hover:text-novax transition-colors"
+                                    >
+                                      <Wand2 className="w-3 h-3"/>
+                                      Help me fix this
+                                    </button>
+                                  ) : (
+                                    <RevisionPanel
+                                      data={revisions[item.id]}
+                                      onClose={() => setRevisions(prev => ({ ...prev, [item.id]: { ...prev[item.id], open: false } }))}
+                                      onUse={text => {
+                                        const params = new URLSearchParams({ caption: text })
+                                        if (req.client_id) params.set('client', req.client_id)
+                                        router.push(`/publishing?${params.toString()}`)
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
