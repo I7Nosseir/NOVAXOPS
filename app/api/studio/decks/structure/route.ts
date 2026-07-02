@@ -4,6 +4,9 @@ import { geminiJson } from '@/lib/gemini'
 import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
 import type { DeckStructureRequest, DeckDocument, DeckSlide } from '@/lib/deck-types'
 import { NOVAX_BRANDING } from '@/lib/deck-types'
+import { getDeckDesignTemplate } from '@/lib/deck-templates'
+
+export const maxDuration = 120
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/
 const SAFE_FONTS = new Set(['Calibri', 'Georgia', 'Times New Roman', 'Helvetica'])
@@ -14,8 +17,6 @@ function validHex(v: unknown, fallback: string): string {
 function validFont(v: unknown, fallback: string): string {
   return typeof v === 'string' && SAFE_FONTS.has(v.trim()) ? v.trim() : fallback
 }
-
-export const maxDuration = 120
 
 const SLIDE_SCHEMAS: Record<string, string> = {
   campaign: `
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: DeckStructureRequest = await request.json()
-    const { session_id, client_id, template, mode, prompt, client_name } = body
+    const { session_id, client_id, template, mode, prompt, client_name, design_template } = body
 
     if (!template || !mode || !prompt?.trim()) {
       return NextResponse.json({ error: 'Missing template, mode, or prompt' }, { status: 400 })
@@ -75,6 +76,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Unknown template: ${template}` }, { status: 400 })
     }
 
+    // Resolve design template branding — if specified, skip Gemini branding extraction
+    const designTemplateData = design_template ? getDeckDesignTemplate(design_template) : undefined
+    if (design_template && !designTemplateData) {
+      return NextResponse.json({ error: `Unknown design template: ${design_template}` }, { status: 400 })
+    }
+
+    // Client intelligence block
     let intelligenceBlock = ''
     if (client_id) {
       const db = adminSupabase()
@@ -87,18 +95,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const systemInstruction = `You are a professional presentation architect. Return ONLY valid JSON — no markdown, no explanation.
-
-Your output must be a single JSON object with exactly two keys:
-- "branding": DeckBranding object
-- "slides": DeckSlide array
-
-BRANDING RULES:
+    const brandingInstruction = designTemplateData
+      ? `BRANDING: A pre-built design template "${designTemplateData.name}" is applied automatically. Do NOT include a branding key in your output — it will be ignored.`
+      : `BRANDING RULES:
 Scan the user's text for color, style, or font instructions (e.g. "dark background", "gold accents", "serif titles", "luxury black and white", "tech minimal blue").
 If found: translate into hex color values. Fonts must be PPTX-safe: Calibri, Georgia, Times New Roman, or Helvetica.
 If no branding instructions: use these exact defaults:
 { "background": "#1B3D38", "surface": "#FFFFFF", "primary": "#1B3D38", "accent": "#5BB4AE", "body": "#0F172A", "muted": "#64748B", "titleFont": "Calibri", "bodyFont": "Calibri" }
-The branding object must always have all 8 keys: background, surface, primary, accent, body, muted, titleFont, bodyFont.
+The branding object must always have all 8 keys: background, surface, primary, accent, body, muted, titleFont, bodyFont.`
+
+    const systemInstruction = `You are a professional presentation architect. Return ONLY valid JSON — no markdown, no explanation.
+
+Your output must be a single JSON object with:
+- "slides": DeckSlide array (REQUIRED)
+${designTemplateData ? '' : '- "branding": DeckBranding object (REQUIRED)'}
+
+${brandingInstruction}
 
 CONTENT MODE: ${mode === 'exact_text' ? 'EXACT TEXT' : 'AI GENERATE'}
 ${mode === 'exact_text'
@@ -121,7 +133,7 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
 
     const fullPrompt = `Brief:\n${prompt}`
 
-    const result = await geminiJson<{ branding: Record<string, string>; slides: DeckSlide[] }>(
+    const result = await geminiJson<{ branding?: Record<string, string>; slides: DeckSlide[] }>(
       fullPrompt,
       systemInstruction,
       { temperature: 0.4, maxOutputTokens: 16384 },
@@ -131,23 +143,28 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
       throw new Error('Gemini returned invalid structure — missing slides')
     }
 
-    const rawB = result.branding ?? {}
-    if (!result.branding) {
-      console.warn('[decks/structure] Gemini omitted branding — using NOVAX defaults')
+    // Resolve final branding
+    let branding: typeof NOVAX_BRANDING
+    if (designTemplateData) {
+      branding = designTemplateData.branding
+      console.log(`[decks/structure] Using design template branding: ${designTemplateData.id}`)
+    } else {
+      const rawB = result.branding ?? {}
+      if (!result.branding) {
+        console.warn('[decks/structure] Gemini omitted branding — using NOVAX defaults')
+      }
+      branding = {
+        background: validHex(rawB.background, NOVAX_BRANDING.background),
+        surface:    validHex(rawB.surface,    NOVAX_BRANDING.surface),
+        primary:    validHex(rawB.primary,    NOVAX_BRANDING.primary),
+        accent:     validHex(rawB.accent,     NOVAX_BRANDING.accent),
+        body:       validHex(rawB.body,       NOVAX_BRANDING.body),
+        muted:      validHex(rawB.muted,      NOVAX_BRANDING.muted),
+        titleFont:  validFont(rawB.titleFont, NOVAX_BRANDING.titleFont),
+        bodyFont:   validFont(rawB.bodyFont,  NOVAX_BRANDING.bodyFont),
+      }
+      console.log('[decks/structure] Gemini branding resolved:', branding)
     }
-
-    const branding = {
-      background: validHex(rawB.background, NOVAX_BRANDING.background),
-      surface:    validHex(rawB.surface,    NOVAX_BRANDING.surface),
-      primary:    validHex(rawB.primary,    NOVAX_BRANDING.primary),
-      accent:     validHex(rawB.accent,     NOVAX_BRANDING.accent),
-      body:       validHex(rawB.body,       NOVAX_BRANDING.body),
-      muted:      validHex(rawB.muted,      NOVAX_BRANDING.muted),
-      titleFont:  validFont(rawB.titleFont, NOVAX_BRANDING.titleFont),
-      bodyFont:   validFont(rawB.bodyFont,  NOVAX_BRANDING.bodyFont),
-    }
-
-    console.log('[decks/structure] branding resolved:', branding)
 
     const slides: DeckSlide[] = result.slides.map((slide: DeckSlide) => ({
       ...slide,
@@ -163,12 +180,18 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
       generated_at: new Date().toISOString(),
     }
 
+    console.log('[decks/structure] Done:', {
+      slides: deck.slides.length,
+      design_template: designTemplateData?.id ?? 'custom',
+      accent: deck.branding.accent,
+    })
+
     if (session_id) {
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
       fetch(`${baseUrl}/api/studio/session/${session_id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ output: { deck } }),
+        body:    JSON.stringify({ output: { deck, design_template } }),
       }).catch(err => console.error('[decks/structure] session save failed:', err))
     }
 

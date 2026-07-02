@@ -39,6 +39,7 @@ export interface DeckStructureRequest {
   mode: DeckInputMode
   prompt: string
   client_name?: string
+  design_template?: string  // DesignTemplate.id — if set, branding is taken from the preset
 }
 
 export const NOVAX_BRANDING: DeckBranding = {
