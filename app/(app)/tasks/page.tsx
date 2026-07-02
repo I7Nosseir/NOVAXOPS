@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, Calendar, AlertCircle, X, ChevronDown, User, List, Clock } from 'lucide-react'
+import { Search, Calendar, AlertCircle, X, ChevronDown, User, List, Clock, Send } from 'lucide-react'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
@@ -23,7 +23,7 @@ const DUE_PRESETS = [
   { value: 'this_week', label: 'This Week' },
 ] as const
 
-type ViewTab = 'all' | 'mine'
+type ViewTab = 'all' | 'mine' | 'assigned'
 
 interface TaskGroup { label: string; tasks: Task[]; urgency: number }
 
@@ -204,6 +204,17 @@ export default function TasksPage() {
   )
   const myTaskGroups = useMemo(() => groupMyTasks(myTasks), [myTasks])
 
+  // Tasks created by me and assigned to someone else
+  const assignedByMe = useMemo(
+    () => tasks.filter(t =>
+      user &&
+      t.created_by === user.id &&
+      t.assigned_to !== null &&
+      t.assigned_to !== user.id,
+    ),
+    [tasks, user],
+  )
+
   const hasFilters = clientFilter || stageFilter.length || priorityFilter.length || subTypeFilter.length || duePreset || search
   const clearFilters = () => {
     setClientFilter(''); setStageFilter([]); setPriorityFilter([])
@@ -253,6 +264,22 @@ export default function TasksPage() {
               {overdueCount} overdue
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setView('assigned')}
+          className={cn(
+            'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+            view === 'assigned'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700',
+          )}
+        >
+          <Send className="w-3.5 h-3.5" />
+          Assigned by Me
+          <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-semibold',
+            view === 'assigned' ? 'bg-novax-light text-novax' : 'bg-slate-200 text-slate-500')}>
+            {assignedByMe.filter(t => t.status !== 'completed').length}
+          </span>
         </button>
       </div>
 
@@ -428,6 +455,75 @@ export default function TasksPage() {
                 </div>
               ))}
             </div>
+          )}
+        </>
+      )}
+
+      {/* ── ASSIGNED BY ME VIEW ── */}
+      {view === 'assigned' && (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Active',    value: assignedByMe.filter(t => t.status === 'active').length,    color: 'text-novax' },
+              { label: 'Overdue',   value: assignedByMe.filter(t => t.due_date && isOverdue(t.due_date) && t.status !== 'completed').length, color: 'text-red-500' },
+              { label: 'Completed', value: assignedByMe.filter(t => t.status === 'completed').length, color: 'text-emerald-600' },
+            ].map(s => (
+              <div key={s.label} className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-center">
+                <p className={cn('text-2xl font-bold', s.color)}>{s.value}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-5 h-5 rounded-full border-2 border-novax-accent border-t-transparent animate-spin" />
+            </div>
+          ) : assignedByMe.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <Send className="w-8 h-8 text-slate-200 mx-auto mb-3" />
+              <p className="text-sm font-medium text-slate-500">No tasks assigned to others yet</p>
+              <p className="text-xs text-slate-400 mt-1">Tasks you create and assign to teammates will appear here</p>
+            </div>
+          ) : (
+            (() => {
+              const groups = groupMyTasks(assignedByMe)
+              return groups.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="divide-y divide-slate-100">
+                    {assignedByMe.filter(t => t.status === 'completed').map(task => (
+                      <TaskRow key={task.id} task={task} clients={clients} users={users} onClick={() => setSelectedTask(task)} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {groups.map(group => (
+                    <div key={group.label} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                      <div className={cn('px-4 py-2.5 border-b border-slate-100 flex items-center justify-between',
+                        group.label === 'Overdue' ? 'bg-red-50' : 'bg-slate-50/50')}>
+                        <div className="flex items-center gap-2">
+                          {group.label === 'Overdue' && <AlertCircle className="w-3.5 h-3.5 text-red-500" />}
+                          {group.label === 'Due Today' && <Clock className="w-3.5 h-3.5 text-amber-500" />}
+                          {(group.label === 'This Week' || group.label === 'Upcoming') && <Calendar className="w-3.5 h-3.5 text-slate-400" />}
+                          <span className={cn('text-xs font-semibold',
+                            group.label === 'Overdue' ? 'text-red-600' :
+                            group.label === 'Due Today' ? 'text-amber-600' : 'text-slate-600')}>
+                            {group.label}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium">{group.tasks.length} task{group.tasks.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {group.tasks.map(task => (
+                          <TaskRow key={task.id} task={task} clients={clients} users={users} onClick={() => setSelectedTask(task)} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()
           )}
         </>
       )}
