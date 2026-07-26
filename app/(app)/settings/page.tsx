@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, CheckCircle2, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut, Send, Network, Pencil } from 'lucide-react'
+import { CheckCircle, CheckCircle2, XCircle, X, Key, Bell, Users, Shield, Zap, Plus, RefreshCw, Eye, EyeOff, Check, Clock, RotateCcw, Trash2, AlertCircle, Copy, Building2, Power, Loader2, Activity, MonitorDot, HardDrive, Mail, LogIn, LogOut, Send, Network, Pencil, Save, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { OrganizationsTab } from '@/components/settings/organizations-tab'
 import { useUsers, usePendingInvitations, useCancelInvitation, useResendInvitation, useUpdateUserPermissions, useUpdateUserRole, type InviteResult } from '@/lib/hooks/use-users'
@@ -282,6 +282,109 @@ const ROLE_CARDS: {
     restricted: ['Integrations config', 'Vendor names', 'Clients (edit)', 'Pipeline'],
   },
 ]
+
+function GlobalCopyTab({ currentUserRole }: { currentUserRole: string | undefined }) {
+  const canEdit = currentUserRole === 'admin' || currentUserRole === 'creative_director'
+  const [instructions, setInstructions] = useState('')
+  const [saving, setSaving]             = useState(false)
+  const [saved, setSaved]               = useState(false)
+  const [loading, setLoading]           = useState(true)
+
+  useEffect(() => {
+    fetch('/api/settings/copy')
+      .then(r => r.json())
+      .then((d: { value?: string }) => { setInstructions(d.value ?? ''); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaved(false)
+    try {
+      await fetch('/api/settings/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: instructions }),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      console.error('[global-copy]', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="font-semibold text-slate-900">Global Copy Instructions</h3>
+        <p className="text-sm text-slate-500 mt-1">
+          Agency-wide rules injected into every AI copy generation across all clients.
+          Per-client copy briefs (set on each client&apos;s Copy Brief tab) are layered on top of these.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="h-48 flex items-center justify-center text-slate-400 gap-2">
+          <Loader2 className="w-4 h-4 animate-spin"/> Loading...
+        </div>
+      ) : (
+        <>
+          <textarea
+            value={instructions}
+            onChange={e => canEdit && setInstructions(e.target.value)}
+            readOnly={!canEdit}
+            placeholder={
+              canEdit
+                ? 'e.g. Never use hashtags. No emojis unless explicitly requested. Always include one clear CTA. Keep captions under 150 words. Use active voice throughout. Never apologise on behalf of a client. Always sound confident.'
+                : 'No global copy instructions set yet.'
+            }
+            rows={14}
+            className={cn(
+              'w-full p-4 text-sm border rounded-xl resize-none outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light leading-relaxed text-slate-700 placeholder:text-slate-400',
+              !canEdit ? 'bg-slate-50 border-slate-100 cursor-not-allowed' : 'border-slate-200 bg-white'
+            )}
+          />
+
+          {canEdit ? (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">{instructions.length} characters</span>
+              <div className="flex items-center gap-2">
+                {saved && (
+                  <span className="flex items-center gap-1 text-xs text-emerald-600">
+                    <CheckCircle2 className="w-3.5 h-3.5"/> Saved
+                  </span>
+                )}
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Save className="w-3.5 h-3.5"/>}
+                  Save Instructions
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 text-center">
+              Only Admin and Creative Director can edit global copy instructions.
+            </p>
+          )}
+        </>
+      )}
+
+      <div className="p-4 bg-novax-light border border-novax-border rounded-xl space-y-2">
+        <p className="text-xs font-semibold text-novax-muted">How this works</p>
+        <ul className="text-xs text-slate-600 space-y-1">
+          <li>These rules apply to all clients on every AI copy generation.</li>
+          <li>Per-client copy briefs (set on each client) are layered on top — more specific always wins.</li>
+          <li>The AI reads both before writing any caption, hook, or variant.</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
 
 function RolePreviewTab() {
   const { previewRole, setPreviewRole, isPreviewMode } = useAuth()
@@ -937,7 +1040,7 @@ export default function SettingsPage() {
   const isSuperAdmin = currentUser?.is_super_admin === true
   const canSeeVendorNames = hasRole(currentUser, ['admin', 'ceo'])
   const canManageKillSwitch = currentUser?.role === 'admin' || currentUser?.role === 'ceo'
-  const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview' | 'activity' | 'organizations'>(isAdmin ? 'integrations' : 'team')
+  const [activeTab, setActiveTab] = useState<'integrations' | 'team' | 'notifications' | 'security' | 'preview' | 'activity' | 'organizations' | 'copy'>(isAdmin ? 'integrations' : 'team')
   const [showInvite, setShowInvite] = useState(false)
   const [showBulkInvite, setShowBulkInvite] = useState(false)
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
@@ -1022,9 +1125,10 @@ export default function SettingsPage() {
 
   const tabs = [
     ...(isAdmin      ? [{ id: 'integrations' as const,  label: 'Integrations',   icon: Zap      }] : []),
-    { id: 'team'          as const, label: 'Team',          icon: Users   },
-    { id: 'notifications' as const, label: 'Notifications', icon: Bell    },
-    { id: 'security'      as const, label: 'Security',      icon: Shield  },
+    { id: 'team'          as const, label: 'Team',          icon: Users    },
+    { id: 'copy'          as const, label: 'Copy',          icon: FileText },
+    { id: 'notifications' as const, label: 'Notifications', icon: Bell     },
+    { id: 'security'      as const, label: 'Security',      icon: Shield   },
     ...(canManageKillSwitch ? [{ id: 'activity'  as const, label: 'Activity',     icon: Activity }] : []),
     ...(isAdmin      ? [{ id: 'preview'       as const,  label: 'Role Preview',  icon: Eye      }] : []),
     ...(isSuperAdmin ? [{ id: 'organizations' as const,  label: 'Organizations', icon: Network  }] : []),
@@ -1773,6 +1877,7 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {activeTab === 'copy' && <GlobalCopyTab currentUserRole={currentUser?.role} />}
       {activeTab === 'preview' && <RolePreviewTab />}
 
       {activeTab === 'organizations' && isSuperAdmin && (

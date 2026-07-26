@@ -163,8 +163,11 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const updateClient = useUpdateClient()
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
-  const [tab, setTab] = useState<'overview' | 'intelligence' | 'competitors' | 'tasks' | 'brief' | 'context' | 'strategy' | 'edit'>('overview')
+  const [tab, setTab] = useState<'overview' | 'intelligence' | 'competitors' | 'tasks' | 'brief' | 'context' | 'strategy' | 'edit' | 'copy_brief'>('overview')
   const [briefSaving, setBriefSaving] = useState(false)
+  const [copyBrief, setCopyBrief] = useState(client.copy_brief ?? '')
+  const [copyBriefSaving, setCopyBriefSaving] = useState(false)
+  const [copyBriefSaved, setCopyBriefSaved] = useState(false)
 
   // ── Edit tab state ─────────────────────────────────────────────────────────
   const [editName,          setEditName]          = useState(client.name)
@@ -179,6 +182,9 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const [editRespondIoId,   setEditRespondIoId]   = useState(client.respond_io_channel_id ?? '')
   const [editSaving,        setEditSaving]        = useState(false)
   const [editSaved,         setEditSaved]         = useState(false)
+  const [editCountry,       setEditCountry]       = useState(client.country ?? '')
+  const [editCity,          setEditCity]          = useState(client.city ?? '')
+  const [editCultureNotes,  setEditCultureNotes]  = useState(client.culture_notes ?? '')
   const [newMessage,        setNewMessage]        = useState('')
   const [newCompetitor,     setNewCompetitor]     = useState('')
 
@@ -202,6 +208,9 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
           key_messages:    editMessages.filter(m => m.trim()),
         },
         competitor_context_json: editCompetitors.filter(c => c.trim()),
+        country:       editCountry.trim() || null,
+        city:          editCity.trim() || null,
+        culture_notes: editCultureNotes.trim() || null,
         ...(isAdmin && {
           metricool_blog_id:     editMetricoolId.trim() || null,
           respond_io_channel_id: editRespondIoId.trim() || null,
@@ -215,6 +224,20 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
       setEditSaving(false)
     }
   }
+  const handleSaveCopyBrief = async () => {
+    setCopyBriefSaving(true)
+    setCopyBriefSaved(false)
+    try {
+      await updateClient.mutateAsync({ id: client.id, copy_brief: copyBrief } as Parameters<typeof updateClient.mutateAsync>[0])
+      setCopyBriefSaved(true)
+      setTimeout(() => setCopyBriefSaved(false), 3000)
+    } catch (err) {
+      console.error('[copy-brief]', err)
+    } finally {
+      setCopyBriefSaving(false)
+    }
+  }
+
   const [analyzing, setAnalyzing] = useState(false)
   const [localIntel, setLocalIntel] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -336,6 +359,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             { key: 'intelligence',  label: 'Intelligence' },
             { key: 'competitors',   label: 'Competitors' },
             { key: 'context',       label: 'Context Bank' },
+            { key: 'copy_brief',    label: 'Copy Brief' },
             { key: 'strategy',      label: 'Strategy' },
             { key: 'tasks',         label: 'Tasks' },
             { key: 'brief',         label: 'Design Brief' },
@@ -541,6 +565,55 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             <StrategyTab clientId={client.id} clientName={client.name}/>
           )}
 
+          {tab === 'copy_brief' && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="font-semibold text-slate-900">Copy Brief</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Write anything the AI should know when generating copy for {client.name}.
+                  These instructions are injected into every AI copy generation for this client.
+                </p>
+              </div>
+              <textarea
+                value={copyBrief}
+                onChange={e => setCopyBrief(e.target.value)}
+                placeholder="e.g. Always lead with emotion before facts. Never use corporate language — speak like a trusted friend. Audience is 25-35 women in the Gulf. Avoid mentions of competitors. Approved CTA: 'Book now' or 'Discover more'. Every caption must have one clear hook in the first line."
+                rows={11}
+                className="w-full p-4 text-sm border border-slate-200 rounded-xl resize-none outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light leading-relaxed text-slate-700 placeholder:text-slate-400"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">{copyBrief.length} characters</span>
+                <div className="flex items-center gap-2">
+                  {copyBriefSaved && (
+                    <span className="flex items-center gap-1 text-xs text-emerald-600">
+                      <CheckCircle2 className="w-3.5 h-3.5"/> Saved
+                    </span>
+                  )}
+                  <button
+                    onClick={handleSaveCopyBrief}
+                    disabled={copyBriefSaving}
+                    className="flex items-center gap-1.5 px-4 py-1.5 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {copyBriefSaving
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin"/>
+                      : <Save className="w-3.5 h-3.5"/>}
+                    Save Brief
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 bg-novax-light border border-novax-border rounded-xl space-y-1.5">
+                <p className="text-xs font-semibold text-novax-muted">What to include:</p>
+                <ul className="text-xs text-slate-600 space-y-1">
+                  <li>Tone and personality rules ("always sounds like a friend, never corporate")</li>
+                  <li>Words or phrases to avoid or always use</li>
+                  <li>Audience-specific notes ("25-35 Gulf women, value-driven")</li>
+                  <li>Structural preferences ("always lead with emotion", "CTA must be one sentence")</li>
+                  <li>Approved caption patterns or examples from past wins</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
           {tab === 'brief' && (
             <DesignBriefForm
               brief={client.design_brief_json ?? null}
@@ -666,6 +739,44 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
                     />
                     <div className="w-8 h-8 rounded-lg border border-slate-200" style={{ background: editColor }}/>
                   </div>
+                </div>
+              </div>
+
+              {/* Market & Culture */}
+              <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Market &amp; Culture</p>
+                <p className="text-[11px] text-slate-400 -mt-2">Used by Marketing Director and Studio AI for cultural intelligence.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Country</label>
+                    <input
+                      type="text"
+                      value={editCountry}
+                      onChange={e => setEditCountry(e.target.value)}
+                      placeholder="e.g. Saudi Arabia, UAE, Egypt"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">City</label>
+                    <input
+                      type="text"
+                      value={editCity}
+                      onChange={e => setEditCity(e.target.value)}
+                      placeholder="e.g. Riyadh, Dubai, Cairo"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Culture Notes</label>
+                  <textarea
+                    value={editCultureNotes}
+                    onChange={e => setEditCultureNotes(e.target.value)}
+                    rows={3}
+                    placeholder="e.g. Conservative Gulf audience. Ramadan campaigns are critical. Family values are central. Avoid imagery that may appear immodest."
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-novax-muted focus:ring-2 focus:ring-novax-light bg-white text-slate-700 placeholder:text-slate-400 resize-none"
+                  />
                 </div>
               </div>
 

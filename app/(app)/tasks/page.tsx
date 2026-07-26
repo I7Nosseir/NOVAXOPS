@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Search, Calendar, AlertCircle, X, ChevronDown, User, List, Clock, Send } from 'lucide-react'
-import { useTasks } from '@/lib/hooks/use-tasks'
+import { useState, useMemo, useCallback } from 'react'
+import { Search, Calendar, AlertCircle, X, ChevronDown, User, List, Clock, Send, ArrowUpDown, Download, Bookmark, BookmarkCheck, CalendarDays, LayoutTemplate } from 'lucide-react'
+import { useTasks, useUpdateTask } from '@/lib/hooks/use-tasks'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
 import { useRealtime } from '@/lib/hooks/use-realtime'
 import { TaskDetailPanel } from '@/components/tasks/task-detail-panel'
+import { TaskCalendar } from '@/components/tasks/task-calendar'
 import {
   STAGE_CONFIG, PRIORITY_CONFIG, PIPELINE_STAGES, TASK_SUBTYPES,
   formatDate, isOverdue, daysUntil, getSubtypeStyle, cn,
@@ -23,7 +24,61 @@ const DUE_PRESETS = [
   { value: 'this_week', label: 'This Week' },
 ] as const
 
-type ViewTab = 'all' | 'mine' | 'assigned'
+type ViewTab = 'all' | 'mine' | 'assigned' | 'calendar' | 'templates'
+type SortBy = 'created' | 'due' | 'priority' | 'stage'
+
+const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
+const STAGE_ORDER: Record<string, number> = {
+  strategy: 0, ideas: 1, calendar: 2, copy: 3, design: 4,
+  review: 5, approval: 6, scheduled: 7, published: 8, reporting: 9,
+}
+
+function sortTasks(list: Task[], by: SortBy): Task[] {
+  const sorted = [...list]
+  switch (by) {
+    case 'due':
+      return sorted.sort((a, b) => {
+        if (!a.due_date && !b.due_date) return 0
+        if (!a.due_date) return 1
+        if (!b.due_date) return -1
+        return a.due_date.localeCompare(b.due_date)
+      })
+    case 'priority':
+      return sorted.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3))
+    case 'stage':
+      return sorted.sort((a, b) => (STAGE_ORDER[a.pipeline_stage] ?? 0) - (STAGE_ORDER[b.pipeline_stage] ?? 0))
+    default:
+      return sorted // created_at desc is already the default from the query
+  }
+}
+
+function exportCSV(tasks: Task[], clients: { id: string; name: string }[], users: { id: string; name: string }[]) {
+  const clientMap = Object.fromEntries(clients.map(c => [c.id, c.name]))
+  const userMap = Object.fromEntries(users.map(u => [u.id, u.name]))
+  const rows = [
+    ['Title', 'Client', 'Stage', 'Priority', 'Status', 'Assignee', 'Due Date', 'Start Date', 'Estimated Hours', 'Tags'],
+    ...tasks.map(t => [
+      t.title,
+      clientMap[t.client_id] ?? '',
+      t.pipeline_stage,
+      t.priority,
+      t.status,
+      t.assigned_to ? (userMap[t.assigned_to] ?? '') : '',
+      t.due_date ?? '',
+      t.start_date ?? '',
+      t.estimated_hours != null ? String(t.estimated_hours) : '',
+      (t.tags ?? []).join('; '),
+    ]),
+  ]
+  const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `novax-tasks-${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 interface TaskGroup { label: string; tasks: Task[]; urgency: number }
 
@@ -55,6 +110,10 @@ function groupMyTasks(tasks: Task[]): TaskGroup[] {
     }
   }
 
+  // Pinned tasks sort to the top within each group
+  for (const g of groups) {
+    g.tasks.sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
+  }
   return groups.filter(g => g.tasks.length > 0)
 }
 
@@ -74,11 +133,13 @@ function TaskRow({
   clients,
   users,
   onClick,
+  onPin,
 }: {
   task: Task
   clients: ReturnType<typeof useClients>['clients']
   users: ReturnType<typeof useUsers>['users']
   onClick: () => void
+  onPin?: (taskId: string, pinned: boolean) => void
 }) {
   const client   = clients.find(c => c.id === task.client_id)
   const assignee = users.find(u => u.id === task.assigned_to)
@@ -153,6 +214,23 @@ function TaskRow({
       ) : (
         <div className="w-6 h-6 rounded-full bg-slate-100 shrink-0" />
       )}
+
+      {onPin && (
+        <button
+          onClick={e => { e.stopPropagation(); onPin(task.id, !task.is_pinned) }}
+          title={task.is_pinned ? 'Unpin task' : 'Pin task to top'}
+          className={cn(
+            'shrink-0 p-1 rounded transition-colors',
+            task.is_pinned
+              ? 'text-novax hover:text-novax-muted'
+              : 'text-slate-200 hover:text-slate-400 opacity-0 group-hover:opacity-100',
+          )}
+        >
+          {task.is_pinned
+            ? <BookmarkCheck className="w-3.5 h-3.5" />
+            : <Bookmark className="w-3.5 h-3.5" />}
+        </button>
+      )}
     </button>
   )
 }
@@ -163,11 +241,17 @@ export default function TasksPage() {
   const { tasks, isLoading } = useTasks(
     assignedClientIds !== null ? { clientIds: assignedClientIds } : undefined
   )
+  const { tasks: templates, isLoading: templatesLoading } = useTasks(
+    assignedClientIds !== null
+      ? { clientIds: assignedClientIds, templatesOnly: true }
+      : { templatesOnly: true }
+  )
   const allClients = useClients().clients
   const clients = assignedClientIds !== null
     ? allClients.filter(c => assignedClientIds.includes(c.id))
     : allClients
   const { users } = useUsers()
+  const updateTask = useUpdateTask()
   useRealtime('tasks', ['tasks'])
 
   const [view, setView] = useState<ViewTab>('all')
@@ -177,7 +261,12 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<Priority[]>([])
   const [subTypeFilter, setSubTypeFilter] = useState<string[]>([])
   const [duePreset, setDuePreset]     = useState<'overdue' | 'today' | 'this_week' | ''>('')
+  const [sortBy, setSortBy] = useState<SortBy>('created')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+
+  const handlePin = useCallback((taskId: string, pinned: boolean) => {
+    updateTask.mutate({ id: taskId, is_pinned: pinned })
+  }, [updateTask])
 
   const toggleStage    = (s: PipelineStage) =>
     setStageFilter(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
@@ -209,8 +298,8 @@ export default function TasksPage() {
         clients.find(c => c.id === t.client_id)?.name.toLowerCase().includes(q)
       )
     }
-    return list
-  }, [tasks, clientFilter, stageFilter, priorityFilter, subTypeFilter, duePreset, search, clients])
+    return sortTasks(list, sortBy)
+  }, [tasks, clientFilter, stageFilter, priorityFilter, subTypeFilter, duePreset, search, clients, sortBy])
 
   // My-tasks grouped list
   const myTasks = useMemo(
@@ -242,7 +331,7 @@ export default function TasksPage() {
   return (
     <div className="space-y-4 max-w-6xl">
       {/* View tabs */}
-      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit flex-wrap">
         <button
           onClick={() => setView('all')}
           className={cn(
@@ -296,19 +385,77 @@ export default function TasksPage() {
             {assignedByMe.filter(t => t.status !== 'completed').length}
           </span>
         </button>
+        <button
+          onClick={() => setView('calendar')}
+          className={cn(
+            'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+            view === 'calendar'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700',
+          )}
+        >
+          <CalendarDays className="w-3.5 h-3.5" />
+          Calendar
+        </button>
+        <button
+          onClick={() => setView('templates')}
+          className={cn(
+            'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+            view === 'templates'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700',
+          )}
+        >
+          <LayoutTemplate className="w-3.5 h-3.5" />
+          Templates
+          {templates.length > 0 && (
+            <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-semibold',
+              view === 'templates' ? 'bg-novax-light text-novax' : 'bg-slate-200 text-slate-500')}>
+              {templates.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ── ALL TASKS VIEW ── */}
       {view === 'all' && (
         <>
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <p className="text-sm text-slate-500">{filtered.length} task{filtered.length !== 1 ? 's' : ''}</p>
-            {hasFilters && (
-              <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition-colors">
-                <X className="w-3 h-3" /> Clear filters
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Sort */}
+              <div className="relative">
+                <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as SortBy)}
+                  className="appearance-none pl-6 pr-6 py-1 text-xs border border-slate-200 rounded-lg text-slate-600 outline-none hover:border-slate-300 transition-colors"
+                >
+                  <option value="created">Created</option>
+                  <option value="due">Due Date</option>
+                  <option value="priority">Priority</option>
+                  <option value="stage">Stage</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+              </div>
+              {/* CSV Export */}
+              {filtered.length > 0 && (
+                <button
+                  onClick={() => exportCSV(filtered, clients, users)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                  title="Export to CSV"
+                >
+                  <Download className="w-3 h-3" />
+                  Export
+                </button>
+              )}
+              {hasFilters && (
+                <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                  <X className="w-3 h-3" /> Clear
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Filter bar */}
@@ -409,7 +556,7 @@ export default function TasksPage() {
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="divide-y divide-slate-100">
                 {filtered.map(task => (
-                  <TaskRow key={task.id} task={task} clients={clients} users={users} onClick={() => setSelectedTask(task)} />
+                  <TaskRow key={task.id} task={task} clients={clients} users={users} onClick={() => setSelectedTask(task)} onPin={handlePin} />
                 ))}
               </div>
             </div>
@@ -464,7 +611,7 @@ export default function TasksPage() {
                   </div>
                   <div className="divide-y divide-slate-100">
                     {group.tasks.map(task => (
-                      <TaskRow key={task.id} task={task} clients={clients} users={users} onClick={() => setSelectedTask(task)} />
+                      <TaskRow key={task.id} task={task} clients={clients} users={users} onClick={() => setSelectedTask(task)} onPin={handlePin} />
                     ))}
                   </div>
                 </div>
@@ -539,6 +686,45 @@ export default function TasksPage() {
                 </div>
               )
             })()
+          )}
+        </>
+      )}
+
+      {/* ── CALENDAR VIEW ── */}
+      {view === 'calendar' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <TaskCalendar
+            tasks={tasks}
+            clients={clients}
+            onSelectTask={setSelectedTask}
+          />
+        </div>
+      )}
+
+      {/* ── TEMPLATES VIEW ── */}
+      {view === 'templates' && (
+        <>
+          <p className="text-xs text-slate-400">
+            Templates are saved tasks reusable as starting points. To save a task as a template, open it and use the kebab menu.
+          </p>
+          {templatesLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-5 h-5 rounded-full border-2 border-novax-accent border-t-transparent animate-spin" />
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="bg-white rounded-xl border border-dashed border-slate-300 p-12 text-center">
+              <LayoutTemplate className="w-8 h-8 text-slate-200 mx-auto mb-3" />
+              <p className="text-sm font-medium text-slate-500">No templates yet</p>
+              <p className="text-xs text-slate-400 mt-1">Open any task and use the menu to save it as a template</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="divide-y divide-slate-100">
+                {templates.map(task => (
+                  <TaskRow key={task.id} task={task} clients={clients} users={users} onClick={() => setSelectedTask(task)} />
+                ))}
+              </div>
+            </div>
           )}
         </>
       )}

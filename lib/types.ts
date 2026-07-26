@@ -145,6 +145,10 @@ export interface Client {
   performance_analyzed_at?: string
   design_brief_json?: DesignBrief | null
   normalized_profile?: ClientNormalizedProfile
+  copy_brief?: string | null
+  country?: string | null
+  city?: string | null
+  culture_notes?: string | null
   created_at: string
 }
 
@@ -182,6 +186,12 @@ export interface Project {
   created_at: string
 }
 
+export interface ChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
+
 export interface Task {
   id: string
   project_id: string | null
@@ -206,6 +216,35 @@ export interface Task {
   read_at?: string | null
   read_by?: string | null
   linked_doc_ids?: string[]
+  checklist?: ChecklistItem[]
+  watchers?: string[]
+  description_json?: Record<string, unknown> | null
+  start_date?: string | null
+  estimated_hours?: number | null
+  is_pinned?: boolean
+  is_template?: boolean
+}
+
+export interface TaskRelation {
+  id: string
+  from_task_id: string
+  to_task_id: string
+  relation_type: 'blocks' | 'related'
+  created_at: string
+  /** Populated client-side when fetched with task details */
+  linked_task?: Pick<Task, 'id' | 'title' | 'pipeline_stage' | 'status' | 'client_id'>
+}
+
+export interface TaskTimeLog {
+  id: string
+  task_id: string
+  user_id: string | null
+  hours: number
+  note: string | null
+  logged_at: string
+  created_at: string
+  /** Joined from users table */
+  user?: Pick<User, 'id' | 'name' | 'initials' | 'color'>
 }
 
 export interface AIResponse {

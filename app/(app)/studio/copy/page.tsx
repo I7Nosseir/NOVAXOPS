@@ -11,6 +11,7 @@ import {
   GripVertical, Plus, Layers, Download, FileSpreadsheet, AlertCircle,
   StopCircle, Clock, Search, ThumbsUp, ThumbsDown,
 } from 'lucide-react'
+import { StudioEmployeeNote } from '@/components/studio/studio-employee-note'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -2053,6 +2054,11 @@ export default function CopyEnginePage() {
             New
           </button>
         </div>
+
+        <StudioEmployeeNote
+          what={`I wrote ${doc.content_type === 'carousel' ? 'per-slide captions' : 'copy'} using the ${doc.framework_used ?? 'optimal'} framework${doc.language ? ` in ${doc.language}` : ''}. The output is structured around your client's voice and the platform's attention window.`}
+          why="Copy that uses a named framework isn't just better-written — it's strategically predictable. You know exactly what psychological mechanism is doing the work, so you can brief revisions with precision instead of gut feel."
+        />
 
         {doc.framework_rationale && (
           <div className="px-4 py-2.5 bg-novax-light border border-novax-border rounded-xl">

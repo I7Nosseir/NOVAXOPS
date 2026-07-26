@@ -13,21 +13,34 @@ import { PipelineColumn } from './pipeline-column'
 import { TaskCard } from './task-card'
 import { TaskDetailPanel } from '@/components/tasks/task-detail-panel'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
+import { BulkActionBar } from './bulk-action-bar'
 
 interface Props {
   initialTasks: Task[]
   boardMode?: 'full' | 'grouped'
+  isSelectMode?: boolean
 }
 
-export function PipelineBoard({ initialTasks, boardMode = 'full' }: Props) {
+export function PipelineBoard({ initialTasks, boardMode = 'full', isSelectMode = false }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [createStage, setCreateStage] = useState<PipelineStage | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const updateStage = useUpdateTaskStage()
+
+  const toggleSelect = (taskId: string) =>
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(taskId) ? next.delete(taskId) : next.add(taskId)
+      return next
+    })
 
   // Keep local task list in sync with server data
   useEffect(() => { setTasks(initialTasks) }, [initialTasks])
+
+  // Clear selections when exiting select mode
+  useEffect(() => { if (!isSelectMode) setSelectedIds(new Set()) }, [isSelectMode])
 
   // Derive selected task from tasks so it auto-updates after mutations
   const selectedTask = tasks.find(t => t.id === selectedTaskId) ?? null
@@ -111,6 +124,9 @@ export function PipelineBoard({ initialTasks, boardMode = 'full' }: Props) {
                 tasks={getTasksByStage(stage)}
                 onSelectTask={t => setSelectedTaskId(t.id)}
                 onAddTask={() => setCreateStage(stage)}
+                isSelectMode={isSelectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
               />
             ))}
           </div>
@@ -146,6 +162,9 @@ export function PipelineBoard({ initialTasks, boardMode = 'full' }: Props) {
                           tasks={getTasksByStage(stage)}
                           onSelectTask={t => setSelectedTaskId(t.id)}
                           onAddTask={() => setCreateStage(stage)}
+                          isSelectMode={isSelectMode}
+                          selectedIds={selectedIds}
+                          onToggleSelect={toggleSelect}
                         />
                       ))}
                     </div>
@@ -184,9 +203,16 @@ export function PipelineBoard({ initialTasks, boardMode = 'full' }: Props) {
         </DragOverlay>
       </DndContext>
 
-      <TaskDetailPanel
-        task={selectedTask}
-        onClose={() => setSelectedTaskId(null)}
+      {!isSelectMode && (
+        <TaskDetailPanel
+          task={selectedTask}
+          onClose={() => setSelectedTaskId(null)}
+        />
+      )}
+
+      <BulkActionBar
+        selectedIds={[...selectedIds]}
+        onClear={() => setSelectedIds(new Set())}
       />
     </>
   )

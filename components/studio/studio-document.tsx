@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import {
   Camera, Copy, CheckCircle, Star,
-  TriangleAlert, MessageSquare, Download, ChevronDown, Calendar,
+  TriangleAlert, MessageSquare, Download, ChevronDown, Calendar, Lightbulb,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
@@ -168,6 +168,64 @@ function toPlatformKey(name: string): KnownPlatform | null {
   if (lower === 'pinterest') return 'pinterest'
   if (lower === 'twitter' || lower.includes('twitter') || lower === 'x') return 'twitter'
   return null
+}
+
+// ─── Employee Note ────────────────────────────────────────────────────────────
+
+const TOOL_NOTES: Record<string, { what: string; why: string }> = {
+  content: {
+    what: 'I built your content pieces from the brief, opened each with a different hook, and structured the body around a psychological trigger suited to the platform.',
+    why: 'One hook angle rarely wins outright — different angles unlock different segments of the audience. So I made each piece genuinely distinct, not just a rewrite of the same idea.',
+  },
+  hooks: {
+    what: 'I generated 20 hook variations across 8 psychological trigger types, scored every one on Clarity, Curiosity, and Conversion potential, then surfaced the top tier.',
+    why: 'Most brands recycle 2–3 hook styles. Forcing wide divergence first — then filtering hard — means the options you see are genuinely different bets, not the same idea with different words.',
+  },
+  strategy: {
+    what: 'I mapped a full quarterly strategy across content pillars, platform roles, and a phased execution arc from signal-gathering through to result measurement.',
+    why: 'Random posting builds no brand. The Esplanade framework sequences content to build authority before asking for conversion — because audiences trust before they buy.',
+  },
+  campaign: {
+    what: "I found the cultural tensions most alive in your client's space, then built execution briefs around them — each using a different creative angle so you can pick the one that fits the moment.",
+    why: "Great campaigns don't invent emotion, they tap into what the audience already feels and show how the brand resolves it. Inventing emotion from scratch is why most campaign ideas feel hollow.",
+  },
+  postmortem: {
+    what: 'I ran the content through a 4-dimension diagnostic — hook quality, format fit, timing, and caption structure — and gave each one a root cause and a concrete fix.',
+    why: 'Underperformance is rarely random. Guessing wastes the next brief. A structured diagnosis isolates the actual bottleneck so the next piece is built differently, not just written better.',
+  },
+}
+
+function EmployeeNote({ tool }: { tool: string }) {
+  const [open, setOpen] = useState(true)
+  const note = TOOL_NOTES[tool]
+  if (!note) return null
+
+  return (
+    <div className="mx-6 mt-5 border border-novax-border bg-novax-light rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Lightbulb className="w-3.5 h-3.5 text-novax-muted shrink-0" />
+          <span className="text-xs font-semibold text-novax-muted">What I did &amp; why</span>
+        </div>
+        <ChevronDown className={cn('w-3.5 h-3.5 text-novax-muted transition-transform duration-150', !open && '-rotate-90')} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3 border-t border-novax-border">
+          <div className="pt-3">
+            <p className="text-[10px] font-bold text-novax uppercase tracking-wider mb-1">What I did</p>
+            <p className="text-xs text-slate-700 leading-relaxed">{note.what}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-novax-muted uppercase tracking-wider mb-1">Why</p>
+            <p className="text-xs text-slate-600 leading-relaxed">{note.why}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Document Header (sticky) ─────────────────────────────────────────────────
@@ -1487,6 +1545,8 @@ export function StudioDocument({
         pdfExporting={pdfExporting}
         onChatOpen={onChatOpen}
       />
+
+      <EmployeeNote tool={tool} />
 
       {tool === 'content' && (
         <ContentToolDocument doc={content as ContentDocument} language={language} onSchedule={onSchedule} intelligenceSummary={intelligenceSummary} />

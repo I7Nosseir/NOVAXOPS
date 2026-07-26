@@ -19,7 +19,11 @@ function mapClient(row: Record<string, unknown>): Client {
     performance_analyzed_at: row.performance_analyzed_at as string | undefined,
     design_brief_json: (row.design_brief_json as DesignBrief | null | undefined) ?? null,
     normalized_profile: (row.normalized_profile as ClientNormalizedProfile | undefined) ?? undefined,
+    copy_brief: (row.copy_brief as string | null | undefined) ?? null,
     chatwoot_inbox_id: (row.chatwoot_inbox_id as number | undefined) ?? undefined,
+    country: (row.country as string | null | undefined) ?? null,
+    city: (row.city as string | null | undefined) ?? null,
+    culture_notes: (row.culture_notes as string | null | undefined) ?? null,
     created_at: row.created_at as string,
   }
 }

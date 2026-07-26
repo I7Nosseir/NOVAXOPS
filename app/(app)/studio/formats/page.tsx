@@ -13,6 +13,7 @@ import { StudioLoading } from '@/components/studio/studio-loading'
 import { StudioSessionList } from '@/components/studio/studio-session-list'
 import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
 import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
+import { StudioEmployeeNote } from '@/components/studio/studio-employee-note'
 import type { LoadingStep, StudioSession } from '@/lib/studio-types'
 import type { FormatResult } from '@/app/api/studio/formats/generate/route'
 
@@ -487,6 +488,11 @@ export default function FormatsPage() {
       {/* ── RESULTS ── */}
       {pageState === 'results' && formats.length > 0 && (
         <div className="space-y-5">
+          <StudioEmployeeNote
+            what={`I analysed ${niche} content patterns on ${platform} and engineered ${formats.length} formats with the highest reuse potential. Each was stress-tested against 3 laws: Hook strength, Format fit, and Payoff clarity.`}
+            why="Viral content is repeatable structure, not random luck. Now you have the template — fill it with new topics and the format does the heavy lifting every time."
+          />
+
           {/* Summary bar */}
           <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 flex items-center gap-4 flex-wrap">
             <span className="text-sm font-semibold text-slate-700">5 formats for</span>

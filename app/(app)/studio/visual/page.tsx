@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
 import { StudioGuidancePanel } from '@/components/studio/studio-guidance-panel'
 import { LumaraPrefillButton, LUMARA_BRIEFS } from '@/components/studio/lumara-prefill-button'
+import { StudioEmployeeNote } from '@/components/studio/studio-employee-note'
 import type {
   VisualApproach, VisualDocument, VisualInputs, LoadingStep,
   NarrativePurpose, ScenePrompt,
@@ -1007,6 +1008,11 @@ export default function VisualEnginePage() {
       {/* ── DOCUMENT ── */}
       {pageState === 'document' && document && (
         <div className="space-y-6">
+
+          <StudioEmployeeNote
+            what={`I translated your concept into a ${document.scenes?.length ?? 0}-scene production brief for ${inputs.platform} (${inputs.format}, ${inputs.length}). Each scene has an image prompt, a video prompt, and a director's note.`}
+            why="Good video is written before it is filmed. This gives your production team — or an AI generator — an exact brief they can execute without back-and-forth."
+          />
 
           {/* Doc header */}
           <div className="flex items-start justify-between gap-4">

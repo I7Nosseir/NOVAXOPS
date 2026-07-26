@@ -12,9 +12,12 @@ interface Props {
   tasks: Task[]
   onSelectTask: (task: Task) => void
   onAddTask: () => void
+  isSelectMode?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (taskId: string) => void
 }
 
-export function PipelineColumn({ stage, tasks, onSelectTask, onAddTask }: Props) {
+export function PipelineColumn({ stage, tasks, onSelectTask, onAddTask, isSelectMode, selectedIds, onToggleSelect }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage })
   const config = STAGE_CONFIG[stage]
 
@@ -44,7 +47,14 @@ export function PipelineColumn({ stage, tasks, onSelectTask, onAddTask }: Props)
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2.5 flex-1">
             {tasks.map(task => (
-              <TaskCard key={task.id} task={task} onSelect={onSelectTask} />
+              <TaskCard
+                key={task.id}
+                task={task}
+                onSelect={onSelectTask}
+                isSelectMode={isSelectMode}
+                isSelected={selectedIds?.has(task.id)}
+                onToggleSelect={onToggleSelect}
+              />
             ))}
           </div>
         </SortableContext>

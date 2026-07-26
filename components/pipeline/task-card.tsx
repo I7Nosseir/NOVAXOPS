@@ -2,7 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Calendar, AlertCircle } from 'lucide-react'
+import { Calendar, AlertCircle, ListChecks, CheckSquare, Square, BookmarkCheck } from 'lucide-react'
 import type { Task } from '@/lib/types'
 import { PRIORITY_CONFIG, formatDate, isOverdue, daysUntil, getSubtypeStyle, cn } from '@/lib/utils'
 import { useClients } from '@/lib/hooks/use-clients'
@@ -33,10 +33,16 @@ interface Props {
   task: Task
   onSelect: (task: Task) => void
   isDragOverlay?: boolean
+  isSelectMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: (taskId: string) => void
 }
 
-export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
+export function TaskCard({ task, onSelect, isDragOverlay, isSelectMode, isSelected, onToggleSelect }: Props) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    disabled: isSelectMode,
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -52,28 +58,56 @@ export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
   const overdue = !!task.due_date && isOverdue(task.due_date) && task.status !== 'completed'
   const days = task.due_date ? daysUntil(task.due_date) : null
 
+  const checklistItems = task.checklist ?? []
+  const checklistDone  = checklistItems.filter(i => i.done).length
+
+  const handleClick = () => {
+    if (isSelectMode) {
+      onToggleSelect?.(task.id)
+    } else {
+      onSelect(task)
+    }
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
-      onClick={() => onSelect(task)}
+      {...(isSelectMode ? {} : listeners)}
+      onClick={handleClick}
       className={cn(
-        'bg-white rounded-xl border border-slate-200 p-3.5 cursor-grab active:cursor-grabbing',
-        'hover:border-novax-border-active hover:shadow-md transition-all duration-150 group select-none',
+        'bg-white rounded-xl border p-3.5 transition-all duration-150 group select-none',
+        isSelectMode
+          ? 'cursor-pointer'
+          : 'cursor-grab active:cursor-grabbing',
+        isSelected
+          ? 'border-novax bg-novax-light shadow-md'
+          : 'border-slate-200 hover:border-novax-border-active hover:shadow-md',
         isDragOverlay && 'shadow-xl rotate-1 border-novax-border-active',
       )}
     >
-      {/* Client tag */}
+      {/* Client tag + select checkbox */}
       <div className="flex items-center justify-between mb-2.5">
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: client?.color }} />
+          {isSelectMode ? (
+            <span className="text-novax shrink-0">
+              {isSelected
+                ? <CheckSquare className="w-3.5 h-3.5" />
+                : <Square className="w-3.5 h-3.5 text-slate-300" />
+              }
+            </span>
+          ) : (
+            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: client?.color }} />
+          )}
           <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{client?.name}</span>
         </div>
-        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full', priority.bg, priority.color)}>
-          {priority.label}
-        </span>
+        <div className="flex items-center gap-1">
+          {task.is_pinned && <BookmarkCheck className="w-3 h-3 text-novax shrink-0" />}
+          <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full', priority.bg, priority.color)}>
+            {priority.label}
+          </span>
+        </div>
       </div>
 
       {/* Title */}
@@ -111,6 +145,18 @@ export function TaskCard({ task, onSelect, isDragOverlay }: Props) {
             : '—'}
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Checklist badge */}
+          {checklistItems.length > 0 && (
+            <span className={cn(
+              'inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none',
+              checklistDone === checklistItems.length
+                ? 'bg-emerald-50 text-emerald-600'
+                : 'bg-slate-100 text-slate-500',
+            )}>
+              <ListChecks className="w-2.5 h-2.5" />
+              {checklistDone}/{checklistItems.length}
+            </span>
+          )}
           {/* Status pill */}
           <span className={cn(
             'inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none',

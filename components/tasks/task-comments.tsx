@@ -3,7 +3,7 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Send, Paperclip, FileText, Sheet, X } from 'lucide-react'
-import { useTaskComments, useCreateComment } from '@/lib/hooks/use-task-comments'
+import { useTaskComments, useCreateComment, useToggleCommentReaction } from '@/lib/hooks/use-task-comments'
 import { useUsers } from '@/lib/hooks/use-users'
 import { useAuth } from '@/lib/auth-context'
 import { formatDateTime, cn } from '@/lib/utils'
@@ -18,6 +18,7 @@ interface DocOption {
 
 interface Props {
   taskId: string
+  taskTitle?: string
   taskLinkedDocIds?: string[]
   onLinkDoc?: (docId: string) => void
 }
@@ -54,10 +55,13 @@ function CommentBody({ body, users }: { body: string; users: User[] }) {
   )
 }
 
-export function TaskComments({ taskId, taskLinkedDocIds = [], onLinkDoc }: Props) {
+const REACTION_EMOJIS = ['👍', '✅', '👀', '🔥', '❤️']
+
+export function TaskComments({ taskId, taskTitle, taskLinkedDocIds = [], onLinkDoc }: Props) {
   const [text, setText] = useState('')
   const [showDocPicker, setShowDocPicker] = useState(false)
   const [docSearch, setDocSearch] = useState('')
+  const [hoveredComment, setHoveredComment] = useState<string | null>(null)
 
   // @mention state
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
@@ -67,6 +71,7 @@ export function TaskComments({ taskId, taskLinkedDocIds = [], onLinkDoc }: Props
 
   const { comments, isLoading } = useTaskComments(taskId)
   const createComment = useCreateComment()
+  const toggleReaction = useToggleCommentReaction()
   const { users } = useUsers()
   const { user } = useAuth()
 
@@ -170,18 +175,16 @@ export function TaskComments({ taskId, taskLinkedDocIds = [], onLinkDoc }: Props
     if (!text.trim() || !user || createComment.isPending) return
     const body = text.trim()
     try {
-      await createComment.mutateAsync({ task_id: taskId, user_id: user.id, body, organization_id: user.organization_id ?? null })
+      await createComment.mutateAsync({
+        task_id: taskId,
+        user_id: user.id,
+        body,
+        organization_id: user.organization_id ?? null,
+        task_title: taskTitle,
+        commenter_name: user.name,
+      })
       setText('')
       setMentionQuery(null)
-
-      // Send mention notifications only when comment contains @
-      if (body.includes('@')) {
-        fetch('/api/notifications/mention', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taskId, commentBody: body, commenterId: user.id }),
-        }).catch(() => {})
-      }
     } catch {
       // error is visible via createComment.isError — no silent swallow
     }
@@ -205,8 +208,15 @@ export function TaskComments({ taskId, taskLinkedDocIds = [], onLinkDoc }: Props
         )}
         {comments.map(comment => {
           const commentUser = users.find(u => u.id === comment.user_id)
+          const reactions = (comment.reactions ?? {}) as Record<string, string[]>
+          const isHovered = hoveredComment === comment.id
           return (
-            <div key={comment.id} className="flex gap-2.5">
+            <div
+              key={comment.id}
+              className="flex gap-2.5 group"
+              onMouseEnter={() => setHoveredComment(comment.id)}
+              onMouseLeave={() => setHoveredComment(null)}
+            >
               <div
                 className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 mt-0.5"
                 style={{ background: commentUser?.color ?? '#94a3b8' }}
@@ -219,6 +229,40 @@ export function TaskComments({ taskId, taskLinkedDocIds = [], onLinkDoc }: Props
                   <span className="text-[10px] text-slate-400">{formatDateTime(comment.created_at)}</span>
                 </div>
                 <CommentBody body={comment.body} users={users} />
+                {/* Reactions */}
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                  {/* Existing reactions */}
+                  {Object.entries(reactions).filter(([, uids]) => uids.length > 0).map(([emoji, uids]) => {
+                    const myReaction = !!user && uids.includes(user.id)
+                    return (
+                      <button
+                        key={emoji}
+                        onClick={() => user && toggleReaction.mutate({ commentId: comment.id, taskId, emoji, userId: user.id, currentReactions: reactions })}
+                        className={cn(
+                          'flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] border transition-colors',
+                          myReaction ? 'bg-novax-light border-novax-border text-novax' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-novax-light hover:border-novax-border',
+                        )}
+                      >
+                        {emoji} <span className="font-medium">{uids.length}</span>
+                      </button>
+                    )
+                  })}
+                  {/* Emoji picker (show on hover) */}
+                  {isHovered && (
+                    <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-full px-1.5 py-0.5 shadow-sm">
+                      {REACTION_EMOJIS.map(emoji => (
+                        <button
+                          key={emoji}
+                          onClick={() => user && toggleReaction.mutate({ commentId: comment.id, taskId, emoji, userId: user.id, currentReactions: reactions })}
+                          className="text-[12px] hover:scale-125 transition-transform px-0.5"
+                          title={`React with ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )

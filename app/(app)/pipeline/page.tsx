@@ -2,7 +2,7 @@
 
 import { useState, useCallback, Suspense, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { LayoutGrid, List, Filter, Layers } from 'lucide-react'
+import { LayoutGrid, List, Filter, Layers, MousePointer } from 'lucide-react'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { useMyAssignedClientIds } from '@/lib/hooks/use-client-assignments'
 import { useRealtime } from '@/lib/hooks/use-realtime'
@@ -52,6 +52,7 @@ function PipelineContent() {
   })
   const [showFilter, setShowFilter] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [isSelectMode, setIsSelectMode] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -150,16 +151,33 @@ function PipelineContent() {
             </div>
           )}
 
+          {/* Select mode toggle (board only) */}
+          {view === 'board' && (
+            <button
+              onClick={() => setIsSelectMode(v => !v)}
+              title={isSelectMode ? 'Exit select mode' : 'Select tasks for bulk actions'}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+                isSelectMode
+                  ? 'border-novax-border-active bg-novax-light text-novax'
+                  : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700',
+              )}
+            >
+              <MousePointer className="w-3.5 h-3.5" />
+              {isSelectMode ? 'Selecting…' : 'Select'}
+            </button>
+          )}
+
           {/* View toggle */}
           <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden">
             <button
-              onClick={() => setView('board')}
+              onClick={() => { setView('board'); setIsSelectMode(false) }}
               className={cn('p-2 transition-colors', view === 'board' ? 'bg-novax-light text-novax' : 'text-slate-400 hover:text-slate-600')}
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setView('list')}
+              onClick={() => { setView('list'); setIsSelectMode(false) }}
               className={cn('p-2 transition-colors', view === 'list' ? 'bg-novax-light text-novax' : 'text-slate-400 hover:text-slate-600')}
             >
               <List className="w-4 h-4" />
@@ -179,7 +197,7 @@ function PipelineContent() {
 
       {/* Views */}
       {view === 'board' ? (
-        <PipelineBoard initialTasks={tasks} boardMode={boardMode} />
+        <PipelineBoard initialTasks={tasks} boardMode={boardMode} isSelectMode={isSelectMode} />
       ) : (
         <TaskList tasks={tasks} />
       )}

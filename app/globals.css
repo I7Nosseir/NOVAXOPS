@@ -127,13 +127,14 @@
 
 * { box-sizing: border-box; }
 
+html { overflow-x: hidden; }
+
 body {
   background: var(--main-bg);
   color: var(--foreground);
   font-family: var(--font-sans, system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }

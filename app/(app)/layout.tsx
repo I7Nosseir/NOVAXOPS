@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
@@ -13,6 +13,7 @@ import { SidebarProvider } from '@/lib/sidebar-context'
 import { OrgProvider, useOrg } from '@/lib/org-context'
 import { MyTasksFloat } from '@/components/tasks/my-tasks-float'
 import { RoleToolsPanel } from '@/components/tools/role-tools-panel'
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { ChatPanel, AssistantFab } from '@/components/assistant/chat-panel'
 import { useActivityTracker } from '@/lib/hooks/use-activity-tracker'
 import { useAuth } from '@/lib/auth-context'
@@ -33,7 +34,20 @@ function BrandingInjector() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [chatOpen, setChatOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const pathname = usePathname()
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'n' && e.key !== 'N') return
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+      e.preventDefault()
+      setCreateOpen(true)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // On the dedicated /assistant page the full-page ChatPanel is already rendered.
   // Showing the floating panel at the same time creates two simultaneous ChatPanel
@@ -62,6 +76,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* AI Chat (base): bottom-6 right-6         — defined here                  */}
             <MyTasksFloat />
             <RoleToolsPanel />
+
+            {/* Global 'N' shortcut — new task from anywhere */}
+            <CreateTaskDialog open={createOpen} onClose={() => setCreateOpen(false)} />
 
             {/* Primary AI Assistant FAB — hidden on /assistant and /studio/* routes */}
             {/* bottom-[5.5rem] on mobile lifts it above the 64px MobileNav + 24px gap */}

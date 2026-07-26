@@ -23,11 +23,11 @@ export interface StudioChatbotProps {
 
 function TypingIndicator() {
   return (
-    <div className="flex items-center gap-1 px-3 py-2.5 bg-slate-100 rounded-xl max-w-max">
+    <div className="flex items-center gap-1 px-3 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl max-w-max">
       {[0, 1, 2].map(i => (
         <span
           key={i}
-          className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
+          className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce"
           style={{ animationDelay: `${i * 0.15}s` }}
         />
       ))}
@@ -39,13 +39,13 @@ function TypingIndicator() {
 
 function EditCard({ edit, onApply }: { edit: EditPayload; onApply: (edit: EditPayload) => void }) {
   return (
-    <div className="bg-white border border-emerald-200 rounded-xl p-3 mt-2">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-1">
+    <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3 mt-2">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">
         Suggested edit — {edit.target}
       </p>
-      <p className="text-sm text-slate-800 leading-relaxed mb-2">{edit.new_content}</p>
+      <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed mb-2">{edit.new_content}</p>
       {edit.reasoning && (
-        <p className="text-xs text-slate-500 italic mb-2">{edit.reasoning}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 italic mb-2">{edit.reasoning}</p>
       )}
       <button
         onClick={() => onApply(edit)}
@@ -57,23 +57,16 @@ function EditCard({ edit, onApply }: { edit: EditPayload; onApply: (edit: EditPa
   )
 }
 
-const CAPABILITIES_REPLY = `I help you get the most out of this studio session. Here's what I can do:
+// ── Suggested prompts ─────────────────────────────────────────────────────────
 
-- Explain why any hook, line, or strategy choice was made — ask "why did you use X?"
-- Rewrite or refine any section — say "rewrite the hook" or "shorten the CTA"
-- Diagnose weak spots: "what's the weakest part of this content?"
-- Answer questions about the frameworks used (StoryBrand arc, 3C scoring, Cialdini triggers, Fogg model)
-- Translate content to Arabic
-- Suggest improvements based on the brief and client context
-
-For edits, I return a direct replacement — not a description of changes.`
+const SUGGESTED = [
+  'What can you do?',
+  'What is the weakest part?',
+  'Rewrite the hook',
+  'Why this approach?',
+]
 
 // ── Main component ────────────────────────────────────────────────────────────
-//
-// Fully self-contained overlay — manages its own open/close state.
-// When closed → floating FAB button (bottom-right).
-// When open  → fixed overlay panel (right side on desktop, bottom sheet on mobile).
-// Does NOT affect surrounding layout in any way.
 
 export function StudioChatbot({
   sessionId,
@@ -81,53 +74,41 @@ export function StudioChatbot({
   initialHistory = [],
   onEditDetected,
 }: StudioChatbotProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen]         = useState(false)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>(initialHistory)
   const [inputValue, setInputValue] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isLoading, setIsLoading]   = useState(false)
+  const messagesEndRef               = useRef<HTMLDivElement>(null)
+  const textareaRef                  = useRef<HTMLTextAreaElement>(null)
 
-  // Sync history when the session changes (parent remounts via key)
   useEffect(() => {
     setChatHistory(initialHistory)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatHistory, isLoading])
 
-  // Focus textarea when panel opens
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => textareaRef.current?.focus(), 60)
-    }
+    if (isOpen) setTimeout(() => textareaRef.current?.focus(), 60)
   }, [isOpen])
 
-  function handleCapabilities() {
-    setChatHistory(prev => [
-      ...prev,
-      { role: 'user', content: 'What can you do?' },
-      { role: 'assistant', content: CAPABILITIES_REPLY },
-    ])
-  }
-
-  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setInputValue(e.target.value)
-    e.target.style.height = 'auto'
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
-  }
-
-  const sendMessage = useCallback(async () => {
-    const text = inputValue.trim()
+  // ── Core send — accepts an optional override text so suggested prompts
+  //    can fire without touching the input field.
+  const sendMessage = useCallback(async (override?: string) => {
+    const text = (override ?? inputValue).trim()
     if (!text || isLoading) return
 
-    const userMsg: ChatMessage = { role: 'user', content: text }
+    if (!override) {
+      setInputValue('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    }
+
+    const userMsg: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() }
+    // Snapshot history before the optimistic update so we send the correct context
+    const historySnapshot = chatHistory
     setChatHistory(prev => [...prev, userMsg])
-    setInputValue('')
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setIsLoading(true)
 
     try {
@@ -136,9 +117,9 @@ export function StudioChatbot({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: sessionId,
-          message: text,
-          history: chatHistory,
-          context: sessionContext,
+          message:    text,
+          history:    historySnapshot,
+          context:    sessionContext,
         }),
       })
 
@@ -147,16 +128,21 @@ export function StudioChatbot({
 
       if (data.edit && onEditDetected) onEditDetected(data.edit)
 
-      const assistantMsg: ChatMessage = { role: 'assistant', content: data.reply ?? '', edit: data.edit }
-      const newHistory = [...chatHistory, userMsg, assistantMsg]
+      const assistantMsg: ChatMessage = {
+        role:      'assistant',
+        content:   data.reply ?? '',
+        timestamp: new Date().toISOString(),
+        edit:      data.edit,
+      }
+      const newHistory = [...historySnapshot, userMsg, assistantMsg]
       setChatHistory(newHistory)
 
-      // Persist chat history to session (fire-and-forget)
+      // Persist to session (fire-and-forget)
       if (sessionId) {
         fetch(`/api/studio/session/${sessionId}`, {
-          method: 'PATCH',
+          method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_history: newHistory }),
+          body:    JSON.stringify({ chat_history: newHistory }),
         }).catch(() => {})
       }
     } catch {
@@ -169,11 +155,14 @@ export function StudioChatbot({
     }
   }, [inputValue, isLoading, chatHistory, sessionId, sessionContext, onEditDetected])
 
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInputValue(e.target.value)
+    e.target.style.height = 'auto'
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
     if (e.key === 'Escape') setIsOpen(false)
   }
 
@@ -181,26 +170,27 @@ export function StudioChatbot({
 
   const panel = (
     <div className={cn(
-      'fixed z-50 bg-white shadow-2xl border border-slate-200 flex flex-col',
+      'fixed z-50 flex flex-col',
+      'bg-white dark:bg-slate-900',
+      'shadow-2xl border border-slate-200 dark:border-slate-700',
       // Mobile: full-width bottom sheet
       'inset-x-0 bottom-0 rounded-t-2xl',
-      // Desktop: right-side panel, full height minus header
+      // Desktop: right-side panel
       'sm:inset-x-auto sm:right-4 sm:bottom-4 sm:rounded-2xl sm:w-[420px]',
-      // Height
       'h-[72vh] sm:h-[calc(100vh-5rem)]',
     )}>
+
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0 rounded-t-2xl">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0 rounded-t-2xl">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-novax-light flex items-center justify-center">
-            <MessageCircle className="w-3.5 h-3.5 text-novax-muted" />
+          <div className="w-6 h-6 rounded-lg bg-novax-light dark:bg-novax/20 flex items-center justify-center">
+            <MessageCircle className="w-3.5 h-3.5 text-novax-muted dark:text-novax-accent" />
           </div>
-          <p className="text-sm font-semibold text-slate-900">Studio Intelligence</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Studio Intelligence</p>
         </div>
         <button
           onClick={() => setIsOpen(false)}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          title="Close chat"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -209,16 +199,22 @@ export function StudioChatbot({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {chatHistory.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center justify-center h-full gap-3">
-            <p className="text-sm text-slate-500 italic text-center px-4">
+          <div className="flex flex-col items-center justify-center h-full gap-3 px-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 italic text-center">
               Ask anything about this session — edits, strategy, or why something was built this way.
             </p>
-            <button
-              onClick={handleCapabilities}
-              className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg text-slate-600 hover:border-novax-border hover:bg-novax-light/50 transition-colors"
-            >
-              What can you do?
-            </button>
+            <div className="flex flex-wrap justify-center gap-2">
+              {SUGGESTED.map(q => (
+                <button
+                  key={q}
+                  onClick={() => sendMessage(q)}
+                  disabled={isLoading}
+                  className="px-3 py-1.5 text-xs font-medium border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-400 hover:border-novax-border hover:bg-novax-light/50 dark:hover:bg-novax/10 dark:hover:border-novax/40 transition-colors disabled:opacity-40"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -226,9 +222,11 @@ export function StudioChatbot({
           <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div className={cn(
               'max-w-[85%] rounded-xl px-3 py-2 text-sm',
-              msg.role === 'user' ? 'bg-novax text-white' : 'bg-slate-100 text-slate-800',
+              msg.role === 'user'
+                ? 'bg-novax text-white'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200',
             )}>
-              {msg.content && <p className="leading-relaxed">{msg.content}</p>}
+              {msg.content && <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
               {msg.edit && onEditDetected && (
                 <EditCard edit={msg.edit} onApply={edit => onEditDetected(edit)} />
               )}
@@ -246,7 +244,7 @@ export function StudioChatbot({
       </div>
 
       {/* Input */}
-      <div className="border-t border-slate-200 p-3 shrink-0">
+      <div className="border-t border-slate-200 dark:border-slate-700 p-3 shrink-0">
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -255,21 +253,28 @@ export function StudioChatbot({
             onKeyDown={handleKeyDown}
             placeholder="Ask about this session…"
             rows={1}
-            className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-novax-border bg-white text-slate-800 placeholder:text-slate-400 resize-none transition-colors"
+            className={cn(
+              'flex-1 px-3 py-2 text-sm rounded-xl resize-none outline-none transition-colors',
+              'border border-slate-200 dark:border-slate-700',
+              'bg-white dark:bg-slate-800',
+              'text-slate-800 dark:text-slate-200',
+              'placeholder:text-slate-400 dark:placeholder:text-slate-500',
+              'focus:border-novax-border dark:focus:border-novax-border/60',
+            )}
             style={{ minHeight: '36px', maxHeight: '120px' }}
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={!inputValue.trim() || isLoading}
             className="p-2 bg-novax hover:bg-novax-hover disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-colors shrink-0"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-[10px] text-slate-400 text-center mt-1.5">
-          <kbd className="font-mono bg-slate-100 px-1 rounded">Enter</kbd> send ·{' '}
-          <kbd className="font-mono bg-slate-100 px-1 rounded">Shift+Enter</kbd> new line ·{' '}
-          <kbd className="font-mono bg-slate-100 px-1 rounded">Esc</kbd> close
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-1.5">
+          <kbd className="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">Enter</kbd> send ·{' '}
+          <kbd className="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">Shift+Enter</kbd> new line ·{' '}
+          <kbd className="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">Esc</kbd> close
         </p>
       </div>
     </div>
@@ -280,12 +285,12 @@ export function StudioChatbot({
       {/* Mobile backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/20 z-40 sm:hidden"
+          className="fixed inset-0 bg-black/30 dark:bg-black/50 z-40 sm:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
 
-      {/* Floating open button — always visible when closed */}
+      {/* FAB — visible when closed */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
@@ -296,7 +301,6 @@ export function StudioChatbot({
         </button>
       )}
 
-      {/* Panel — always rendered when open */}
       {isOpen && panel}
     </>
   )

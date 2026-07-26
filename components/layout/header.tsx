@@ -31,7 +31,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/docs':          'Documents',
   '/ai-image':      'AI Image',
   '/tools':         'Tools',
-  '/performance':   'Performance',
+  '/performance':          'Performance',
+  '/marketing-director':   'Marketing Director',
 }
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [

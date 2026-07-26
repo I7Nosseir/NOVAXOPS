@@ -5,7 +5,10 @@ import { useUsers } from '@/lib/hooks/use-users'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { STAGE_CONFIG, formatDate, isOverdue, cn } from '@/lib/utils'
 
-const CAPACITY = 8 // max tasks per person before overload
+// Weekly capacity in hours. A 40h week is the ceiling.
+// Falls back to 2h per task when estimated_hours is unset so workload is calculable
+// even for tasks that predate the estimated_hours migration.
+const WEEKLY_HOURS = 40
 
 export default function WorkloadPage() {
   const { users } = useUsers()
@@ -14,9 +17,10 @@ export default function WorkloadPage() {
     const tasks = allTasks.filter(t => t.assigned_to === user.id && t.status === 'active')
     const overdue = tasks.filter(t => t.due_date && isOverdue(t.due_date))
     const highPriority = tasks.filter(t => t.priority === 'urgent' || t.priority === 'high')
-    const load = tasks.length / CAPACITY
-    return { user, tasks, overdue, highPriority, load }
-  }).sort((a, b) => b.tasks.length - a.tasks.length)
+    const totalHours = tasks.reduce((sum, t) => sum + (t.estimated_hours ?? 2), 0)
+    const load = totalHours / WEEKLY_HOURS
+    return { user, tasks, overdue, highPriority, load, totalHours }
+  }).sort((a, b) => b.totalHours - a.totalHours)
 
   const totalActive = allTasks.filter(t => t.status === 'active').length
   const overloaded = members.filter(m => m.load >= 1).length
@@ -43,7 +47,7 @@ export default function WorkloadPage() {
 
       {/* Member cards */}
       <div className="space-y-3">
-        {members.map(({ user, tasks, overdue, highPriority, load }) => {
+        {members.map(({ user, tasks, overdue, highPriority, load, totalHours }) => {
           const isOverloaded = load >= 1
           const isAtRisk = load >= 0.75 && load < 1
           const barColor = isOverloaded ? 'bg-red-400' : isAtRisk ? 'bg-amber-400' : 'bg-emerald-400'
@@ -83,7 +87,7 @@ export default function WorkloadPage() {
                     <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                       <div className={cn('h-full rounded-full transition-all', barColor)} style={{ width: `${barWidth}%` }}/>
                     </div>
-                    <span className="text-[11px] text-slate-500 shrink-0">{tasks.length}/{CAPACITY} tasks</span>
+                    <span className="text-[11px] text-slate-500 shrink-0">{totalHours.toFixed(1)}h / {WEEKLY_HOURS}h</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-center shrink-0">

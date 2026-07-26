@@ -68,10 +68,11 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Intelligence',
     items: [
-      { href: '/assistant',   icon: Sparkles,   label: 'AI Assistant',    permKey: 'assistant' },
-      { href: '/workload',    icon: Users,      label: 'Workload',        permKey: 'workload' },
-      { href: '/library',     icon: BookMarked, label: 'Content Library', permKey: 'library' },
-      { href: '/reports',     icon: BarChart2,  label: 'Reports',         permKey: 'reports' },
+      { href: '/marketing-director', icon: Brain,      label: 'Marketing Director', permKey: 'marketing-director' },
+      { href: '/assistant',          icon: Sparkles,   label: 'AI Assistant',       permKey: 'assistant' },
+      { href: '/workload',           icon: Users,      label: 'Workload',           permKey: 'workload' },
+      { href: '/library',            icon: BookMarked, label: 'Content Library',    permKey: 'library' },
+      { href: '/reports',            icon: BarChart2,  label: 'Reports',            permKey: 'reports' },
     ],
   },
   {

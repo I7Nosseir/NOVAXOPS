@@ -31,6 +31,29 @@ interface FeedbackEntry {
   edited_version: string
 }
 
+// ── Global copy instructions cache (5-min TTL) ───────────────────────────────
+let globalCopyCache: { value: string; fetchedAt: number } | null = null
+const GLOBAL_COPY_TTL_MS = 5 * 60 * 1000
+
+async function fetchGlobalCopyInstructions(db: SupabaseClient): Promise<string> {
+  const now = Date.now()
+  if (globalCopyCache && now - globalCopyCache.fetchedAt < GLOBAL_COPY_TTL_MS) {
+    return globalCopyCache.value
+  }
+  try {
+    const { data } = await db
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'copy_instructions')
+      .maybeSingle()
+    const value = (data as { value: string } | null)?.value ?? ''
+    globalCopyCache = { value, fetchedAt: now }
+    return value
+  } catch {
+    return ''
+  }
+}
+
 // ── Pinterest element guidance ────────────────────────────────────────────────
 const PINTEREST_ELEMENT_GUIDANCE: Record<string, string> = {
   hook_structure:     'pattern-interrupt openings with structural specificity',
@@ -226,8 +249,9 @@ export async function buildClientIntelligenceBlock(
     fbResult,
     stratResult,
     perfResult,
+    globalCopyInstructions,
   ] = await Promise.all([
-    db.from('clients').select('normalized_profile').eq('id', clientId).single(),
+    db.from('clients').select('normalized_profile, copy_brief').eq('id', clientId).single(),
 
     db.from('client_context_bank')
       .select('category, summary, source, created_at')
@@ -258,15 +282,23 @@ export async function buildClientIntelligenceBlock(
       .eq('category', 'Performance Win')
       .order('created_at', { ascending: false })
       .limit(5),
+
+    fetchGlobalCopyInstructions(db),
   ])
 
   const profile  = profileResult.data?.normalized_profile as ClientNormalizedProfile | undefined
+  const clientCopyBrief = (profileResult.data as { copy_brief?: string | null } | null)?.copy_brief ?? ''
   const ctxRows  = (ctxResult.data ?? []) as ContextEntry[]
   const fbRows   = (fbResult.data ?? []) as FeedbackEntry[]
   const stratRow = stratResult.data
   const perfWins = (perfResult.data ?? []) as { summary: string; created_at: string }[]
 
   const slots: string[] = []
+
+  // ── Slot 0: Global copy standards (injected first — agency-wide rules) ──────
+  if (globalCopyInstructions.trim()) {
+    slots.push(`── GLOBAL COPY STANDARDS ──\n${truncate(globalCopyInstructions.trim(), 600)}`)
+  }
 
   // ── Slot 1: Brand voice (400 chars) ────────────────────────────────────────
   if (profile && Object.keys(profile).length > 0) {
@@ -361,11 +393,15 @@ export async function buildClientIntelligenceBlock(
     if (pinterestBlock) slots.push(pinterestBlock)
   } catch { /* non-critical */ }
 
+  // ── Client copy brief (last = highest recency, most influential on output) ──
+  if (clientCopyBrief.trim()) {
+    slots.push(`── CLIENT COPY BRIEF ──\nThe copywriter has set these specific instructions for this client. Follow them precisely:\n${truncate(clientCopyBrief.trim(), 800)}`)
+  }
+
   if (slots.length === 0) return ''
 
   const joined = '\n\n' + slots.join('\n\n')
-  // Final safety cap — should rarely trigger with slot budgets enforced above
-  const MAX_CHARS = 3200
+  const MAX_CHARS = 5000
   return joined.length > MAX_CHARS ? joined.slice(0, MAX_CHARS) + '\n[…]' : joined
 }
 
