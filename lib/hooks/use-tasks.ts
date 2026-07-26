@@ -73,9 +73,10 @@ function mapTask(row: Record<string, unknown>): Task {
   }
 }
 
-export function useTasks(filters?: TaskFilters) {
-  const { data: tasks = [], isLoading, error } = useQuery({
+export function useTasks(filters?: TaskFilters, opts?: { enabled?: boolean }) {
+  const { data: tasks = [], isLoading, isFetching, error } = useQuery({
     queryKey: ['tasks', filters],
+    enabled: opts?.enabled !== false,
     queryFn: async () => {
       // clientIds: undefined = no restriction; [] = user has no assigned clients (return nothing)
       if (filters?.clientIds !== undefined && filters.clientIds.length === 0) return [] as Task[]
@@ -105,8 +106,12 @@ export function useTasks(filters?: TaskFilters) {
       if (error) throw error
       return (data ?? []).map(mapTask)
     },
+    staleTime: 30_000,           // Serve cached data for 30s — no spinner on re-navigation
+    gcTime: 5 * 60_000,          // Keep in memory 5min after unmount
+    retry: 1,                    // 1 retry then surface the error — don't hang for 7s
+    refetchOnWindowFocus: false, // Don't refetch on tab switch
   })
-  return { tasks, isLoading, error }
+  return { tasks, isLoading, isFetching, error }
 }
 
 export function useUpdateTaskStage() {

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   Brain, ArrowLeft,
-  AlertTriangle, RefreshCw, ScanLine, Loader2, ChevronDown, ChevronRight,
+  AlertTriangle, RefreshCw, ScanLine, Loader2, ChevronDown, ChevronRight, Wand2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { exportStrategyPdf } from '@/lib/strategy-export'
@@ -85,11 +85,12 @@ export default function StrategyPage() {
   const [showExportModal, setShowExportModal] = useState(false)
 
   // ── Strategy Gap Finder ─────────────────────────────────────────────────────
-  const [gapLoading,  setGapLoading]  = useState(false)
-  const [gapResult,   setGapResult]   = useState<{
+  const [gapLoading,     setGapLoading]     = useState(false)
+  const [gapResult,      setGapResult]      = useState<{
     gaps: string[]; risks: string[]; thin_periods: string[]; quick_fixes: string[]
   } | null>(null)
-  const [gapExpanded, setGapExpanded] = useState(true)
+  const [gapExpanded,    setGapExpanded]    = useState(true)
+  const [fixesApplying,  setFixesApplying]  = useState(false)
 
   const selectedClient = clients.find(c => c.id === clientId)
 
@@ -116,10 +117,12 @@ export default function StrategyPage() {
       .then((data: { session?: StudioSession }) => {
         const s = data.session
         if (!s || s.status !== 'complete') return
+        const outputs = s.outputs as { strategy?: StrategyDocument; gaps?: typeof gapResult }
         setSessionId(sid)
-        setStrategyDoc((s.outputs as { strategy?: StrategyDocument }).strategy ?? null)
+        setStrategyDoc(outputs.strategy ?? null)
         setBossBrief(s.boss_brief ?? null)
         setChatHistory(s.chat_history ?? [])
+        if (outputs.gaps) { setGapResult(outputs.gaps); setGapExpanded(true) }
         setPageState('document')
       })
       .catch(() => {})
@@ -135,12 +138,15 @@ export default function StrategyPage() {
   // ── Session click ───────────────────────────────────────────────────────────
   function handleSessionClick(session: StudioSession) {
     if (session.status === 'complete' && session.outputs) {
-      const doc = (session.outputs as { strategy?: StrategyDocument }).strategy ?? null
+      const outputs = session.outputs as { strategy?: StrategyDocument; gaps?: typeof gapResult }
+      const doc = outputs.strategy ?? null
       if (doc) {
         setStrategyDoc(doc)
         setBossBrief(session.boss_brief ?? null)
         setChatHistory(session.chat_history ?? [])
         setSessionId(session.id)
+        if (outputs.gaps) { setGapResult(outputs.gaps); setGapExpanded(true) }
+        else setGapResult(null)
         setPageState('document')
       }
     }
@@ -312,10 +318,60 @@ export default function StrategyPage() {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error ?? 'Analysis failed')
       setGapResult(data)
+      // Persist to session so result survives page reload
+      if (sessionId) {
+        fetch(`/api/studio/session/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outputs: { strategy: strategyDoc, gaps: data } }),
+        }).catch(() => {})
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gap analysis failed.')
     } finally {
       setGapLoading(false)
+    }
+  }
+
+  // ── Apply Fixes handler ─────────────────────────────────────────────────────
+  async function handleApplyFixes() {
+    if (!strategyDoc || !gapResult || fixesApplying) return
+    setFixesApplying(true)
+    try {
+      const res = await fetch('/api/studio/apply-fixes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool:          'strategy',
+          strategy_doc:  strategyDoc,
+          gaps:          gapResult.gaps,
+          risks:         gapResult.risks,
+          thin_periods:  gapResult.thin_periods,
+          quick_fixes:   gapResult.quick_fixes,
+          client_id:     clientId || undefined,
+        }),
+      })
+      const data = await res.json() as { patch?: Partial<StrategyDocument>; message?: string; error?: string }
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Apply fixes failed')
+
+      const patched = { ...strategyDoc, ...data.patch } as StrategyDocument
+      setStrategyDoc(patched)
+      setGapResult(null)
+
+      // Persist updated strategy (gaps cleared)
+      if (sessionId) {
+        fetch(`/api/studio/session/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outputs: { strategy: patched } }),
+        }).catch(() => {})
+      }
+
+      toast.success(data.message ?? 'Fixes applied to strategy')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to apply fixes')
+    } finally {
+      setFixesApplying(false)
     }
   }
 
@@ -587,7 +643,7 @@ export default function StrategyPage() {
               {gapResult.quick_fixes.length > 0 && (
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick fixes</p>
-                  <ul className="space-y-2">
+                  <ul className="space-y-2 mb-4">
                     {gapResult.quick_fixes.map((fix, i) => (
                       <li key={i} className="flex gap-2 text-xs text-slate-700">
                         <span className="text-novax-muted font-bold shrink-0 mt-0.5">{i + 1}.</span>
@@ -595,13 +651,25 @@ export default function StrategyPage() {
                       </li>
                     ))}
                   </ul>
+                  <button
+                    type="button"
+                    onClick={handleApplyFixes}
+                    disabled={fixesApplying || gapLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-novax text-white text-xs font-semibold rounded-lg hover:bg-novax-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {fixesApplying ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin"/>Applying fixes…</>
+                    ) : (
+                      <><Wand2 className="w-3.5 h-3.5"/>Apply fixes to strategy</>
+                    )}
+                  </button>
                 </div>
               )}
 
               <button
                 type="button"
                 onClick={handleFindGaps}
-                disabled={gapLoading}
+                disabled={gapLoading || fixesApplying}
                 className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-novax-muted transition-colors disabled:opacity-40"
               >
                 <RefreshCw className="w-3 h-3"/>

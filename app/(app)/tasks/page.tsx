@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { Search, Calendar, AlertCircle, X, ChevronDown, User, List, Clock, Send, ArrowUpDown, Download, Bookmark, BookmarkCheck, CalendarDays, LayoutTemplate } from 'lucide-react'
+import { Search, Calendar, AlertCircle, X, ChevronDown, User, List, Clock, Send, ArrowUpDown, Download, Bookmark, BookmarkCheck, CalendarDays, LayoutTemplate, RefreshCw } from 'lucide-react'
 import { useTasks, useUpdateTask } from '@/lib/hooks/use-tasks'
 import { useClients } from '@/lib/hooks/use-clients'
 import { useUsers } from '@/lib/hooks/use-users'
@@ -236,15 +236,20 @@ function TaskRow({
 }
 
 export default function TasksPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const assignedClientIds = useMyAssignedClientIds()
-  const { tasks, isLoading } = useTasks(
-    assignedClientIds !== null ? { clientIds: assignedClientIds } : undefined
+  // Don't fire queries until auth is settled — prevents double-fetch race where
+  // assignedClientIds is null (loading) then changes once auth resolves.
+  const ready = !authLoading
+  const { tasks, isLoading, error } = useTasks(
+    assignedClientIds !== null ? { clientIds: assignedClientIds } : undefined,
+    { enabled: ready }
   )
   const { tasks: templates, isLoading: templatesLoading } = useTasks(
     assignedClientIds !== null
       ? { clientIds: assignedClientIds, templatesOnly: true }
-      : { templatesOnly: true }
+      : { templatesOnly: true },
+    { enabled: ready }
   )
   const allClients = useClients().clients
   const clients = assignedClientIds !== null
@@ -330,6 +335,20 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-4 max-w-6xl">
+      {/* Query error banner */}
+      {error && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">Failed to load tasks: {error.message}. Check your connection and try again.</span>
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-1 text-xs font-medium hover:underline shrink-0"
+          >
+            <RefreshCw className="w-3 h-3" /> Reload
+          </button>
+        </div>
+      )}
+
       {/* View tabs */}
       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit flex-wrap">
         <button

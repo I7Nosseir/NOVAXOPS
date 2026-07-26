@@ -2138,7 +2138,6 @@ export default function CopyEnginePage() {
           { value: 'single',      label: 'Single post',     icon: ImageIcon },
           { value: 'carousel',    label: 'Carousel',        icon: Layers },
           { value: 'bulk',        label: 'Bulk',            icon: FileSpreadsheet },
-          ...(user?.role === 'admin' ? [{ value: 'inspiration', label: 'Inspiration Lab', icon: Search }] : []),
         ] as { value: ContentType; label: string; icon: React.ElementType }[]).map(tab => (
           <button
             key={tab.value}
