@@ -1,23 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
+const MAX_INPUT_CHARS = 24000
+const MAX_OUTPUT_TOKENS = 2048
+const GEMINI_TIMEOUT_MS = 60_000
 
 async function callGemini(prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY!
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-  })
+
+  const safePrompt = prompt.length > MAX_INPUT_CHARS
+    ? prompt.slice(0, MAX_INPUT_CHARS) + '\n\n[Input truncated for length]'
+    : prompt
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: safePrompt }] }],
+        generationConfig: {
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          temperature: 0.7,
+        },
+      }),
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+
+  let responseText = ''
+  try {
+    responseText = await res.text()
+  } catch {
+    throw new Error(`Gemini ${res.status}: failed to read response body`)
+  }
+
   if (!res.ok) {
-    const err = await res.text().catch(() => res.status.toString())
-    throw new Error(`Gemini ${res.status}: ${err}`)
+    throw new Error(`Gemini ${res.status}: ${responseText.slice(0, 300)}`)
   }
-  const data = await res.json() as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[]
+
+  let data: { candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[] }
+  try {
+    data = JSON.parse(responseText) as typeof data
+  } catch {
+    throw new Error(`Gemini response was not valid JSON: ${responseText.slice(0, 200)}`)
   }
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) {
+    const reason = data.candidates?.[0]?.finishReason
+    throw new Error(`Gemini returned empty output${reason ? ` (finishReason: ${reason})` : ''}`)
+  }
+  return text
 }
 
 interface RoleToolRequest {
