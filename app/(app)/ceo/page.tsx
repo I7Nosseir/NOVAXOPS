@@ -563,7 +563,7 @@ function AgencyHealthTab({ clients, tasks, posts }: {
 
   const activeTasks = tasks.filter(t => t.status === 'active')
   const overdueTasks = tasks.filter(t => t.status === 'active' && t.due_date && new Date(t.due_date) < now)
-  const crisisClients = clients.filter(c => c.crisis_mode)
+  const crisisClients = clients.filter(c => c.is_in_crisis)
   const postsThisWeek = posts.filter(p => {
     const d = new Date(p.scheduled_at)
     return d >= weekStart && d <= now
@@ -599,7 +599,7 @@ function AgencyHealthTab({ clients, tasks, posts }: {
           {clients.map(client => {
             const clientTasks = tasks.filter(t => t.client_id === client.id && t.status === 'active')
             const clientOverdue = clientTasks.filter(t => t.due_date && new Date(t.due_date) < now)
-            const inCrisis = client.crisis_mode
+            const inCrisis = client.is_in_crisis
 
             let healthLabel: string
             let healthColor: string
@@ -939,7 +939,7 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
             brand_identity: client.brand_identity,
             competitor_context: client.competitor_context,
             performance_intel: client.performance_intel,
-            crisis_mode: client.crisis_mode,
+            crisis_mode: client.is_in_crisis,
             status: client.status,
           } : undefined,
           brief,
@@ -1142,7 +1142,7 @@ function StrategyIntelTab({ clients }: { clients: Client[] }) {
 // ─── Crisis Management Tab ─────────────────────────────────────────────────────
 
 function CrisisTab({ clients }: { clients: Client[] }) {
-  const crisisClients = clients.filter(c => c.crisis_mode)
+  const crisisClients = clients.filter(c => c.is_in_crisis)
 
   const [results, setResults] = useState<Record<string, GeneratedResult>>({})
 
@@ -1601,7 +1601,7 @@ export default function CeoPage() {
     { id: 'second_opinion', icon: MessageSquare, label: 'Second Opinion' },
   ]
 
-  const crisisCount = clients.filter(c => c.crisis_mode).length
+  const crisisCount = clients.filter(c => c.is_in_crisis).length
 
   return (
     <div className="space-y-6 max-w-4xl">

@@ -611,14 +611,8 @@ export async function buildDeckPptx(deck: DeckDocument): Promise<Buffer> {
   pptx.layout = 'LAYOUT_WIDE'
   const b = deck.branding
 
-  console.log('[buildDeckPptx] branding:', {
-    background: b.background, surface: b.surface,
-    accent: b.accent, titleFont: b.titleFont,
-  })
-
   for (let i = 0; i < deck.slides.length; i++) {
     const slide = deck.slides[i]
-    console.log(`[buildDeckPptx] slide ${i + 1}/${deck.slides.length}: type=${slide.type}, tag=${slide.tag ?? '—'}`)
     renderSlide(pptx.addSlide(), slide, b, deck)
   }
 

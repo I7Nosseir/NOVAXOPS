@@ -31,6 +31,7 @@ export function useWeeklyActivity() {
       }))
     },
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   })
 }
 
@@ -48,5 +49,6 @@ export function useAiCostMonth() {
       return (data ?? []).reduce((sum, r) => sum + (Number(r.cost_usd) || 0), 0)
     },
     staleTime: 10 * 60 * 1000,
+    retry: 1,
   })
 }

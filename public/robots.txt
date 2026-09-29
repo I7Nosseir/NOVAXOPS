@@ -1,0 +1,22 @@
+User-agent: *
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /pipeline/
+Disallow: /clients/
+Disallow: /settings/
+Disallow: /studio/
+Disallow: /publishing/
+Disallow: /approval/
+Disallow: /moderation/
+Disallow: /assets/
+Disallow: /reports/
+Disallow: /ceo/
+Disallow: /assistant/
+Disallow: /docs/
+Disallow: /tasks/
+Disallow: /projects/
+Disallow: /workload/
+Allow: /login
+Allow: /approval/*
+
+Sitemap: https://www.novaxops.com/sitemap.xml

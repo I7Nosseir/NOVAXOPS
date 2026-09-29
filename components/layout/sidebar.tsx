@@ -172,6 +172,7 @@ export function Sidebar() {
           <button
             onClick={() => setOpen(false)}
             className="lg:hidden text-slate-400 hover:text-slate-200 transition-colors p-1 -mr-1"
+            aria-label="Close sidebar"
           >
             <X className="w-4 h-4" />
           </button>
@@ -322,6 +323,7 @@ export function Sidebar() {
               onClick={handleSignOut}
               className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors shrink-0 min-h-[36px]"
               title="Sign out"
+              aria-label="Sign out"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="text-[11px] font-medium lg:hidden">Sign out</span>

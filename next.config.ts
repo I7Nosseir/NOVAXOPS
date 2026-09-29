@@ -11,8 +11,20 @@ const nextConfig: NextConfig = {
     },
   },
   // @react-pdf/renderer uses canvas + Node.js internals — must run as external module
-  serverExternalPackages: ['@react-pdf/renderer', 'canvas'],
+  serverExternalPackages: ['@react-pdf/renderer', 'canvas', 'puppeteer-core', '@sparticuz/chromium-min'],
   transpilePackages: ['react-markdown', 'remark-gfm'],
+  headers: async () => [
+    {
+      source: '/(.*)',
+      headers: [
+        { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        { key: 'X-DNS-Prefetch-Control', value: 'on' },
+      ],
+    },
+  ],
   // Skip ESLint and type errors during builds — run separately
   eslint: {
     ignoreDuringBuilds: true,

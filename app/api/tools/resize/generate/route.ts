@@ -76,8 +76,8 @@ async function buildComposite(
 }
 
 // ─── Engine 1: Gemini outpaint ─────────────────────────────────────────────────
-// Uses the same Gemini image models that power the AI Image Generation tab:
-// gemini-2.5-flash-image → gemini-3.1-flash-image-preview → gemini-3-pro-image-preview
+// Uses the Gemini model that powers all AI routes:
+// gemini-3-flash-preview
 //
 // Sends the composite canvas (original placed correctly + colored extension zones)
 // and instructs Gemini to fill those zones so the scene continues seamlessly.
@@ -117,8 +117,8 @@ Fill those zones so they:
 
 Output the full ${targetW}×${targetH}px image. Preserve the original region exactly.`
 
-  // Same model IDs used by the AI Image Generation tab — proven to return image output
-  const MODELS = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview']
+  // Standard Gemini model used across all AI routes
+  const MODELS = ['gemini-3-flash-preview']
 
   for (const model of MODELS) {
     try {

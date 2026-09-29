@@ -269,6 +269,5 @@ export async function GET(req: NextRequest) {
     results.push(result)
   }
 
-  console.log('[scrape-comments] Done:', JSON.stringify(results))
   return NextResponse.json({ ok: true, results, ran_at: new Date().toISOString() })
 }

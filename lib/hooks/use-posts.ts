@@ -35,6 +35,8 @@ export function usePosts(clientId?: string) {
       return (data ?? []).map(mapPost)
     },
     refetchInterval: 60_000, // re-read DB every 60s so status changes appear without manual refresh
+    retry: 1,
+    staleTime: 30_000,
   })
   return { posts, isLoading, error }
 }

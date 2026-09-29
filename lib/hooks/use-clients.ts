@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import type { Client, BrandIdentity, PerformanceIntel, DesignBrief, ClientNormalizedProfile } from '@/lib/types'
 
 function mapClient(row: Record<string, unknown>): Client {
@@ -14,7 +15,7 @@ function mapClient(row: Record<string, unknown>): Client {
     reference_links: (row.reference_links as string[]) ?? [],
     metricool_blog_id: row.metricool_blog_id as string | undefined,
     respond_io_channel_id: row.respond_io_channel_id as string | undefined,
-    crisis_mode: (row.crisis_mode as boolean | undefined) ?? false,
+    is_in_crisis: (row.is_in_crisis as boolean | undefined) ?? false,
     performance_intel: (row.performance_intel as PerformanceIntel | undefined) ?? undefined,
     performance_analyzed_at: row.performance_analyzed_at as string | undefined,
     design_brief_json: (row.design_brief_json as DesignBrief | null | undefined) ?? null,
@@ -39,6 +40,8 @@ export function useClients() {
       if (error) throw error
       return (data ?? []).map(mapClient)
     },
+    retry: 1,
+    staleTime: 30_000,
   })
   return { clients, isLoading, error }
 }
@@ -57,6 +60,8 @@ export function useClient(id: string | null | undefined) {
       return mapClient(data)
     },
     enabled: !!id,
+    retry: 1,
+    staleTime: 30_000,
   })
   return { client, isLoading }
 }
@@ -70,6 +75,29 @@ export function useUpdateClient() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+    },
+    onError: (error: Error) => {
+      console.error('[useUpdateClient]', error)
+      toast.error('Failed to update client')
+    },
+  })
+}
+
+export function useDeleteClient() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to archive client' })) as { error?: string }
+        throw new Error(err.error ?? 'Failed to archive client')
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+    },
+    onError: (error: Error) => {
+      console.error('[useDeleteClient]', error)
     },
   })
 }

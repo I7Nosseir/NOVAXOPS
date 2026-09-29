@@ -33,8 +33,8 @@ export function useMyAssignedClientIds(): string[] | null {
 
   if (!user) return null
   if (isBypass) return null
-  // Still loading — treat as unrestricted
-  if (data === undefined) return null
+  // Still loading — show nothing until resolved (prevents flash of all data)
+  if (data === undefined) return []
   // No assignments yet — treat as unrestricted (explicit assignment restricts access)
   if (data.length === 0) return null
   return data

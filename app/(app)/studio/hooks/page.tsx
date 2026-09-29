@@ -528,7 +528,7 @@ export default function HookLabPage() {
             {/* Language */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Hook Language</label>
-              <div className="flex gap-2 mb-2">
+              <div className="flex flex-wrap gap-2 mb-2">
                 {(['english', 'arabic'] as const).map(lang => (
                   <button
                     key={lang}
@@ -543,7 +543,7 @@ export default function HookLabPage() {
                 ))}
               </div>
               {language === 'arabic' && (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {([
                     { value: 'egyptian', label: 'Egyptian — مصري' },
                     { value: 'saudi',    label: 'Saudi — سعودي' },

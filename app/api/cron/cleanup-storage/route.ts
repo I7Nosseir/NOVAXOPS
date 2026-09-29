@@ -127,6 +127,5 @@ export async function GET(req: Request) {
     }
   }
 
-  console.log(`[cleanup-storage] deleted_files=${deletedFiles} cleared_posts=${clearedPosts} skipped_library=${skippedLibrary}`)
   return NextResponse.json({ deleted_files: deletedFiles, cleared_posts: clearedPosts, skipped_library: skippedLibrary })
 }

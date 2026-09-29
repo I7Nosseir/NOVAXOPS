@@ -55,8 +55,16 @@ export async function POST(req: NextRequest) {
   const db = createAdminClient()
   const now = new Date().toISOString()
 
+  // Resolve the public users.id from auth user id — override created_by from body to prevent spoofing
+  const { data: profile } = await db
+    .from('users')
+    .select('id')
+    .eq('auth_id', user.id)
+    .single()
+
   const insertData: Record<string, unknown> = { ...body, created_at: now, updated_at: now }
   if (organization_id) insertData.organization_id = organization_id
+  if (profile?.id) insertData.created_by = profile.id
 
   const { data, error } = await db
     .from('tasks')

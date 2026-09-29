@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     imageData,
     mimeType = 'image/png',
     editPrompt,
-    model = 'gemini-3.1-flash-image-preview',
+    model = 'gemini-3-flash-preview',
   } = body
 
   if (!imageData) return NextResponse.json({ error: 'imageData required' }, { status: 400 })

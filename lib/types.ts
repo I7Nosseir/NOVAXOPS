@@ -133,14 +133,14 @@ export interface Client {
   name: string
   initials: string
   color: string
-  status: 'active' | 'inactive' | 'prospect'
+  status: 'active' | 'inactive' | 'prospect' | 'paused'
   brand_identity: BrandIdentity
   competitor_context: string[]
   reference_links: string[]
   metricool_blog_id?: string
   respond_io_channel_id?: string
   chatwoot_inbox_id?: number
-  crisis_mode?: boolean
+  is_in_crisis?: boolean
   performance_intel?: PerformanceIntel
   performance_analyzed_at?: string
   design_brief_json?: DesignBrief | null

@@ -169,7 +169,6 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
     let branding: typeof NOVAX_BRANDING
     if (designTemplateData) {
       branding = designTemplateData.branding
-      console.log(`[decks/structure] Using design template branding: ${designTemplateData.id}`)
     } else {
       const rawB = result.branding ?? {}
       if (!result.branding) {
@@ -185,7 +184,6 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
         titleFont:  validFont(rawB.titleFont, NOVAX_BRANDING.titleFont),
         bodyFont:   validFont(rawB.bodyFont,  NOVAX_BRANDING.bodyFont),
       }
-      console.log('[decks/structure] Gemini branding resolved:', branding)
     }
 
     const slides: DeckSlide[] = result.slides.map((slide: DeckSlide) => ({
@@ -206,13 +204,6 @@ Do not add extra slides or omit required slides.${intelligenceBlock ? `\n\nCLIEN
     if (contrastWarnings.length > 0) {
       console.warn('[decks/structure] Contrast warnings:', contrastWarnings)
     }
-
-    console.log('[decks/structure] Done:', {
-      slides: deck.slides.length,
-      design_template: designTemplateData?.id ?? 'custom',
-      accent: deck.branding.accent,
-      contrastOk: contrastWarnings.length === 0,
-    })
 
     if (session_id) {
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'

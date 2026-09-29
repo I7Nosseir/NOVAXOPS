@@ -277,7 +277,7 @@ function PostCard({ post }: { post: ScheduledPost }) {
   const client = clients.find(c => c.id === post.client_id)
   const status = STATUS_CONFIG[post.status]
   const perf = post.performance
-  const isCrisis = client?.crisis_mode ?? false
+  const isCrisis = client?.is_in_crisis ?? false
   const [actionLoading, setActionLoading] = useState<'delete' | 'schedule' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -917,7 +917,7 @@ function ComposeDialog({ onClose, initialCaption = '', initialMediaUrls = [], in
   async function handleSchedule() {
     if (!selectedClient) return toast.error('Select a client first.')
     const selectedClientData = clients.find(c => c.id === selectedClient)
-    if (selectedClientData?.crisis_mode) {
+    if (selectedClientData?.is_in_crisis) {
       toast.error('Publishing is paused — this client is in Crisis Mode')
       return
     }
@@ -2739,7 +2739,7 @@ function PublishingPageContent() {
     return () => clearInterval(interval)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const crisisClients = clients.filter(c => c.crisis_mode)
+  const crisisClients = clients.filter(c => c.is_in_crisis)
 
   const filtered = posts.filter(p => filter === 'all' || p.status === filter)
   const counts = {

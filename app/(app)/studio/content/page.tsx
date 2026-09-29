@@ -1429,7 +1429,7 @@ export default function ContentStudioPage() {
             )}
 
             {/* Export row */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={handleExportExcel}
                 className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-novax-muted border border-novax-border rounded-xl hover:bg-novax-light transition-colors flex-1 justify-center"

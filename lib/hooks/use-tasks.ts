@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
 import type { Task, PipelineStage, Priority, TaskStatus, ChecklistItem, TaskRelation, TaskTimeLog } from '@/lib/types'
 
 export type { TaskRelation, TaskTimeLog }
@@ -152,6 +153,7 @@ async function notifyWatchers(
 
 export function useUpdateTask() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Task> & { id: string }) => {
       // Fetch current task for watcher notification context
@@ -179,7 +181,8 @@ export function useUpdateTask() {
       // Watcher notifications for meaningful field changes
       if (current) {
         const watchers = (current.watchers as string[] | null) ?? []
-        const actorId = current.created_by as string ?? ''
+        // Use the currently logged-in user as the actor, not the task's original creator
+        const actorId = user?.id ?? current.created_by as string ?? ''
         const title = current.title as string ?? ''
         if (updates.pipeline_stage && updates.pipeline_stage !== current.pipeline_stage) {
           notifyWatchers(id, watchers, actorId, `Moved to ${updates.pipeline_stage}`, title).catch(() => {})
@@ -269,6 +272,8 @@ export function useTaskRelations(taskId: string) {
         incoming: (asTo ?? []) as TaskRelation[],
       }
     },
+    retry: 1,
+    staleTime: 30_000,
   })
 }
 
@@ -319,6 +324,8 @@ export function useTaskTimeLogs(taskId: string) {
       if (error) throw error
       return (data ?? []) as TaskTimeLog[]
     },
+    retry: 1,
+    staleTime: 30_000,
   })
 }
 

@@ -255,10 +255,6 @@ export async function POST(req: NextRequest) {
   if (!brief_text?.trim()) {
     return NextResponse.json({ error: 'brief_text is required' }, { status: 400 })
   }
-  if (!process.env.APIFY_API_KEY && !process.env.PINTEREST_ACCESS_TOKEN) {
-    return NextResponse.json({ error: 'Pinterest is not configured â€” set PINTEREST_ACCESS_TOKEN or APIFY_API_KEY' }, { status: 503 })
-  }
-
   const supabase = db()
   const anthropicKey = process.env.ANTHROPIC_API_KEY || undefined
   const geminiKey    = process.env.GEMINI_API_KEY    || undefined

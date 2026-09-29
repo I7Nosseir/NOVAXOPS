@@ -185,7 +185,6 @@ async function normalizeMediaUrl(url: string): Promise<string> {
       `Got: "${trimmed.slice(0, 200)}"`
     )
   }
-  console.log(`[Metricool] normalize "${url}" → "${trimmed}"`)
   return trimmed
 }
 
@@ -305,8 +304,6 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
     }
   }
 
-  console.log('[Metricool] schedulePost payload:', JSON.stringify(payload, null, 2))
-
   const res = await fetch(`${BASE}/scheduler/posts?${qs(blogId)}`, {
     method: 'POST',
     headers: {
@@ -319,7 +316,6 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
 
   let rawBody = ''
   try { rawBody = await res.text() } catch { /* ignore */ }
-  console.log(`[Metricool] schedulePost response (${res.status}):`, rawBody)
 
   if (!res.ok) {
     throw new Error(`Metricool ${res.status} on /scheduler/posts: ${rawBody}`)
@@ -336,7 +332,6 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
   const postObj = (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data))
     ? parsed.data as Record<string, unknown>
     : parsed
-  console.log('[Metricool] schedulePost extracted post id:', postObj.id)
   return postObj as unknown as MetricoolScheduledPost
 }
 
@@ -349,7 +344,6 @@ export async function schedulePost(input: MetricoolScheduleInput): Promise<Metri
  */
 export async function deleteScheduledPost(postId: string, blogId: string | number): Promise<void> {
   const url = `${BASE}/scheduler/posts/${postId}?${qs(blogId)}`
-  console.log('[Metricool] deleteScheduledPost →', url)
   const res = await fetch(url, {
     method: 'DELETE',
     headers: {
@@ -358,7 +352,6 @@ export async function deleteScheduledPost(postId: string, blogId: string | numbe
       'X-Mc-Auth': requireToken(),
     },
   })
-  console.log(`[Metricool] deleteScheduledPost response: ${res.status}`)
   // 204 No Content = success. 404 = already gone = also fine.
   if (!res.ok && res.status !== 404) {
     let body = ''

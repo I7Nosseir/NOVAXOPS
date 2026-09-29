@@ -307,7 +307,6 @@ export default function CreativeEvalPage() {
           c.height = Math.round(c.width * (v.videoHeight / v.videoWidth))
           c.getContext('2d')!.drawImage(v, 0, 0, c.width, c.height)
           const result = { base64: c.toDataURL('image/jpeg', 0.65).split(',')[1], mimeType: 'image/jpeg' }
-          console.log('[eval] Video thumbnail base64 size:', Math.round(result.base64.length / 1024) + 'KB')
           resolve(result)
         }
         v.onerror = reject
@@ -325,7 +324,6 @@ export default function CreativeEvalPage() {
     c.width = w; c.height = h
     c.getContext('2d')!.drawImage(bitmap, 0, 0, w, h)
     const result = { base64: c.toDataURL('image/jpeg', 0.65).split(',')[1], mimeType: 'image/jpeg' }
-    console.log('[eval] Image base64 size:', Math.round(result.base64.length / 1024) + 'KB')
     return result
   }
 

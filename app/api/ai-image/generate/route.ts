@@ -38,8 +38,7 @@ async function upscaleTo2K(base64: string, mime: string): Promise<{ data: string
 
 // Pro model removed — too expensive for internal use
 const GEMINI_IMAGE_MODELS = new Set([
-  'gemini-2.5-flash-image',
-  'gemini-3.1-flash-image-preview',
+  'gemini-3-flash-preview',
 ])
 
 // Ultra model removed — too expensive for internal use
@@ -88,7 +87,7 @@ function extractMentions(prompt: string): string[] {
 function selectResizeModel(toggles: ResizeToggles, userModel?: string): string {
   // No longer auto-upgrades to Pro — use the user's chosen Gemini model, defaulting to flash
   if (userModel && GEMINI_IMAGE_MODELS.has(userModel)) return userModel
-  return 'gemini-3.1-flash-image-preview'
+  return 'gemini-3-flash-preview'
 }
 
 function buildResizerPrompt(aspectRatio: string, toggles: ResizeToggles): string {
@@ -249,7 +248,7 @@ export async function POST(req: NextRequest) {
     style = 'photorealistic',
     aspectRatio = '1:1',
     negativePrompt = '',
-    model = 'gemini-3.1-flash-image-preview',
+    model = 'gemini-3-flash-preview',
     referenceImages = [],
     mode = 'generate',
     resizeToggles,

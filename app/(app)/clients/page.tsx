@@ -1,9 +1,11 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, Suspense } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, RefreshCw, ImagePlus, Save, CheckCircle2, Loader2, Pencil, Trash2 } from 'lucide-react'
-import { useClients } from '@/lib/hooks/use-clients'
+import { toast } from 'sonner'
+import { useClients, useDeleteClient } from '@/lib/hooks/use-clients'
 import { supabase } from '@/lib/supabase'
 import { useTasks } from '@/lib/hooks/use-tasks'
 import { usePosts } from '@/lib/hooks/use-posts'
@@ -66,7 +68,9 @@ function ClientCard({ client, onSelect, isCrisis, onToggleCrisis, userRole }: {
             <h3 className="font-semibold text-slate-900 group-hover:text-novax transition-colors">{client.name}</h3>
             <div className="flex items-center gap-1.5">
               <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                client.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500')}>
+                client.status === 'active' ? 'bg-emerald-50 text-emerald-600' :
+                client.status === 'paused' ? 'bg-amber-100 text-amber-700' :
+                'bg-slate-100 text-slate-500')}>
                 {client.status}
               </span>
               <button
@@ -163,6 +167,9 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const updateClient = useUpdateClient()
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const canDelete = user?.role === 'admin' || user?.role === 'ceo'
+  const deleteClient = useDeleteClient()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [tab, setTab] = useState<'overview' | 'intelligence' | 'competitors' | 'tasks' | 'brief' | 'context' | 'strategy' | 'edit' | 'copy_brief'>('overview')
   const [briefSaving, setBriefSaving] = useState(false)
   const [copyBrief, setCopyBrief] = useState(client.copy_brief ?? '')
@@ -708,6 +715,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
                       <option value="prospect">Prospect</option>
+                      <option value="paused">Paused</option>
                     </select>
                   </div>
                 </div>
@@ -915,6 +923,57 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
                   </div>
                 </div>
               )}
+
+              {/* Danger Zone — admin/ceo only */}
+              {canDelete && (
+                <div className="space-y-3 p-4 bg-red-50 rounded-xl border border-red-200">
+                  <p className="text-xs font-bold text-red-600 uppercase tracking-wider">Danger Zone</p>
+                  {!confirmDelete ? (
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm text-slate-600">Archive this client and hide it from all views. This can be reversed by support.</p>
+                      <button
+                        onClick={() => setConfirmDelete(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5"/>
+                        Archive Client
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold text-red-700">
+                        Archive <span className="font-bold">{client.name}</span>? All data will be hidden from the platform.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setConfirmDelete(false)}
+                          className="flex-1 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await deleteClient.mutateAsync(client.id)
+                              toast.success('Client archived')
+                              onClose()
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : 'Failed to archive client')
+                            }
+                          }}
+                          disabled={deleteClient.isPending}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg transition-colors"
+                        >
+                          {deleteClient.isPending
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin"/>
+                            : <Trash2 className="w-3.5 h-3.5"/>}
+                          Confirm Archive
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -923,19 +982,45 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   )
 }
 
-export default function ClientsPage() {
+function ClientsPageInner() {
   const { clients } = useClients()
   const updateClient = useUpdateClient()
   const { user } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   useRealtime('clients', ['clients'])
   const [selected, setSelected] = useState<Client | null>(null)
   const [search, setSearch] = useState('')
   const [showWizard, setShowWizard] = useState(false)
 
+  // Sync selected client with ?id= URL param (enables bookmarks + back button)
+  useEffect(() => {
+    const id = searchParams.get('id')
+    if (id) {
+      if (clients.length > 0) {
+        const found = clients.find(c => c.id === id) ?? null
+        setSelected(found)
+      }
+    } else {
+      setSelected(null)
+    }
+  }, [searchParams, clients])
+
+  const handleSelect = (client: Client) => {
+    setSelected(client)
+    router.push(`/clients?id=${client.id}`, { scroll: false })
+  }
+
+  const handleClose = () => {
+    setSelected(null)
+    router.push('/clients', { scroll: false })
+  }
+
   const toggleCrisis = (id: string) => {
     const c = clients.find(cl => cl.id === id)
     if (!c) return
-    updateClient.mutate({ id, crisis_mode: !(c.crisis_mode ?? false) })
+    const current = c.is_in_crisis ?? false
+    updateClient.mutate({ id, is_in_crisis: !current })
   }
 
   const filtered = clients.filter(c =>
@@ -946,11 +1031,11 @@ export default function ClientsPage() {
   return (
     <div className="space-y-5">
       {/* Crisis Mode global alert */}
-      {clients.some(c => c.is_in_crisis ?? c.crisis_mode) && (
+      {clients.some(c => c.is_in_crisis) && (
         <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
           <AlertTriangle className="w-4 h-4 text-red-500 shrink-0"/>
           <p className="text-sm font-semibold text-red-700">
-            Crisis Mode active for {clients.filter(c => c.is_in_crisis ?? c.crisis_mode).length} client{clients.filter(c => c.is_in_crisis ?? c.crisis_mode).length > 1 ? 's' : ''} — all scheduled publishing is paused.
+            Crisis Mode active for {clients.filter(c => c.is_in_crisis).length} client{clients.filter(c => c.is_in_crisis).length > 1 ? 's' : ''} — all scheduled publishing is paused.
           </p>
         </div>
       )}
@@ -983,15 +1068,23 @@ export default function ClientsPage() {
           <ClientCard
             key={client.id}
             client={client}
-            onSelect={setSelected}
-            isCrisis={client.is_in_crisis ?? client.crisis_mode ?? false}
+            onSelect={handleSelect}
+            isCrisis={client.is_in_crisis ?? false}
             onToggleCrisis={toggleCrisis}
             userRole={user?.role}
           />
         ))}
       </div>
 
-      {selected && <ClientDetail client={selected} onClose={() => setSelected(null)}/>}
+      {selected && <ClientDetail client={selected} onClose={handleClose}/>}
     </div>
+  )
+}
+
+export default function ClientsPage() {
+  return (
+    <Suspense>
+      <ClientsPageInner />
+    </Suspense>
   )
 }
