@@ -187,10 +187,13 @@ export function NewClientWizard({ onClose, onSave }: {
           .upload(path, logoFile, { upsert: true, contentType: logoFile.type })
         if (!upErr) {
           const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
-          await supabase
+          const { error: logoUpdateErr } = await supabase
             .from('clients')
             .update({ brand_identity_json: { ...client.brand_identity, logo_url: publicUrl } })
             .eq('id', client.id)
+          if (logoUpdateErr) {
+            console.warn('[new-client-wizard] logo update failed:', logoUpdateErr.message)
+          }
         }
       }
 

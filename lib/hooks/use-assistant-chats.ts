@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
+import { toast } from 'sonner'
 
 export interface AssistantChat {
   id: string
@@ -90,6 +91,10 @@ export function useAssistantChats() {
         )
       )
     },
+    onError: (error: Error) => {
+      console.error('[updateChat]', error)
+      toast.error('Failed to save chat')
+    },
   })
 
   const deleteChat = useMutation({
@@ -105,6 +110,10 @@ export function useAssistantChats() {
       queryClient.setQueryData<AssistantChat[]>(qk, prev =>
         (prev ?? []).filter(c => c.id !== deletedId)
       )
+    },
+    onError: (error: Error) => {
+      console.error('[deleteChat]', error)
+      toast.error('Failed to delete chat')
     },
   })
 

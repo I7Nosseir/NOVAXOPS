@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
+import { toast } from 'sonner'
 
 // Roles that bypass client assignment filtering — always see all clients
 const BYPASS_ROLES = ['admin', 'ceo', 'creative_director'] as const
@@ -81,6 +82,10 @@ export function useSaveClientAssignments() {
     onSuccess: (_data, { userId }) => {
       queryClient.invalidateQueries({ queryKey: ['client-assignments', userId] })
       queryClient.invalidateQueries({ queryKey: ['client-assignments', 'mine'] })
+    },
+    onError: (error: Error) => {
+      console.error('[useSaveClientAssignments]', error)
+      toast.error(error.message ?? 'Failed to save client assignments')
     },
   })
 }

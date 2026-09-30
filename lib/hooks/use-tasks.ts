@@ -154,7 +154,11 @@ async function notifyWatchers(
     user_id: userId,
     metadata: { change: changeDescription, task_title: taskTitle },
   }))
-  await supabase.from('audit_log').insert(rows)
+  fetch('/api/notifications/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows }),
+  }).catch(() => {})
 }
 
 export function useUpdateTask() {
@@ -263,8 +267,9 @@ export function useDeleteTask() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (taskId: string) => {
-      const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+      const { data: deleted, error } = await supabase.from('tasks').delete().eq('id', taskId).select('id')
       if (error) throw error
+      if (!deleted || deleted.length === 0) throw new Error("You don't have permission to delete this task")
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })

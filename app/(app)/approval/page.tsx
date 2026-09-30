@@ -12,6 +12,7 @@ import { formatDate, cn } from '@/lib/utils'
 import { PlatformIcon } from '@/components/ui/platform-icon'
 import { supabase } from '@/lib/supabase'
 import { convertGoogleDriveUrl } from '@/lib/google-drive'
+import { toast } from 'sonner'
 import { AIFeedbackPanel } from '@/components/shared/ai-feedback-panel'
 
 const STATUS_CONFIG = {
@@ -120,7 +121,16 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
       }
       const existing = postMedia[postId]?.urls ?? []
       const allUrls = [...existing, ...uploaded]
-      await supabase.from('scheduled_posts').update({ media_urls: allUrls }).eq('id', postId)
+      const { data: updated, error: updateErr } = await supabase
+        .from('scheduled_posts')
+        .update({ media_urls: allUrls })
+        .eq('id', postId)
+        .select('id')
+      if (updateErr || !updated || updated.length === 0) {
+        toast.error(updateErr?.message ?? "You don't have permission to update this post")
+        setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, urls: postMedia[postId]?.urls ?? [] } }))
+        return
+      }
       setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, urls: allUrls } }))
     } catch {
       setPostMedia(prev => ({ ...prev, [postId]: { uploading: false, urls: postMedia[postId]?.urls ?? [] } }))

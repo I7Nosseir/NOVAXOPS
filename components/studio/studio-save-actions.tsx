@@ -5,6 +5,7 @@ import { FileText, BookOpen, ListTodo, Loader2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import type { Client } from '@/lib/types'
 
 interface Props {
@@ -113,8 +114,14 @@ export function StudioSaveActions({
       })
       if (error) throw error
       setTaskState('done')
-    } catch {
+    } catch (err) {
+      console.error('[studio-save-actions] create task failed:', err)
       setTaskState('error')
+      if (err instanceof Error && (err.message.includes('permission') || err.message.includes('policy'))) {
+        toast.error("You don't have permission to create tasks")
+      } else {
+        toast.error('Failed to save as task')
+      }
     }
   }
 

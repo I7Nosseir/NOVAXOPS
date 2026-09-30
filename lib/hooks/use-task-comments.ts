@@ -48,7 +48,13 @@ async function dispatchMentionNotifications(
       user_id: (u as { id: string }).id,
       metadata: { task_title: taskTitle, commenter_name: commenterName, body_preview: bodyPreview },
     }))
-  if (rows.length) await supabase.from('audit_log').insert(rows)
+  if (rows.length) {
+    fetch('/api/notifications/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows }),
+    }).catch(() => {})
+  }
 }
 
 export function useCreateComment() {
