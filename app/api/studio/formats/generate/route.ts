@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { aiGuard } from '@/lib/ai-guard'
+import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
+import { createAdminClient } from '@/lib/supabase'
 
 export const maxDuration = 60
 
@@ -30,7 +32,7 @@ export interface FormatResult {
   what_kills_it: string
 }
 
-const PROMPT = (niche: string, platform: string, language: string) => `
+const PROMPT = (niche: string, platform: string, language: string, clientContext?: string) => `
 You are a viral content format strategist. You have spent years studying what makes content formats repeatable â€” formats that a creator can use 50 times and still have audiences come back for more.
 
 NICHE: "${niche}"
@@ -96,6 +98,8 @@ Return ONLY valid JSON:
   ]
 }
 
+${clientContext ? `\n\nCLIENT INTELLIGENCE:\n${clientContext}` : ''}
+
 Rules:
 - 5 formats exactly
 - No two formats can have the same episode structure shape
@@ -115,7 +119,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No AI API key configured' }, { status: 500 })
   }
 
-  let body: { niche: string; platform?: string; language?: string }
+  let body: { niche: string; platform?: string; language?: string; client_id?: string }
   try {
     body = await req.json()
   } catch {
@@ -128,7 +132,16 @@ export async function POST(req: NextRequest) {
 
   const platform = body.platform ?? 'Instagram'
   const language = body.language ?? 'english'
-  const prompt = PROMPT(body.niche, platform, language)
+
+  let intelligenceBlock: string | undefined
+  if (body.client_id) {
+    try {
+      const db = createAdminClient()
+      intelligenceBlock = await buildClientIntelligenceBlock(body.client_id, 'hook_lab', db)
+    } catch { /* non-critical */ }
+  }
+
+  const prompt = PROMPT(body.niche, platform, language, intelligenceBlock)
   let raw = ''
 
   try {

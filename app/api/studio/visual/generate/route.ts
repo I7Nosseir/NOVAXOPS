@@ -3,6 +3,8 @@ import { anthropic, AI_MODELS } from '@/lib/ai-client'
 import { geminiJson } from '@/lib/gemini'
 import type { VisualApproach, VisualDocument, VisualInputs } from '@/lib/studio-types'
 import { aiGuard } from '@/lib/ai-guard'
+import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
+import { createAdminClient } from '@/lib/supabase'
 
 export const maxDuration = 120
 
@@ -26,7 +28,7 @@ You are also a master of storytelling structures:
 
 No emojis anywhere in your output.`
 
-function buildGeneratePrompt(inputs: VisualInputs, approach: VisualApproach): string {
+function buildGeneratePrompt(inputs: VisualInputs, approach: VisualApproach, clientContext?: string): string {
   return `BRIEF:
 Platform: ${inputs.platform} | Format: ${inputs.format} | Length: ${inputs.length}
 Objective: ${inputs.objective}
@@ -92,6 +94,8 @@ STEP 4 â€” BOSS BRIEF
 - the_one_thing: the single most important creative decision in this package
 - do_this_now: the first practical step the team should take today
 - watch_out_for: the one specific risk that could hurt this video if ignored (omit this key entirely if no meaningful risk exists)
+
+${clientContext ? `\n\nCLIENT INTELLIGENCE:\n${clientContext}` : ''}
 
 Output ONLY valid JSON, no markdown, no explanation outside the JSON:
 {
@@ -164,7 +168,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing inputs or approach' }, { status: 400 })
   }
 
-  const prompt = buildGeneratePrompt(inputs, approach)
+  let intelligenceBlock: string | undefined
+  if (inputs.client_id) {
+    try {
+      const db = createAdminClient()
+      intelligenceBlock = await buildClientIntelligenceBlock(inputs.client_id, 'visual', db)
+    } catch { /* non-critical */ }
+  }
+
+  const prompt = buildGeneratePrompt(inputs, approach, intelligenceBlock)
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY
 
   try {

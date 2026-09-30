@@ -9,10 +9,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { buildClientIntelligenceBlock, adminSupabase } from '@/lib/client-intelligence'
+import { buildClientIntelligenceBlock, adminSupabase, getClientContextVersion } from '@/lib/client-intelligence'
 import type { StrategyDocument } from '@/lib/studio-types'
 import { aiGuard } from '@/lib/ai-guard'
 import { trackAiUsage } from '@/lib/track-usage'
+import { getOrGenerate } from '@/lib/ai-cache'
+import { createAdminClient } from '@/lib/supabase'
 
 export const maxDuration = 300
 
@@ -443,100 +445,123 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'client_name, brief, and quarter are required' }, { status: 400 })
   }
 
-  let generationPrompt = buildGenerationPrompt(body)
+  // Cache setup
+  const cacheDb = createAdminClient()
+  const contextVersion = body.client_id
+    ? await getClientContextVersion(body.client_id, cacheDb).catch(() => '0')
+    : '0'
 
-  // Inject client intelligence memory
-  if (body.client_id) {
-    const db = adminSupabase()
-    if (db) {
-      const block = await buildClientIntelligenceBlock(body.client_id, 'strategy', db).catch(() => '')
-      if (block) generationPrompt = block + '\n\n' + generationPrompt
-    }
-  }
-
-  // â”€â”€ Gemini-only path (no Anthropic key) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  if (!anthropicKey && geminiKey) {
-    let raw = ''
-    try {
-      raw = await runGemini(generationPrompt, geminiKey)
-    } catch (err) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : 'AI error' }, { status: 502 })
-    }
-    const jsonStr = extractJSON(raw)
-    if (!jsonStr) return NextResponse.json({ error: 'Failed to parse strategy from AI', raw }, { status: 502 })
-    try {
-      const result = JSON.parse(jsonStr) as StrategyDocument
-      result.client_name    = body.client_name
-      result.platforms      = body.platforms
-      result.brief          = body.brief
-      result.quarter        = body.quarter
-      result.year           = body.year
-      result.campaign_theme = body.campaign_theme
-      return NextResponse.json({ strategy: result })
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON from AI', raw }, { status: 502 })
-    }
-  }
-
-  // â”€â”€ Two-pass Claude path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const anthropic = new Anthropic({ apiKey: anthropicKey! })
-
-  // â”€â”€ Pass 1: Deep strategy generation (Opus) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  let pass1Doc: StrategyDocument
-  let pass1Raw = ''
-
+  let cacheResult: { result: StrategyDocument; fromCache: boolean }
   try {
-    const msg = await anthropic.messages.create({
-      model:      'claude-opus-4-7',
-      max_tokens: 10000,
-      messages:   [{ role: 'user', content: generationPrompt }],
-    })
-    pass1Raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
-    void trackAiUsage({ service: 'claude', endpoint: 'studio/strategy/pass1', user_id: body.user_id, tokens_in: msg.usage.input_tokens, tokens_out: msg.usage.output_tokens, model: 'claude-opus-4-7' })
+    cacheResult = await getOrGenerate<StrategyDocument>(
+      cacheDb,
+      {
+        entityType: 'client',
+        entityId:   body.client_id ?? body.client_name,
+        agentType:  'strategy',
+        inputs: {
+          brief:            body.brief,
+          quarter:          body.quarter,
+          year:             body.year,
+          client_name:      body.client_name,
+          industry:         body.industry         ?? null,
+          platforms:        body.platforms        ?? null,
+          campaign_theme:   body.campaign_theme   ?? null,
+          cultural_moments: body.cultural_moments ?? null,
+          brand_persona:    body.brand_persona    ?? null,
+          key_messages:     body.key_messages     ?? null,
+          competitors:      body.competitors      ?? null,
+          contextVersion,
+        },
+      },
+      async () => {
+        let generationPrompt = buildGenerationPrompt(body)
+
+        // Inject client intelligence memory
+        if (body.client_id) {
+          const db = adminSupabase()
+          if (db) {
+            const block = await buildClientIntelligenceBlock(body.client_id, 'strategy', db).catch(() => '')
+            if (block) generationPrompt = block + '\n\n' + generationPrompt
+          }
+        }
+
+        // Gemini-only path (no Anthropic key)
+        if (!anthropicKey && geminiKey) {
+          const raw = await runGemini(generationPrompt, geminiKey)
+          const jsonStr = extractJSON(raw)
+          if (!jsonStr) throw new Error('Failed to parse strategy from AI')
+          const result = JSON.parse(jsonStr) as StrategyDocument
+          result.client_name    = body.client_name
+          result.platforms      = body.platforms
+          result.brief          = body.brief
+          result.quarter        = body.quarter
+          result.year           = body.year
+          result.campaign_theme = body.campaign_theme
+          return { result, model: 'gemini-3-flash-preview' }
+        }
+
+        // Two-pass Claude path
+        const anthropic = new Anthropic({ apiKey: anthropicKey! })
+
+        // Pass 1: Deep strategy generation (Opus)
+        let pass1Doc: StrategyDocument
+        let pass1Raw = ''
+
+        const msg1 = await anthropic.messages.create({
+          model:      'claude-opus-4-7',
+          max_tokens: 10000,
+          messages:   [{ role: 'user', content: generationPrompt }],
+        })
+        pass1Raw = msg1.content[0].type === 'text' ? msg1.content[0].text : ''
+        void trackAiUsage({ service: 'claude', endpoint: 'studio/strategy/pass1', user_id: body.user_id, tokens_in: msg1.usage.input_tokens, tokens_out: msg1.usage.output_tokens, model: 'claude-opus-4-7' })
+
+        const pass1JSON = extractJSON(pass1Raw)
+        if (!pass1JSON) throw new Error('Failed to parse strategy from AI (pass 1)')
+        pass1Doc = JSON.parse(pass1JSON) as StrategyDocument
+
+        // Pass 2: Reflection agent (Sonnet)
+        let finalDoc: StrategyDocument = pass1Doc
+        try {
+          const reflectionPrompt = buildReflectionPrompt(pass1Doc, body)
+          const msg2 = await anthropic.messages.create({
+            model:      'claude-sonnet-4-6',
+            max_tokens: 10000,
+            messages:   [{ role: 'user', content: reflectionPrompt }],
+          })
+          const pass2Raw = msg2.content[0].type === 'text' ? msg2.content[0].text : ''
+          void trackAiUsage({ service: 'claude', endpoint: 'studio/strategy/pass2', user_id: body.user_id, tokens_in: msg2.usage.input_tokens, tokens_out: msg2.usage.output_tokens, model: 'claude-sonnet-4-6' })
+          const pass2JSON = extractJSON(pass2Raw)
+          if (pass2JSON) {
+            const pass2Doc = JSON.parse(pass2JSON) as StrategyDocument
+            finalDoc = mergeStrategy(pass1Doc, pass2Doc)
+          }
+        } catch {
+          // Reflection failed - use pass 1 output (still a full strategy)
+          finalDoc = pass1Doc
+        }
+
+        // Attach metadata
+        finalDoc.client_name    = body.client_name
+        finalDoc.platforms      = body.platforms
+        finalDoc.brief          = body.brief
+        finalDoc.quarter        = body.quarter
+        finalDoc.year           = body.year
+        finalDoc.campaign_theme = body.campaign_theme
+
+        return {
+          result:     finalDoc,
+          model:      'claude-opus-4-7',
+          tokensUsed: msg1.usage.input_tokens + msg1.usage.output_tokens,
+        }
+      }
+    )
   } catch (err) {
-    return NextResponse.json({ error: `Pass 1 failed: ${err instanceof Error ? err.message : err}` }, { status: 502 })
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Strategy generation failed' },
+      { status: 502 }
+    )
   }
 
-  const pass1JSON = extractJSON(pass1Raw)
-  if (!pass1JSON) {
-    return NextResponse.json({ error: 'Failed to parse strategy from AI (pass 1)', raw: pass1Raw }, { status: 502 })
-  }
-
-  try {
-    pass1Doc = JSON.parse(pass1JSON) as StrategyDocument
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON from AI (pass 1)', raw: pass1Raw }, { status: 502 })
-  }
-
-  // â”€â”€ Pass 2: Reflection agent (Sonnet â€” fast, structured critique) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  let finalDoc: StrategyDocument = pass1Doc
-
-  try {
-    const reflectionPrompt = buildReflectionPrompt(pass1Doc, body)
-    const msg2 = await anthropic.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 10000,
-      messages:   [{ role: 'user', content: reflectionPrompt }],
-    })
-    const pass2Raw = msg2.content[0].type === 'text' ? msg2.content[0].text : ''
-    void trackAiUsage({ service: 'claude', endpoint: 'studio/strategy/pass2', user_id: body.user_id, tokens_in: msg2.usage.input_tokens, tokens_out: msg2.usage.output_tokens, model: 'claude-sonnet-4-6' })
-    const pass2JSON = extractJSON(pass2Raw)
-    if (pass2JSON) {
-      const pass2Doc = JSON.parse(pass2JSON) as StrategyDocument
-      finalDoc = mergeStrategy(pass1Doc, pass2Doc)
-    }
-  } catch {
-    // Reflection failed â€” use pass 1 output (still a full strategy)
-    finalDoc = pass1Doc
-  }
-
-  // Attach metadata
-  finalDoc.client_name    = body.client_name
-  finalDoc.platforms      = body.platforms
-  finalDoc.brief          = body.brief
-  finalDoc.quarter        = body.quarter
-  finalDoc.year           = body.year
-  finalDoc.campaign_theme = body.campaign_theme
-
-  return NextResponse.json({ strategy: finalDoc })
+  return NextResponse.json({ strategy: cacheResult.result, fromCache: cacheResult.fromCache })
 }

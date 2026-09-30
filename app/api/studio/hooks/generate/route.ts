@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase } from '@/lib/client-intelligence'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase, getClientContextVersion } from '@/lib/client-intelligence'
 import { aiGuard } from '@/lib/ai-guard'
+import { getOrGenerate } from '@/lib/ai-cache'
+import { createAdminClient } from '@/lib/supabase'
 
 export const maxDuration = 60
 
@@ -165,88 +167,123 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No AI API key configured' }, { status: 500 })
   }
 
-  let prompt = HOOK_PROMPT(
-    brief.trim(),
-    platform,
-    audience,
-    goal || 'Engagement',
-    emotion || 'Inspire',
-    brand_voice || '',
-    language || 'english',
-    dialect || 'saudi',
-  )
-
-  if (client_id) {
-    const db = adminSupabase()
-    if (db) {
-      const block = await buildClientIntelligenceBlock(client_id, 'hook_lab', db).catch(() => '')
-      if (block) prompt = prompt + block
-      const compBlock = await buildCompetitorContextBlock(client_id, db).catch(() => '')
-      if (compBlock) prompt = prompt + compBlock
-    }
-  }
-
-  let raw = ''
-
-  if (anthropicKey) {
-    const anthropic = new Anthropic({ apiKey: anthropicKey })
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 16000,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
-  } else {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 16000, temperature: 0.7 },
-        }),
-      },
-    )
-    if (!res.ok) {
-      const err = await res.text().catch(() => '')
-      return NextResponse.json({ error: `AI error: ${err}` }, { status: 502 })
-    }
-    const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-    raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-  }
-
-  // Parse JSON from raw response
-  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-  const arrMatch = stripped.match(/\[[\s\S]*\]/)
-  if (!arrMatch) {
-    return NextResponse.json({ error: 'Failed to parse AI response', raw }, { status: 502 })
-  }
+  // Cache setup
+  const cacheDb = createAdminClient()
+  const contextVersion = client_id
+    ? await getClientContextVersion(client_id, cacheDb).catch(() => '0')
+    : '0'
 
   let hooks: GeneratedHook[]
   try {
-    hooks = JSON.parse(arrMatch[0]) as GeneratedHook[]
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON from AI', raw }, { status: 502 })
+    const cacheResult = await getOrGenerate<GeneratedHook[]>(
+      cacheDb,
+      {
+        entityType: 'client',
+        entityId:   client_id ?? 'global',
+        agentType:  'hook_lab',
+        inputs: {
+          brief:       brief.trim(),
+          platform,
+          audience,
+          goal:        goal        || 'Engagement',
+          emotion:     emotion     || 'Inspire',
+          brand_voice: brand_voice || '',
+          language:    language    || 'english',
+          dialect:     dialect     || 'saudi',
+          contextVersion,
+        },
+      },
+      async () => {
+        let prompt = HOOK_PROMPT(
+          brief.trim(),
+          platform,
+          audience,
+          goal || 'Engagement',
+          emotion || 'Inspire',
+          brand_voice || '',
+          language || 'english',
+          dialect || 'saudi',
+        )
+
+        if (client_id) {
+          const db = adminSupabase()
+          if (db) {
+            const block = await buildClientIntelligenceBlock(client_id, 'hook_lab', db).catch(() => '')
+            if (block) prompt = prompt + block
+            const compBlock = await buildCompetitorContextBlock(client_id, db).catch(() => '')
+            if (compBlock) prompt = prompt + compBlock
+          }
+        }
+
+        let raw = ''
+
+        if (anthropicKey) {
+          const anthropic = new Anthropic({ apiKey: anthropicKey })
+          const msg = await anthropic.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 16000,
+            messages: [{ role: 'user', content: prompt }],
+          })
+          raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
+        } else {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { maxOutputTokens: 16000, temperature: 0.7 },
+              }),
+            },
+          )
+          if (!res.ok) {
+            const err = await res.text().catch(() => '')
+            throw new Error(`AI error: ${err}`)
+          }
+          const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+          raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+        }
+
+        // Parse JSON from raw response
+        const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+        const arrMatch = stripped.match(/\[[\s\S]*\]/)
+        if (!arrMatch) throw new Error('Failed to parse AI response')
+
+        let parsedHooks: GeneratedHook[]
+        try {
+          parsedHooks = JSON.parse(arrMatch[0]) as GeneratedHook[]
+        } catch {
+          throw new Error('Invalid JSON from AI')
+        }
+
+        // Normalise and recompute
+        parsedHooks = parsedHooks.map(h => {
+          const c = Math.max(0, Math.min(10, Number(h.clarity_score)   || 0))
+          const x = Math.max(0, Math.min(10, Number(h.context_score)   || 0))
+          const q = Math.max(0, Math.min(10, Number(h.curiosity_score) || 0))
+          const total = c + x + q
+          return {
+            ...h,
+            clarity_score:   c,
+            context_score:   x,
+            curiosity_score: q,
+            total_score:     total,
+            virality_tier:   total >= 27 ? 'S' : total >= 21 ? 'A' : total >= 15 ? 'B' : 'C',
+          }
+        })
+        parsedHooks.sort((a, b) => b.total_score - a.total_score)
+
+        return { result: parsedHooks, model: anthropicKey ? 'claude-sonnet-4-6' : 'gemini-3-flash-preview' }
+      }
+    )
+
+    hooks = cacheResult.result
+    return NextResponse.json({ hooks, fromCache: cacheResult.fromCache })
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Hook generation failed' },
+      { status: 502 }
+    )
   }
-
-  // Normalise and recompute
-  hooks = hooks.map(h => {
-    const c = Math.max(0, Math.min(10, Number(h.clarity_score)  || 0))
-    const x = Math.max(0, Math.min(10, Number(h.context_score)  || 0))
-    const q = Math.max(0, Math.min(10, Number(h.curiosity_score)|| 0))
-    const total = c + x + q
-    return {
-      ...h,
-      clarity_score:  c,
-      context_score:  x,
-      curiosity_score: q,
-      total_score: total,
-      virality_tier: total >= 27 ? 'S' : total >= 21 ? 'A' : total >= 15 ? 'B' : 'C',
-    }
-  })
-
-  hooks.sort((a, b) => b.total_score - a.total_score)
-
-  return NextResponse.json({ hooks })
 }

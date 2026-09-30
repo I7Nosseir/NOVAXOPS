@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { buildReportPrompt } from '@/lib/report-prompts'
+import { getOrGenerate } from '@/lib/ai-cache'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const HAS_METRICOOL = !!(process.env.METRICOOL_API_TOKEN && process.env.METRICOOL_USER_ID)
@@ -318,32 +319,49 @@ export async function POST(req: NextRequest) {
     topGroupsPromise,
   ])
 
-  // 4. Build and run Gemini prompt (if API key configured)
+  // 4. Build and run Gemini prompt (if API key configured) with caching
   let narrative: Record<string, string> = {}
   let geminiError: string | null = null
+  let narrativeFromCache = false
   let aiCost: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedUsd: number; model: string } | null = null
 
   if (process.env.GEMINI_API_KEY) {
     try {
-      const period = `${startDate} to ${endDate}`
-      const prompt = buildReportPrompt(
-        reportType,
-        metricoolData,
-        client.name,
-        period,
-        client.brand,
-        language,
-        campaignsForPrompt
-      )
-      const { text: raw, inputTokens, outputTokens } = await callGemini(prompt)
+      const cacheDb = adminSupabase()
+      const cacheResult = await getOrGenerate<Record<string, string>>(
+        cacheDb,
+        {
+          entityType: 'client',
+          entityId:   clientId,
+          agentType:  'report',
+          inputs: {
+            reportType,
+            startDate,
+            endDate,
+            platforms: nets ?? null,
+            language:  language ?? null,
+          },
+        },
+        async () => {
+          const period = `${startDate} to ${endDate}`
+          const prompt = buildReportPrompt(
+            reportType,
+            metricoolData,
+            client.name,
+            period,
+            client.brand,
+            language,
+            campaignsForPrompt
+          )
+          const { text: raw, inputTokens, outputTokens } = await callGemini(prompt)
 
-      // Validation second-pass: strip any recommendations that slipped through
-      const hasRecommendationLeak = /\b(you should|we recommend|consider |next steps|action plan|it would be|going forward|to improve|to increase|to boost|we suggest)\b/i.test(raw)
-      let finalText = raw
-      let vInput = 0
-      let vOutput = 0
-      if (hasRecommendationLeak) {
-        const validationPrompt = `You are a quality-control editor reviewing a social media performance report.
+          // Validation second-pass: strip any recommendations that slipped through
+          const hasRecommendationLeak = /\b(you should|we recommend|consider |next steps|action plan|it would be|going forward|to improve|to increase|to boost|we suggest)\b/i.test(raw)
+          let finalText = raw
+          let vInput = 0
+          let vOutput = 0
+          if (hasRecommendationLeak) {
+            const validationPrompt = `You are a quality-control editor reviewing a social media performance report.
 
 The report must describe ONLY what happened. It must NEVER make recommendations, suggestions, or action items.
 
@@ -358,40 +376,29 @@ REPORT TO REVIEW:
 ${raw}
 
 Return the corrected report in the same ### section format.`
-        const { text: validated, inputTokens: vi, outputTokens: vo } = await callGemini(validationPrompt)
-        if (validated && validated.trim()) { finalText = validated; vInput = vi; vOutput = vo }
-      }
+            const { text: validated, inputTokens: vi, outputTokens: vo } = await callGemini(validationPrompt)
+            if (validated && validated.trim()) { finalText = validated; vInput = vi; vOutput = vo }
+          }
 
-      narrative = parseSections(finalText)
-      aiCost = {
-        inputTokens:  inputTokens + vInput,
-        outputTokens: outputTokens + vOutput,
-        totalTokens:  inputTokens + vInput + outputTokens + vOutput,
-        estimatedUsd: ((inputTokens + vInput) / 1_000_000) * GEMINI_INPUT_COST_PER_M + ((outputTokens + vOutput) / 1_000_000) * GEMINI_OUTPUT_COST_PER_M,
-        model: GEMINI_MODEL,
-      }
+          const parsedNarrative = parseSections(finalText)
+          aiCost = {
+            inputTokens:  inputTokens + vInput,
+            outputTokens: outputTokens + vOutput,
+            totalTokens:  inputTokens + vInput + outputTokens + vOutput,
+            estimatedUsd: ((inputTokens + vInput) / 1_000_000) * GEMINI_INPUT_COST_PER_M + ((outputTokens + vOutput) / 1_000_000) * GEMINI_OUTPUT_COST_PER_M,
+            model: GEMINI_MODEL,
+          }
+          return { result: parsedNarrative, model: GEMINI_MODEL }
+        }
+      )
+
+      narrative = cacheResult.result
+      narrativeFromCache = cacheResult.fromCache
     } catch (err) {
       geminiError = err instanceof Error ? err.message : 'AI generation failed'
     }
   } else {
     geminiError = 'GEMINI_API_KEY not configured — showing data without AI narrative'
-  }
-
-  // Persist narrative to ai_generation_cache when AI generation succeeded (fire-and-forget)
-  if (HAS_DB && Object.keys(narrative).length > 0) {
-    const db = adminSupabase()
-    void db.from('ai_generation_cache').insert({
-      generation_type: 'report',
-      context_id: clientId,
-      meta: reportType,
-      output_json: {
-        narrative,
-        period: `${startDate} to ${endDate}`,
-        client_name: client.name,
-        report_type: reportType,
-      },
-      organization_id: client.organizationId ?? null,
-    })
   }
 
   return NextResponse.json({
@@ -413,5 +420,6 @@ Return the corrected report in the same ### section format.`
     error: metricoolData.error ?? undefined,
     _geminiError: geminiError ?? undefined,
     aiCost,
+    fromCache: narrativeFromCache,
   })
 }

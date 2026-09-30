@@ -7,12 +7,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { geminiJson } from '@/lib/gemini'
 import type { MediaBuyingPlan } from '@/lib/media-buying-pdf'
+import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
+import { createAdminClient } from '@/lib/supabase'
 
 export const maxDuration = 180
 
 interface GenerateBody {
   client_name: string
   client_handle?: string
+  client_id?: string
   industry: string
   market?: string
   objective: string
@@ -105,6 +108,7 @@ export async function POST(req: NextRequest) {
     const {
       client_name,
       client_handle,
+      client_id,
       industry,
       market = 'Saudi Arabia',
       objective,
@@ -116,6 +120,15 @@ export async function POST(req: NextRequest) {
 
     if (!client_name || !industry || !objective || !platforms?.length || !option1_budget || !option2_budget) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Client intelligence injection
+    let intelligenceBlock = ''
+    if (client_id) {
+      try {
+        const db = createAdminClient()
+        intelligenceBlock = await buildClientIntelligenceBlock(client_id, 'researcher', db)
+      } catch { /* non-critical */ }
     }
 
     // Deterministic budget math (Steps 7–8)
@@ -180,6 +193,8 @@ Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
     { "number": "03", "title": "Factor Title", "description": "..." }
   ]
 }
+
+${intelligenceBlock ? `\n\nCLIENT INTELLIGENCE:\n${intelligenceBlock}` : ''}
 
 Rules:
 - No emojis, no hashtags

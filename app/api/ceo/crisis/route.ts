@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireRole, resolveOrgId } from '@/lib/api-auth'
-import { buildClientIntelligenceBlock, buildCompetitorContextBlock } from '@/lib/client-intelligence'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock, getClientContextVersion } from '@/lib/client-intelligence'
+import { getOrGenerate } from '@/lib/ai-cache'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 
@@ -285,24 +286,48 @@ Rules: No hashtags. No emojis. Every content directive must be specific enough t
     prompt += `\n\n${intelligenceSection}`
   }
 
+  // Cache setup
+  const contextVersion = HAS_DB
+    ? await getClientContextVersion(body.client_id, adminSupabase()).catch(() => '0')
+    : '0'
+
   try {
-    const result = await callAI(prompt)
+    const cacheDb = adminSupabase()
+    const { result, fromCache } = await getOrGenerate<string>(
+      cacheDb,
+      {
+        entityType: 'client',
+        entityId:   body.client_id,
+        agentType:  'ceo_crisis',
+        inputs: {
+          tool,
+          client_name,
+          industry,
+          contextVersion,
+        },
+      },
+      async () => {
+        const text = await callAI(prompt)
 
-    // Persist to ai_generation_cache (fire-and-forget)
-    if (HAS_DB) {
-      const db = adminSupabase()
-      void resolveOrgId({ clientId: body.client_id }).then(orgId =>
-        db.from('ai_generation_cache').insert({
-          generation_type: 'ceo_crisis',
-          context_id: body.client_id ?? null,
-          meta: body.tool,
-          output_json: { result, client_name: body.client_name, tool: body.tool },
-          organization_id: orgId,
-        })
-      )
-    }
+        // Keep existing fire-and-forget cache for backward compat
+        if (HAS_DB) {
+          const db = adminSupabase()
+          void resolveOrgId({ clientId: body.client_id }).then(orgId =>
+            db.from('ai_generation_cache').insert({
+              generation_type: 'ceo_crisis',
+              context_id: body.client_id ?? null,
+              meta: body.tool,
+              output_json: { result: text, client_name: body.client_name, tool: body.tool },
+              organization_id: orgId,
+            })
+          )
+        }
 
-    return NextResponse.json({ result })
+        return { result: text, model: process.env.ANTHROPIC_API_KEY ? 'claude-sonnet-4-6' : 'gemini-3-flash-preview' }
+      }
+    )
+
+    return NextResponse.json({ result, fromCache })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'AI generation failed.'
     return NextResponse.json({ error: message }, { status: 500 })

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { anthropic, AI_MODELS } from '@/lib/ai-client'
 import { geminiJson } from '@/lib/gemini'
 import type { VisualApproach, VisualInputs } from '@/lib/studio-types'
+import { buildClientIntelligenceBlock } from '@/lib/client-intelligence'
+import { createAdminClient } from '@/lib/supabase'
 
 export const maxDuration = 60
 
@@ -16,7 +18,7 @@ You understand these proven storytelling frameworks:
 - Transformation arc (Before → During → After)
 No emojis in output.`
 
-function buildApproachesPrompt(inputs: VisualInputs): string {
+function buildApproachesPrompt(inputs: VisualInputs, clientContext?: string): string {
   const sceneCount = inputs.length === '15s' ? '3-4'
     : inputs.length === '30s' ? '5-7'
     : inputs.length === '60s' ? '8-12'
@@ -59,6 +61,8 @@ Rules for approach 3:
 - Bold score: 7–9
 
 Scene count for ${inputs.length}: ${sceneCount} scenes.
+
+${clientContext ? `\n\nCLIENT INTELLIGENCE:\n${clientContext}` : ''}
 
 Output ONLY valid JSON, no markdown:
 {
@@ -121,7 +125,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const prompt = buildApproachesPrompt(inputs)
+  let intelligenceBlock: string | undefined
+  if (inputs.client_id) {
+    try {
+      const db = createAdminClient()
+      intelligenceBlock = await buildClientIntelligenceBlock(inputs.client_id, 'visual', db)
+    } catch { /* non-critical */ }
+  }
+
+  const prompt = buildApproachesPrompt(inputs, intelligenceBlock)
 
   // Try Claude first, fall back to Gemini
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY

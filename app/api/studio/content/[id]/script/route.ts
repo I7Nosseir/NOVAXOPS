@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase } from '@/lib/client-intelligence'
+import { buildClientIntelligenceBlock, buildCompetitorContextBlock, adminSupabase, getClientContextVersion } from '@/lib/client-intelligence'
 import { aiGuard } from '@/lib/ai-guard'
+import { getOrGenerate } from '@/lib/ai-cache'
+import { createAdminClient } from '@/lib/supabase'
 
 export const maxDuration = 120
 
@@ -425,6 +427,35 @@ function selectPrompt(d: ScriptRequest): string {
   return REEL_PROMPT(d)
 }
 
+// Extract all top-level JSON objects (thinking phase may contain smaller {} fragments)
+// then take the largest, which is always the real output object.
+function extractLargestJsonObject(text: string): string | null {
+  const candidates: string[] = []
+  let i = 0
+  while (i < text.length) {
+    if (text[i] === '{') {
+      let depth = 0
+      let inStr = false
+      let esc = false
+      let j = i
+      while (j < text.length) {
+        const ch = text[j]
+        if (esc)              { esc = false; j++; continue }
+        if (ch === '\\' && inStr) { esc = true;  j++; continue }
+        if (ch === '"')       { inStr = !inStr; j++; continue }
+        if (!inStr) {
+          if (ch === '{') depth++
+          else if (ch === '}') { depth--; if (depth === 0) { candidates.push(text.slice(i, j + 1)); i = j + 1; break } }
+        }
+        j++
+      }
+      if (depth !== 0) break
+    } else { i++ }
+  }
+  if (!candidates.length) return null
+  return candidates.reduce((best, cur) => cur.length > best.length ? cur : best)
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -432,7 +463,7 @@ export async function POST(
   const guard = await aiGuard(req)
   if (guard) return guard
 
-  await params
+  const { id: sessionId } = await params
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   const geminiKey    = process.env.GEMINI_API_KEY
@@ -451,88 +482,95 @@ export async function POST(
     return NextResponse.json({ error: 'hook is required — complete Phase 3 first' }, { status: 400 })
   }
 
-  let prompt = selectPrompt(body)
-  let raw = ''
+  // Cache setup
+  const cacheDb = createAdminClient()
+  const contextVersion = body.client_id
+    ? await getClientContextVersion(body.client_id, cacheDb).catch(() => '0')
+    : '0'
 
-  // Inject client intelligence + competitor context
-  if (body.client_id) {
-    const db = adminSupabase()
-    if (db) {
-      const [intelBlock, compBlock] = await Promise.all([
-        buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => ''),
-        buildCompetitorContextBlock(body.client_id, db).catch(() => ''),
-      ])
-      if (intelBlock) prompt = prompt + intelBlock
-      if (compBlock)  prompt = prompt + compBlock
-    }
-  }
-
-  if (anthropicKey) {
-    const anthropic = new Anthropic({ apiKey: anthropicKey })
-    const msg = await anthropic.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 32000,
-      messages:   [{ role: 'user', content: prompt }],
-    })
-    raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
-  } else {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 32000, temperature: 0.85 },
-        }),
-      },
-    )
-    const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-    raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-  }
-
-  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-
-  // Extract all top-level JSON objects (thinking phase may contain smaller {} fragments)
-  // then take the largest, which is always the real output object.
-  function extractLargestJsonObject(text: string): string | null {
-    const candidates: string[] = []
-    let i = 0
-    while (i < text.length) {
-      if (text[i] === '{') {
-        let depth = 0
-        let inStr = false
-        let esc = false
-        let j = i
-        while (j < text.length) {
-          const ch = text[j]
-          if (esc)              { esc = false; j++; continue }
-          if (ch === '\\' && inStr) { esc = true;  j++; continue }
-          if (ch === '"')       { inStr = !inStr; j++; continue }
-          if (!inStr) {
-            if (ch === '{') depth++
-            else if (ch === '}') { depth--; if (depth === 0) { candidates.push(text.slice(i, j + 1)); i = j + 1; break } }
-          }
-          j++
-        }
-        if (depth !== 0) break
-      } else { i++ }
-    }
-    if (!candidates.length) return null
-    return candidates.reduce((best, cur) => cur.length > best.length ? cur : best)
-  }
-
-  const jsonStr = extractLargestJsonObject(stripped)
-  if (!jsonStr) {
-    return NextResponse.json({ error: 'Failed to parse script from AI', raw }, { status: 502 })
-  }
-
-  let script: unknown
   try {
-    script = JSON.parse(jsonStr)
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON from AI', raw }, { status: 502 })
-  }
+    const cacheResult = await getOrGenerate<unknown>(
+      cacheDb,
+      {
+        entityType: 'session',
+        entityId:   sessionId,
+        agentType:  'studio_content',
+        inputs: {
+          content_type: body.content_type ?? 'reel',
+          hook:         body.hook.trim(),
+          platform:     body.platform,
+          audience:     body.audience,
+          goal:         body.goal,
+          emotion:      body.emotion,
+          brief:        body.brief,
+          language:     body.language  ?? null,
+          dialect:      body.dialect   ?? null,
+          client_id:    body.client_id ?? null,
+          contextVersion,
+        },
+      },
+      async () => {
+        let prompt = selectPrompt(body)
 
-  return NextResponse.json({ script })
+        // Inject client intelligence + competitor context
+        if (body.client_id) {
+          const db = adminSupabase()
+          if (db) {
+            const [intelBlock, compBlock] = await Promise.all([
+              buildClientIntelligenceBlock(body.client_id, 'studio_content', db).catch(() => ''),
+              buildCompetitorContextBlock(body.client_id, db).catch(() => ''),
+            ])
+            if (intelBlock) prompt = prompt + intelBlock
+            if (compBlock)  prompt = prompt + compBlock
+          }
+        }
+
+        let raw = ''
+
+        if (anthropicKey) {
+          const anthropic = new Anthropic({ apiKey: anthropicKey })
+          const msg = await anthropic.messages.create({
+            model:      'claude-sonnet-4-6',
+            max_tokens: 32000,
+            messages:   [{ role: 'user', content: prompt }],
+          })
+          raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
+        } else {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { maxOutputTokens: 32000, temperature: 0.85 },
+              }),
+            },
+          )
+          const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+          raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+        }
+
+        const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+        const jsonStr = extractLargestJsonObject(stripped)
+        if (!jsonStr) throw new Error('Failed to parse script from AI')
+
+        let script: unknown
+        try {
+          script = JSON.parse(jsonStr)
+        } catch {
+          throw new Error('Invalid JSON from AI')
+        }
+
+        return { result: script, model: anthropicKey ? 'claude-sonnet-4-6' : 'gemini-3-flash-preview' }
+      }
+    )
+
+    return NextResponse.json({ script: cacheResult.result, fromCache: cacheResult.fromCache })
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Script generation failed' },
+      { status: 502 }
+    )
+  }
 }

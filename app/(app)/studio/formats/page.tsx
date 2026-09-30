@@ -219,6 +219,9 @@ export default function FormatsPage() {
   const [formats,        setFormats]        = useState<FormatResult[]>([])
   const [savedIdx,       setSavedIdx]       = useState<Set<number>>(new Set())
 
+  // savedIds maps format-array-index → DB row uuid for DELETE
+  const [savedIds, setSavedIds] = useState<Map<number, string>>(new Map())
+
   const [sessions,        setSessions]        = useState<StudioSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
   const [sessionId,       setSessionId]       = useState<string | null>(null)
@@ -250,6 +253,33 @@ export default function FormatsPage() {
     const t = setInterval(() => setElapsedSeconds(s => s + 1), 1000)
     return () => clearInterval(t)
   }, [pageState])
+
+  // Load saved favorites for this niche when results are shown
+  useEffect(() => {
+    if (pageState !== 'results' || !formats.length || !niche.trim() || !user?.id) return
+    async function loadFavorites() {
+      try {
+        const params = new URLSearchParams({ niche, user_id: user!.id })
+        const res  = await fetch(`/api/studio/formats/favorites?${params}`)
+        const data = await res.json() as { favorites?: Array<{ id: string; format_name: string }> }
+        const rows = data.favorites ?? []
+        if (!rows.length) return
+        const newSavedIdx = new Set<number>()
+        const newSavedIds = new Map<number, string>()
+        formats.forEach((fmt, i) => {
+          const match = rows.find(r => r.format_name === fmt.format_name)
+          if (match) {
+            newSavedIdx.add(i)
+            newSavedIds.set(i, match.id)
+          }
+        })
+        setSavedIdx(newSavedIdx)
+        setSavedIds(newSavedIds)
+      } catch { /* non-critical */ }
+    }
+    loadFavorites()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageState, niche, user?.id])
 
   function handleSessionClick(session: StudioSession) {
     if (session.status === 'complete' && session.outputs) {
@@ -301,7 +331,7 @@ export default function FormatsPage() {
       const res = await fetch('/api/studio/formats/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, platform, language }),
+        body: JSON.stringify({ niche, platform, language, client_id: clientId || undefined }),
       })
       const data = await res.json() as { formats?: FormatResult[]; error?: string }
       if (!res.ok) throw new Error(data.error ?? 'Generation failed')
@@ -337,15 +367,48 @@ export default function FormatsPage() {
 
   function handleNewSession() {
     setPageState('brief'); setFormats([]); setSessionId(null)
-    setSavedIdx(new Set()); setError(null)
+    setSavedIdx(new Set()); setSavedIds(new Map()); setError(null)
   }
 
-  function toggleSave(idx: number) {
+  async function toggleSave(idx: number) {
+    const fmt = formats[idx]
+    if (!fmt || !user?.id) return
+
+    // Optimistic UI
+    const wasSaved = savedIdx.has(idx)
     setSavedIdx(prev => {
       const next = new Set(prev)
-      next.has(idx) ? next.delete(idx) : next.add(idx)
+      wasSaved ? next.delete(idx) : next.add(idx)
       return next
     })
+
+    if (wasSaved) {
+      const rowId = savedIds.get(idx)
+      if (rowId) {
+        setSavedIds(prev => { const m = new Map(prev); m.delete(idx); return m })
+        try {
+          await fetch(`/api/studio/formats/favorites?id=${rowId}`, { method: 'DELETE' })
+        } catch { /* non-critical — UI already updated */ }
+      }
+    } else {
+      try {
+        const res = await fetch('/api/studio/formats/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            saved_by:    user.id,
+            session_id:  sessionId ?? null,
+            niche,
+            format_name: fmt.format_name,
+            format_data: fmt,
+          }),
+        })
+        const data = await res.json() as { favorite?: { id: string } }
+        if (data.favorite?.id) {
+          setSavedIds(prev => new Map(prev).set(idx, data.favorite!.id))
+        }
+      } catch { /* non-critical — UI already updated */ }
+    }
   }
 
   return (

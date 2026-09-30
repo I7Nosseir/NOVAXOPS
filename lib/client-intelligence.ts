@@ -1,7 +1,39 @@
 // Shared server-side utility for injecting client intelligence into AI prompts.
 // Called by /api/ai, /api/assistant/chat, and all /api/studio/* routes.
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { ClientNormalizedProfile } from '@/lib/types'
+import type { ClientNormalizedProfile, DesignBrief } from '@/lib/types'
+
+/**
+ * Returns a lightweight version key for a client's context bank + AI feedback.
+ * Changes when new context entries or feedback are added — used to invalidate
+ * AI generation cache entries that depended on the client's intelligence context.
+ */
+export async function getClientContextVersion(
+  clientId: string,
+  db: SupabaseClient
+): Promise<string> {
+  try {
+    const [{ data: ctxRow }, { data: fbRow }] = await Promise.all([
+      db.from('client_context_bank')
+        .select('updated_at')
+        .eq('client_id', clientId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      db.from('ai_feedback')
+        .select('created_at')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
+    const ctxTs = (ctxRow as { updated_at: string } | null)?.updated_at ?? '0'
+    const fbTs  = (fbRow  as { created_at: string } | null)?.created_at  ?? '0'
+    return `${ctxTs}|${fbTs}`
+  } catch {
+    return '0'
+  }
+}
 
 export interface ClientIntelligenceSummary {
   voice?: string
@@ -142,7 +174,7 @@ const GOAL_LABELS: Record<string, string> = {
   community: 'Community building',
 }
 
-function buildProfileBlock(p: ClientNormalizedProfile): string {
+function buildProfileBlock(p: ClientNormalizedProfile, geo: { country?: string | null; city?: string | null; culture_notes?: string | null } = {}): string {
   const lines: string[] = []
 
   // Positioning
@@ -194,6 +226,10 @@ function buildProfileBlock(p: ClientNormalizedProfile): string {
   ].filter(Boolean).join(', ')
   if (cadence) lines.push(`Cadence: ${cadence}`)
 
+  const geoStr = [geo.city, geo.country].filter(Boolean).join(', ')
+  if (geoStr) lines.push(`Location: ${geoStr}`)
+  if (geo.culture_notes?.trim()) lines.push(`Cultural context: ${geo.culture_notes.trim()}`)
+
   return lines.join('\n')
 }
 
@@ -210,20 +246,29 @@ const SLOT_BUDGETS = {
 
 // Which context-bank category to pull for Slot 3 per agent type
 const AGENT_CONTEXT_FOCUS: Record<string, 'wins' | 'approved' | 'instructions'> = {
-  hooks:           'wins',
-  hook_score:      'wins',
-  hook_lab:        'wins',
-  copywriter:      'approved',
-  post_caption:    'approved',
-  review_caption:  'approved',
-  revision_helper: 'approved',
-  client_fit:      'instructions',
-  task_thinking:   'instructions',
-  task_analyzer:   'instructions',
-  brief_check:     'instructions',
-  strategy:        'instructions',
-  strategy_gaps:   'instructions',
-  researcher:      'instructions',
+  hooks:              'wins',
+  hook_score:         'wins',
+  hook_lab:           'wins',
+  copywriter:         'approved',
+  post_caption:       'approved',
+  review_caption:     'approved',
+  revision_helper:    'approved',
+  client_fit:         'instructions',
+  task_thinking:      'instructions',
+  task_analyzer:      'instructions',
+  brief_check:        'instructions',
+  strategy:           'instructions',
+  strategy_gaps:      'instructions',
+  researcher:         'instructions',
+  postmortem:         'wins',
+  deck_builder:       'approved',
+  studio_content:     'approved',
+  copy_engine:        'approved',
+  apply_fixes:        'approved',
+  pre_approval_check: 'approved',
+  ceo_crisis:         'instructions',
+  ceo_strategy:       'instructions',
+  chat:               'instructions',
 }
 
 function truncate(text: string, max: number): string {
@@ -251,7 +296,7 @@ export async function buildClientIntelligenceBlock(
     perfResult,
     globalCopyInstructions,
   ] = await Promise.all([
-    db.from('clients').select('normalized_profile, copy_brief').eq('id', clientId).single(),
+    db.from('clients').select('normalized_profile, copy_brief, design_brief_json, brand_identity, country, city, culture_notes').eq('id', clientId).single(),
 
     db.from('client_context_bank')
       .select('category, summary, source, created_at')
@@ -287,7 +332,15 @@ export async function buildClientIntelligenceBlock(
   ])
 
   const profile  = profileResult.data?.normalized_profile as ClientNormalizedProfile | undefined
-  const clientCopyBrief = (profileResult.data as { copy_brief?: string | null } | null)?.copy_brief ?? ''
+  const clientData = profileResult.data as {
+    copy_brief?: string | null
+    design_brief_json?: DesignBrief | null
+    brand_identity?: { tone_of_voice?: string; target_audience?: string; industry?: string; key_messages?: string[] } | null
+    country?: string | null
+    city?: string | null
+    culture_notes?: string | null
+  } | null
+  const clientCopyBrief = clientData?.copy_brief ?? ''
   const ctxRows  = (ctxResult.data ?? []) as ContextEntry[]
   const fbRows   = (fbResult.data ?? []) as FeedbackEntry[]
   const stratRow = stratResult.data
@@ -302,9 +355,27 @@ export async function buildClientIntelligenceBlock(
 
   // ── Slot 1: Brand voice (400 chars) ────────────────────────────────────────
   if (profile && Object.keys(profile).length > 0) {
-    const profileText = buildProfileBlock(profile)
+    const profileText = buildProfileBlock(profile, {
+      country: clientData?.country,
+      city: clientData?.city,
+      culture_notes: clientData?.culture_notes,
+    })
     if (profileText.trim()) {
       slots.push(`── CLIENT PROFILE ──\n${truncate(profileText, SLOT_BUDGETS.brand)}`)
+    }
+  }
+
+  // ── Slot 1 fallback: basic profile from brand_identity for new clients ───────
+  // Covers newly created clients who haven't filled the profile form yet
+  if ((!profile || Object.keys(profile).length === 0) && clientData?.brand_identity) {
+    const bi = clientData.brand_identity
+    const fallbackLines: string[] = []
+    if (bi.tone_of_voice) fallbackLines.push(`Voice: ${bi.tone_of_voice}`)
+    if (bi.target_audience) fallbackLines.push(`Audience: ${bi.target_audience}`)
+    if (bi.industry) fallbackLines.push(`Industry: ${bi.industry}`)
+    if (bi.key_messages?.length) fallbackLines.push(`Key messages: ${bi.key_messages.slice(0, 3).join(' · ')}`)
+    if (fallbackLines.length > 0) {
+      slots.push(`── CLIENT PROFILE ──\n${truncate(fallbackLines.join('\n'), SLOT_BUDGETS.brand)}`)
     }
   }
 
@@ -350,6 +421,23 @@ export async function buildClientIntelligenceBlock(
 
   if (agentLines.length > 0) {
     slots.push(`── AGENT CONTEXT ──\n${truncate(agentLines.join('\n'), SLOT_BUDGETS.agentCtx)}`)
+  }
+
+  // ── Slot 3.5: Design brief (300 chars, visual/content agents only) ──────────
+  const DESIGN_BRIEF_AGENTS = ['copywriter', 'post_caption', 'visual', 'content', 'script', 'studio_content', 'copy_engine']
+  const designBrief = clientData?.design_brief_json as DesignBrief | null | undefined
+
+  if (DESIGN_BRIEF_AGENTS.includes(agentType) && designBrief) {
+    const dbLines = [
+      designBrief.visual_style_notes && `Visual style: ${designBrief.visual_style_notes}`,
+      designBrief.motion_style       && `Motion: ${designBrief.motion_style}`,
+      designBrief.ai_video_notes     && `Video notes: ${designBrief.ai_video_notes}`,
+      designBrief.primary_font       && `Brand typeface: ${designBrief.primary_font}`,
+      designBrief.general_notes      && `Notes: ${designBrief.general_notes}`,
+    ].filter(Boolean).join('\n')
+    if (dbLines.trim()) {
+      slots.push(`── DESIGN BRIEF ──\n${truncate(dbLines, 300)}`)
+    }
   }
 
   // ── Slot 4: Quarter goals (300 chars) ──────────────────────────────────────
