@@ -88,10 +88,12 @@ describe('provider selection — environment logic', () => {
   })
 
   test('empty string is falsy (route-level guard: if (!apiKey))', () => {
-    expect(!('') ).toBe(true)
+    const key = '' as string
+    expect(!key).toBe(true)
   })
 
   test('non-empty API key string is truthy', () => {
-    expect(!('sk-ant-anything')).toBe(false)
+    const key = 'sk-ant-anything' as string
+    expect(!key).toBe(false)
   })
 })
