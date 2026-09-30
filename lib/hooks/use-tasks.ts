@@ -120,11 +120,13 @@ export function useUpdateTaskStage() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ taskId, stage }: { taskId: string; stage: PipelineStage }) => {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('tasks')
         .update({ pipeline_stage: stage, updated_at: new Date().toISOString() })
         .eq('id', taskId)
+        .select('id')
       if (error) throw error
+      if (!updated || updated.length === 0) throw new Error("You don't have permission to move this task")
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
@@ -167,11 +169,13 @@ export function useUpdateTask() {
         .eq('id', id)
         .single()
 
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('tasks')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id)
+        .select('id')
       if (error) throw error
+      if (!updated || updated.length === 0) throw new Error("You don't have permission to update this task")
 
       // Assignment notification (existing behaviour)
       if (updates.assigned_to) {

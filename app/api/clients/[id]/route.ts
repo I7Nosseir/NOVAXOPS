@@ -39,7 +39,13 @@ export async function PATCH(
   const role = (profile as { role: string }).role
   const body = await req.json() as Record<string, unknown>
 
-  // Crisis mode toggle is restricted to admin and ceo roles
+  // Only these roles may update client records
+  const canManageClients = ['admin', 'ceo', 'creative_director', 'account_manager'].includes(role)
+  if (!canManageClients) {
+    return NextResponse.json({ error: 'You do not have permission to edit clients' }, { status: 403 })
+  }
+
+  // Crisis mode toggle is further restricted to admin and ceo
   if ('is_in_crisis' in body && role !== 'admin' && role !== 'ceo') {
     return NextResponse.json({ error: 'Only admin or ceo can toggle crisis mode' }, { status: 403 })
   }

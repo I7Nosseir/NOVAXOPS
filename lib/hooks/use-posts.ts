@@ -46,8 +46,9 @@ export function useUpdatePost() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<ScheduledPost> & { id: string }) => {
-      const { error } = await supabase.from('scheduled_posts').update(updates).eq('id', id)
+      const { data: updated, error } = await supabase.from('scheduled_posts').update(updates).eq('id', id).select('id')
       if (error) throw error
+      if (!updated || updated.length === 0) throw new Error("You don't have permission to update this post")
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] })

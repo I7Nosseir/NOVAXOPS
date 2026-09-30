@@ -70,15 +70,22 @@ export function useUpdateClient() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Client> & { id: string }) => {
-      const { error } = await supabase.from('clients').update(updates).eq('id', id)
-      if (error) throw error
+      const res = await fetch(`/api/clients/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to update client' })) as { error?: string }
+        throw new Error(err.error ?? 'Failed to update client')
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
     },
     onError: (error: Error) => {
       console.error('[useUpdateClient]', error)
-      toast.error('Failed to update client')
+      toast.error(error.message ?? 'Failed to update client')
     },
   })
 }

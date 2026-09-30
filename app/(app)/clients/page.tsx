@@ -169,6 +169,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const canDelete = user?.role === 'admin' || user?.role === 'ceo'
+  const canEditClient = ['admin', 'ceo', 'creative_director', 'account_manager'].includes(user?.role ?? '')
   const deleteClient = useDeleteClient()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [tab, setTab] = useState<'overview' | 'intelligence' | 'competitors' | 'tasks' | 'brief' | 'context' | 'strategy' | 'edit' | 'copy_brief'>('overview')
@@ -228,7 +229,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
       setTimeout(() => setEditSaved(false), 2500)
     } catch (err) {
       console.error('[client-edit]', err)
-      toast.error('Failed to save client — check your connection')
+      // toast is shown by useUpdateClient onError
     } finally {
       setEditSaving(false)
     }
@@ -242,7 +243,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
       setTimeout(() => setCopyBriefSaved(false), 3000)
     } catch (err) {
       console.error('[copy-brief]', err)
-      toast.error('Failed to save copy brief')
+      // toast is shown by useUpdateClient onError
     } finally {
       setCopyBriefSaving(false)
     }
@@ -275,11 +276,10 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
         .upload(path, file, { upsert: true, contentType: file.type })
       if (!upErr) {
         const { data: { publicUrl } } = supabase.storage.from('assets').getPublicUrl(path)
-        await supabase
-          .from('clients')
-          .update({ brand_identity_json: { ...client.brand_identity, logo_url: publicUrl } })
-          .eq('id', client.id)
-        updateClient.mutate({ id: client.id } as Parameters<typeof updateClient.mutate>[0])
+        await updateClient.mutateAsync({
+          id: client.id,
+          brand_identity_json: { ...client.brand_identity, logo_url: publicUrl },
+        } as Parameters<typeof updateClient.mutateAsync>[0])
       }
     } catch { /* non-critical */ }
     setLogoUploading(false)
@@ -364,16 +364,16 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
         {/* Tabs */}
         <div className="flex items-center gap-1 px-6 py-2 border-b border-slate-100 shrink-0 overflow-x-auto">
           {([
-            { key: 'overview',      label: 'Overview' },
-            { key: 'edit',          label: 'Edit Client' },
-            { key: 'intelligence',  label: 'Intelligence' },
-            { key: 'competitors',   label: 'Competitors' },
-            { key: 'context',       label: 'Context Bank' },
-            { key: 'copy_brief',    label: 'Copy Brief' },
-            { key: 'strategy',      label: 'Strategy' },
-            { key: 'tasks',         label: 'Tasks' },
-            { key: 'brief',         label: 'Design Brief' },
-          ] as const).map(({ key, label }) => (
+            { key: 'overview',      label: 'Overview',      show: true },
+            { key: 'edit',          label: 'Edit Client',   show: canEditClient },
+            { key: 'intelligence',  label: 'Intelligence',  show: true },
+            { key: 'competitors',   label: 'Competitors',   show: true },
+            { key: 'context',       label: 'Context Bank',  show: true },
+            { key: 'copy_brief',    label: 'Copy Brief',    show: canEditClient },
+            { key: 'strategy',      label: 'Strategy',      show: true },
+            { key: 'tasks',         label: 'Tasks',         show: true },
+            { key: 'brief',         label: 'Design Brief',  show: true },
+          ] as const).filter(t => t.show).map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
               className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                 tab === key ? 'bg-novax-light text-novax' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
