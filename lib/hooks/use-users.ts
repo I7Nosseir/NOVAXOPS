@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { User, UserRole } from '@/lib/types'
 
@@ -67,18 +68,33 @@ export function useInviteUser() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ email, name, role, page_permissions }: { email: string; name: string; role: UserRole; page_permissions?: string[] | null }): Promise<InviteResult> => {
-      const res = await fetch('/api/auth/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, role, page_permissions }),
-      })
-      const data = await res.json() as InviteResult & { error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Invite failed')
-      return data
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 20_000)
+      try {
+        const res = await fetch('/api/auth/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, name, role, page_permissions }),
+          signal: ac.signal,
+        })
+        const data = await res.json() as InviteResult & { error?: string }
+        if (!res.ok) throw new Error(data.error ?? 'Invite failed')
+        return data
+      } catch (fetchErr) {
+        if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+          throw new Error('Request timed out — please try again')
+        }
+        throw fetchErr
+      } finally {
+        clearTimeout(timer)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       queryClient.invalidateQueries({ queryKey: ['pending-invitations'] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
     },
   })
 }
@@ -94,6 +110,9 @@ export function useCancelInvitation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-invitations'] })
     },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
+    },
   })
 }
 
@@ -101,17 +120,32 @@ export function useResendInvitation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, inviterName }: { id: string; inviterName?: string }): Promise<InviteResult> => {
-      const res = await fetch(`/api/auth/invitations/${id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviterName }),
-      })
-      const data = await res.json() as InviteResult & { error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Resend failed')
-      return data
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 15_000)
+      try {
+        const res = await fetch(`/api/auth/invitations/${id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inviterName }),
+          signal: ac.signal,
+        })
+        const data = await res.json() as InviteResult & { error?: string }
+        if (!res.ok) throw new Error(data.error ?? 'Resend failed')
+        return data
+      } catch (fetchErr) {
+        if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+          throw new Error('Request timed out — please try again')
+        }
+        throw fetchErr
+      } finally {
+        clearTimeout(timer)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-invitations'] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
     },
   })
 }
@@ -131,6 +165,9 @@ export function useUpdateUserRole() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
     },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
+    },
   })
 }
 
@@ -148,6 +185,9 @@ export function useUpdateUserPermissions() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
     },
   })
 }

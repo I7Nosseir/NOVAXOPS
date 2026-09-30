@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/types'
 
@@ -48,6 +49,9 @@ export function useCreateProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
     },
   })
 }

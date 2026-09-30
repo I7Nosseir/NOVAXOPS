@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 import type { Task, PipelineStage, Priority, TaskStatus, ChecklistItem, TaskRelation, TaskTimeLog } from '@/lib/types'
@@ -128,6 +129,9 @@ export function useUpdateTaskStage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
+    },
   })
 }
 
@@ -196,6 +200,9 @@ export function useUpdateTask() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
+    },
   })
 }
 
@@ -209,11 +216,19 @@ export function useCreateTask() {
         payload.assigned_to,
       ].filter(Boolean) as string[])]
 
-      const res = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, watchers: initialWatchers }),
-      })
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 15_000)
+      let res: Response
+      try {
+        res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, watchers: initialWatchers }),
+          signal: ac.signal,
+        })
+      } finally {
+        clearTimeout(timer)
+      }
       const json = await res.json() as Record<string, unknown>
       if (!res.ok) {
         throw new Error((json.error as string | undefined) ?? 'Failed to create task.')
@@ -234,6 +249,9 @@ export function useCreateTask() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
+    },
   })
 }
 
@@ -246,6 +264,9 @@ export function useDeleteTask() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
     },
   })
 }
@@ -292,6 +313,9 @@ export function useCreateTaskRelation() {
       queryClient.invalidateQueries({ queryKey: ['task-relations', vars.fromId] })
       queryClient.invalidateQueries({ queryKey: ['task-relations', vars.toId] })
     },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
+    },
   })
 }
 
@@ -305,6 +329,9 @@ export function useDeleteTaskRelation() {
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['task-relations', vars.fromId] })
       queryClient.invalidateQueries({ queryKey: ['task-relations', vars.toId] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
     },
   })
 }
@@ -347,6 +374,9 @@ export function useCreateTimeLog() {
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['time-logs', vars.taskId] })
     },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
+    },
   })
 }
 
@@ -359,6 +389,9 @@ export function useDeleteTimeLog() {
     },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['time-logs', vars.taskId] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
     },
   })
 }

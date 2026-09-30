@@ -63,8 +63,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session — always call getUser() to keep token alive
-  const { data: { user } } = await supabase.auth.getUser()
+  // Refresh session — race against 5s timeout so a slow/unreachable Supabase
+  // auth endpoint never blocks page rendering for 30s (Vercel function timeout).
+  // On timeout we treat the request as unauthenticated and redirect to login.
+  const userResult = await Promise.race([
+    supabase.auth.getUser(),
+    new Promise<{ data: { user: null }; error: null }>((resolve) =>
+      setTimeout(() => resolve({ data: { user: null }, error: null }), 5000)
+    ),
+  ]).catch(() => ({ data: { user: null }, error: null }))
+  const { data: { user } } = userResult
   const { pathname } = request.nextUrl
 
   // Public: API routes + landing + public portals + static assets + PWA files + pricing + admin bootstrap

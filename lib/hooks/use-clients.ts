@@ -98,6 +98,7 @@ export function useDeleteClient() {
     },
     onError: (error: Error) => {
       console.error('[useDeleteClient]', error)
+      toast.error('Failed to archive client')
     },
   })
 }
@@ -168,6 +169,10 @@ export function useCreateClient() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+    },
+    onError: (error: Error) => {
+      console.error('[useCreateClient]', error)
+      toast.error(error.message ?? 'Failed to create client')
     },
   })
 }

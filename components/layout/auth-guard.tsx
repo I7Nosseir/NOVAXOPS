@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 
@@ -83,6 +83,10 @@ function LoadingScreen() {
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { loading, user, needsOnboarding } = useAuth()
   const router = useRouter()
+  // Hard-redirect fallback: if router.replace('/login') somehow never navigates
+  // (e.g. rapid mount/unmount cycle), force a full reload after 4 seconds so
+  // the user is never stuck on a blank loading screen indefinitely.
+  const redirectFiredRef = useRef(false)
 
   useEffect(() => {
     if (loading) return
@@ -92,12 +96,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
     if (!user) {
       router.replace('/login')
+      redirectFiredRef.current = true
+      const fallback = setTimeout(() => {
+        if (redirectFiredRef.current) {
+          window.location.href = '/login'
+        }
+      }, 4000)
+      return () => clearTimeout(fallback)
     }
   }, [loading, user, needsOnboarding, router])
 
   if (loading)         return <LoadingScreen />
   if (needsOnboarding) return null
-  if (!user)           return <LoadingScreen />
+  if (!user)           return null  // router.replace('/login') already fired above
 
   return <>{children}</>
 }

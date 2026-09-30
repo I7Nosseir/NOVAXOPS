@@ -2327,9 +2327,13 @@ function BriefToCalendarDialog({ onClose }: { onClose: () => void }) {
 
   const generate = async () => {
     if (!brief) return
+    const selectedClient = clients.find(c => c.id === client)
+    if (selectedClient?.is_in_crisis) {
+      toast.error('Publishing is paused — this client is in Crisis Mode')
+      return
+    }
     setGenerating(true)
     setGenError(null)
-    const selectedClient = clients.find(c => c.id === client)
     try {
       const res = await fetch('/api/ai', {
         method: 'POST',

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { useRealtime } from '@/lib/hooks/use-realtime'
 
 export interface AdHocItem {
@@ -108,17 +109,31 @@ export function useCreateApproval() {
       client_name?: string
       ad_hoc_items?: { caption: string; media_url?: string }[]
     }): Promise<{ id: string; token: string }> => {
-      const res = await fetch('/api/approval', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to create approval request')
-      return data
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 15_000)
+      try {
+        const res = await fetch('/api/approval', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: ac.signal,
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Failed to create approval request')
+        return data
+      } finally {
+        clearTimeout(timer)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approval-requests'] })
+    },
+    onError: (err: Error) => {
+      if (err.name === 'AbortError') {
+        toast.error('Request timed out — please try again')
+      } else {
+        toast.error(err.message ?? 'Something went wrong')
+      }
     },
   })
 }
@@ -131,17 +146,31 @@ export function useSubmitApprovalReview() {
       decisions: Record<string, { status: 'approved' | 'changes_requested'; note: string }>
       client_note: string
     }) => {
-      const res = await fetch('/api/approval', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to submit review')
-      return data
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 15_000)
+      try {
+        const res = await fetch('/api/approval', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: ac.signal,
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Failed to submit review')
+        return data
+      } finally {
+        clearTimeout(timer)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approval-requests'] })
+    },
+    onError: (err: Error) => {
+      if (err.name === 'AbortError') {
+        toast.error('Request timed out — please try again')
+      } else {
+        toast.error(err.message ?? 'Something went wrong')
+      }
     },
   })
 }

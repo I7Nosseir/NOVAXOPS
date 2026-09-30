@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import type { ScheduledPost, PostPerformance, SocialPlatform } from '@/lib/types'
 
 function mapPost(row: Record<string, unknown>): ScheduledPost {
@@ -51,6 +52,9 @@ export function useUpdatePost() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] })
     },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
+    },
   })
 }
 
@@ -74,19 +78,33 @@ export function useSchedulePost() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: SchedulePostInput): Promise<{ post_id: string; metricool_post_id?: string; saved_as_draft?: boolean; error?: string }> => {
-      const res = await fetch('/api/metricool/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      })
-      const data = await res.json()
-      if (!res.ok && !data.saved_as_draft) {
-        throw new Error(data.error ?? 'Scheduling failed')
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 15_000)
+      try {
+        const res = await fetch('/api/metricool/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+          signal: ac.signal,
+        })
+        const data = await res.json()
+        if (!res.ok && !data.saved_as_draft) {
+          throw new Error(data.error ?? 'Scheduling failed')
+        }
+        return data
+      } finally {
+        clearTimeout(timer)
       }
-      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] })
+    },
+    onError: (err: Error) => {
+      if (err.name === 'AbortError') {
+        toast.error('Request timed out — please try again')
+      } else {
+        toast.error(err.message ?? 'Something went wrong')
+      }
     },
   })
 }
@@ -120,6 +138,9 @@ export function useSaveDraft() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? 'Something went wrong')
     },
   })
 }

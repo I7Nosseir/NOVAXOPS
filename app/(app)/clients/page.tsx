@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { TrendingUp, CheckCircle, Globe, Search, X, Plus, TrendingDown, Lightbulb, AlertTriangle, BarChart2, Zap, Pause, RefreshCw, ImagePlus, Save, CheckCircle2, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { useClients, useDeleteClient } from '@/lib/hooks/use-clients'
 import { supabase } from '@/lib/supabase'
 import { useTasks } from '@/lib/hooks/use-tasks'
@@ -227,6 +228,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
       setTimeout(() => setEditSaved(false), 2500)
     } catch (err) {
       console.error('[client-edit]', err)
+      toast.error('Failed to save client — check your connection')
     } finally {
       setEditSaving(false)
     }
@@ -240,6 +242,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
       setTimeout(() => setCopyBriefSaved(false), 3000)
     } catch (err) {
       console.error('[copy-brief]', err)
+      toast.error('Failed to save copy brief')
     } finally {
       setCopyBriefSaving(false)
     }
@@ -985,6 +988,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
 function ClientsPageInner() {
   const { clients } = useClients()
   const updateClient = useUpdateClient()
+  const queryClient = useQueryClient()
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1016,11 +1020,25 @@ function ClientsPageInner() {
     router.push('/clients', { scroll: false })
   }
 
-  const toggleCrisis = (id: string) => {
+  const toggleCrisis = async (id: string) => {
     const c = clients.find(cl => cl.id === id)
     if (!c) return
     const current = c.is_in_crisis ?? false
-    updateClient.mutate({ id, is_in_crisis: !current })
+    try {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_in_crisis: !current }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to toggle crisis mode' })) as { error?: string }
+        toast.error(err.error ?? 'Failed to toggle crisis mode')
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+    } catch {
+      toast.error('Failed to toggle crisis mode — check your connection')
+    }
   }
 
   const filtered = clients.filter(c =>
