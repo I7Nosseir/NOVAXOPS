@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
+import type { Metadata as SharpMetadata } from 'sharp'
 import type { LayoutSchema } from '../analyze/route'
 
 export const runtime = 'nodejs'
@@ -370,7 +371,7 @@ export async function POST(req: NextRequest) {
   }
 
   const inputBuffer = Buffer.from(imageBase64, 'base64')
-  let origMeta: sharp.Metadata
+  let origMeta: SharpMetadata
   try {
     origMeta = await sharp(inputBuffer).metadata()
   } catch {
