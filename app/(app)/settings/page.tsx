@@ -1135,7 +1135,7 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="space-y-5">
       {showInvite && <InviteUserModal onClose={() => setShowInvite(false)} />}
       {showBulkInvite && <BulkInviteModal onClose={() => setShowBulkInvite(false)} />}
       {showBulkPerms && (

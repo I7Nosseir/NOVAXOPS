@@ -738,14 +738,14 @@ function CreateApprovalDialog({ onClose }: { onClose: () => void }) {
             <div className="flex gap-3 pt-1">
               <button
                 onClick={onClose}
-                className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                className="flex-1 min-h-[44px] border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
                 disabled={!title || !hasContent || createApproval.isPending}
-                className="flex-1 flex items-center justify-center gap-2 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 min-h-[44px] bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 {createApproval.isPending ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin"/>
@@ -917,7 +917,7 @@ export default function ApprovalPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 min-h-[44px] bg-novax hover:bg-novax-hover text-white text-sm font-medium rounded-lg transition-colors"
         >
           <Plus className="w-3.5 h-3.5"/>
           New Request
@@ -962,7 +962,7 @@ export default function ApprovalPage() {
               <div key={req.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 {/* Row header */}
                 <div
-                  className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-2 sm:gap-4 px-3 sm:px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
                   onClick={() => setExpanded(isOpen ? null : req.id)}
                 >
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: client?.color }}>
@@ -974,9 +974,9 @@ export default function ApprovalPage() {
                       {totalItems} post{totalItems !== 1 ? 's' : ''} · {approvedCount} approved · Expires {formatDate(req.expires_at)}
                     </p>
                   </div>
-                  <div className={cn('flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full', cfg.bg, cfg.color)}>
+                  <div className={cn('flex items-center gap-1.5 text-[11px] font-semibold px-2 sm:px-2.5 py-1 rounded-full shrink-0', cfg.bg, cfg.color)}>
                     <StatusIcon className="w-3 h-3"/>
-                    {cfg.label}
+                    <span className="hidden sm:inline">{cfg.label}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
@@ -985,7 +985,7 @@ export default function ApprovalPage() {
                       title="Copy client link"
                     >
                       <Copy className="w-3.5 h-3.5"/>
-                      {copied === req.token ? 'Copied!' : 'Copy Link'}
+                      <span className="hidden sm:inline">{copied === req.token ? 'Copied!' : 'Copy Link'}</span>
                     </button>
                     <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform', isOpen && 'rotate-180')}/>
                   </div>

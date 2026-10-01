@@ -194,6 +194,7 @@ export default function ContentStudioPage() {
   const [bossBrief,    setBossBrief]    = useState<BossBrief | null>(null)
   const [chatHistory,  setChatHistory]  = useState<ChatMessage[]>([])
   const [resumeBanner, setResumeBanner] = useState<{ message: string; sessionId: string } | null>(null)
+  const [fromCache,    setFromCache]    = useState(false)
 
   // Intelligence layer
   const [calendarEvents,   setCalendarEvents]   = useState<CalendarEvent[]>([])
@@ -563,8 +564,9 @@ export default function ContentStudioPage() {
           signal_report: signalReport,
         }),
       })
-      const hookData = await hookRes.json() as { hooks?: RawHook[]; error?: string }
+      const hookData = await hookRes.json() as { hooks?: RawHook[]; fromCache?: boolean; error?: string }
       if (!hookRes.ok) throw new Error(hookData.error ?? 'Hook generation failed')
+      if (hookData.fromCache) setFromCache(true)
       const hooks = hookData.hooks ?? []
       completeStep(3)
 
@@ -596,8 +598,9 @@ export default function ContentStudioPage() {
             signal_report:     signalReport,
           }),
         })
-        const data = await res.json() as { script?: RawScript; error?: string }
+        const data = await res.json() as { script?: RawScript; fromCache?: boolean; error?: string }
         if (!res.ok) throw new Error(data.error ?? 'Script generation failed')
+        if (data.fromCache) setFromCache(true)
         scriptResults.push(data.script ?? {})
       }
       completeStep(5)
@@ -730,6 +733,7 @@ export default function ContentStudioPage() {
     setChatHistory([])
     setPausedQuestion(null)
     setError(null)
+    setFromCache(false)
     setInputs({
       client_id: '', platforms: ['Instagram'], audience: 'B2C', goal: 'Engagement',
       cta: '', brief: '', language: 'english', dialect: 'egyptian',
@@ -984,7 +988,7 @@ export default function ContentStudioPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-5xl">
+    <div className="max-w-6xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/studio" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
@@ -1335,6 +1339,19 @@ export default function ContentStudioPage() {
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && contentDoc && (
         <div className="space-y-3">
+          {/* Cache indicator */}
+          {fromCache && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-xs text-slate-500">Cached result</span>
+              <button
+                onClick={() => { setFromCache(false); handleRunBrief() }}
+                className="ml-auto flex items-center gap-1 text-xs font-medium text-novax hover:text-novax-muted transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Regenerate
+              </button>
+            </div>
+          )}
           <div>
             <StudioDocument
               tool="content"
@@ -1364,7 +1381,7 @@ export default function ContentStudioPage() {
                       <p className="text-xs font-semibold text-slate-500">Piece {idx + 1}</p>
                     )}
                     {/* Score grid */}
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {([
                         { key: 'overall',        label: 'Overall'       },
                         { key: 'emotional_pull', label: 'Emotional Pull' },

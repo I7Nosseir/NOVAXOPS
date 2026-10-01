@@ -38,30 +38,33 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.RESPOND_IO_API_KEY
   if (!apiKey) {
     // Graceful degradation: mark as replied in DB even if Respond.io isn't configured
-    await supabase.from('moderation_items').update({
+    const { error: dbErr1 } = await supabase.from('moderation_items').update({
       status: 'replied',
       final_reply: reply_text.trim(),
     }).eq('id', moderation_item_id)
+    if (dbErr1) console.error('[respond-io/reply] DB update failed (no API key):', dbErr1.message)
     return NextResponse.json({ sent: false, reason: 'RESPOND_IO_API_KEY not configured — marked replied in DB only' })
   }
 
   // Respond.io v2: send message to a contact
   const contactId = item.respond_io_contact_id as string | undefined
   if (!contactId) {
-    await supabase.from('moderation_items').update({
+    const { error: dbErr2 } = await supabase.from('moderation_items').update({
       status: 'replied',
       final_reply: reply_text.trim(),
     }).eq('id', moderation_item_id)
+    if (dbErr2) console.error('[respond-io/reply] DB update failed (no contact ID):', dbErr2.message)
     return NextResponse.json({ sent: false, reason: 'No Respond.io contact ID — marked replied in DB only' })
   }
 
   // Note: Instagram public comment replies are NOT supported by Respond.io (Instagram API restriction).
   // Only DM replies and Facebook comment replies work.
   if (item.platform === 'instagram' && !String(item.commenter_handle ?? '').startsWith('@dm')) {
-    await supabase.from('moderation_items').update({
+    const { error: dbErr3 } = await supabase.from('moderation_items').update({
       status: 'replied',
       final_reply: reply_text.trim(),
     }).eq('id', moderation_item_id)
+    if (dbErr3) console.error('[respond-io/reply] DB update failed (IG public comment):', dbErr3.message)
     return NextResponse.json({ sent: false, reason: 'Instagram public comment replies are not supported via API. Marked as replied.' })
   }
 
@@ -83,10 +86,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Respond.io error: ${errText}` }, { status: 502 })
     }
 
-    await supabase.from('moderation_items').update({
+    const { error: dbErr4 } = await supabase.from('moderation_items').update({
       status: 'replied',
       final_reply: reply_text.trim(),
     }).eq('id', moderation_item_id)
+    if (dbErr4) console.error('[respond-io/reply] DB update failed after send:', dbErr4.message)
 
     return NextResponse.json({ sent: true })
   } catch (err) {

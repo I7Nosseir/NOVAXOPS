@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   const commenterName = contact.name ?? contact.externalId ?? 'Unknown'
   const commenterHandle = contact.externalId ?? contact.id ?? ''
 
-  await supabase.from('moderation_items').upsert({
+  const { error: upsertErr } = await supabase.from('moderation_items').upsert({
     client_id,
     platform,
     commenter_name: commenterName,
@@ -104,6 +104,11 @@ export async function POST(req: NextRequest) {
     respond_io_contact_id: contact.id,
     respond_io_message_id: message.id,
   }, { onConflict: 'respond_io_message_id', ignoreDuplicates: true })
+
+  if (upsertErr) {
+    console.error('[respond-io webhook] Upsert error:', upsertErr.message)
+    return NextResponse.json({ error: upsertErr.message }, { status: 500 })
+  }
 
   return NextResponse.json({ received: true, handled: true })
 }

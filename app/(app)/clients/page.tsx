@@ -112,7 +112,7 @@ function ClientCard({ client, onSelect, isCrisis, onToggleCrisis, userRole }: {
       <div>
         <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1.5">Key Messages</p>
         <div className="space-y-1">
-          {client.brand_identity.key_messages.slice(0, 2).map((msg, i) => (
+          {(client.brand_identity.key_messages ?? []).slice(0, 2).map((msg, i) => (
             <div key={i} className="flex items-start gap-1.5">
               <div className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: client.color }}/>
               <p className="text-[11px] text-slate-600">{msg}</p>
@@ -129,9 +129,9 @@ function ClientCard({ client, onSelect, isCrisis, onToggleCrisis, userRole }: {
         {client.respond_io_channel_id && (
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">{vendorName(userRole, 'Respond.io')}</span>
         )}
-        {client.competitor_context.length > 0 && (
+        {(client.competitor_context ?? []).length > 0 && (
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium border border-amber-200">
-            {client.competitor_context.length} rival{client.competitor_context.length !== 1 ? 's' : ''}
+            {(client.competitor_context ?? []).length} rival{(client.competitor_context ?? []).length !== 1 ? 's' : ''}
           </span>
         )}
         <span className="ml-auto text-[10px] text-slate-400">Since {formatDate(client.created_at)}</span>
@@ -319,7 +319,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center gap-4 px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
           {/* Logo / avatar — click to upload */}
@@ -401,7 +401,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
               <div className="mt-3 p-3 bg-slate-50 rounded-xl">
                 <p className="text-[10px] text-slate-400 uppercase font-semibold mb-2">Key Messages</p>
                 <div className="space-y-1.5">
-                  {client.brand_identity.key_messages.map((msg, i) => (
+                  {(client.brand_identity.key_messages ?? []).map((msg, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: client.color }}/>
                       <p className="text-sm text-slate-600">{msg}</p>
@@ -415,7 +415,7 @@ function ClientDetail({ client, onClose }: { client: Client; onClose: () => void
             <div>
               <h3 className="font-semibold text-slate-900 mb-3">Competitor Context</h3>
               <div className="flex flex-wrap gap-2">
-                {client.competitor_context.map(c => (
+                {(client.competitor_context ?? []).map(c => (
                   <span key={c} className="text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-600">{c}</span>
                 ))}
               </div>
@@ -1081,7 +1081,7 @@ function ClientsPageInner() {
         />
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filtered.map(client => (
           <ClientCard
             key={client.id}

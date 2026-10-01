@@ -63,10 +63,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (event === 'post_failed') {
-    await supabase
+    const { error: failErr } = await supabase
       .from('scheduled_posts')
       .update({ status: 'failed' })
       .eq('metricool_post_id', postId)
+    if (failErr) {
+      console.error('[metricool webhook] post_failed DB update error:', failErr.message)
+      return NextResponse.json({ error: failErr.message }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ received: true })

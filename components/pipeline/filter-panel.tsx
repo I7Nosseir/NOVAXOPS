@@ -47,7 +47,7 @@ export function FilterPanel({ filters, onUpdate, onClose }: Props) {
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl border border-slate-200 shadow-xl z-30 p-4 space-y-5"
+      className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-80 bg-white rounded-2xl border border-slate-200 shadow-xl z-30 p-4 space-y-5"
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-slate-800">Filter Tasks</span>

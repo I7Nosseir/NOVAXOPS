@@ -35,7 +35,7 @@ export function ChatSidebar({
   }
 
   return (
-    <div className="w-60 shrink-0 flex flex-col border-r border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-[#0a0e0d] h-full">
+    <div className="hidden md:flex w-60 shrink-0 flex-col border-r border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-[#0a0e0d] h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-slate-200 dark:border-white/8 shrink-0">
         <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Chats</span>

@@ -190,15 +190,23 @@ export async function PATCH(req: NextRequest) {
     ? 'changes_requested'
     : 'pending'
 
-  await db.from('approval_requests').update({
+  const { error: updateErr } = await db.from('approval_requests').update({
     status: overallStatus,
     client_note: client_note ?? '',
   }).eq('id', request.id)
 
+  if (updateErr) {
+    console.error('[approval] PATCH update failed:', updateErr.message)
+    return NextResponse.json({ error: updateErr.message }, { status: 500 })
+  }
+
   for (const [post_id, { status, note }] of Object.entries(decisions)) {
-    await db.from('approval_post_statuses')
+    const { error: statusErr } = await db.from('approval_post_statuses')
       .update({ status, note: note ?? '' })
       .match({ request_id: request.id, post_id })
+    if (statusErr) {
+      console.error('[approval] post_status update failed:', statusErr.message)
+    }
   }
 
   // Auto-log approval decisions to client_context_bank

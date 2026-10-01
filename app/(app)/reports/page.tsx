@@ -294,7 +294,7 @@ function CoverPage({ client, period, logoUrl, preparedDate }: { client: string; 
   return (
     <div className="rounded-2xl overflow-hidden flex flex-col min-h-[320px]" style={{ background: B.primary }}>
       <div className="h-2" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
-      <div className="px-10 pt-10 flex items-center justify-between">
+      <div className="px-6 sm:px-10 pt-8 sm:pt-10 flex items-center justify-between">
         <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-8 w-auto">
           <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
           <path fillRule="evenodd" d="M82,10 A26,26 0 0 1 82,62 A26,26 0 0 1 82,10 Z M82,22 A14,14 0 0 1 82,50 A14,14 0 0 1 82,22 Z" fill="white"/>
@@ -307,14 +307,14 @@ function CoverPage({ client, period, logoUrl, preparedDate }: { client: string; 
           <img src={logoUrl} alt={`${client} logo`} className="h-10 max-w-[140px] object-contain opacity-90"/>
         )}
       </div>
-      <div className="flex-1 flex flex-col justify-center px-10 py-12">
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 py-8 sm:py-12">
         <div className="w-12 h-0.5 rounded-full mb-6" style={{ background: B.accent }}/>
         <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: B.border }}>Monthly Performance Report</p>
         <h1 className="text-5xl font-bold text-white leading-tight mb-3">{client}</h1>
         <p className="text-lg font-medium" style={{ color: B.accent }}>{period}</p>
         <p className="text-sm mt-1" style={{ color: B.border }}>Full Platform Analytics · All Connected Channels</p>
       </div>
-      <div className="px-10 pb-8 flex items-end justify-between">
+      <div className="px-6 sm:px-10 pb-6 sm:pb-8 flex items-end justify-between flex-wrap gap-3">
         <div>
           <p className="text-xs font-bold text-white mb-0.5">Prepared by NOVAX</p>
           <p className="text-xs" style={{ color: B.border }}>{today}</p>
@@ -332,7 +332,7 @@ function CoverPage({ client, period, logoUrl, preparedDate }: { client: string; 
 function ReportPageHeader({ client, period, logoUrl }: { client: string; period: string; logoUrl?: string | null }) {
   return (
     <div className="rounded-2xl overflow-hidden mb-5" style={{ background: B.primary }}>
-      <div className="px-7 py-4 flex items-center justify-between">
+      <div className="px-4 sm:px-7 py-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-4">
           <svg viewBox="0 0 260 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-5 w-auto">
             <path d="M8,62 L8,10 L16,10 L48,54 L48,10 L56,10 L56,62 L48,62 L16,18 L16,62 Z" fill="white"/>
@@ -1044,7 +1044,7 @@ function MasterMonthlyReport({
       {/* Footer bar */}
       <div className="rounded-2xl overflow-hidden" style={{ background: B.primary }}>
         <div className="h-1" style={{ background: `linear-gradient(90deg, ${B.accent}, ${B.border}, ${B.light})` }}/>
-        <div className="px-7 py-4 flex items-center justify-between">
+        <div className="px-4 sm:px-7 py-4 flex items-center justify-between gap-3 flex-wrap">
           <p className="text-sm font-bold text-white">NOVAX</p>
           <p className="text-xs" style={{ color: B.border }}>{client} · {period}</p>
         </div>

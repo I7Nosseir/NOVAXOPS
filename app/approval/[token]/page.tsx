@@ -293,7 +293,7 @@ export default function ApprovalPortalPage() {
                   <button
                     onClick={() => decide(post.id, 'approved')}
                     className={cn(
-                      'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium border transition-colors',
+                      'flex-1 flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg text-sm font-medium border transition-colors',
                       isApproved
                         ? 'bg-emerald-500 border-emerald-500 text-white'
                         : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50',
@@ -305,7 +305,7 @@ export default function ApprovalPortalPage() {
                   <button
                     onClick={() => { decide(post.id, 'changes_requested'); setNoteOpen(post.id) }}
                     className={cn(
-                      'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium border transition-colors',
+                      'flex-1 flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg text-sm font-medium border transition-colors',
                       isChanges
                         ? 'bg-red-500 border-red-500 text-white'
                         : 'border-red-200 text-red-500 hover:bg-red-50',
@@ -317,7 +317,7 @@ export default function ApprovalPortalPage() {
                   <button
                     onClick={() => setNoteOpen(noteOpen === post.id ? null : post.id)}
                     className={cn(
-                      'px-3 py-2 rounded-lg border text-sm transition-colors',
+                      'px-3 min-h-[44px] rounded-lg border text-sm transition-colors flex items-center',
                       noteOpen === post.id
                         ? 'border-novax bg-novax-light text-novax'
                         : 'border-slate-200 text-slate-500 hover:bg-slate-50',
@@ -399,7 +399,7 @@ export default function ApprovalPortalPage() {
                   <button
                     onClick={() => decide(item.id, 'approved')}
                     className={cn(
-                      'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium border transition-colors',
+                      'flex-1 flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg text-sm font-medium border transition-colors',
                       isApproved
                         ? 'bg-emerald-500 border-emerald-500 text-white'
                         : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50',
@@ -411,7 +411,7 @@ export default function ApprovalPortalPage() {
                   <button
                     onClick={() => { decide(item.id, 'changes_requested'); setNoteOpen(item.id) }}
                     className={cn(
-                      'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium border transition-colors',
+                      'flex-1 flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg text-sm font-medium border transition-colors',
                       isChanges
                         ? 'bg-red-500 border-red-500 text-white'
                         : 'border-red-200 text-red-500 hover:bg-red-50',
@@ -423,7 +423,7 @@ export default function ApprovalPortalPage() {
                   <button
                     onClick={() => setNoteOpen(noteOpen === item.id ? null : item.id)}
                     className={cn(
-                      'px-3 py-2 rounded-lg border text-sm transition-colors',
+                      'px-3 min-h-[44px] rounded-lg border text-sm transition-colors flex items-center',
                       noteOpen === item.id
                         ? 'border-novax bg-novax-light text-novax'
                         : 'border-slate-200 text-slate-500 hover:bg-slate-50',
@@ -454,7 +454,7 @@ export default function ApprovalPortalPage() {
         <button
           onClick={handleSubmit}
           disabled={!allDecided || submitting}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-3 min-h-[52px] bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           {submitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}
           {submitting ? 'Submitting…' : `Submit Review (${Object.keys(decisions).length}/${allReviewable.length} reviewed)`}

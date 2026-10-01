@@ -754,7 +754,7 @@ function BulkSection({ clients }: { clients: Array<{ id: string; name: string }>
               {(language === 'ar' || language === 'both') && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Dialect</p>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {DIALECTS.map(d => (
                       <button key={d.value} onClick={() => setDialect(d.value)}
                         className={cn('py-2 rounded-xl text-xs font-semibold border transition-all',
@@ -2224,7 +2224,7 @@ export default function CopyEnginePage() {
 
           {/* Dialect */}
           {(language === 'ar' || language === 'both') && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {DIALECTS.map(d => (
                 <button key={d.value} onClick={() => setDialect(d.value)}
                   className={cn('py-2 rounded-xl text-xs font-semibold border transition-all',

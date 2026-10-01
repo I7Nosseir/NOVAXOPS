@@ -271,7 +271,7 @@ export default function CampaignIgniterPage() {
   )
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-5xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link

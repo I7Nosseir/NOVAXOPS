@@ -136,6 +136,9 @@ export async function POST(req: NextRequest) {
       publicationDate,
       ...splitMediaUrls(resolvedMediaUrls),
       ...(is_video != null ? { isVideo: Boolean(is_video) } : {}),
+      // instagramData/facebookData required by Metricool whenever those platforms are included
+      ...((platforms as string[]).includes('instagram') ? { instagramData: {} } : {}),
+      ...((platforms as string[]).includes('facebook')  ? { facebookData:  {} } : {}),
       ...(instagram_post_type ? { instagramPostType: instagram_post_type } : {}),
       ...(facebook_post_type  ? { facebookPostType:  facebook_post_type  } : {}),
     })
@@ -211,7 +214,11 @@ export async function DELETE(req: NextRequest) {
     }
   }
 
-  await supabase.from('scheduled_posts').delete().eq('id', post_id)
+  const { error: deleteErr } = await supabase.from('scheduled_posts').delete().eq('id', post_id)
+  if (deleteErr) {
+    console.error('[metricool/schedule] DB delete failed:', deleteErr.message)
+    return NextResponse.json({ error: deleteErr.message }, { status: 500 })
+  }
   return NextResponse.json({ success: true, ...(metricoolWarning ? { metricool_warning: metricoolWarning } : {}) })
 }
 

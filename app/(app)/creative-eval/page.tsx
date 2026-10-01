@@ -737,7 +737,7 @@ export default function CreativeEvalPage() {
                 <Layers className="w-4 h-4 text-novax-muted"/>
                 <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Attention Flow</p>
               </div>
-              <div className="grid grid-cols-3 gap-4 mb-3">
+              <div className="grid grid-cols-3 gap-3 mb-3">
                 {[
                   { label: 'Opening (0–3s)', score: result.attention_architecture.hook_window, note: 'Does it grab attention immediately?' },
                   { label: 'Middle', score: result.attention_architecture.retention_driver, note: 'Is there a reason to keep watching?' },

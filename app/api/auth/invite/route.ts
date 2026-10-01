@@ -101,7 +101,8 @@ export async function POST(req: Request) {
       page_permissions: page_permissions ?? null,
     }
     if (orgId) newUserRow.organization_id = orgId
-    await adminClient.from('users').upsert(newUserRow, { onConflict: 'auth_id', ignoreDuplicates: false })
+    const { error: profileErr } = await adminClient.from('users').upsert(newUserRow, { onConflict: 'auth_id', ignoreDuplicates: false })
+    if (profileErr) console.error('[auth/invite] profile upsert failed:', profileErr.message)
   }
 
   // Look up inviter's display name for the email

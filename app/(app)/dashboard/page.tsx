@@ -131,13 +131,13 @@ function SocialPerformanceSection() {
             const erColor = client.er >= 4 ? '#10b981' : client.er >= 2 ? '#f59e0b' : '#f43f5e'
             const pct = overview.total_reach > 0 ? (client.reach / overview.total_reach) * 100 : 0
             return (
-              <div key={client.client_id} className="flex items-center gap-3">
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-300 w-28 truncate shrink-0">{client.name}</span>
+              <div key={client.client_id} className="flex items-center gap-2 sm:gap-3">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300 w-20 sm:w-28 truncate shrink-0">{client.name}</span>
                 <div className="flex-1 h-1.5 bg-slate-100 dark:bg-white/8 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%`, background: '#1B3D38' }}/>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 w-20 text-right">{formatNumber(client.reach)} reach</span>
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <span className="hidden sm:inline text-[10px] text-slate-500 dark:text-slate-400 w-20 text-right">{formatNumber(client.reach)} reach</span>
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: erColor + '18', color: erColor }}>
                     {client.er}% ER
                   </span>
@@ -454,7 +454,7 @@ function ClientHealthSection({ clients, tasks, posts }: ClientHealthProps) {
           <div className="space-y-2">
             {selectedHealth.factors.map(f => (
               <div key={f.label} className="flex items-start gap-3">
-                <div className="flex items-center gap-1.5 w-36 shrink-0 pt-0.5">
+                <div className="flex items-center gap-1.5 w-28 sm:w-36 shrink-0 pt-0.5">
                   <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: f.score >= f.max ? '#10b981' : f.score > 0 ? '#f59e0b' : '#f43f5e' }}/>
                   <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate">{f.label}</span>
                 </div>
@@ -716,7 +716,7 @@ export default function DashboardPage() {
 
   const statCards = [
     { label: 'Active Tasks',       value: activeTasks,      icon: CheckSquare,   color: 'bg-blue-50 text-blue-600',     delta: `${tasks.filter(t => t.status === 'blocked').length} blocked` },
-    { label: 'Due Today',          value: dueToday,         icon: Clock,         color: 'bg-amber-50 text-amber-600',   delta: `${tasks.filter(t => t.due_date < today && t.status !== 'completed').length} overdue` },
+    { label: 'Due Today',          value: dueToday,         icon: Clock,         color: 'bg-amber-50 text-amber-600',   delta: `${tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'completed').length} overdue` },
     { label: 'Pending Approvals',  value: pendingApprovals, icon: AlertCircle,   color: 'bg-rose-50 text-rose-600',     delta: 'Needs attention' },
     { label: 'Pending Moderation', value: pendingModeration,icon: MessageSquare, color: 'bg-purple-50 text-purple-600', delta: `${moderationItems.filter(m => m.status === 'escalated').length} escalated` },
     ...(canSeeAiCost ? [{ label: 'AI Cost (Month)', value: formatCurrency(aiCostRaw), icon: DollarSign, color: 'bg-emerald-50 text-emerald-600', delta: 'via API usage log' }] : []),
@@ -804,6 +804,7 @@ export default function DashboardPage() {
               const priority = PRIORITY_CONFIG[task.priority]
               const client   = clients.find(c => c.id === task.client_id)
               const assignee = users.find(u => u.id === task.assigned_to)
+              // TODO: wire onClick handler — clicking a task row should open the task detail panel
               return (
                 <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-white/[0.035] transition-colors cursor-pointer group">
                   <div className="flex-1 min-w-0">

@@ -32,7 +32,7 @@ export function NotificationsPanel({ onClose }: Props) {
   }
 
   return (
-    <div ref={ref} className="absolute right-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+    <div ref={ref} className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden" style={{ maxWidth: 'min(384px, calc(100vw - 2rem))' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
         <div className="flex items-center gap-2">

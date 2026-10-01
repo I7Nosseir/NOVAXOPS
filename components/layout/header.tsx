@@ -92,7 +92,7 @@ export function Header() {
           {/* Mobile hamburger */}
           <button
             onClick={toggleSidebar}
-            className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400 shrink-0"
+            className="lg:hidden p-2 -ml-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400 shrink-0"
             aria-label="Open sidebar"
           >
             <Menu className="w-5 h-5" />
@@ -113,7 +113,7 @@ export function Header() {
           {/* New Task — always visible */}
           <button
             onClick={() => setShowCreateTask(true)}
-            className="flex shrink-0 items-center gap-1.5 px-3 py-1.5 btn-novax-glow text-white text-sm font-medium rounded-lg transition-all"
+            className="flex shrink-0 items-center gap-1.5 px-3 min-h-[44px] btn-novax-glow text-white text-sm font-medium rounded-lg transition-all"
             aria-label="Create new task"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -181,7 +181,7 @@ export function Header() {
           {/* Theme toggle */}
           <button
             onClick={toggle}
-            className="shrink-0 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400"
+            className="shrink-0 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400"
             title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
             aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
           >
@@ -192,7 +192,7 @@ export function Header() {
           <div className="relative shrink-0">
             <button
               onClick={() => setShowNotifs(v => !v)}
-              className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+              className="relative p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
               aria-label="Open notifications"
             >
               <Bell className="w-4 h-4 text-slate-500 dark:text-slate-400" />

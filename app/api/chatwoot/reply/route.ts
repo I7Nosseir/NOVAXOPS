@@ -45,20 +45,22 @@ export async function POST(req: NextRequest) {
 
   // Graceful degradation: if Chatwoot isn't configured, mark replied in DB only
   if (!baseUrl || !accountId || !apiToken) {
-    await supabase.from('moderation_items').update({
+    const { error: dbErr1 } = await supabase.from('moderation_items').update({
       status:      'replied',
       final_reply: reply_text.trim(),
       resolved_at: new Date().toISOString(),
     }).eq('id', moderation_item_id)
+    if (dbErr1) console.error('[chatwoot-reply] DB update failed (not configured):', dbErr1.message)
     return NextResponse.json({ sent: false, reason: 'Chatwoot not configured — marked replied in DB only' })
   }
 
   if (!conversationId) {
-    await supabase.from('moderation_items').update({
+    const { error: dbErr2 } = await supabase.from('moderation_items').update({
       status:      'replied',
       final_reply: reply_text.trim(),
       resolved_at: new Date().toISOString(),
     }).eq('id', moderation_item_id)
+    if (dbErr2) console.error('[chatwoot-reply] DB update failed (no conversation ID):', dbErr2.message)
     return NextResponse.json({ sent: false, reason: 'No chatwoot_conversation_id — marked replied in DB only' })
   }
 
@@ -85,11 +87,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Chatwoot error: ${errText}` }, { status: 502 })
     }
 
-    await supabase.from('moderation_items').update({
+    const { error: dbErr3 } = await supabase.from('moderation_items').update({
       status:      'replied',
       final_reply: reply_text.trim(),
       resolved_at: new Date().toISOString(),
     }).eq('id', moderation_item_id)
+    if (dbErr3) console.error('[chatwoot-reply] DB update failed after send:', dbErr3.message)
 
     return NextResponse.json({ sent: true })
   } catch (err) {

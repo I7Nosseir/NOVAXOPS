@@ -83,6 +83,7 @@ export default function StrategyPage() {
   const [chatHistory,   setChatHistory]   = useState<ChatMessage[]>([])
   const [pdfExporting,  setPdfExporting]  = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [fromCache,     setFromCache]     = useState(false)
 
   // ── Strategy Gap Finder ─────────────────────────────────────────────────────
   const [gapLoading,     setGapLoading]     = useState(false)
@@ -230,8 +231,9 @@ export default function StrategyPage() {
       const apiRes = await apiPromise
       setLoadingSteps(LOADING_STEPS.map(s => ({ ...s, status: 'complete' as const })))
 
-      const data = await apiRes.json() as { strategy?: StrategyDocument; error?: string }
+      const data = await apiRes.json() as { strategy?: StrategyDocument; fromCache?: boolean; error?: string }
       if (!apiRes.ok) throw new Error(data.error ?? 'Strategy generation failed')
+      if (data.fromCache) setFromCache(true)
 
       const doc = data.strategy ?? { executive_summary: '', platforms, brief, quarter, year }
       setStrategyDoc(doc)
@@ -377,12 +379,12 @@ export default function StrategyPage() {
 
   function handleNewSession() {
     setPageState('brief'); setSessionId(null); setStrategyDoc(null); setBossBrief(null)
-    setChatHistory([]); setError(null); setBrief('')
+    setChatHistory([]); setError(null); setBrief(''); setFromCache(false)
     setCampaignTheme(''); setCulturalMoments(''); setBrandPersona(''); setTenantNotes('')
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/studio" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
@@ -571,24 +573,39 @@ export default function StrategyPage() {
 
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && strategyDoc && (
-        <StudioDocument
-          tool="strategy"
-          clientName={selectedClient?.name ?? strategyDoc.client_name ?? ''}
-          clientColor={selectedClient?.color ?? '#1B3D38'}
-          platforms={platforms}
-          content={strategyDoc}
-          bossBrief={bossBrief}
-          language="english"
-          pdfExporting={pdfExporting}
-          onExportPdf={() => {
-            if (!strategyDoc || pdfExporting) return
-            setShowExportModal(true)
-          }}
-          onEditApplied={(target, newContent) => {
-            if (!strategyDoc) return
-            setStrategyDoc({ ...strategyDoc, [target]: newContent })
-          }}
-        />
+        <div className="space-y-3">
+          {/* Cache indicator */}
+          {fromCache && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-xs text-slate-500">Cached result</span>
+              <button
+                onClick={() => { setFromCache(false); handleRun() }}
+                className="ml-auto flex items-center gap-1 text-xs font-medium text-novax hover:text-novax-muted transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Regenerate
+              </button>
+            </div>
+          )}
+          <StudioDocument
+            tool="strategy"
+            clientName={selectedClient?.name ?? strategyDoc.client_name ?? ''}
+            clientColor={selectedClient?.color ?? '#1B3D38'}
+            platforms={platforms}
+            content={strategyDoc}
+            bossBrief={bossBrief}
+            language="english"
+            pdfExporting={pdfExporting}
+            onExportPdf={() => {
+              if (!strategyDoc || pdfExporting) return
+              setShowExportModal(true)
+            }}
+            onEditApplied={(target, newContent) => {
+              if (!strategyDoc) return
+              setStrategyDoc({ ...strategyDoc, [target]: newContent })
+            }}
+          />
+        </div>
       )}
 
       {/* ── STRATEGY GAP FINDER ── */}

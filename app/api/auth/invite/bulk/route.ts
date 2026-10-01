@@ -110,7 +110,8 @@ export async function POST(req: Request) {
         needs_onboarding: true, page_permissions: null,
       }
       if (orgId) newUserRow.organization_id = orgId
-      await db.from('users').upsert(newUserRow, { onConflict: 'auth_id', ignoreDuplicates: false })
+      const { error: profileErr } = await db.from('users').upsert(newUserRow, { onConflict: 'auth_id', ignoreDuplicates: false })
+      if (profileErr) console.error('[invite/bulk] profile upsert failed for', email, ':', profileErr.message)
     }
 
     const emailResult = await sendTeamInvite({ toEmail: email, toName: name, role, inviterName, appUrl, tempPassword })

@@ -41,6 +41,12 @@ function ModerationCard({ item }: { item: ModerationItem }) {
         toast.error('Reply failed to send. Try again.')
         return
       }
+      const data = await res.json() as { sent?: boolean; reason?: string }
+      if (data.sent === false) {
+        // Reply was saved in DB but not delivered to the platform (Chatwoot not configured
+        // or moderation item has no linked conversation ID).
+        toast.warning(data.reason ?? 'Reply saved but not delivered to the platform.')
+      }
     } catch {
       toast.error('Reply failed to send. Try again.')
       return
@@ -154,24 +160,24 @@ function ModerationCard({ item }: { item: ModerationItem }) {
             <button
               onClick={handleSend}
               disabled={!reply.trim() || sending}
-              className="flex items-center gap-1.5 px-4 py-2 bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-xs font-medium rounded-lg transition-colors flex-1 justify-center"
+              className="flex items-center gap-1.5 px-4 min-h-[44px] bg-novax hover:bg-novax-hover disabled:opacity-40 text-white text-xs font-medium rounded-lg transition-colors flex-1 justify-center"
             >
               {sending ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Send className="w-3.5 h-3.5"/>}
               {sending ? 'Sending…' : 'Send Reply'}
             </button>
             <button
               onClick={() => { setStatus('escalated'); updateItem.mutate({ id: item.id, status: 'escalated' }) }}
-              className="flex items-center gap-1.5 px-3 py-2 border border-red-200 hover:bg-red-50 text-red-600 text-xs font-medium rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 min-h-[44px] border border-red-200 hover:bg-red-50 text-red-600 text-xs font-medium rounded-lg transition-colors"
             >
               <AlertOctagon className="w-3.5 h-3.5"/>
-              Escalate
+              <span className="hidden sm:inline">Escalate</span>
             </button>
             <button
               onClick={() => { setStatus('ignored'); updateItem.mutate({ id: item.id, status: 'ignored' }) }}
-              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 min-h-[44px] border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors"
             >
               <EyeOff className="w-3.5 h-3.5"/>
-              Ignore
+              <span className="hidden sm:inline">Ignore</span>
             </button>
           </div>
         </div>

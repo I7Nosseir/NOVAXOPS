@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     const er = stats.engagementRate ?? stats.engagement ?? 0
     const lc = stats.linkClicks ?? stats.clicks ?? 0
 
-    await supabase.from('post_performance_snapshots').upsert({
+    const { error: snapErr } = await supabase.from('post_performance_snapshots').upsert({
       post_id,
       platform,
       reach: stats.reach ?? 0,
@@ -104,9 +104,10 @@ export async function GET(req: NextRequest) {
       engagement_rate: er,
       captured_at: new Date().toISOString(),
     }, { onConflict: 'post_id,platform' })
+    if (snapErr) console.error('[metricool/post-stats] snapshot upsert failed:', snapErr.message)
 
     // Also update the inline performance_data on the post itself
-    await supabase.from('scheduled_posts').update({
+    const { error: postErr } = await supabase.from('scheduled_posts').update({
       performance_data: {
         reach: stats.reach ?? 0,
         impressions: stats.impressions ?? 0,
@@ -117,6 +118,7 @@ export async function GET(req: NextRequest) {
         saves: stats.saves ?? 0,
       },
     }).eq('id', post_id)
+    if (postErr) console.error('[metricool/post-stats] post update failed:', postErr.message)
 
     return NextResponse.json({ post_id, platform, stats })
   } catch (err) {

@@ -10,7 +10,6 @@ import { PipelineBoard } from '@/components/pipeline/pipeline-board'
 import { TaskList } from '@/components/pipeline/task-list'
 import { FilterPanel, EMPTY_FILTERS, type FilterState } from '@/components/pipeline/filter-panel'
 import { FilterChips } from '@/components/pipeline/filter-chips'
-import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { cn } from '@/lib/utils'
 import type { PipelineStage, Priority, TaskStatus } from '@/lib/types'
 
@@ -51,7 +50,6 @@ function PipelineContent() {
     return 'full'
   })
   const [showFilter, setShowFilter] = useState(false)
-  const [showCreate, setShowCreate] = useState(false)
   const [isSelectMode, setIsSelectMode] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -96,8 +94,8 @@ function PipelineContent() {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">{tasks.length} tasks across 10 stages</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-slate-500 shrink-0"><span className="hidden sm:inline">{tasks.length} tasks across 10 stages</span><span className="sm:hidden">{tasks.length} tasks</span></p>
 
         <div className="flex items-center gap-2">
           {/* Filter button */}
@@ -157,14 +155,14 @@ function PipelineContent() {
               onClick={() => setIsSelectMode(v => !v)}
               title={isSelectMode ? 'Exit select mode' : 'Select tasks for bulk actions'}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+                'flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
                 isSelectMode
                   ? 'border-novax-border-active bg-novax-light text-novax'
                   : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700',
               )}
             >
               <MousePointer className="w-3.5 h-3.5" />
-              {isSelectMode ? 'Selecting…' : 'Select'}
+              <span className="hidden sm:inline">{isSelectMode ? 'Selecting…' : 'Select'}</span>
             </button>
           )}
 
@@ -202,7 +200,6 @@ function PipelineContent() {
         <TaskList tasks={tasks} />
       )}
 
-      <CreateTaskDialog open={showCreate} onClose={() => setShowCreate(false)} />
     </div>
   )
 }

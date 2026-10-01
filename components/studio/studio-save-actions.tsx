@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { FileText, BookOpen, ListTodo, Loader2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
-import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import type { Client } from '@/lib/types'
 
@@ -96,23 +95,28 @@ export function StudioSaveActions({
 
   // ── Create Task ───────────────────────────────────────────────
   const handleCreateTask = async () => {
-    if (taskState !== 'idle' || !supabase) return
+    if (taskState !== 'idle') return
     setTaskState('loading')
     try {
-      const { error } = await supabase.from('tasks').insert({
-        title: taskTitle ?? documentTitle ?? 'Studio Output Task',
-        description: taskDescription ?? contentSummary.slice(0, 800),
-        client_id: client?.id ?? null,
-        project_id: null,
-        pipeline_stage: 'copy',
-        priority: 'medium',
-        status: 'active',
-        assigned_to: user?.id ?? null,
-        tags: [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+      // Route through /api/tasks so organization_id is injected server-side
+      // and created_by is set from the authenticated session (not spoofable).
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: taskTitle ?? documentTitle ?? 'Studio Output Task',
+          description: taskDescription ?? contentSummary.slice(0, 800),
+          client_id: client?.id ?? null,
+          project_id: null,
+          pipeline_stage: 'copy',
+          priority: 'medium',
+          status: 'active',
+          assigned_to: user?.id ?? null,
+          tags: [],
+        }),
       })
-      if (error) throw error
+      const json = await res.json() as Record<string, unknown>
+      if (!res.ok) throw new Error((json.error as string | undefined) ?? 'Failed to create task')
       setTaskState('done')
     } catch (err) {
       console.error('[studio-save-actions] create task failed:', err)

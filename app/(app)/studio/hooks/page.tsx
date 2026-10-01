@@ -98,6 +98,7 @@ export default function HookLabPage() {
   const [bossBrief,           setBossBrief]           = useState<BossBrief | null>(null)
   const [chatHistory,         setChatHistory]         = useState<ChatMessage[]>([])
   const [intelligenceSummary, setIntelligenceSummary] = useState<ClientIntelligenceSummary | null>(null)
+  const [fromCache,           setFromCache]           = useState(false)
 
   // ── Hook Strength Checker ───────────────────────────────────────────────────
   const [ownHook,       setOwnHook]       = useState('')
@@ -250,8 +251,9 @@ export default function HookLabPage() {
           client_id:   clientId || undefined,
         }),
       })
-      const hookData = await hookRes.json() as { hooks?: GeneratedHook[]; error?: string }
+      const hookData = await hookRes.json() as { hooks?: GeneratedHook[]; fromCache?: boolean; error?: string }
       if (!hookRes.ok) throw new Error(hookData.error ?? 'Hook generation failed')
+      if (hookData.fromCache) setFromCache(true)
       const hooks = hookData.hooks ?? []
 
       setLoadingSteps(prev => prev.map((s, i) => {
@@ -388,10 +390,11 @@ export default function HookLabPage() {
     setChatHistory([])
     setError(null)
     setBrief('')
+    setFromCache(false)
   }
 
   return (
-    <div className="max-w-5xl">
+    <div className="max-w-6xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link
@@ -638,6 +641,19 @@ export default function HookLabPage() {
       {/* ── DOCUMENT state ── */}
       {pageState === 'document' && hookDoc && (
         <div className="space-y-3">
+          {/* Cache indicator */}
+          {fromCache && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-xs text-slate-500">Cached result</span>
+              <button
+                onClick={() => { setFromCache(false); handleGenerate() }}
+                className="ml-auto flex items-center gap-1 text-xs font-medium text-novax hover:text-novax-muted transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Regenerate
+              </button>
+            </div>
+          )}
           {/* Hook Strength Checker */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <div className="flex items-center gap-2">
